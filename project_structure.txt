@@ -1,0 +1,106 @@
+📱 CHEMSTOCK-MOBILE/
+
+├── 🤖 .claude/
+│   └── settings.json                    # Claude AI assistant configuration
+│
+├── 🚫 .expo/                            # Expo build cache (auto-generated, DO NOT EDIT)
+│
+├── 📦 .git/                             # Git version control metadata (auto-generated)
+│
+├── 🎨 assets/
+│   ├── 🖼️ image/
+│   │   ├── chemstock_png.png
+│   │   └── empty_box1.png
+│   │
+│   ├── 📱 android-icon-background.png   # Android adaptive icon background
+│   ├── 🤖 android-icon-foreground.png   # Android adaptive icon foreground
+│   ├── 🎨 android-icon-monochrome.png   # Android monochrome icon (Android 13+)
+│   ├── 🌐 favicon.png                   # Web browser favicon
+│   ├── 📲 icon.png                      # Main app icon for stores
+│   └── 🚀 splash-icon.png               # App launch splash screen
+│
+├── 📁 src/                              # MAIN SOURCE CODE DIRECTORY
+│   ├── 🧩 components/
+│   │   ├── 📸 camera/                   # Camera-related components (empty)
+│   │   ├── 🔧 common/
+│   │   │   ├── Button.js
+│   │   │   ├── Card.js
+│   │   │   ├── Input.js
+│   │   │   └── Modal.js
+│   │   ├── 📦 inventory/               # Inventory-specific components (empty)
+│   │   ├── 🗺️ maps/                    # Map-related components (empty)
+│   │   ├── 📱 qr/                      # QR code scanner/generator (empty)
+│   │   └── 🎯 ui/
+│   │       ├── Divider.js
+│   │       ├── LoadingSpinner.js
+│   │       └── Logo.js
+│   │
+│   ├── 📋 constants/
+│   │   ├── colors.js
+│   │   └── roles.js
+│   │
+│   ├── 🔄 contexts/                     # React Context providers (empty)
+│   │
+│   ├── 🪝 hooks/
+│   │   ├── useAuth.js
+│   │   └── useKeyboard.js
+│   │
+│   ├── 🧭 navigation/
+│   │   ├── AppNavigator.js
+│   │   └── AuthStack.js
+│   │
+│   ├── 📺 screens/
+│   │   ├── 🔐 auth/
+│   │   │   └── LoginScreen.js
+│   │   ├── 📦 collector/               # Collector role screens (empty)
+│   │   ├── 🔄 common/                  # Shared screens (empty)
+│   │   ├── 👔 manager/                 # Manager role screens (empty)
+│   │   └── 💼 salesrep/                # Sales Representative screens (empty)
+│   │
+│   ├── 🔌 services/
+│   │   ├── authService.js
+│   │   └── supabaseClient.js
+│   │
+│   ├── 🎨 styles/
+│   │   ├── globalStyles.js
+│   │   ├── spacing.js
+│   │   └── typography.js
+│   │
+│   ├── 📝 types/                        # TypeScript type definitions (empty)
+│   │
+│   └── 🛠️ utils/
+│       ├── storage.js
+│       └── validators.js
+│
+├── 🙈 .gitignore                        # Git ignore rules
+├── 📄 AGENTS.md                         # AI agent instructions
+├── 📱 App.js                            # Main app entry point
+├── ⚙️ app.json                          # Expo configuration
+├── 🤖 CLAUDE.md                         # Claude AI specific instructions
+├── 🔌 index.js                          # App registration entry point
+├── 📜 LICENSE                           # License file
+├── 📦 package-lock.json                 # Exact dependency versions (DO NOT EDIT MANUALLY)
+└── 📋 package.json                      # Project dependencies and scripts
+
+
+# ⚠️ CRITICAL - DO NOT IGNORE ⚠️
+
+## ALWAYS INCLUDE THESE FILES (NEVER DELETE):
+- src/constants/colors.js (single source for ALL colors)
+- src/styles/typography.js (single source for ALL fonts)
+- src/styles/spacing.js (single source for ALL spacing)
+- src/components/common/ (reusable components: Button, Modal, Input, Card)
+- src/hooks/ (useAuth, useKeyboard)
+
+## ALWAYS FOLLOW:
+❌ NEVER hardcode colors, fonts, or spacing
+❌ NEVER create duplicate constants
+❌ NEVER import from styles/colors.js (use constants/colors.js instead)
+✅ ALWAYS import from constants/colors.js, styles/typography.js, styles/spacing.js
+✅ ALWAYS use reusable components from components/common/
+✅ ALWAYS extract logic into custom hooks
+
+## DEPRECATED (DO NOT USE):
+- src/styles/colors.js (delete this file)
+
+--- AI MUST INCLUDE THESE PRINCIPLES IN EVERY CODE GENERATION ---
