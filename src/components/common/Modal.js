@@ -68,13 +68,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING['3xl'],
     width: '100%',
-    shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: -10,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 10,
+    // Shadows removed for clean, flat design
   },
 });

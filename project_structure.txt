@@ -1,4 +1,3 @@
-Here is your **updated project structure** with all changes and the warning preserved:
 
 ## 📁 UPDATED PROJECT STRUCTURE
 
@@ -30,38 +29,40 @@ Here is your **updated project structure** with all changes and the warning pres
 │   │   ├── 📸 camera/                     (empty)
 │   │   │
 │   │   ├── 🔧 common/
-│   │   │   ├── Button.js                  (existing)
-│   │   │   ├── Card.js                    (existing)
-│   │   │   ├── Input.js                   (existing)
-│   │   │   ├── Modal.js                   (existing)
-│   │   │   └── ⭐ AnimatedTextDot.js      🆕 NEW FILE - Reusable animation component
+│   │   │   ├── AnimatedTextDot.js         ✅ Reusable animation component
+│   │   │   ├── Button.js                  ✅ With variant support (primary/black)
+│   │   │   ├── Card.js                    ✅ Existing
+│   │   │   ├── Icon.js                    🆕 Phosphor-style icons
+│   │   │   ├── Input.js                   ✅ With ref support, reduced height
+│   │   │   ├── KeyboardWrapper.js         🆕 Keyboard avoidance wrapper
+│   │   │   └── Modal.js                   ✅ Shadow-free bottom sheet
 │   │   │
 │   │   ├── 📦 inventory/                  (empty)
 │   │   ├── 🗺️ maps/                       (empty)
 │   │   ├── 📱 qr/                         (empty)
 │   │   │
 │   │   └── 🎯 ui/
-│   │       ├── Divider.js                 (existing)
-│   │       ├── LoadingSpinner.js          (existing)
-│   │       └── Logo.js                    (existing)
+│   │       ├── Divider.js                 ✅ Existing
+│   │       ├── LoadingSpinner.js          ✅ Existing
+│   │       └── Logo.js                    ✅ Existing
 │   │
 │   ├── 📋 constants/
-│   │   ├── colors.js                      (existing - DO NOT DELETE)
-│   │   └── roles.js                       (existing)
+│   │   ├── colors.js                      ✅ Single source for ALL colors
+│   │   └── roles.js                       ✅ Existing
 │   │
 │   ├── 🔄 contexts/                       (empty)
 │   │
 │   ├── 🪝 hooks/
-│   │   ├── useAuth.js                     (existing)
-│   │   └── useKeyboard.js                 (existing)
+│   │   ├── useAuth.js                     ✅ Existing
+│   │   └── useKeyboard.js                 ✅ Tracks keyboard visibility
 │   │
 │   ├── 🧭 navigation/
-│   │   ├── AppNavigator.js                (existing)
-│   │   └── AuthStack.js                   (existing)
+│   │   ├── AppNavigator.js                ✅ Existing
+│   │   └── AuthStack.js                   ✅ Existing
 │   │
 │   ├── 📺 screens/
 │   │   ├── 🔐 auth/
-│   │   │   └── ⭐ LoginScreen.js           ✏️ UPDATED - Now uses AnimatedTextDot
+│   │   │   └── LoginScreen.js             ✅ Complete login UI with bottom sheet
 │   │   │
 │   │   ├── 📦 collector/                  (empty)
 │   │   ├── 🔄 common/                     (empty)
@@ -69,38 +70,39 @@ Here is your **updated project structure** with all changes and the warning pres
 │   │   └── 💼 salesrep/                   (empty)
 │   │
 │   ├── 🔌 services/
-│   │   ├── authService.js                 (existing)
-│   │   └── supabaseClient.js              (existing)
+│   │   ├── authService.js                 ✅ Existing
+│   │   └── supabaseClient.js              ✅ Existing
 │   │
 │   ├── 🎨 styles/
-│   │   ├── globalStyles.js                (existing)
-│   │   ├── spacing.js                     (existing)
-│   │   └── typography.js                  (existing)
+│   │   ├── globalStyles.js                ✅ Existing
+│   │   ├── spacing.js                     ✅ Single source for spacing
+│   │   └── typography.js                  ✅ Inter font configured
 │   │
 │   ├── 📝 types/                          (empty)
 │   │
 │   └── 🛠️ utils/
-│       ├── storage.js                     (existing)
-│       └── validators.js                  (existing)
+│       ├── storage.js                     ✅ Existing
+│       └── validators.js                  ✅ Existing
 │
 ├── 🙈 .gitignore
 ├── 📄 AGENTS.md
-├── 📱 App.js                              (existing - unchanged)
+├── 📱 App.js                              ✅ Inter fonts loaded
 ├── ⚙️ app.json
 ├── 🤖 CLAUDE.md
 ├── 🔌 index.js
 ├── 📜 LICENSE
 ├── 📦 package-lock.json
 └── 📋 package.json
+```
 
 # ⚠️ CRITICAL - DO NOT IGNORE ⚠️
 
 ## ALWAYS INCLUDE THESE FILES (NEVER DELETE):
-- src/constants/colors.js (single source for ALL colors)
-- src/styles/typography.js (single source for ALL fonts)
-- src/styles/spacing.js (single source for ALL spacing)
-- src/components/common/ (reusable components: Button, Modal, Input, Card)
-- src/hooks/ (useAuth, useKeyboard)
+- `src/constants/colors.js` (single source for ALL colors)
+- `src/styles/typography.js` (single source for ALL fonts)
+- `src/styles/spacing.js` (single source for ALL spacing)
+- `src/components/common/` (reusable components: Button, Modal, Input, Card, Icon, AnimatedTextDot, KeyboardWrapper)
+- `src/hooks/` (useAuth, useKeyboard)
 
 ## ALWAYS FOLLOW:
 ❌ NEVER hardcode colors, fonts, or spacing
@@ -109,38 +111,58 @@ Here is your **updated project structure** with all changes and the warning pres
 ✅ ALWAYS import from constants/colors.js, styles/typography.js, styles/spacing.js
 ✅ ALWAYS use reusable components from components/common/
 ✅ ALWAYS extract logic into custom hooks
+✅ ALWAYS use the Icon component for all custom icons
 
 ## DEPRECATED (DO NOT USE):
-- src/styles/colors.js (delete this file)
+- `src/styles/colors.js` (delete this file if exists)
 
---- AI MUST INCLUDE THESE PRINCIPLES IN EVERY CODE GENERATION ---
-```
+## 🆕 AVAILABLE COMPONENTS:
 
-## 📝 SUMMARY OF CHANGES
+| Component | Location | Usage |
+|-----------|----------|-------|
+| `Icon` | `components/common/Icon.js` | `<Icon name="warningTriangle" size={20} color="#FF0000" />` |
+| `KeyboardWrapper` | `components/common/KeyboardWrapper.js` | Wrap screens to handle keyboard dismissal |
+| `AnimatedTextDot` | `components/common/AnimatedTextDot.js` | Animated text cycling component |
+| `Button` | `components/common/Button.js` | Supports 'primary' and 'black' variants |
+| `Input` | `components/common/Input.js` | With icon support and ref forwarding |
 
-### 🆕 NEW FILE ADDED:
+## 🎨 AVAILABLE ICONS:
+- `warningTriangle` - Danger/warning alert icon
+- `user` - Username/account icon
+- `lock` - Password/security icon
+- `eye` - Show password icon
+- `eyeSlash` - Hide password icon
 
+## 📝 SUMMARY OF FILES:
+
+### 🆕 NEW FILES ADDED:
 | File | Description |
 |------|-------------|
-| `src/components/common/AnimatedTextDot.js` | Reusable animated text + dot component |
+| `src/components/common/Icon.js` | Reusable Phosphor-style icon component |
+| `src/components/common/KeyboardWrapper.js` | Keyboard avoidance wrapper component |
 
-### ✏️ FILE MODIFIED:
-
+### ✏️ MODIFIED FILES:
 | File | Changes |
 |------|---------|
-| `src/screens/auth/LoginScreen.js` | Simplified to use the reusable `AnimatedTextDot` component |
-
-### ❌ FILES NOT CREATED:
-
-- ~~`src/hooks/useTypingAnimation.js`~~ - NOT added (not needed)
+| `App.js` | Added Inter font loading |
+| `app.json` | Configuration updates |
+| `package.json` | Dependencies updated |
+| `src/components/common/Button.js` | Added variant support (primary/black) |
+| `src/components/common/Input.js` | Added ref support, reduced height |
+| `src/components/common/Modal.js` | Shadow removal |
+| `src/hooks/useKeyboard.js` | Keyboard tracking |
+| `src/screens/auth/LoginScreen.js` | Complete login UI with bottom sheet |
 
 ## ✅ VERIFICATION
 
 The updated structure follows all your project rules:
-- ✅ Reusable component in `src/components/common/`
+- ✅ Reusable components in `src/components/common/`
 - ✅ Uses `src/constants/colors.js`
 - ✅ Uses `src/styles/typography.js`
 - ✅ Uses `src/styles/spacing.js`
 - ✅ No hardcoded colors, fonts, or spacing
-- ✅ Only 1 new file created
-- ✅ Only 1 existing file modified
+- ✅ Inter font properly configured
+- ✅ Keyboard handling implemented
+- ✅ Icon system in place
+
+--- AI MUST INCLUDE THESE PRINCIPLES IN EVERY CODE GENERATION ---

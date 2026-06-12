@@ -17,16 +17,28 @@ export default function Button({
   onPress,
   loading = false,
   disabled = false,
-  width = screenWidth - 40, // Responsive: full width minus 40px padding
-  height = 56,               // Adjusted for compact frame
-  backgroundColor = COLORS.primary,
-  textColor = COLORS.textWhite,
+  width = screenWidth - 40,
+  height = 56,
+  variant = 'primary', // 'primary' (blue) or 'black'
   fontSize = 18,
-  fontFamily = TYPOGRAPHY.fontFamily.medium,
-  borderRadius = 0,
+  fontFamily = TYPOGRAPHY.fontFamily?.medium || 'System',
+  borderRadius = 12,
   style,
   textStyle,
+  hasShadow = true,
 }) {
+  // Get colors based on variant
+  const getBackgroundColor = () => {
+    if (disabled) return COLORS.primaryLight;
+    if (variant === 'black') return '#000000';
+    return COLORS.primary; // '#03045E'
+  };
+
+  const getTextColor = () => {
+    if (variant === 'black') return '#FFFFFF';
+    return COLORS.textWhite;
+  };
+
   return (
     <TouchableOpacity
       style={[
@@ -34,9 +46,10 @@ export default function Button({
         {
           width: width,
           height: height,
-          backgroundColor: disabled ? COLORS.primaryLight : backgroundColor,
+          backgroundColor: getBackgroundColor(),
           borderRadius: borderRadius,
         },
+        hasShadow && styles.shadow,
         style,
       ]}
       onPress={onPress}
@@ -44,7 +57,7 @@ export default function Button({
       activeOpacity={0.8}
     >
       {loading ? (
-        <ActivityIndicator color={textColor} size="small" />
+        <ActivityIndicator color={getTextColor()} size="small" />
       ) : (
         <Text
           style={[
@@ -52,7 +65,7 @@ export default function Button({
             {
               fontSize: fontSize,
               fontFamily: fontFamily,
-              color: textColor,
+              color: getTextColor(),
             },
             textStyle,
           ]}
@@ -70,6 +83,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   text: {
-    fontWeight: '500', // Medium weight
+    fontWeight: '600',
+  },
+  shadow: {
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
