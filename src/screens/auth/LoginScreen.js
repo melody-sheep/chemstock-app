@@ -1,17 +1,4 @@
 // src/screens/auth/LoginScreen.js
-/**
- * Login Screen Component
- * 
- * Handles user authentication with username/password.
- * Features:
- * - Animated greeting text with color cycling
- * - Static bottom sheet with login form
- * - Username and password inputs with icon support
- * - Keyboard dismiss on outside tap
- * - Accessibility support
- * 
- * @module screens/auth/LoginScreen
- */
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -23,7 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import AnimatedTextDot from '../../components/common/AnimatedTextDot';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -34,7 +21,6 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Animation data for the animated text component
 const ANIMATION_DATA = [
   { text: 'Welcome Back', bgColor: '#F72E75' },
   { text: 'Good to See You', bgColor: '#FF7800' },
@@ -45,61 +31,43 @@ const ANIMATION_DATA = [
 ];
 
 export default function LoginScreen() {
-  // State management
+  const navigation = useNavigation();
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const passwordInputRef = useRef(null);
 
-  /**
-   * Handles login button press
-   * Validates credentials and authenticates user
-   */
   const handleLogin = () => {
-    try {
-      // TODO: Implement actual authentication logic
-      console.log('Login attempt:', { username, password: '***' });
-      Keyboard.dismiss();
-    } catch (error) {
-      console.error('Login error:', error);
-    }
+    console.log('Login attempt:', { username });
+    Keyboard.dismiss();
   };
 
-  /**
-   * Moves focus from username to password field
-   * Called when user presses "Next" on username keyboard
-   */
+  const handleManagerActivation = () => {
+    console.log('Navigating to Manager Activation...');
+    navigation.navigate('ManagerActivation');
+  };
+
   const handleUsernameSubmit = () => {
-    try {
-      if (passwordInputRef.current) {
-        passwordInputRef.current.focus();
-      }
-    } catch (error) {
-      console.error('Error focusing password field:', error);
+    if (passwordInputRef.current) {
+      passwordInputRef.current.focus();
     }
   };
 
-  /**
-   * Handles password field submission
-   * Called when user presses "Done" on password keyboard
-   */
   const handlePasswordSubmit = () => {
-    try {
-      Keyboard.dismiss();
-      handleLogin();
-    } catch (error) {
-      console.error('Error submitting password:', error);
-    }
+    Keyboard.dismiss();
+    handleLogin();
   };
 
-  const bottomSheetPadding = SPACING.lg * 2;
-  const buttonWidth = screenWidth - bottomSheetPadding;
+  // Calculate width that matches input fields
+  // Input fields have paddingHorizontal: SPACING.lg (24) on left and right
+  // So button width = screenWidth - (SPACING.lg * 2)
+  const buttonWidth = screenWidth - (SPACING.lg * 2);
 
   return (
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
-          {/* Animated greeting section */}
           <AnimatedTextDot
             data={ANIMATION_DATA}
             loop={true}
@@ -108,9 +76,7 @@ export default function LoginScreen() {
             dotSize={32}
           />
 
-          {/* Login form bottom sheet */}
           <View style={styles.bottomSheet}>
-            {/* Username Field with top margin */}
             <View style={styles.usernameWrapper}>
               <Input
                 icon="user"
@@ -123,7 +89,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Password Field */}
             <Input
               inputRef={passwordInputRef}
               icon="lock"
@@ -135,7 +100,6 @@ export default function LoginScreen() {
               onSubmitEditing={handlePasswordSubmit}
             />
 
-            {/* Login Button */}
             <Button
               title="Login"
               onPress={handleLogin}
@@ -143,20 +107,16 @@ export default function LoginScreen() {
               width={buttonWidth}
               height={50}
               fontSize={16}
-              fontFamily="600"
               borderRadius={12}
               hasShadow={true}
               style={styles.loginButton}
             />
 
-            {/* Forgot Password & Online Status Row */}
             <View style={styles.rowContainer}>
               <TouchableOpacity
                 style={styles.forgotPasswordContainer}
                 onPress={() => console.log('Forgot Password pressed')}
                 activeOpacity={0.7}
-                accessibilityLabel="Forgot password"
-                accessibilityRole="button"
               >
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -167,21 +127,17 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Security Notice Alert */}
-            <View style={styles.alertRow} pointerEvents="none" accessibilityRole="text">
+            <View style={styles.alertRow} pointerEvents="none">
               <Icon name="warningTriangle" size={14} color="#FF0000" />
               <Text style={styles.alertText}>
                 Access is restricted to authorized personnel only.
               </Text>
             </View>
 
-            {/* Manager Activation Link */}
             <TouchableOpacity
               style={styles.managerActivationContainer}
-              onPress={() => console.log('Manager Activation pressed')}
+              onPress={handleManagerActivation}
               activeOpacity={0.7}
-              accessibilityLabel="Manager activation"
-              accessibilityRole="button"
             >
               <Text style={styles.managerActivationText}>Manager Activation</Text>
             </TouchableOpacity>

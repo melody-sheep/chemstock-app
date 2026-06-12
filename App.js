@@ -1,25 +1,14 @@
 ﻿// App.js
-import { useFonts } from 'expo-font';
-import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { StatusBar } from 'expo-status-bar';
+import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import LoginScreen from './src/screens/auth/LoginScreen';
+import { StatusBar } from 'expo-status-bar';
+import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
-    Inter: Inter_400Regular,
-    'Inter-SemiBold': Inter_600SemiBold,
-    'Inter-Bold': Inter_700Bold,
-  });
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
-      <LoginScreen />
+      <StatusBar style="auto" />
+      <AppNavigator />
     </SafeAreaProvider>
   );
 }

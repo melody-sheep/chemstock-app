@@ -9,4 +9,5 @@ export const SPACING = {
   '3xl': 48,
   '4xl': 56,
   '5xl': 64,
+  screenHorizontal: 16,  // Default screen margin
 };
