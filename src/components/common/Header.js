@@ -28,7 +28,7 @@ export default function Header({
   backButtonText = 'Back',
   showOnlineStatus = false,
   title = null,
-  height = 64,
+  height = 56, // Reduced from 64 to 56
   backgroundColor = '#03045E',
   textColor = '#FFFFFF',
   onBackPress = null,
@@ -66,7 +66,7 @@ export default function Header({
             onPress={handleBackPress}
             activeOpacity={0.7}
           >
-            <ArrowLeftBold size={24} color={textColor} />
+            <ArrowLeftBold size={20} color={textColor} /> {/* Reduced from 24 to 20 */}
             <Text style={[styles.backText, { color: textColor }]}>
               {backButtonText}
             </Text>
@@ -114,7 +114,7 @@ Header.defaultProps = {
   backButtonText: 'Back',
   showOnlineStatus: false,
   title: null,
-  height: 64,
+  height: 56,
   backgroundColor: '#03045E',
   textColor: '#FFFFFF',
   onBackPress: null,
@@ -125,23 +125,31 @@ const styles = StyleSheet.create({
     width: screenWidth,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: SPACING.md,
+    justifyContent: 'space-between',
+    paddingTop: 0,
   },
   leftSection: {
-    flexShrink: 1,  // Allows shrinking but doesn't force width
+    flexShrink: 1,
     alignItems: 'flex-start',
+    justifyContent: 'center',
+    height: '100%',
   },
   centerSection: {
-    flex: 1,  // Takes remaining space
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
   },
   rightSection: {
-    flexShrink: 0,  // Don't shrink
+    flexShrink: 0,
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    height: '100%',
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: SPACING.xs,
     paddingRight: SPACING.sm,
   },
@@ -160,6 +168,7 @@ const styles = StyleSheet.create({
   onlineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: SPACING.xs,
     paddingLeft: SPACING.sm,
   },

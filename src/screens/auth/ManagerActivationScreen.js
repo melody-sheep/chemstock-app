@@ -13,9 +13,9 @@ export default function ManagerActivationScreen() {
       <SafeAreaView style={styles.container}>
         <Header
           showBackButton={true}
-          backButtonText="Back to Sign-in"
+          backButtonText="Back to Login"  // ← CHANGE THIS LINE
           showOnlineStatus={true}
-          height={64}
+          height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
