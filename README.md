@@ -1,4 +1,3 @@
-Perfect! Here's the **complete updated documentation** including all the new components and features:
 
 ```markdown
 # 🧪 ChemStock Mobile App
@@ -13,7 +12,8 @@ ChemStock is a mobile inventory management system for chemical supply chain and 
 
 ### ✅ Completed Features
 - **Login Screen UI** - Complete with static bottom sheet design
-- **Manager Activation Screen** - Header with back button and online status
+- **Manager Activation Screen** - Header with back button, online status, and compact card design
+- **Reusable Card Component** - Secondary frame with border, custom background, and auto-height
 - **AnimatedTextDot Component** - Typing animation with color cycling
 - **Smooth Color Cycling** - Transitions through 6 greeting phrases
 - **Dynamic Typing Speed** - Speed adjusts based on text length
@@ -22,7 +22,7 @@ ChemStock is a mobile inventory management system for chemical supply chain and 
 - **Reusable Button Component** - Primary (blue) and Black variants with shadow, PropTypes, JSDoc
 - **Reusable Header Component** - Primary header with back button, online status, title support
 - **ScreenContainer Component** - Wraps screens with consistent 16px margins
-- **Icon System** - Centralized Phosphor-style SVG icons with PropTypes and validation (6 icons)
+- **Icon System** - Centralized Phosphor-style SVG icons with PropTypes and validation (7 icons)
 - **Keyboard Handling** - Keyboard dismissal on tap outside
 - **Inter Font Integration** - Google Fonts Inter loaded via expo-font
 - **Status Bar Configuration** - Visible with white icons on animated backgrounds
@@ -60,7 +60,7 @@ ChemStock is a mobile inventory management system for chemical supply chain and 
 
 ## 📁 Project Structure
 Follows strict software engineering principles:
-- Reusable components in `src/components/common/` (Button, Input, Modal, Icon, AnimatedTextDot, KeyboardWrapper, Header, ScreenContainer)
+- Reusable components in `src/components/common/` (Button, Input, Modal, Icon, Card, AnimatedTextDot, KeyboardWrapper, Header, ScreenContainer)
 - Single source of truth in `src/constants/` (colors.js)
 - Centralized styles in `src/styles/` (typography.js, spacing.js)
 - No hardcoded values - uses centralized constants
@@ -77,16 +77,17 @@ Follows strict software engineering principles:
 
 ## 🎨 UI Components Library
 
-| Component | Location | Props | Documentation |
-|-----------|----------|-------|---------------|
-| `Button` | `components/common/Button.js` | `variant` ('primary'/'black'), `height`, `hasShadow`, `width`, `loading` | PropTypes + JSDoc |
-| `Input` | `components/common/Input.js` | `icon` ('user'/'lock'), `inputRef`, `onSubmitEditing`, `error`, `secureTextEntry` | PropTypes + JSDoc |
-| `Icon` | `components/common/Icon.js` | `name`, `size`, `color` | PropTypes + JSDoc |
-| `Header` | `components/common/Header.js` | `showBackButton`, `backButtonText`, `showOnlineStatus`, `title`, `height`, `backgroundColor`, `textColor` | PropTypes + JSDoc |
-| `ScreenContainer` | `components/common/ScreenContainer.js` | `scrollable`, `horizontalPadding`, `verticalPadding`, `backgroundColor` | PropTypes + JSDoc |
-| `AnimatedTextDot` | `components/common/AnimatedTextDot.js` | `data`, `loop`, `yOffset`, `textSize`, `dotSize` | JSDoc |
-| `KeyboardWrapper` | `components/common/KeyboardWrapper.js` | `children` | JSDoc |
-| `Modal` | `components/common/Modal.js` | `visible`, `onClose`, `height`, `backgroundColor` | Basic |
+| Component | Location | Status | Features |
+|-----------|----------|--------|----------|
+| `Button` | `components/common/Button.js` | ✅ Complete | `variant` ('primary'/'black'), `height`, `hasShadow`, `width`, `loading` |
+| `Input` | `components/common/Input.js` | ✅ Complete | `icon` ('user'/'lock'), `inputRef`, `onSubmitEditing`, `error`, `secureTextEntry` |
+| `Icon` | `components/common/Icon.js` | ✅ Complete | `name`, `size`, `color` - 7 icons available |
+| `Header` | `components/common/Header.js` | ✅ Complete | `showBackButton`, `backButtonText`, `showOnlineStatus`, `title`, `height` |
+| `Card` | `components/common/Card.js` | 🆕 Complete | `backgroundColor`, `borderColor`, `borderWidth`, `marginTop`, `paddingVertical` |
+| `ScreenContainer` | `components/common/ScreenContainer.js` | ✅ Complete | `scrollable`, `horizontalPadding`, `verticalPadding`, `backgroundColor` |
+| `AnimatedTextDot` | `components/common/AnimatedTextDot.js` | ✅ Complete | `data`, `loop`, `yOffset`, `textSize`, `dotSize` |
+| `KeyboardWrapper` | `components/common/KeyboardWrapper.js` | ✅ Complete | `children` |
+| `Modal` | `components/common/Modal.js` | ✅ Complete | `visible`, `onClose`, `height`, `backgroundColor` |
 
 ## 🎨 Available Icons
 
@@ -97,7 +98,8 @@ Follows strict software engineering principles:
 | `lock` | Password/security | `<Icon name="lock" size={20} color="#757575" />` |
 | `eye` | Show password | `<Icon name="eye" size={20} color="#757575" />` |
 | `eyeSlash` | Hide password | `<Icon name="eyeSlash" size={20} color="#757575" />` |
-| `arrowLeft` | 🆕 Back navigation (bold/thick) | `<Icon name="arrowLeft" size={24} color="#FFFFFF" />` |
+| `arrowLeft` | Back navigation (bold/thick) | `<Icon name="arrowLeft" size={24} color="#FFFFFF" />` |
+| `key` | 🆕 Key/activation icon | `<Icon name="key" size={24} color="#272632" />` |
 
 ## 📱 Screens
 
@@ -114,13 +116,18 @@ Follows strict software engineering principles:
 - Proper status bar visibility (white icons)
 
 ### Manager Activation Screen
-- Reusable Header component with:
+- **Header Component:**
   - Bold arrow back icon
-  - "Back to Sign-in" text (bold, one line)
+  - "Back to Login" text (bold, one line)
   - Online status indicator (green dot + "Online" text)
-- Dark blue header background (#03045E)
-- White text and icons
-- Empty content area (ready for future implementation)
+  - Dark blue background (#03045E), 56px height
+- **Card Component (Secondary Frame):**
+  - Background: #F7FEFF
+  - Border: 0.5px solid #4CF294
+  - Compact padding (12px vertical)
+  - Title: "Manager Account Setup" (18px, bold, #272632)
+  - Subtitle: "Enter the activation key from the developer to register your branch." (12px, 2 lines, #555353)
+  - Key icon (24px, #272632) aligned with title
 
 ## 🔧 Installation & Setup
 
@@ -208,7 +215,7 @@ Stack Navigator
 // With online status
 <Header 
   showBackButton={true} 
-  backButtonText="Back to Sign-in"
+  backButtonText="Back to Login"
   showOnlineStatus={true}
 />
 
@@ -217,14 +224,29 @@ Stack Navigator
   title="Inventory" 
   showBackButton={true}
 />
+```
 
-// Custom colors and height
-<Header 
-  showBackButton={true}
-  backgroundColor="#FF7800"
-  textColor="#FFFFFF"
-  height={70}
-/>
+### Card Component
+```jsx
+// Basic card with default styling
+<Card>
+  <Text>Content here</Text>
+</Card>
+
+// Compact card with no margins
+<Card marginTop={0} marginHorizontal={0} paddingVertical={SPACING.md}>
+  <Text>Compact content</Text>
+</Card>
+
+// Custom card
+<Card 
+  backgroundColor="#FFFFFF"
+  borderColor="#4CF294"
+  borderRadius={16}
+  hasShadow={true}
+>
+  <Text>Custom card</Text>
+</Card>
 ```
 
 ### ScreenContainer Component
@@ -238,11 +260,6 @@ Stack Navigator
 <ScreenContainer scrollable={true}>
   <Text>Long content that scrolls</Text>
 </ScreenContainer>
-
-// Custom padding
-<ScreenContainer horizontalPadding={24} verticalPadding={16}>
-  <Text>Custom margins</Text>
-</ScreenContainer>
 ```
 
 ## 🎯 Current File Structure Status
@@ -251,23 +268,23 @@ Stack Navigator
 src/components/common/
 ├── AnimatedTextDot.js     ✅
 ├── Button.js              ✅
-├── Card.js                ✅
-├── Header.js              🆕
-├── Icon.js                ✅ (updated with arrowLeft)
+├── Card.js                🆕
+├── Header.js              ✅
+├── Icon.js                ✅ (updated with arrowLeft + key)
 ├── Input.js               ✅
 ├── KeyboardWrapper.js     ✅
 ├── Modal.js               ✅
-└── ScreenContainer.js     🆕
+└── ScreenContainer.js     ✅
 
 src/screens/auth/
-├── LoginScreen.js         ✅ (updated with navigation)
-└── ManagerActivationScreen.js  🆕
+├── LoginScreen.js         ✅
+└── ManagerActivationScreen.js  ✅ (updated with Card + Key icon)
 
 src/navigation/
-└── AppNavigator.js        ✅ (updated with ManagerActivation)
+└── AppNavigator.js        ✅
 
 src/styles/
-└── spacing.js             ✅ (updated with screenHorizontal)
+└── spacing.js             ✅
 ```
 
 ## 👥 Team
