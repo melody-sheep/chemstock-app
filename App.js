@@ -1,6 +1,8 @@
-﻿import { useFonts } from 'expo-font';
+﻿// App.js
+import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LoginScreen from './src/screens/auth/LoginScreen';
 
 export default function App() {
@@ -15,9 +17,9 @@ export default function App() {
   }
 
   return (
-    <>
-      <StatusBar style="auto" />
+    <SafeAreaProvider>
+      <StatusBar style="light" translucent backgroundColor="transparent" />
       <LoginScreen />
-    </>
+    </SafeAreaProvider>
   );
 }

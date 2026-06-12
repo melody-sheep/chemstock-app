@@ -1,7 +1,10 @@
 // src/components/common/Icon.js
 import React from 'react';
+import { View, Text } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import PropTypes from 'prop-types';
 
+// Icon definitions
 export const ICONS = {
   warningTriangle: {
     svg: 'M235.07,189.09,147.61,37.22h0a22.75,22.75,0,0,0-39.22,0L20.93,189.09a21.53,21.53,0,0,0,0,21.72A22.35,22.35,0,0,0,40.55,222h174.9a22.35,22.35,0,0,0,19.6-11.19A21.53,21.53,0,0,0,235.07,189.09ZM224.66,204.8a10.46,10.46,0,0,1-9.21,5.2H40.55a10.46,10.46,0,0,1-9.21-5.2,9.51,9.51,0,0,1,0-9.72L118.79,43.21a10.75,10.75,0,0,1,18.42,0l87.46,151.87A9.51,9.51,0,0,1,224.66,204.8ZM122,144V104a6,6,0,0,1,12,0v40a6,6,0,0,1-12,0Zm16,36a10,10,0,1,1-10-10A10,10,0,0,1,138,180Z',
@@ -20,16 +23,48 @@ export const ICONS = {
   },
 };
 
+// List of available icon names for validation
+const ICON_NAMES = ['warningTriangle', 'user', 'lock', 'eye', 'eyeSlash'];
+
+/**
+ * Reusable Icon Component
+ * Renders SVG icons from predefined ICONS object
+ * 
+ * @param {Object} props - Component props
+ * @param {string} props.name - Icon name (must exist in ICONS)
+ * @param {number} props.size - Icon size in pixels (default: 20)
+ * @param {string} props.color - Icon color (default: '#757575')
+ */
 export default function Icon({ name, size = 20, color = '#757575' }) {
-  const iconData = ICONS[name];
-  
-  if (!iconData) {
+  try {
+    // Validate icon exists
+    if (!name || !ICONS[name]) {
+      console.warn(`Icon "${name}" not found. Available icons: ${ICON_NAMES.join(', ')}`);
+      return null;
+    }
+
+    const iconData = ICONS[name];
+    
+    return (
+      <Svg width={size} height={size} viewBox="0 0 256 256" fill={color}>
+        <Path d={iconData.svg} />
+      </Svg>
+    );
+  } catch (error) {
+    console.error('Error rendering icon:', error, { name, size, color });
     return null;
   }
-
-  return (
-    <Svg width={size} height={size} viewBox="0 0 256 256" fill={color}>
-      <Path d={iconData.svg} />
-    </Svg>
-  );
 }
+
+// PropTypes for type checking
+Icon.propTypes = {
+  name: PropTypes.oneOf(ICON_NAMES).isRequired,
+  size: PropTypes.number,
+  color: PropTypes.string,
+};
+
+// Default props
+Icon.defaultProps = {
+  size: 20,
+  color: '#757575',
+};

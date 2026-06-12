@@ -1,6 +1,29 @@
 // src/screens/auth/LoginScreen.js
+/**
+ * Login Screen Component
+ * 
+ * Handles user authentication with username/password.
+ * Features:
+ * - Animated greeting text with color cycling
+ * - Static bottom sheet with login form
+ * - Username and password inputs with icon support
+ * - Keyboard dismiss on outside tap
+ * - Accessibility support
+ * 
+ * @module screens/auth/LoginScreen
+ */
 import React, { useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, TouchableWithoutFeedback, Keyboard, Text, TouchableOpacity } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AnimatedTextDot from '../../components/common/AnimatedTextDot';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
@@ -10,6 +33,8 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Animation data for the animated text component
 const ANIMATION_DATA = [
   { text: 'Welcome Back', bgColor: '#F72E75' },
   { text: 'Good to See You', bgColor: '#FF7800' },
@@ -20,134 +45,150 @@ const ANIMATION_DATA = [
 ];
 
 export default function LoginScreen() {
+  // State management
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
   const passwordInputRef = useRef(null);
 
+  /**
+   * Handles login button press
+   * Validates credentials and authenticates user
+   */
   const handleLogin = () => {
-    console.log('Login:', { username, password, rememberMe });
-    Keyboard.dismiss();
-  };
-
-  const handleUsernameSubmit = () => {
-    if (passwordInputRef.current) {
-      passwordInputRef.current.focus();
+    try {
+      // TODO: Implement actual authentication logic
+      console.log('Login attempt:', { username, password: '***' });
+      Keyboard.dismiss();
+    } catch (error) {
+      console.error('Login error:', error);
     }
   };
 
+  /**
+   * Moves focus from username to password field
+   * Called when user presses "Next" on username keyboard
+   */
+  const handleUsernameSubmit = () => {
+    try {
+      if (passwordInputRef.current) {
+        passwordInputRef.current.focus();
+      }
+    } catch (error) {
+      console.error('Error focusing password field:', error);
+    }
+  };
+
+  /**
+   * Handles password field submission
+   * Called when user presses "Done" on password keyboard
+   */
   const handlePasswordSubmit = () => {
-    Keyboard.dismiss();
-    handleLogin();
+    try {
+      Keyboard.dismiss();
+      handleLogin();
+    } catch (error) {
+      console.error('Error submitting password:', error);
+    }
   };
 
   const bottomSheetPadding = SPACING.lg * 2;
   const buttonWidth = screenWidth - bottomSheetPadding;
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.container}>
-        <AnimatedTextDot
-          data={ANIMATION_DATA}
-          loop={true}
-          yOffset={-300}
-          textSize={32}
-          dotSize={32}
-        />
-
-        <View style={styles.bottomSheet}>
-          {/* Top margin for input fields - good UX spacing */}
-          <View style={styles.topSpacer} />
-
-          {/* Username Field */}
-          <Input
-            icon="user"
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            returnKeyType="next"
-            onSubmitEditing={handleUsernameSubmit}
+    <>
+      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.container}>
+          {/* Animated greeting section */}
+          <AnimatedTextDot
+            data={ANIMATION_DATA}
+            loop={true}
+            yOffset={-300}
+            textSize={32}
+            dotSize={32}
           />
 
-          {/* Password Field - minimal gap */}
-          <Input
-            inputRef={passwordInputRef}
-            icon="lock"
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={true}
-            returnKeyType="done"
-            onSubmitEditing={handlePasswordSubmit}
-          />
-
-          {/* Remember Me - good touch target size */}
-          <TouchableOpacity 
-            style={styles.rememberMeRow} 
-            onPress={() => setRememberMe(!rememberMe)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-              {rememberMe && <View style={styles.checkboxInner} />}
+          {/* Login form bottom sheet */}
+          <View style={styles.bottomSheet}>
+            {/* Username Field with top margin */}
+            <View style={styles.usernameWrapper}>
+              <Input
+                icon="user"
+                placeholder="Username"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                returnKeyType="next"
+                onSubmitEditing={handleUsernameSubmit}
+              />
             </View>
-            <Text style={styles.rememberMeText}>Remember Me</Text>
-          </TouchableOpacity>
 
-          {/* Login Button */}
-          <Button
-            title="Login"
-            onPress={handleLogin}
-            variant="black"
-            width={buttonWidth}
-            height={50}
-            fontSize={16}
-            fontFamily="600"
-            borderRadius={12}
-            hasShadow={true}
-          />
+            {/* Password Field */}
+            <Input
+              inputRef={passwordInputRef}
+              icon="lock"
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={true}
+              returnKeyType="done"
+              onSubmitEditing={handlePasswordSubmit}
+            />
 
-          {/* Forgot Password & Online Row */}
-          <View style={styles.rowContainer}>
-            <TouchableOpacity 
-              style={styles.forgotPasswordContainer}
-              onPress={() => console.log('Forgot Password')}
+            {/* Login Button */}
+            <Button
+              title="Login"
+              onPress={handleLogin}
+              variant="black"
+              width={buttonWidth}
+              height={50}
+              fontSize={16}
+              fontFamily="600"
+              borderRadius={12}
+              hasShadow={true}
+              style={styles.loginButton}
+            />
+
+            {/* Forgot Password & Online Status Row */}
+            <View style={styles.rowContainer}>
+              <TouchableOpacity
+                style={styles.forgotPasswordContainer}
+                onPress={() => console.log('Forgot Password pressed')}
+                activeOpacity={0.7}
+                accessibilityLabel="Forgot password"
+                accessibilityRole="button"
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+
+              <View style={styles.onlineContainer}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>Online</Text>
+              </View>
+            </View>
+
+            {/* Security Notice Alert */}
+            <View style={styles.alertRow} pointerEvents="none" accessibilityRole="text">
+              <Icon name="warningTriangle" size={14} color="#FF0000" />
+              <Text style={styles.alertText}>
+                Access is restricted to authorized personnel only.
+              </Text>
+            </View>
+
+            {/* Manager Activation Link */}
+            <TouchableOpacity
+              style={styles.managerActivationContainer}
+              onPress={() => console.log('Manager Activation pressed')}
               activeOpacity={0.7}
+              accessibilityLabel="Manager activation"
+              accessibilityRole="button"
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.managerActivationText}>Manager Activation</Text>
             </TouchableOpacity>
-
-            <View style={styles.onlineContainer}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
           </View>
-
-          {/* Spacer before alert - prevents accidental touches */}
-          <View style={styles.separator} />
-
-          {/* Alert text with icon - non-interactive */}
-          <View style={styles.alertRow} pointerEvents="none">
-            <Icon name="warningTriangle" size={14} color="#FF0000" />
-            <Text style={styles.alertText}>
-              Access is restricted to authorized personnel only.
-            </Text>
-          </View>
-
-          {/* Manager Activation */}
-          <TouchableOpacity 
-            style={styles.managerActivationContainer}
-            onPress={() => console.log('Manager Activation')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.managerActivationText}>Manager Activation</Text>
-          </TouchableOpacity>
-
-          {/* Bottom safe area spacer */}
-          <View style={styles.bottomSpacer} />
         </View>
-      </View>
-    </TouchableWithoutFeedback>
+      </TouchableWithoutFeedback>
+    </>
   );
 }
 
@@ -166,7 +207,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     paddingTop: 0,
     paddingHorizontal: SPACING.lg,
-    paddingBottom: 0,
+    paddingBottom: SPACING.md,
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
@@ -176,50 +217,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 10,
   },
-  topSpacer: {
-    height: SPACING.lg, // 24px top margin for good UX
+  usernameWrapper: {
+    marginTop: SPACING.lg,
   },
-  rememberMeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: SPACING.sm, // 8px
-    marginBottom: SPACING.md, // 16px
-    paddingVertical: SPACING.xs, // 4px - increases touch target
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 1.5,
-    borderColor: '#757575',
-    borderRadius: 4,
-    marginRight: SPACING.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
-  },
-  checkboxInner: {
-    width: 12,
-    height: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 2,
-  },
-  rememberMeText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: '#757575',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  loginButton: {
+    marginTop: 8,
+    marginBottom: SPACING.sm,
   },
   rowContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.md, // 16px
-    marginBottom: SPACING.sm, // 8px
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   forgotPasswordContainer: {
-    paddingVertical: SPACING.xs, // 4px - increases touch target
+    paddingVertical: SPACING.xs,
     paddingRight: SPACING.sm,
   },
   forgotPasswordText: {
@@ -246,13 +259,11 @@ const styles = StyleSheet.create({
     color: '#757575',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
-  separator: {
-    height: SPACING.md, // 16px - prevents accidental touches on alert
-  },
   alertRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: SPACING.sm,
     marginBottom: SPACING.xs,
   },
   alertText: {
@@ -264,7 +275,7 @@ const styles = StyleSheet.create({
   },
   managerActivationContainer: {
     alignItems: 'center',
-    paddingVertical: SPACING.sm, // 8px - increases touch target
+    paddingVertical: SPACING.sm,
     marginTop: SPACING.xs,
   },
   managerActivationText: {
@@ -272,8 +283,5 @@ const styles = StyleSheet.create({
     color: '#FF0000',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     textDecorationLine: 'underline',
-  },
-  bottomSpacer: {
-    height: SPACING.md, // 16px bottom safe area
   },
 });
