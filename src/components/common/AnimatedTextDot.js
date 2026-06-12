@@ -33,6 +33,17 @@ export default function AnimatedTextDot({
     fadeAnim.setValue(1);
     
     const textLength = currentItem.text.length;
+    
+    // If text is empty, skip typing animation
+    if (textLength === 0) {
+      const nextIndex = (currentIndex + 1) % data.length;
+      setTimeout(() => {
+        if (nextIndex === 0 && !loop) return;
+        setCurrentIndex(nextIndex);
+      }, 500);
+      return;
+    }
+    
     const typingSpeed = getTypingSpeed(textLength);
     
     const forwardInterval = setInterval(() => {
@@ -83,7 +94,9 @@ export default function AnimatedTextDot({
   };
   
   useEffect(() => {
-    if (data.length > 0) typeText();
+    if (data.length > 0 && currentItem.text) {
+      typeText();
+    }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -100,24 +113,22 @@ export default function AnimatedTextDot({
     <Animated.View style={[styles.container, { backgroundColor: bgColor }]}>
       <View style={[styles.centerContainer, { marginTop: yOffset }]}>
         <View style={styles.row}>
-          <Animated.Text 
+          <Text 
             style={[
               styles.text,
               { 
-                opacity: fadeAnim,
                 color: COLORS.textWhite,
                 fontFamily: TYPOGRAPHY.fontFamily?.bold,
                 fontSize: textSize,
               }
             ]}
           >
-            {displayText}
-          </Animated.Text>
-          <Animated.View 
+            {displayText || ''}
+          </Text>
+          <View 
             style={[
               styles.dot,
               { 
-                opacity: fadeAnim,
                 backgroundColor: COLORS.textWhite,
                 width: dotSize,
                 height: dotSize,

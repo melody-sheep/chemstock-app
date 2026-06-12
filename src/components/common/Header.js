@@ -28,7 +28,7 @@ export default function Header({
   backButtonText = 'Back',
   showOnlineStatus = false,
   title = null,
-  height = 56, // Reduced from 64 to 56
+  height = 56,
   backgroundColor = '#03045E',
   textColor = '#FFFFFF',
   onBackPress = null,
@@ -58,7 +58,7 @@ export default function Header({
         },
       ]}
     >
-      {/* Left Section - Auto width to fit content */}
+      {/* Left Section */}
       <View style={styles.leftSection}>
         {showBackButton && (
           <TouchableOpacity
@@ -66,7 +66,7 @@ export default function Header({
             onPress={handleBackPress}
             activeOpacity={0.7}
           >
-            <ArrowLeftBold size={20} color={textColor} /> {/* Reduced from 24 to 20 */}
+            <ArrowLeftBold size={20} color={textColor} />
             <Text style={[styles.backText, { color: textColor }]}>
               {backButtonText}
             </Text>
@@ -74,16 +74,16 @@ export default function Header({
         )}
       </View>
 
-      {/* Center Section - Takes remaining space */}
+      {/* Center Section */}
       <View style={styles.centerSection}>
-        {title && (
+        {title && title !== '' && (
           <Text style={[styles.title, { color: textColor }]}>
             {title}
           </Text>
         )}
       </View>
 
-      {/* Right Section - Auto width to fit content */}
+      {/* Right Section */}
       <View style={styles.rightSection}>
         {showOnlineStatus && (
           <View style={styles.onlineContainer}>
