@@ -39,5 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
-package-lock.json 
-yarn.lock 
+
+
+
+# Package manager lock files (to avoid conflicts)
+package-lock.json
+yarn.lock
+
+# Expo shared configuration
+.expo-shared/

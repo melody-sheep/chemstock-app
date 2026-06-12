@@ -27,6 +27,8 @@
 │   │   │   ├── Card.js
 │   │   │   ├── Input.js
 │   │   │   └── Modal.js
+│   │   │   └── ⭐ AnimatedTextDot.js      🆕 REUSABLE ANIMATION COMPONENT
+│   │   │
 │   │   ├── 📦 inventory/               # Inventory-specific components (empty)
 │   │   ├── 🗺️ maps/                    # Map-related components (empty)
 │   │   ├── 📱 qr/                      # QR code scanner/generator (empty)
@@ -51,7 +53,7 @@
 │   │
 │   ├── 📺 screens/
 │   │   ├── 🔐 auth/
-│   │   │   └── LoginScreen.js
+│   │   │   └── ⭐ LoginScreen.js           ✏️ UPDATED - simplified version
 │   │   ├── 📦 collector/               # Collector role screens (empty)
 │   │   ├── 🔄 common/                  # Shared screens (empty)
 │   │   ├── 👔 manager/                 # Manager role screens (empty)

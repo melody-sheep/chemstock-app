@@ -1,7 +1,2 @@
-﻿// App.js
-import React from 'react';
-import AppNavigator from './src/navigation/AppNavigator';
-
-export default function App() {
-  return <AppNavigator />;
-}
+﻿import LoginScreen from './src/screens/auth/LoginScreen';
+export default function App() { return <LoginScreen />; }
