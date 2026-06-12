@@ -30,13 +30,13 @@
 │   │   ├── 🔧 common/
 │   │   │   ├── AnimatedTextDot.js         ✅ Animated text cycling component
 │   │   │   ├── Button.js                  ✅ With variant support + PropTypes + JSDoc
-│   │   │   ├── Card.js                    ✅ Existing
-│   │   │   ├── Header.js                  🆕 Reusable header component
-│   │   │   ├── Icon.js                    ✅ Phosphor-style icons + PropTypes + JSDoc + arrowLeft
+│   │   │   ├── Card.js                    🆕 Reusable card/secondary frame component
+│   │   │   ├── Header.js                  ✅ Reusable header component
+│   │   │   ├── Icon.js                    ✅ Phosphor-style icons + PropTypes + JSDoc + arrowLeft + key
 │   │   │   ├── Input.js                   ✅ With ref support + PropTypes + JSDoc + error display
 │   │   │   ├── KeyboardWrapper.js         ✅ Keyboard avoidance wrapper
 │   │   │   ├── Modal.js                   ✅ Shadow-free bottom sheet
-│   │   │   └── ScreenContainer.js         🆕 Screen wrapper with 16px margins
+│   │   │   └── ScreenContainer.js         ✅ Screen wrapper with 16px margins
 │   │   │
 │   │   ├── 📦 inventory/                  (empty)
 │   │   ├── 🗺️ maps/                       (empty)
@@ -64,7 +64,7 @@
 │   ├── 📺 screens/
 │   │   ├── 🔐 auth/
 │   │   │   ├── LoginScreen.js             ✅ Complete login UI + navigation
-│   │   │   └── ManagerActivationScreen.js 🆕 Manager activation with Header
+│   │   │   └── ManagerActivationScreen.js ✅ Manager activation with Header + Card
 │   │   │
 │   │   ├── 📦 collector/                  (empty)
 │   │   ├── 🔄 common/                     (empty)
@@ -126,16 +126,18 @@
 
 | Component | Location | Status | Features |
 |-----------|----------|--------|----------|
-| `Icon` | `components/common/Icon.js` | ✅ Complete | PropTypes, JSDoc, 6 icons (added arrowLeft) |
+| `Icon` | `components/common/Icon.js` | ✅ Complete | PropTypes, JSDoc, 7 icons (arrowLeft + key) |
 | `KeyboardWrapper` | `components/common/KeyboardWrapper.js` | ✅ Complete | Keyboard dismissal |
 | `AnimatedTextDot` | `components/common/AnimatedTextDot.js` | ✅ Complete | Typing animation, color cycling |
 | `Button` | `components/common/Button.js` | ✅ Complete | PropTypes, JSDoc, primary/black variants |
 | `Input` | `components/common/Input.js` | ✅ Complete | PropTypes, JSDoc, error display, ref support |
 | `Modal` | `components/common/Modal.js` | ✅ Complete | Shadow-free bottom sheet |
-| `Header` | `components/common/Header.js` | 🆕 Complete | Reusable header with back button, online status |
-| `ScreenContainer` | `components/common/ScreenContainer.js` | 🆕 Complete | Screen wrapper with 16px margins |
+| `Header` | `components/common/Header.js` | ✅ Complete | Reusable header with back button, online status |
+| `ScreenContainer` | `components/common/ScreenContainer.js` | ✅ Complete | Screen wrapper with 16px margins |
+| `Card` | `components/common/Card.js` | 🆕 Complete | Reusable card/secondary frame with border, custom bg |
 
 ## 🎨 AVAILABLE ICONS:
+
 | Icon Name | Description |
 |-----------|-------------|
 | `warningTriangle` | Danger/warning alert icon |
@@ -143,7 +145,8 @@
 | `lock` | Password/security icon |
 | `eye` | Show password icon |
 | `eyeSlash` | Hide password icon |
-| `arrowLeft` | 🆕 Back navigation arrow (bold/thick) |
+| `arrowLeft` | Back navigation arrow (bold/thick) |
+| `key` | 🆕 Key/activation icon for manager setup |
 
 ## 📝 SUMMARY OF FILES BY STATUS:
 
@@ -152,17 +155,19 @@
 |------|-------------|
 | `src/components/common/Header.js` | Reusable header component with back button and online status |
 | `src/components/common/ScreenContainer.js` | Screen wrapper with consistent 16px margins |
-| `src/screens/auth/ManagerActivationScreen.js` | Manager activation screen with Header component |
+| `src/components/common/Card.js` | Reusable card/secondary frame component with border and custom styling |
+| `src/screens/auth/ManagerActivationScreen.js` | Manager activation screen with Header + Card components |
 
 ### ✏️ MODIFIED FILES:
 | File | Changes |
 |------|---------|
 | `App.js` | Added SafeAreaProvider, StatusBar configuration |
-| `package.json` | Added prop-types, react-native-safe-area-context |
+| `package.json` | Added prop-types, react-native-safe-area-context, react-native-svg |
 | `src/components/common/Button.js` | Added PropTypes, JSDoc, error handling, accessibility |
-| `src/components/common/Icon.js` | Added arrowLeft icon, updated PropTypes |
+| `src/components/common/Icon.js` | Added arrowLeft icon + key icon, updated PropTypes |
 | `src/components/common/Input.js` | Added PropTypes, JSDoc, error display, accessibility |
 | `src/components/common/Modal.js` | Shadow removal |
+| `src/components/common/AnimatedTextDot.js` | Fixed Text rendering error |
 | `src/hooks/useKeyboard.js` | Keyboard tracking |
 | `src/navigation/AppNavigator.js` | Added ManagerActivation route |
 | `src/screens/auth/LoginScreen.js` | Complete login UI, navigation to ManagerActivation |
@@ -185,7 +190,7 @@ The updated structure follows all your project rules:
 - ✅ No hardcoded colors, fonts, or spacing
 - ✅ Inter font properly configured
 - ✅ Keyboard handling implemented
-- ✅ Icon system in place with arrowLeft added
+- ✅ Icon system in place with arrowLeft + key icons added
 - ✅ PropTypes added for type safety
 - ✅ JSDoc comments for documentation
 - ✅ Accessibility props for screen readers
@@ -193,6 +198,8 @@ The updated structure follows all your project rules:
 - ✅ Status bar visible with white icons
 - ✅ Header component reusable across all screens
 - ✅ ScreenContainer for consistent margins
+- ✅ Card component for secondary frames
+- ✅ Manager Activation screen with compact design
 
 ---
 
