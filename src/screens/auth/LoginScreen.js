@@ -1,5 +1,5 @@
 // src/screens/auth/LoginScreen.js
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   Keyboard,
   Text,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import AnimatedTextDot from '../../components/common/AnimatedTextDot';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -33,17 +35,30 @@ const ANIMATION_DATA = [
 export default function LoginScreen() {
   const navigation = useNavigation();
   
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const {
+    username,
+    password,
+    isLoading,
+    usernameError,
+    passwordError,
+    setUsername,
+    setPassword,
+    login,
+  } = useAuth();
+  
   const passwordInputRef = useRef(null);
 
-  const handleLogin = () => {
-    console.log('Login attempt:', { username });
+  const handleLogin = async () => {
     Keyboard.dismiss();
+    const success = await login();
+    
+    if (success) {
+      // TODO: Navigate to main app
+      Alert.alert('Success', 'Login successful!');
+    }
   };
 
   const handleManagerActivation = () => {
-    console.log('Navigating to Manager Activation...');
     navigation.navigate('ManagerActivation');
   };
 
@@ -58,9 +73,10 @@ export default function LoginScreen() {
     handleLogin();
   };
 
-  // Calculate width that matches input fields
-  // Input fields have paddingHorizontal: SPACING.lg (24) on left and right
-  // So button width = screenWidth - (SPACING.lg * 2)
+  const handleForgotPassword = () => {
+    Alert.alert('Forgot Password', 'Password reset feature coming soon.');
+  };
+
   const buttonWidth = screenWidth - (SPACING.lg * 2);
 
   return (
@@ -83,6 +99,7 @@ export default function LoginScreen() {
                 placeholder="Username"
                 value={username}
                 onChangeText={setUsername}
+                error={usernameError}
                 autoCapitalize="none"
                 returnKeyType="next"
                 onSubmitEditing={handleUsernameSubmit}
@@ -95,13 +112,14 @@ export default function LoginScreen() {
               placeholder="Password"
               value={password}
               onChangeText={setPassword}
+              error={passwordError}
               secureTextEntry={true}
               returnKeyType="done"
               onSubmitEditing={handlePasswordSubmit}
             />
 
             <Button
-              title="Login"
+              title={isLoading ? "Logging in..." : "Login"}
               onPress={handleLogin}
               variant="black"
               width={buttonWidth}
@@ -110,12 +128,13 @@ export default function LoginScreen() {
               borderRadius={12}
               hasShadow={true}
               style={styles.loginButton}
+              disabled={isLoading}
             />
 
             <View style={styles.rowContainer}>
               <TouchableOpacity
                 style={styles.forgotPasswordContainer}
-                onPress={() => console.log('Forgot Password pressed')}
+                onPress={handleForgotPassword}
                 activeOpacity={0.7}
               >
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>

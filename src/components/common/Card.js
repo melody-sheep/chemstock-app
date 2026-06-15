@@ -18,7 +18,7 @@ const { width: screenWidth } = Dimensions.get('window');
  * @param {Object} props - Component props
  * @param {React.ReactNode} props.children - Content inside the card
  * @param {string} props.backgroundColor - Card background color (default: '#F7FEFF')
- * @param {string} props.borderColor - Border color (default: '#4CF294')
+ * @param {string} props.borderColor - Border color (default: '#555353')
  * @param {number} props.borderWidth - Border width (default: 0.5)
  * @param {number} props.borderRadius - Border radius (default: 12)
  * @param {number} props.paddingHorizontal - Horizontal padding (default: SPACING.lg)
@@ -32,7 +32,7 @@ const { width: screenWidth } = Dimensions.get('window');
 export default function Card({
   children,
   backgroundColor = '#F7FEFF',
-  borderColor = '#4CF294',
+  borderColor = '#555353',
   borderWidth = 0.5,
   borderRadius = 12,
   paddingHorizontal = SPACING.lg,
@@ -85,7 +85,7 @@ Card.propTypes = {
 
 Card.defaultProps = {
   backgroundColor: '#F7FEFF',
-  borderColor: '#4CF294',
+  borderColor: '#555353',
   borderWidth: 0.5,
   borderRadius: 12,
   paddingHorizontal: SPACING.lg,

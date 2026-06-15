@@ -6,23 +6,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Text,
 } from 'react-native';
 import PropTypes from 'prop-types';
-import { User, Lock, Eye, EyeSlash } from 'phosphor-react-native';
+import { User, Lock, Eye, EyeSlash, Key } from 'phosphor-react-native';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
  * Reusable Input Component with icon support
- * Supports username/user icon, password/lock icon, and password visibility toggle
+ * Supports username/user icon, password/lock icon, key icon, eye/eyeSlash, and password visibility toggle
  * 
  * @param {Object} props - Component props
  * @param {string} props.placeholder - Input placeholder text
  * @param {string} props.value - Current input value
  * @param {Function} props.onChangeText - Callback when text changes
  * @param {boolean} props.secureTextEntry - Masks input for passwords
- * @param {'user'|'lock'|null} props.icon - Icon type to display
+ * @param {'user'|'lock'|'key'|'eye'|'eyeSlash'|null} props.icon - Icon type to display on left
+ * @param {React.ReactNode} props.rightIcon - Custom right icon component
+ * @param {Function} props.onRightIconPress - Callback when right icon is pressed
  * @param {string} props.keyboardType - Keyboard type (default, email, numeric, etc.)
  * @param {string} props.autoCapitalize - Auto-capitalization behavior
  * @param {string} props.returnKeyType - Return key label (next, done, go, etc.)
@@ -30,6 +33,9 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * @param {boolean} props.blurOnSubmit - Blur input on submit
  * @param {string|null} props.error - Error message to display
  * @param {Object} props.inputRef - Ref for focusing input
+ * @param {string} props.label - Optional label text to display above input
+ * @param {boolean} props.required - Whether field is required (shows red asterisk)
+ * @param {Function} props.onTogglePasswordVisibility - Callback when password visibility toggled
  */
 export default function Input({
   placeholder,
@@ -37,6 +43,8 @@ export default function Input({
   onChangeText,
   secureTextEntry = false,
   icon = null,
+  rightIcon = null,
+  onRightIconPress = null,
   keyboardType = 'default',
   autoCapitalize = 'none',
   returnKeyType = 'next',
@@ -44,8 +52,14 @@ export default function Input({
   blurOnSubmit = false,
   error = null,
   inputRef = null,
+  label = null,
+  required = false,
+  onTogglePasswordVisibility = null,
 }) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const isPassword = secureTextEntry;
+  const showPasswordToggle = isPassword && !rightIcon;
+  const inputSecureText = isPassword && !isPasswordVisible;
 
   const renderIcon = () => {
     try {
@@ -55,6 +69,15 @@ export default function Input({
       if (icon === 'lock') {
         return <Lock size={20} color="#757575" weight="regular" />;
       }
+      if (icon === 'key') {
+        return <Key size={20} color="#757575" weight="regular" />;
+      }
+      if (icon === 'eye') {
+        return <Eye size={20} color="#757575" weight="regular" />;
+      }
+      if (icon === 'eyeSlash') {
+        return <EyeSlash size={20} color="#757575" weight="regular" />;
+      }
       return null;
     } catch (error) {
       console.error('Error rendering icon in Input:', error);
@@ -62,20 +85,35 @@ export default function Input({
     }
   };
 
-  const isPassword = secureTextEntry;
-  const showPasswordToggle = isPassword;
-  const inputSecureText = isPassword && !isPasswordVisible;
-
   const handlePasswordToggle = () => {
     try {
       setIsPasswordVisible(!isPasswordVisible);
+      if (onTogglePasswordVisibility) {
+        onTogglePasswordVisibility(!isPasswordVisible);
+      }
     } catch (error) {
       console.error('Error toggling password visibility:', error);
     }
   };
 
+  const handleRightIconPress = () => {
+    try {
+      if (onRightIconPress) {
+        onRightIconPress();
+      }
+    } catch (error) {
+      console.error('Error pressing right icon:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
+      {label && (
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelText}>{label}</Text>
+          {required && <Text style={styles.requiredAsterisk}> *</Text>}
+        </View>
+      )}
       <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
         {icon && <View style={styles.iconLeft}>{renderIcon()}</View>}
         
@@ -84,7 +122,7 @@ export default function Input({
           style={[
             styles.input,
             icon ? styles.inputWithIcon : null,
-            showPasswordToggle ? styles.inputWithRightIcon : null,
+            (showPasswordToggle || rightIcon) ? styles.inputWithRightIcon : null,
           ]}
           placeholder={placeholder}
           placeholderTextColor="#757575"
@@ -114,8 +152,23 @@ export default function Input({
             )}
           </TouchableOpacity>
         )}
+
+        {rightIcon && (
+          <TouchableOpacity
+            style={styles.iconRight}
+            onPress={handleRightIconPress}
+            accessibilityLabel="Submit"
+            accessibilityRole="button"
+          >
+            {rightIcon}
+          </TouchableOpacity>
+        )}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && (
+        <View style={styles.errorRow}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -126,7 +179,9 @@ Input.propTypes = {
   value: PropTypes.string,
   onChangeText: PropTypes.func,
   secureTextEntry: PropTypes.bool,
-  icon: PropTypes.oneOf(['user', 'lock', null]),
+  icon: PropTypes.oneOf(['user', 'lock', 'key', 'eye', 'eyeSlash', null]),
+  rightIcon: PropTypes.node,
+  onRightIconPress: PropTypes.func,
   keyboardType: PropTypes.string,
   autoCapitalize: PropTypes.string,
   returnKeyType: PropTypes.string,
@@ -134,6 +189,9 @@ Input.propTypes = {
   blurOnSubmit: PropTypes.bool,
   error: PropTypes.string,
   inputRef: PropTypes.object,
+  label: PropTypes.string,
+  required: PropTypes.bool,
+  onTogglePasswordVisibility: PropTypes.func,
 };
 
 // Default props
@@ -142,6 +200,8 @@ Input.defaultProps = {
   value: '',
   secureTextEntry: false,
   icon: null,
+  rightIcon: null,
+  onRightIconPress: null,
   keyboardType: 'default',
   autoCapitalize: 'none',
   returnKeyType: 'next',
@@ -149,11 +209,30 @@ Input.defaultProps = {
   blurOnSubmit: false,
   error: null,
   inputRef: null,
+  label: null,
+  required: false,
+  onTogglePasswordVisibility: null,
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 10,
+    marginBottom: SPACING.md,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  labelText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textPrimary,
+  },
+  requiredAsterisk: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.error,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -168,6 +247,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#757575',
     paddingVertical: Platform.OS === 'ios' ? 8 : 4,
     paddingHorizontal: SPACING.md,
@@ -190,10 +270,16 @@ const styles = StyleSheet.create({
     borderColor: COLORS.error,
     borderWidth: 1,
   },
-  errorText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.error,
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 4,
     marginLeft: SPACING.xs,
+  },
+  errorText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.error,
   },
 });
