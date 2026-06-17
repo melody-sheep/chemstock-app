@@ -1,7 +1,7 @@
 // src/hooks/useAuth.js
 import { useState, useCallback, useRef } from 'react';
 import { debugLog, logError } from '../utils/logger';
-import { UsernameStrategy, PasswordStrategy, CompositeStrategy } from '../utils/validationStrategies';
+import { UsernameValidationStrategy, PasswordValidationStrategy, ComposeValidationStrategy } from '../utils/validationStrategies';
 import authService from '../services/authService';
 
 /**
@@ -10,8 +10,8 @@ import authService from '../services/authService';
 class AuthViewModel {
   constructor(authService) {
     this.authService = authService;
-    this.usernameStrategy = new UsernameStrategy(3);
-    this.passwordStrategy = new PasswordStrategy(4);
+    this.usernameStrategy = new UsernameValidationStrategy(3, 50);
+    this.passwordStrategy = new PasswordValidationStrategy(4);
     
     // State
     this.username = '';
@@ -58,6 +58,13 @@ class AuthViewModel {
     this.notifyStateChange();
   }
   
+  clearError() {
+    debugLog('debug', 'AuthViewModel', 'Clearing errors');
+    this.usernameError = '';
+    this.passwordError = '';
+    this.notifyStateChange();
+  }
+  
   validateForm() {
     debugLog('debug', 'AuthViewModel', 'Validating form');
     let isValid = true;
@@ -97,15 +104,21 @@ class AuthViewModel {
       if (result.success) {
         this.isAuthenticated = true;
         this.user = result.user;
-        debugLog('info', 'AuthViewModel', 'Login successful', { userId: result.user?.id });
+        debugLog('info', 'AuthViewModel', 'Login successful', { 
+          userId: result.user?.id,
+          role: result.user?.role,
+          isActivated: result.user?.isActivated
+        });
         return true;
       }
       
+      this.passwordError = result.message || 'Invalid username or password';
+      this.notifyStateChange();
       return false;
       
     } catch (error) {
       logError('AuthViewModel', error);
-      this.passwordError = error.message || 'Login failed';
+      this.passwordError = error.message || 'Login failed. Please check your connection.';
       this.notifyStateChange();
       return false;
       
@@ -124,12 +137,26 @@ class AuthViewModel {
       this.user = null;
       this.username = '';
       this.password = '';
+      this.usernameError = '';
+      this.passwordError = '';
       this.notifyStateChange();
       debugLog('info', 'AuthViewModel', 'Logout successful');
       
     } catch (error) {
       logError('AuthViewModel', error);
     }
+  }
+  
+  reset() {
+    debugLog('debug', 'AuthViewModel', 'Resetting state');
+    this.username = '';
+    this.password = '';
+    this.isLoading = false;
+    this.usernameError = '';
+    this.passwordError = '';
+    this.isAuthenticated = false;
+    this.user = null;
+    this.notifyStateChange();
   }
 }
 
@@ -167,6 +194,10 @@ export const useAuth = () => {
     viewModel.setPassword(password);
   }, [viewModel]);
   
+  const clearError = useCallback(() => {
+    viewModel.clearError();
+  }, [viewModel]);
+  
   const login = useCallback(async () => {
     return await viewModel.login();
   }, [viewModel]);
@@ -175,11 +206,17 @@ export const useAuth = () => {
     await viewModel.logout();
   }, [viewModel]);
   
+  const reset = useCallback(() => {
+    viewModel.reset();
+  }, [viewModel]);
+  
   return {
     ...state,
     setUsername,
     setPassword,
+    clearError,
     login,
     logout,
+    reset,
   };
 };

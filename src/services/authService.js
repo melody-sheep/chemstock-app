@@ -1,56 +1,125 @@
 // src/services/authService.js
 import { BaseService } from './BaseService';
+import { supabase } from './supabaseClient';
 import { debugLog, logError } from '../utils/logger';
 
 class AuthService extends BaseService {
-  constructor(config) {
-    super(config);
-    this.token = null;
+  constructor() {
+    super();
+    this.currentSession = null;
   }
   
   /**
-   * Login user
-   * @param {Object} credentials - User credentials
-   * @returns {Promise<Object>} Login result with token and user data
+   * Login user with Supabase Auth
+   * @param {Object} credentials - { username, password }
    */
   async login(credentials) {
     debugLog('info', 'AuthService', 'Login attempt', { 
-      username: credentials.username,
-      passwordLength: credentials.password?.length 
+      username: credentials.username 
     });
     
     try {
-      // TODO: Replace with actual API call
-      // const response = await this.post('/api/auth/login', credentials);
-      // this.setToken(response.token);
-      // return response;
+      // Supabase uses email, but your system uses username
+      // Assuming username is actually email, or you have email field
+      const email = credentials.username.includes('@') 
+        ? credentials.username 
+        : `${credentials.username}@chemstock.local`;
       
-      // Mock validation
-      const isValid = credentials.username === 'admin' && credentials.password === 'admin123';
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: credentials.password,
+      });
       
-      if (isValid) {
-        const mockResponse = {
-          success: true,
-          token: 'mock-jwt-token-12345',
-          user: {
-            id: 1,
-            username: credentials.username,
-            role: 'manager',
-            branchId: 1,
-            branchName: 'CDO Branch'
-          }
-        };
-        
-        this.setToken(mockResponse.token);
-        debugLog('info', 'AuthService', 'Login successful', { userId: mockResponse.user.id });
-        return mockResponse;
-      } else {
-        debugLog('warn', 'AuthService', 'Login failed - invalid credentials');
-        throw new Error('Invalid username or password');
+      if (error) throw error;
+      
+      // Get user profile from user_profiles_table (no branches_table join)
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles_table')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      
+      if (profileError && profileError.code !== 'PGRST116') {
+        this.log('login', 'Profile fetch warning', profileError);
       }
       
+      this.currentSession = data.session;
+      
+      // Get branch name from the profile's branch_names field (array)
+      const branchName = profile?.branch_names && profile.branch_names.length > 0 
+        ? profile.branch_names[0] 
+        : null;
+      
+      const result = {
+        success: true,
+        token: data.session.access_token,
+        user: {
+          id: data.user.id,
+          username: profile?.username || data.user.email?.split('@')[0] || credentials.username,
+          role: profile?.role || 'sales_rep',
+          branchId: profile?.branch_ids && profile.branch_ids.length > 0 
+            ? profile.branch_ids[0] 
+            : null,
+          branchName: branchName,
+          isActivated: profile?.is_activated || false,
+        }
+      };
+      
+      debugLog('info', 'AuthService', 'Login successful', { userId: result.user.id });
+      return result;
+      
     } catch (error) {
-      logError('AuthService', error, { username: credentials.username });
+      this.handleError(error, { username: credentials.username });
+      throw new Error(error.message === 'Invalid login credentials' 
+        ? 'Invalid username or password' 
+        : error.message);
+    }
+  }
+  
+  /**
+   * Register new user (for managers to create accounts)
+   */
+  async register(userData) {
+    debugLog('info', 'AuthService', 'Register attempt', { email: userData.email });
+    
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+      });
+      
+      if (authError) throw authError;
+      
+      // Create profile in your table (no branch_id, use branch_names array)
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles_table')
+        .insert([
+          {
+            id: authData.user.id,
+            username: userData.username,
+            email: userData.email,
+            role: userData.role || 'sales_rep',
+            branch_names: userData.branchNames || [],
+            branch_ids: userData.branchIds || [],
+            is_activated: userData.role === 'manager' ? false : true,
+          }
+        ])
+        .select()
+        .single();
+      
+      if (profileError) throw profileError;
+      
+      debugLog('info', 'AuthService', 'Registration successful', { userId: authData.user.id });
+      
+      return {
+        success: true,
+        user: profile,
+        message: 'User registered successfully'
+      };
+      
+    } catch (error) {
+      this.handleError(error, userData);
       throw error;
     }
   }
@@ -62,14 +131,14 @@ class AuthService extends BaseService {
     debugLog('info', 'AuthService', 'Logout');
     
     try {
-      // TODO: Implement actual API call
-      // await this.post('/api/auth/logout');
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       
-      this.setToken(null);
+      this.currentSession = null;
       debugLog('info', 'AuthService', 'Logout successful');
       
     } catch (error) {
-      logError('AuthService', error);
+      this.handleError(error);
       throw error;
     }
   }
@@ -81,38 +150,56 @@ class AuthService extends BaseService {
     debugLog('info', 'AuthService', 'Fetching current user');
     
     try {
-      if (!this.token) {
-        debugLog('warn', 'AuthService', 'No token found');
-        return null;
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      if (!session) return null;
+      
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles_table')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profileError && profileError.code !== 'PGRST116') {
+        this.log('getCurrentUser', 'Profile fetch warning', profileError);
       }
       
-      // TODO: Implement actual API call
-      // return await this.get('/api/auth/me');
+      const branchName = profile?.branch_names && profile.branch_names.length > 0 
+        ? profile.branch_names[0] 
+        : null;
       
-      const mockUser = {
-        id: 1,
-        username: 'admin',
-        role: 'manager',
-        branchId: 1,
-        branchName: 'CDO Branch'
+      return {
+        id: session.user.id,
+        email: session.user.email,
+        username: profile?.username || session.user.email?.split('@')[0],
+        role: profile?.role || 'sales_rep',
+        branchId: profile?.branch_ids && profile.branch_ids.length > 0 
+          ? profile.branch_ids[0] 
+          : null,
+        branchName: branchName,
+        isActivated: profile?.is_activated || false,
       };
       
-      debugLog('info', 'AuthService', 'User fetched', { userId: mockUser.id });
-      return mockUser;
-      
     } catch (error) {
-      logError('AuthService', error);
-      throw error;
+      this.handleError(error);
+      return null;
     }
   }
   
   /**
    * Check if user is authenticated
    */
-  isAuthenticated() {
-    const hasToken = !!this.token;
-    debugLog('debug', 'AuthService', 'Auth status checked', { isAuthenticated: hasToken });
-    return hasToken;
+  async isAuthenticated() {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !!session;
+  }
+  
+  /**
+   * Get current session token
+   */
+  getToken() {
+    return this.currentSession?.access_token || null;
   }
 }
 

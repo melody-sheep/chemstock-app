@@ -1,5 +1,5 @@
 // src/screens/auth/LoginScreen.js
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -41,24 +41,52 @@ export default function LoginScreen() {
     isLoading,
     usernameError,
     passwordError,
+    user,
     setUsername,
     setPassword,
     login,
+    clearError,
   } = useAuth();
   
   const passwordInputRef = useRef(null);
 
+  // Handle login success
+  useEffect(() => {
+    if (user && !isLoading) {
+      // Check if manager needs activation
+      if (user.role === 'manager' && !user.isActivated) {
+        // Navigate to activation screen with userId
+        navigation.replace('ManagerActivation', { 
+          userId: user.id 
+        });
+      } else {
+        // Navigate to appropriate dashboard
+        if (user.role === 'manager') {
+          // TODO: Navigate to Manager Dashboard
+          Alert.alert('Success', `Welcome ${user.username}!`);
+        } else if (user.role === 'sales_rep') {
+          // TODO: Navigate to Sales Rep Dashboard
+          Alert.alert('Success', `Welcome ${user.username}!`);
+        } else if (user.role === 'collector') {
+          // TODO: Navigate to Collector Dashboard
+          Alert.alert('Success', `Welcome ${user.username}!`);
+        }
+      }
+    }
+  }, [user, isLoading, navigation]);
+
   const handleLogin = async () => {
     Keyboard.dismiss();
+    clearError();
     const success = await login();
     
-    if (success) {
-      // TODO: Navigate to main app
-      Alert.alert('Success', 'Login successful!');
+    if (!success) {
+      Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
     }
   };
 
   const handleManagerActivation = () => {
+    // For new manager registration (no user yet)
     navigation.navigate('ManagerActivation');
   };
 
@@ -74,7 +102,7 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert('Forgot Password', 'Password reset feature coming soon.');
+    Alert.alert('Forgot Password', 'Please contact your system administrator to reset your password.');
   };
 
   const buttonWidth = screenWidth - (SPACING.lg * 2);

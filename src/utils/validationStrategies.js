@@ -2,89 +2,93 @@
 import { debugLog } from './logger';
 
 /**
- * Base Validation Strategy (Abstract)
+ * Base validation strategy interface
  */
 class ValidationStrategy {
   validate(value) {
-    throw new Error('validate() must be implemented by subclass');
+    throw new Error('validate() must be implemented');
   }
   
   getErrorMessage() {
-    throw new Error('getErrorMessage() must be implemented by subclass');
+    throw new Error('getErrorMessage() must be implemented');
   }
 }
 
 /**
- * Activation Key Validation Strategy
+ * Activation Key validation strategy
+ * Supports:
+ * - Old format: 4-digit code (e.g., "1234")
+ * - New format: CHEMSTOCK_username_BRANCH1_BRANCH2_YEAR
+ * - Cospachem format: Cospachem#_$CdEO$_$BuTuaN$_$2026$
  */
 export class ActivationKeyStrategy extends ValidationStrategy {
   validate(key) {
-    debugLog('debug', 'ActivationKeyStrategy', 'Validating activation key', { keyLength: key?.length });
-    
-    if (!key || !key.trim()) {
+    if (!key || typeof key !== 'string') {
       return false;
     }
     
     const trimmedKey = key.trim();
-    const isValid = /^\d{4}$/.test(trimmedKey);
     
-    debugLog('debug', 'ActivationKeyStrategy', 'Validation result', { isValid, key: trimmedKey });
+    // Check for 4-digit format
+    const isFourDigit = /^\d{4}$/.test(trimmedKey);
+    
+    // Check for CHEMSTOCK_ format
+    const isChemstockFormat = /^CHEMSTOCK_[A-Za-z0-9]+(?:_[A-Z]+)+_\d{4}$/.test(trimmedKey);
+    
+    // Check for Cospachem format
+    const isCospachemFormat = /^Cospachem#_\$.+\$_\d{4}\$/.test(trimmedKey);
+    
+    const isValid = isFourDigit || isChemstockFormat || isCospachemFormat;
+    
+    debugLog('debug', 'ActivationKeyStrategy', 'Validation result', {
+      key: trimmedKey.substring(0, 20) + (trimmedKey.length > 20 ? '...' : ''),
+      isFourDigit,
+      isChemstockFormat,
+      isCospachemFormat,
+      isValid
+    });
+    
     return isValid;
   }
   
   getErrorMessage() {
-    return 'Activation code must be 4 digits';
+    return 'Invalid activation code. Code must be:\n• 4-digit number (e.g., "1234")\n• CHEMSTOCK_format (e.g., "CHEMSTOCK_name_CDO_BUT_2026")\n• Cospachem format from admin CLI';
   }
 }
 
 /**
- * Username Validation Strategy
+ * Email validation strategy
  */
-export class UsernameStrategy extends ValidationStrategy {
-  constructor(minLength = 3) {
-    super();
-    this.minLength = minLength;
-  }
-  
-  validate(username) {
-    debugLog('debug', 'UsernameStrategy', 'Validating username', { usernameLength: username?.length });
-    
-    if (!username || !username.trim()) {
+export class EmailValidationStrategy extends ValidationStrategy {
+  validate(email) {
+    if (!email || typeof email !== 'string') {
       return false;
     }
     
-    const trimmedUsername = username.trim();
-    const isValid = trimmedUsername.length >= this.minLength;
-    
-    debugLog('debug', 'UsernameStrategy', 'Validation result', { isValid, minLength: this.minLength });
-    return isValid;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
   }
   
   getErrorMessage() {
-    return `Username must be at least ${this.minLength} characters`;
+    return 'Please enter a valid email address';
   }
 }
 
 /**
- * Password Validation Strategy
+ * Password validation strategy
  */
-export class PasswordStrategy extends ValidationStrategy {
-  constructor(minLength = 4) {
+export class PasswordValidationStrategy extends ValidationStrategy {
+  constructor(minLength = 6) {
     super();
     this.minLength = minLength;
   }
   
   validate(password) {
-    debugLog('debug', 'PasswordStrategy', 'Validating password', { passwordLength: password?.length });
-    
-    if (!password) {
+    if (!password || typeof password !== 'string') {
       return false;
     }
     
-    const isValid = password.length >= this.minLength;
-    
-    debugLog('debug', 'PasswordStrategy', 'Validation result', { isValid, minLength: this.minLength });
-    return isValid;
+    return password.trim().length >= this.minLength;
   }
   
   getErrorMessage() {
@@ -93,33 +97,91 @@ export class PasswordStrategy extends ValidationStrategy {
 }
 
 /**
- * Required Field Validation Strategy
+ * Username validation strategy
  */
-export class RequiredStrategy extends ValidationStrategy {
-  validate(value) {
-    return value !== null && value !== undefined && value.toString().trim().length > 0;
+export class UsernameValidationStrategy extends ValidationStrategy {
+  constructor(minLength = 3, maxLength = 50) {
+    super();
+    this.minLength = minLength;
+    this.maxLength = maxLength;
+  }
+  
+  validate(username) {
+    if (!username || typeof username !== 'string') {
+      return false;
+    }
+    
+    const trimmed = username.trim();
+    const isValidLength = trimmed.length >= this.minLength && trimmed.length <= this.maxLength;
+    const hasValidChars = /^[A-Za-z0-9_\s]+$/.test(trimmed);
+    
+    return isValidLength && hasValidChars;
   }
   
   getErrorMessage() {
-    return 'This field is required';
+    return `Username must be ${this.minLength}-${this.maxLength} characters and can only contain letters, numbers, spaces, and underscores`;
   }
 }
 
 /**
- * Composite Strategy (combines multiple strategies)
+ * Required field validation strategy
  */
-export class CompositeStrategy extends ValidationStrategy {
+export class RequiredFieldStrategy extends ValidationStrategy {
+  constructor(fieldName = 'This field') {
+    super();
+    this.fieldName = fieldName;
+  }
+  
+  validate(value) {
+    if (value === undefined || value === null) {
+      return false;
+    }
+    
+    if (typeof value === 'string') {
+      return value.trim().length > 0;
+    }
+    
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    
+    return !!value;
+  }
+  
+  getErrorMessage() {
+    return `${this.fieldName} is required`;
+  }
+}
+
+/**
+ * Compose multiple validation strategies
+ */
+export class ComposeValidationStrategy extends ValidationStrategy {
   constructor(strategies) {
     super();
     this.strategies = strategies;
   }
   
   validate(value) {
-    return this.strategies.every(strategy => strategy.validate(value));
+    for (const strategy of this.strategies) {
+      if (!strategy.validate(value)) {
+        return false;
+      }
+    }
+    return true;
   }
   
   getErrorMessage() {
-    const errors = this.strategies.map(s => s.getErrorMessage());
-    return errors.join(', ');
+    return this.strategies.map(s => s.getErrorMessage()).join(', ');
   }
 }
+
+// Export default object for easy access
+export default {
+  ActivationKeyStrategy,
+  EmailValidationStrategy,
+  PasswordValidationStrategy,
+  UsernameValidationStrategy,
+  RequiredFieldStrategy,
+  ComposeValidationStrategy
+};
