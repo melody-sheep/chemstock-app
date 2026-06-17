@@ -16,26 +16,6 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
  * Reusable Input Component with icon support
- * Supports username/user icon, password/lock icon, key icon, eye/eyeSlash, and password visibility toggle
- * 
- * @param {Object} props - Component props
- * @param {string} props.placeholder - Input placeholder text
- * @param {string} props.value - Current input value
- * @param {Function} props.onChangeText - Callback when text changes
- * @param {boolean} props.secureTextEntry - Masks input for passwords
- * @param {'user'|'lock'|'key'|'eye'|'eyeSlash'|null} props.icon - Icon type to display on left
- * @param {React.ReactNode} props.rightIcon - Custom right icon component
- * @param {Function} props.onRightIconPress - Callback when right icon is pressed
- * @param {string} props.keyboardType - Keyboard type (default, email, numeric, etc.)
- * @param {string} props.autoCapitalize - Auto-capitalization behavior
- * @param {string} props.returnKeyType - Return key label (next, done, go, etc.)
- * @param {Function} props.onSubmitEditing - Callback when return key pressed
- * @param {boolean} props.blurOnSubmit - Blur input on submit
- * @param {string|null} props.error - Error message to display
- * @param {Object} props.inputRef - Ref for focusing input
- * @param {string} props.label - Optional label text to display above input
- * @param {boolean} props.required - Whether field is required (shows red asterisk)
- * @param {Function} props.onTogglePasswordVisibility - Callback when password visibility toggled
  */
 export default function Input({
   placeholder,
@@ -106,15 +86,23 @@ export default function Input({
     }
   };
 
+  // Convert error to string if it's an object
+  const errorMessage = typeof error === 'string' ? error : error?.message || null;
+
   return (
     <View style={styles.container}>
+      {/* Label - ✅ Properly wrapped in Text */}
       {label && (
         <View style={styles.labelContainer}>
-          <Text style={styles.labelText}>{label}</Text>
-          {required && <Text style={styles.requiredAsterisk}> *</Text>}
+          <Text style={styles.labelText}>
+            {label}
+            {required && <Text style={styles.requiredAsterisk}> *</Text>}
+          </Text>
         </View>
       )}
-      <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+      
+      {/* Input wrapper */}
+      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null]}>
         {icon && <View style={styles.iconLeft}>{renderIcon()}</View>}
         
         <TextInput
@@ -123,6 +111,11 @@ export default function Input({
             styles.input,
             icon ? styles.inputWithIcon : null,
             (showPasswordToggle || rightIcon) ? styles.inputWithRightIcon : null,
+            Platform.select({
+              web: {
+                outlineStyle: 'none',
+              },
+            }),
           ]}
           placeholder={placeholder}
           placeholderTextColor="#757575"
@@ -164,9 +157,11 @@ export default function Input({
           </TouchableOpacity>
         )}
       </View>
-      {error && (
+      
+      {/* ✅ Error message - Properly wrapped in Text */}
+      {errorMessage && (
         <View style={styles.errorRow}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>{errorMessage}</Text>
         </View>
       )}
     </View>
@@ -187,7 +182,7 @@ Input.propTypes = {
   returnKeyType: PropTypes.string,
   onSubmitEditing: PropTypes.func,
   blurOnSubmit: PropTypes.bool,
-  error: PropTypes.string,
+  error: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
   inputRef: PropTypes.object,
   label: PropTypes.string,
   required: PropTypes.bool,
@@ -251,6 +246,11 @@ const styles = StyleSheet.create({
     color: '#757575',
     paddingVertical: Platform.OS === 'ios' ? 8 : 4,
     paddingHorizontal: SPACING.md,
+    ...Platform.select({
+      web: {
+        outlineStyle: 'none',
+      },
+    }),
   },
   inputWithIcon: {
     paddingLeft: SPACING.xs,

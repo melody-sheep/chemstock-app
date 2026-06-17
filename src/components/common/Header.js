@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { useNavigation } from '@react-navigation/native';
@@ -65,6 +66,8 @@ export default function Header({
             style={styles.backButton}
             onPress={handleBackPress}
             activeOpacity={0.7}
+            accessibilityLabel="Go back"
+            accessibilityRole="button"
           >
             <ArrowLeftBold size={20} color={textColor} />
             <Text style={[styles.backText, { color: textColor }]}>

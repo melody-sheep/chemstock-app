@@ -9,6 +9,7 @@ import {
   Text,
   TouchableOpacity,
   Alert,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -219,6 +220,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 -5px 8px rgba(0,0,0,0.1)',
+      },
+    }),
   },
   usernameWrapper: {
     marginTop: SPACING.lg,

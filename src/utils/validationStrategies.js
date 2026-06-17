@@ -2,93 +2,97 @@
 import { debugLog } from './logger';
 
 /**
- * Base validation strategy interface
+ * Base validation strategy class
+ * Implements Strategy pattern for validation
  */
-class ValidationStrategy {
+export class ValidationStrategy {
   validate(value) {
-    throw new Error('validate() must be implemented');
+    throw new Error('validate() must be implemented by subclass');
   }
   
   getErrorMessage() {
-    throw new Error('getErrorMessage() must be implemented');
+    throw new Error('getErrorMessage() must be implemented by subclass');
   }
 }
 
 /**
- * Activation Key validation strategy
- * Supports:
- * - Old format: 4-digit code (e.g., "1234")
- * - New format: CHEMSTOCK_username_BRANCH1_BRANCH2_YEAR
- * - Cospachem format: Cospachem#_$CdEO$_$BuTuaN$_$2026$
+ * Activation Key Validation Strategy
+ * Validates activation keys (min 4 chars, alphanumeric)
  */
 export class ActivationKeyStrategy extends ValidationStrategy {
-  validate(key) {
-    if (!key || typeof key !== 'string') {
+  constructor(minLength = 4) {
+    super();
+    this.minLength = minLength;
+    console.log(`🔑 [ActivationKeyStrategy] Initialized with minLength: ${minLength}`);
+  }
+  
+  validate(value) {
+    console.log(`🔍 [ActivationKeyStrategy] Validating: "${value}"`);
+    if (!value || typeof value !== 'string') {
+      console.log('❌ [ActivationKeyStrategy] Validation failed: empty or not string');
       return false;
     }
     
-    const trimmedKey = key.trim();
-    
-    // Check for 4-digit format
-    const isFourDigit = /^\d{4}$/.test(trimmedKey);
-    
-    // Check for CHEMSTOCK_ format
-    const isChemstockFormat = /^CHEMSTOCK_[A-Za-z0-9]+(?:_[A-Z]+)+_\d{4}$/.test(trimmedKey);
-    
-    // Check for Cospachem format
-    const isCospachemFormat = /^Cospachem#_\$.+\$_\d{4}\$/.test(trimmedKey);
-    
-    const isValid = isFourDigit || isChemstockFormat || isCospachemFormat;
-    
-    debugLog('debug', 'ActivationKeyStrategy', 'Validation result', {
-      key: trimmedKey.substring(0, 20) + (trimmedKey.length > 20 ? '...' : ''),
-      isFourDigit,
-      isChemstockFormat,
-      isCospachemFormat,
-      isValid
-    });
-    
+    const trimmed = value.trim();
+    const isValid = trimmed.length >= this.minLength;
+    console.log(`✅ [ActivationKeyStrategy] Validation ${isValid ? 'passed' : 'failed'} - length: ${trimmed.length}`);
     return isValid;
   }
   
   getErrorMessage() {
-    return 'Invalid activation code. Code must be:\n• 4-digit number (e.g., "1234")\n• CHEMSTOCK_format (e.g., "CHEMSTOCK_name_CDO_BUT_2026")\n• Cospachem format from admin CLI';
+    return `Activation code must be at least ${this.minLength} characters`;
   }
 }
 
 /**
- * Email validation strategy
+ * Username Validation Strategy
  */
-export class EmailValidationStrategy extends ValidationStrategy {
-  validate(email) {
-    if (!email || typeof email !== 'string') {
+export class UsernameValidationStrategy extends ValidationStrategy {
+  constructor(minLength = 3, maxLength = 50) {
+    super();
+    this.minLength = minLength;
+    this.maxLength = maxLength;
+    console.log(`👤 [UsernameValidationStrategy] Initialized with min: ${minLength}, max: ${maxLength}`);
+  }
+  
+  validate(value) {
+    console.log(`🔍 [UsernameValidationStrategy] Validating: "${value}"`);
+    if (!value || typeof value !== 'string') {
+      console.log('❌ [UsernameValidationStrategy] Validation failed: empty or not string');
       return false;
     }
     
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
+    const trimmed = value.trim();
+    const isValid = trimmed.length >= this.minLength && trimmed.length <= this.maxLength;
+    console.log(`✅ [UsernameValidationStrategy] Validation ${isValid ? 'passed' : 'failed'}`);
+    return isValid;
   }
   
   getErrorMessage() {
-    return 'Please enter a valid email address';
+    return `Username must be between ${this.minLength} and ${this.maxLength} characters`;
   }
 }
 
 /**
- * Password validation strategy
+ * Password Validation Strategy
  */
 export class PasswordValidationStrategy extends ValidationStrategy {
   constructor(minLength = 6) {
     super();
     this.minLength = minLength;
+    console.log(`🔑 [PasswordValidationStrategy] Initialized with minLength: ${minLength}`);
   }
   
-  validate(password) {
-    if (!password || typeof password !== 'string') {
+  validate(value) {
+    console.log(`🔍 [PasswordValidationStrategy] Validating (length: ${value?.length})`);
+    if (!value || typeof value !== 'string') {
+      console.log('❌ [PasswordValidationStrategy] Validation failed: empty or not string');
       return false;
     }
     
-    return password.trim().length >= this.minLength;
+    const isValid = value.length >= this.minLength;
+    console.log(`✅ [PasswordValidationStrategy] Validation ${isValid ? 'passed' : 'failed'}`);
+    return isValid;
   }
   
   getErrorMessage() {
@@ -97,59 +101,24 @@ export class PasswordValidationStrategy extends ValidationStrategy {
 }
 
 /**
- * Username validation strategy
+ * Email Validation Strategy
  */
-export class UsernameValidationStrategy extends ValidationStrategy {
-  constructor(minLength = 3, maxLength = 50) {
-    super();
-    this.minLength = minLength;
-    this.maxLength = maxLength;
-  }
-  
-  validate(username) {
-    if (!username || typeof username !== 'string') {
-      return false;
-    }
-    
-    const trimmed = username.trim();
-    const isValidLength = trimmed.length >= this.minLength && trimmed.length <= this.maxLength;
-    const hasValidChars = /^[A-Za-z0-9_\s]+$/.test(trimmed);
-    
-    return isValidLength && hasValidChars;
-  }
-  
-  getErrorMessage() {
-    return `Username must be ${this.minLength}-${this.maxLength} characters and can only contain letters, numbers, spaces, and underscores`;
-  }
-}
-
-/**
- * Required field validation strategy
- */
-export class RequiredFieldStrategy extends ValidationStrategy {
-  constructor(fieldName = 'This field') {
-    super();
-    this.fieldName = fieldName;
-  }
-  
+export class EmailValidationStrategy extends ValidationStrategy {
   validate(value) {
-    if (value === undefined || value === null) {
+    console.log(`🔍 [EmailValidationStrategy] Validating: "${value}"`);
+    if (!value || typeof value !== 'string') {
+      console.log('❌ [EmailValidationStrategy] Validation failed: empty or not string');
       return false;
     }
     
-    if (typeof value === 'string') {
-      return value.trim().length > 0;
-    }
-    
-    if (Array.isArray(value)) {
-      return value.length > 0;
-    }
-    
-    return !!value;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isValid = emailRegex.test(value.trim());
+    console.log(`✅ [EmailValidationStrategy] Validation ${isValid ? 'passed' : 'failed'}`);
+    return isValid;
   }
   
   getErrorMessage() {
-    return `${this.fieldName} is required`;
+    return 'Please enter a valid email address';
   }
 }
 
@@ -160,28 +129,37 @@ export class ComposeValidationStrategy extends ValidationStrategy {
   constructor(strategies) {
     super();
     this.strategies = strategies;
+    console.log(`📦 [ComposeValidationStrategy] Initialized with ${strategies.length} strategies`);
   }
   
   validate(value) {
+    console.log(`🔍 [ComposeValidationStrategy] Validating with ${this.strategies.length} strategies`);
     for (const strategy of this.strategies) {
       if (!strategy.validate(value)) {
+        console.log('❌ [ComposeValidationStrategy] Strategy failed:', strategy.constructor.name);
         return false;
       }
     }
+    console.log('✅ [ComposeValidationStrategy] All strategies passed');
     return true;
   }
   
   getErrorMessage() {
-    return this.strategies.map(s => s.getErrorMessage()).join(', ');
+    for (const strategy of this.strategies) {
+      if (!strategy.validate(this._lastValue)) {
+        return strategy.getErrorMessage();
+      }
+    }
+    return 'Validation failed';
   }
 }
 
-// Export default object for easy access
+// Export default object for easy imports
 export default {
+  ValidationStrategy,
   ActivationKeyStrategy,
-  EmailValidationStrategy,
-  PasswordValidationStrategy,
   UsernameValidationStrategy,
-  RequiredFieldStrategy,
-  ComposeValidationStrategy
+  PasswordValidationStrategy,
+  EmailValidationStrategy,
+  ComposeValidationStrategy,
 };

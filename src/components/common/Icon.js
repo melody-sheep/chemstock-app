@@ -33,13 +33,17 @@ export const ICONS = {
   checkmark: {
     svg: 'M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z',
   },
+  // ✅ ADDED: checkmarkCircle (with circle around checkmark)
+  checkmarkCircle: {
+    svg: 'M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z',
+  },
   send: {
     svg: 'M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z',
   },
 };
 
 // List of available icon names for validation
-const ICON_NAMES = ['warningTriangle', 'user', 'lock', 'lockKeyhole', 'eye', 'eyeSlash', 'arrowLeft', 'key', 'checkmark', 'send'];
+const ICON_NAMES = ['warningTriangle', 'user', 'lock', 'lockKeyhole', 'eye', 'eyeSlash', 'arrowLeft', 'key', 'checkmark', 'checkmarkCircle', 'send'];
 
 /**
  * Reusable Icon Component

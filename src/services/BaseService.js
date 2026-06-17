@@ -1,64 +1,80 @@
 // src/services/BaseService.js
-import { supabase } from './supabaseClient';
-import { debugLog, logError } from '../utils/logger';
+import { isRLSError, getFriendlyErrorMessage } from './supabaseClient';
+import { logError } from '../utils/logger';
 
-/**
- * Abstract base class for all services
- * Implements common HTTP methods and error handling
- */
 export class BaseService {
-  constructor(config = {}) {
-    this.timeout = config.timeout || 30000;
-    this.retryCount = config.retryCount || 3;
-    this.supabase = supabase;
+  constructor(serviceName = 'BaseService') {
+    this.serviceName = serviceName;
+    console.log(`🏗️ [${this.serviceName}] Initialized`);
   }
-  
+
   /**
-   * Handle API errors consistently
+   * Handle errors with RLS detection
    */
   handleError(error, context = {}) {
-    logError(this.constructor.name, error, context);
+    console.error(`❌ [${this.serviceName}] Error occurred:`, error);
+    console.log(`🔍 [${this.serviceName}] Error code:`, error?.code);
+    console.log(`🔍 [${this.serviceName}] Error message:`, error?.message);
+    console.log(`🔍 [${this.serviceName}] Context:`, context);
+
+    const isRls = isRLSError(error);
+    if (isRls) {
+      console.log(`🔒 [${this.serviceName}] This is an RLS error!`);
+    }
+
+    const friendlyMessage = getFriendlyErrorMessage(error);
+    console.log(`💬 [${this.serviceName}] Friendly message:`, friendlyMessage);
+
+    logError(this.serviceName, error, { ...context, isRls });
+
+    const enhancedError = new Error(friendlyMessage);
+    enhancedError.originalError = error;
+    enhancedError.isRLSError = isRls;
+    enhancedError.code = error?.code || 'UNKNOWN_ERROR';
+
+    throw enhancedError;
+  }
+
+  /**
+   * Log debug messages
+   */
+  log(level, message, data = {}) {
+    const prefix = `[${this.serviceName}]`;
+    switch (level) {
+      case 'debug':
+        console.log(`🔍 ${prefix}`, message, data);
+        break;
+      case 'info':
+        console.log(`ℹ️ ${prefix}`, message, data);
+        break;
+      case 'warn':
+        console.warn(`⚠️ ${prefix}`, message, data);
+        break;
+      case 'error':
+        console.error(`❌ ${prefix}`, message, data);
+        break;
+      default:
+        console.log(prefix, message, data);
+    }
+  }
+
+  /**
+   * Validate required fields
+   */
+  validateRequired(fields, data) {
+    console.log(`🔍 [${this.serviceName}] Validating required fields:`, fields);
     
-    if (error.message?.includes('JWT')) {
-      throw new Error('Authentication expired. Please login again.');
-    }
-    if (error.message?.includes('network')) {
-      throw new Error('Network error. Please check your connection.');
-    }
-    if (error.message?.includes('permission')) {
-      throw new Error('You don\'t have permission for this action.');
-    }
-    
-    throw error;
-  }
-  
-  /**
-   * Log debug information
-   */
-  log(method, message, data = null) {
-    debugLog('info', this.constructor.name, `${method}: ${message}`, data);
-  }
-  
-  /**
-   * Sleep utility for retries
-   */
-  sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-  
-  /**
-   * Retry failed operations
-   */
-  async retry(operation, context, retries = this.retryCount) {
-    for (let i = 0; i < retries; i++) {
-      try {
-        return await operation();
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        this.log('retry', `Attempt ${i + 1} failed, retrying...`, context);
-        await this.sleep(1000 * (i + 1));
+    for (const field of fields) {
+      const value = data[field];
+      if (!value || (typeof value === 'string' && !value.trim())) {
+        const error = new Error(`${field} is required`);
+        console.warn(`⚠️ [${this.serviceName}] Validation failed:`, error.message);
+        throw error;
       }
     }
+    
+    console.log(`✅ [${this.serviceName}] Validation passed`);
+    return true;
   }
 }
 

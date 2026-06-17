@@ -4,6 +4,7 @@ import { debugLog, logError } from '../utils/logger';
 import { ActivationKeyStrategy } from '../utils/validationStrategies';
 import activationService from '../services/activationService';
 import authService from '../services/authService';
+import { isRLSError, getFriendlyErrorMessage } from '../services/supabaseClient';
 
 /**
  * Activation ViewModel class for OOP state management
@@ -23,18 +24,22 @@ class ActivationViewModel {
     this.isLoading = false;
     this.branchInfo = null; // { names: [], locations: [], managerName, managerEmail }
     this.userId = null;
+    this.errorType = null; // 'rls', 'not_found', 'expired', 'used', 'validation'
     
     // Callbacks for UI updates
     this.onStateChange = null;
+    
+    console.log('🏗️ [useActivation] ActivationViewModel initialized');
   }
   
   setOnStateChange(callback) {
+    console.log('🔗 [useActivation] Setting onStateChange callback');
     this.onStateChange = callback;
   }
   
   setUserId(userId) {
+    console.log('🆔 [useActivation] setUserId called:', userId);
     this.userId = userId;
-    console.log('🔍 [DEBUG] setUserId called:', userId);
     debugLog('debug', 'ActivationViewModel', 'User ID set', { userId });
   }
   
@@ -47,14 +52,16 @@ class ActivationViewModel {
         submitted: this.submitted,
         isLoading: this.isLoading,
         branchInfo: this.branchInfo,
+        errorType: this.errorType,
       });
     }
   }
   
   setActivationKey(key) {
-    console.log('🔍 [DEBUG] setActivationKey called with:', key);
-    console.log('🔍 [DEBUG] setActivationKey type:', typeof key);
-    console.log('🔍 [DEBUG] setActivationKey length:', key?.length);
+    console.log('🔑 [useActivation] setActivationKey called');
+    console.log('🔑 [useActivation] Key:', key);
+    console.log('🔑 [useActivation] Key type:', typeof key);
+    console.log('🔑 [useActivation] Key length:', key?.length);
     
     debugLog('debug', 'ActivationViewModel', 'Activation key changed', { 
       oldValue: this.activationKey, 
@@ -64,6 +71,7 @@ class ActivationViewModel {
     
     this.activationKey = key || '';
     this.error = '';
+    this.errorType = null;
     this.submitted = false;
     this.isValidCode = false;
     this.branchInfo = null;
@@ -71,11 +79,12 @@ class ActivationViewModel {
   }
   
   async submit() {
-    console.log('🚨🚨🚨 [DEBUG] SUBMIT FUNCTION CALLED! 🚨🚨🚨');
-    console.log('🔍 [DEBUG] Activation key:', this.activationKey);
-    console.log('🔍 [DEBUG] Activation key type:', typeof this.activationKey);
-    console.log('🔍 [DEBUG] Activation key length:', this.activationKey?.length);
-    console.log('🔍 [DEBUG] User ID:', this.userId);
+    console.log('========================================');
+    console.log('🚨 [useActivation] SUBMIT FUNCTION CALLED!');
+    console.log('🔑 [useActivation] Activation key:', this.activationKey);
+    console.log('🔑 [useActivation] Key type:', typeof this.activationKey);
+    console.log('🔑 [useActivation] Key length:', this.activationKey?.length);
+    console.log('🆔 [useActivation] User ID:', this.userId);
     
     debugLog('info', 'ActivationViewModel', 'Submit started', { 
       hasKey: !!this.activationKey,
@@ -85,9 +94,10 @@ class ActivationViewModel {
     
     // Input validation - check if empty
     if (!this.activationKey || !this.activationKey.trim()) {
-      console.log('🔍 [DEBUG] Empty activation key');
+      console.log('❌ [useActivation] Empty activation key');
       debugLog('warn', 'ActivationViewModel', 'Empty activation key submitted');
       this.error = 'Activation code is required';
+      this.errorType = 'validation';
       this.submitted = true;
       this.isValidCode = false;
       this.notifyStateChange();
@@ -96,12 +106,13 @@ class ActivationViewModel {
     
     // Accept any string with minimum 4 characters
     const trimmedKey = this.activationKey.trim();
-    console.log('🔍 [DEBUG] Trimmed key:', trimmedKey);
-    console.log('🔍 [DEBUG] Trimmed length:', trimmedKey.length);
+    console.log('🔑 [useActivation] Trimmed key:', trimmedKey);
+    console.log('🔑 [useActivation] Trimmed length:', trimmedKey.length);
     
     if (trimmedKey.length < 4) {
-      console.log('🔍 [DEBUG] Key too short (min 4 chars):', trimmedKey);
+      console.log('❌ [useActivation] Key too short (min 4 chars)');
       this.error = 'Activation code must be at least 4 characters';
+      this.errorType = 'validation';
       this.submitted = true;
       this.isValidCode = false;
       this.notifyStateChange();
@@ -109,21 +120,29 @@ class ActivationViewModel {
     }
     
     this.isLoading = true;
+    this.error = '';
+    this.errorType = null;
     this.notifyStateChange();
     
     try {
-      console.log('🔍 [DEBUG] Calling activationService.validateKey with:', trimmedKey);
+      console.log('📡 [useActivation] Calling activationService.validateKey with:', trimmedKey);
       
       // Validate with backend
       const validationResult = await this.activationService.validateKey(trimmedKey);
       
-      console.log('🔍 [DEBUG] Validation Result:', JSON.stringify(validationResult, null, 2));
+      console.log('📊 [useActivation] Validation Result:', JSON.stringify(validationResult, null, 2));
+      console.log('📊 [useActivation] Success:', validationResult.success);
+      console.log('📊 [useActivation] Message:', validationResult.message);
+      console.log('📊 [useActivation] Error code:', validationResult.errorCode);
       
       if (validationResult.success) {
         const branchNames = validationResult.data?.branchNames || [];
         const branchLocations = validationResult.data?.branchLocations || [];
         
-        console.log('🔍 [DEBUG] Validation successful! Branches:', branchNames);
+        console.log('✅ [useActivation] Validation successful!');
+        console.log('📊 [useActivation] Branches:', branchNames);
+        console.log('📊 [useActivation] Branch count:', branchNames.length);
+        console.log('👤 [useActivation] Manager:', validationResult.data.managerName);
         
         debugLog('info', 'ActivationViewModel', 'Key validation successful', {
           branchNames: branchNames,
@@ -141,19 +160,46 @@ class ActivationViewModel {
         };
         
         this.error = '';
+        this.errorType = null;
         this.isValidCode = true;
         this.submitted = true;
         
-        console.log('🔍 [DEBUG] Final state - branchInfo:', this.branchInfo);
-        console.log('🔍 [DEBUG] Final state - isValidCode:', this.isValidCode);
+        console.log('✅ [useActivation] Final state - branchInfo:', this.branchInfo);
+        console.log('✅ [useActivation] Final state - isValidCode:', this.isValidCode);
         
         this.notifyStateChange();
         return true;
         
       } else {
-        console.log('🔍 [DEBUG] Validation failed:', validationResult.message);
-        debugLog('warn', 'ActivationViewModel', 'Validation failed', { error: validationResult.message });
-        this.error = validationResult.message || 'Invalid activation code';
+        console.log('❌ [useActivation] Validation failed:', validationResult.message);
+        console.log('❌ [useActivation] Error code:', validationResult.errorCode);
+        
+        // Set appropriate error message based on error code
+        let errorMessage = validationResult.message || 'Invalid activation code';
+        let errorType = validationResult.errorCode || 'unknown';
+        
+        // Check for specific error types
+        if (validationResult.errorCode === 'RLS_ERROR') {
+          errorMessage = 'Permission denied. Please check your activation code or contact support.';
+          errorType = 'rls';
+        } else if (validationResult.errorCode === 'NOT_FOUND') {
+          errorMessage = 'Invalid activation code. Please check and try again.';
+          errorType = 'not_found';
+        } else if (validationResult.errorCode === 'ALREADY_USED') {
+          errorMessage = 'This activation code has already been used.';
+          errorType = 'used';
+        } else if (validationResult.errorCode === 'EXPIRED') {
+          errorMessage = 'Activation code has expired. Please request a new one.';
+          errorType = 'expired';
+        }
+        
+        debugLog('warn', 'ActivationViewModel', 'Validation failed', { 
+          error: errorMessage,
+          errorType: errorType
+        });
+        
+        this.error = errorMessage;
+        this.errorType = errorType;
         this.isValidCode = false;
         this.submitted = true;
         this.branchInfo = null;
@@ -162,9 +208,21 @@ class ActivationViewModel {
       }
       
     } catch (error) {
-      console.log('🔍 [DEBUG] Error caught:', error.message);
+      console.error('❌ [useActivation] Error caught:', error);
+      console.error('❌ [useActivation] Error message:', error.message);
+      console.error('❌ [useActivation] Error stack:', error.stack);
+      
+      // Check if it's an RLS error
+      if (isRLSError(error)) {
+        console.log('🔒 [useActivation] RLS error detected');
+        this.error = 'Permission denied. Please check your activation code or contact support.';
+        this.errorType = 'rls';
+      } else {
+        this.error = error.message || 'Network error. Please check your connection.';
+        this.errorType = 'network';
+      }
+      
       logError('ActivationViewModel', error);
-      this.error = error.message || 'Network error. Please check your connection.';
       this.isValidCode = false;
       this.submitted = true;
       this.branchInfo = null;
@@ -174,7 +232,8 @@ class ActivationViewModel {
     } finally {
       this.isLoading = false;
       this.notifyStateChange();
-      console.log('🔍 [DEBUG] Submit completed. isValidCode:', this.isValidCode);
+      console.log('✅ [useActivation] Submit completed');
+      console.log('📊 [useActivation] Final isValidCode:', this.isValidCode);
       debugLog('info', 'ActivationViewModel', 'Submit completed', { 
         success: this.isValidCode,
         branchCount: this.branchInfo?.names?.length || 0
@@ -183,10 +242,11 @@ class ActivationViewModel {
   }
   
   reset() {
-    console.log('🔍 [DEBUG] Reset called');
+    console.log('🔄 [useActivation] Reset called');
     debugLog('debug', 'ActivationViewModel', 'Resetting state');
     this.activationKey = '';
     this.error = '';
+    this.errorType = null;
     this.isValidCode = false;
     this.submitted = false;
     this.isLoading = false;
@@ -200,9 +260,12 @@ class ActivationViewModel {
  * Implements MVVM pattern
  */
 export const useActivation = (userId) => {
+  console.log('🎣 [useActivation] Hook called with userId:', userId);
+  
   const [state, setState] = useState({
     activationKey: '',
     error: '',
+    errorType: null,
     isValidCode: false,
     submitted: false,
     isLoading: false,
@@ -212,33 +275,34 @@ export const useActivation = (userId) => {
   const viewModelRef = useRef(null);
   
   if (!viewModelRef.current) {
-    console.log('🔍 [DEBUG] Creating new ActivationViewModel');
+    console.log('🏗️ [useActivation] Creating new ActivationViewModel');
     viewModelRef.current = new ActivationViewModel(activationService, authService);
     viewModelRef.current.setOnStateChange((newState) => {
-      console.log('🔍 [DEBUG] State update:', newState);
+      console.log('🔄 [useActivation] State update:', newState);
       setState(newState);
     });
   }
   
   // Update userId if provided
   if (userId && viewModelRef.current.userId !== userId) {
-    console.log('🔍 [DEBUG] Updating userId in ViewModel:', userId);
+    console.log('🆔 [useActivation] Updating userId in ViewModel:', userId);
     viewModelRef.current.setUserId(userId);
   }
   
   const viewModel = viewModelRef.current;
   
   const setActivationKey = useCallback((key) => {
-    console.log('🔍 [DEBUG] setActivationKey callback with:', key);
+    console.log('🔑 [useActivation] setActivationKey callback with:', key);
     viewModel.setActivationKey(key);
   }, [viewModel]);
   
   const submit = useCallback(async () => {
-    console.log('🔍 [DEBUG] submit callback invoked');
+    console.log('🚀 [useActivation] submit callback invoked');
     return await viewModel.submit();
   }, [viewModel]);
   
   const reset = useCallback(() => {
+    console.log('🔄 [useActivation] reset callback invoked');
     viewModel.reset();
   }, [viewModel]);
   

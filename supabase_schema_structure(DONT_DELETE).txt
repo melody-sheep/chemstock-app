@@ -1,21 +1,137 @@
-| section     | value1                                | value2                                                                                  |
-| ----------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
-| 📊 STATS:   | activation_keys                       | Rows: 1                                                                                 |
-| 📊 SUMMARY: | Available Keys                        | 3                                                                                       |
-| 📊 SUMMARY: | Total Keys                            | 3                                                                                       |
-| 📊 SUMMARY: | Used Keys                             | 0                                                                                       |
-| 📋 COLUMNS: | activation_keys.branch_locations      | ARRAY DEFAULT '{}'::text[] (array)                                                      |
-| 📋 COLUMNS: | activation_keys.branch_names          | ARRAY DEFAULT '{}'::text[] (array)                                                      |
-| 📋 COLUMNS: | activation_keys.code                  | character varying NOT NULL                                                              |
-| 📋 COLUMNS: | activation_keys.created_at            | timestamp without time zone DEFAULT now()                                               |
-| 📋 COLUMNS: | activation_keys.expires_at            | timestamp without time zone                                                             |
-| 📋 COLUMNS: | activation_keys.id                    | uuid NOT NULL DEFAULT gen_random_uuid()                                                 |
-| 📋 COLUMNS: | activation_keys.is_used               | boolean DEFAULT false                                                                   |
-| 📋 COLUMNS: | activation_keys.manager_email         | character varying NOT NULL                                                              |
-| 📋 COLUMNS: | activation_keys.manager_name          | character varying NOT NULL                                                              |
-| 📋 COLUMNS: | activation_keys.updated_at            | timestamp without time zone DEFAULT now()                                               |
-| 📋 COLUMNS: | activation_keys.used_at               | timestamp without time zone                                                             |
-| 📋 TABLES:  | activation_keys                       |                                                                                         |
-| 📦 DATA:    | 4ypqidofOvZAMdv4 | Alther Adrian Liga | Branches: Bukidnon | Used: NO | Expires: 2026-07-07 08:04:18.264                        |
-| 📦 DATA:    | SIMPLEKEY | Simple Test               | Branches: Test Branch 1, Test Branch 2 | Used: NO | Expires: 2026-07-17 07:49:25.165303 |
-| 📦 DATA:    | TEST1234 | Test Manager               | Branches: Cagayan de Oro, Butuan | Used: NO | Expires: 2026-07-17 07:49:25.165303       |
+================================================================================
+                    CHEMSTOCK - SUPABASE SCHEMA STRUCTURE
+                    ======================================
+                    Generated: 2026-06-18
+                    Database: nxxsjbmuetgamcvfajhl.supabase.co
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. TABLE: activation_keys                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  📊 STATISTICS:                                                             │
+│  ─────────────                                                              │
+│  Total Rows: 9                                                              │
+│  Available Keys: 9                                                          │
+│  Used Keys: 0                                                               │
+│  Expired Keys: 0                                                            │
+│  Unique Managers: 9                                                         │
+│                                                                             │
+│  📋 COLUMNS:                                                                │
+│  ────────────                                                               │
+│  ┌─────────────────────┬───────────────────────────────────────────────────┐ │
+│  │ Column Name         │ Type & Constraints                              │ │
+│  ├─────────────────────┼───────────────────────────────────────────────────┤ │
+│  │ id                  │ uuid NOT NULL DEFAULT gen_random_uuid()         │ │
+│  │ code                │ character varying NOT NULL                      │ │
+│  │ manager_name        │ character varying NOT NULL                      │ │
+│  │ manager_email       │ character varying NOT NULL                      │ │
+│  │ branch_names        │ ARRAY DEFAULT '{}'::text[] (array)              │ │
+│  │ branch_locations    │ ARRAY DEFAULT '{}'::text[] (array)              │ │
+│  │ is_used             │ boolean DEFAULT false                           │ │
+│  │ used_at             │ timestamp without time zone                     │ │
+│  │ expires_at          │ timestamp without time zone                     │ │
+│  │ created_at          │ timestamp without time zone DEFAULT now()       │ │
+│  │ updated_at          │ timestamp without time zone DEFAULT now()       │ │
+│  └─────────────────────┴───────────────────────────────────────────────────┘ │
+│                                                                             │
+│  🔒 RLS POLICIES:                                                           │
+│  ────────────────                                                           │
+│  ┌─────────────────────────────────────────┬───────────────────────────────┐ │
+│  │ Policy Name                             │ Details                      │ │
+│  ├─────────────────────────────────────────┼───────────────────────────────┤ │
+│  │ Anyone can read valid activation keys   │ SELECT | PERMISSIVE | public │ │
+│  │ Authenticated users can update keys     │ UPDATE | PERMISSIVE | public │ │
+│  │ Service role can delete keys            │ DELETE | PERMISSIVE | public │ │
+│  │ Service role can insert keys            │ INSERT | PERMISSIVE | public │ │
+│  └─────────────────────────────────────────┴───────────────────────────────┘ │
+│                                                                             │
+│  🔒 RLS STATUS: ENABLED ✅                                                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. SAMPLE DATA (9 records)                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌───────────────────────┬──────────────────┬────────────────┬─────────────┐ │
+│  │ Code                  │ Manager          │ Branches       │ Expires     │ │
+│  ├───────────────────────┼──────────────────┼────────────────┼─────────────┤ │
+│  │ MF9SIe4bdWgRQBdm      │ ALTHER LIGA      │ ADADAD, DAD, DA│ 2026-07-17  │ │
+│  │ zDkHThfcB5t7xC3v      │ HEART            │ CEBU           │ 2026-07-07  │ │
+│  │ z5NRnM0xoiLnzWKI      │ KRISTINE         │ BOHOL          │ 2026-06-29  │ │
+│  │ VfTK1VsinMEfvlOK      │ JOHN             │ MANILA         │ 2026-07-17  │ │
+│  │ ACsQg8ZgR4bSNQrq      │ Clint Mila       │ Camiguin       │ 2026-06-27  │ │
+│  │ ChemStock01           │ Gio              │ Opol           │ 2026-07-07  │ │
+│  │ ChemStock2026v2       │ Maria            │ Iliga          │ 2026-07-07  │ │
+│  │ ChemStock2026         │ Jay Sultan       │ Butuan, Cdeo   │ 2026-07-17  │ │
+│  │ dTxz41EvNlDgins9      │ Alther Liga      │ Butuan Cdeo    │ 2026-07-07  │ │
+│  └───────────────────────┴──────────────────┴────────────────┴─────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. OTHER TABLES                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────┬───────────────────────────────────────────────────┐ │
+│  │ Table Name          │ Status                                          │ │
+│  ├─────────────────────┼───────────────────────────────────────────────────┤ │
+│  │ profiles            │ NOT FOUND - Table does not exist                 │ │
+│  └─────────────────────┴───────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4. SECURITY SUMMARY                                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ✅ RLS Enabled on activation_keys                                          │
+│  ❌ profiles table does not exist                                           │
+│  ✅ 4 RLS Policies active                                                   │
+│                                                                             │
+│  Policy Breakdown:                                                          │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ 1. SELECT → Anyone can read valid (unused, not expired) keys          │ │
+│  │ 2. UPDATE → Authenticated users can mark keys as used                │ │
+│  │ 3. INSERT → Service role can create new keys                         │ │
+│  │ 4. DELETE → Service role can delete keys                             │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                         QUICK REFERENCE - SQL COMMANDS
+================================================================================
+
+-- 📊 Check total keys
+SELECT COUNT(*) FROM activation_keys;
+
+-- 🔑 Get all available keys
+SELECT code, manager_name, branch_names, expires_at 
+FROM activation_keys 
+WHERE is_used = false AND (expires_at IS NULL OR expires_at > NOW());
+
+-- 📋 View table structure
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'activation_keys'
+ORDER BY ordinal_position;
+
+-- 🔒 View RLS policies
+SELECT tablename, policyname, cmd, permissive, roles
+FROM pg_policies
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;
+
+-- 🗑️ Delete a specific key (admin only)
+DELETE FROM activation_keys WHERE code = 'YOUR_CODE_HERE';
+
+-- 🔄 Mark key as used (during activation)
+UPDATE activation_keys 
+SET is_used = true, used_at = NOW() 
+WHERE code = 'YOUR_CODE_HERE';
+
+================================================================================
+                               END OF REPORT
+================================================================================

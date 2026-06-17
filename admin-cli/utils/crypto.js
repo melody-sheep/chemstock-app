@@ -3,14 +3,17 @@ const crypto = require('crypto');
 
 /**
  * Generate a secure random activation code
- * ✅ NO special characters - only letters and numbers
+ * @param {number} length - Length of the code (default: 16)
+ * @returns {string} Secure random alphanumeric code
  */
 function generateSecureActivationCode(length = 16) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  
   let code = '';
+  const randomBytes = crypto.randomBytes(length);
+  
   for (let i = 0; i < length; i++) {
-    code += chars[crypto.randomInt(0, chars.length)];
+    const index = randomBytes[i] % chars.length;
+    code += chars[index];
   }
   
   return code;
@@ -18,13 +21,17 @@ function generateSecureActivationCode(length = 16) {
 
 /**
  * Generate a secure random password
+ * @param {number} length - Length of the password (default: 8)
+ * @returns {string} Secure random alphanumeric password
  */
 function generateSecurePassword(length = 8) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=';
-  
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
   let password = '';
+  const randomBytes = crypto.randomBytes(length);
+  
   for (let i = 0; i < length; i++) {
-    password += chars[crypto.randomInt(0, chars.length)];
+    const index = randomBytes[i] % chars.length;
+    password += chars[index];
   }
   
   return password;

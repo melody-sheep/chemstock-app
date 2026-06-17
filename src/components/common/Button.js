@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
@@ -81,6 +82,11 @@ export default function Button({
           height: height,
           backgroundColor: getBackgroundColor(),
           borderRadius: borderRadius,
+          ...Platform.select({
+            web: {
+              cursor: disabled || loading ? 'not-allowed' : 'pointer',
+            },
+          }),
         },
         hasShadow && styles.shadow,
         style,
@@ -147,6 +153,11 @@ const styles = StyleSheet.create({
   button: {
     justifyContent: 'center',
     alignItems: 'center',
+    ...Platform.select({
+      web: {
+        transition: 'all 0.2s ease',
+      },
+    }),
   },
   text: {
     fontWeight: '600',
@@ -160,5 +171,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 4,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+      },
+    }),
   },
 });
