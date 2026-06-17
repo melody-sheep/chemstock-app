@@ -48,3 +48,5 @@ yarn.lock
 
 # Expo shared configuration
 .expo-shared/
+".env" 
+"admin-cli/.env" 
