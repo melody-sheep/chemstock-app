@@ -1,0 +1,21 @@
+| section     | value1                                | value2                                                                                  |
+| ----------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
+| 📊 STATS:   | activation_keys                       | Rows: 1                                                                                 |
+| 📊 SUMMARY: | Available Keys                        | 3                                                                                       |
+| 📊 SUMMARY: | Total Keys                            | 3                                                                                       |
+| 📊 SUMMARY: | Used Keys                             | 0                                                                                       |
+| 📋 COLUMNS: | activation_keys.branch_locations      | ARRAY DEFAULT '{}'::text[] (array)                                                      |
+| 📋 COLUMNS: | activation_keys.branch_names          | ARRAY DEFAULT '{}'::text[] (array)                                                      |
+| 📋 COLUMNS: | activation_keys.code                  | character varying NOT NULL                                                              |
+| 📋 COLUMNS: | activation_keys.created_at            | timestamp without time zone DEFAULT now()                                               |
+| 📋 COLUMNS: | activation_keys.expires_at            | timestamp without time zone                                                             |
+| 📋 COLUMNS: | activation_keys.id                    | uuid NOT NULL DEFAULT gen_random_uuid()                                                 |
+| 📋 COLUMNS: | activation_keys.is_used               | boolean DEFAULT false                                                                   |
+| 📋 COLUMNS: | activation_keys.manager_email         | character varying NOT NULL                                                              |
+| 📋 COLUMNS: | activation_keys.manager_name          | character varying NOT NULL                                                              |
+| 📋 COLUMNS: | activation_keys.updated_at            | timestamp without time zone DEFAULT now()                                               |
+| 📋 COLUMNS: | activation_keys.used_at               | timestamp without time zone                                                             |
+| 📋 TABLES:  | activation_keys                       |                                                                                         |
+| 📦 DATA:    | 4ypqidofOvZAMdv4 | Alther Adrian Liga | Branches: Bukidnon | Used: NO | Expires: 2026-07-07 08:04:18.264                        |
+| 📦 DATA:    | SIMPLEKEY | Simple Test               | Branches: Test Branch 1, Test Branch 2 | Used: NO | Expires: 2026-07-17 07:49:25.165303 |
+| 📦 DATA:    | TEST1234 | Test Manager               | Branches: Cagayan de Oro, Butuan | Used: NO | Expires: 2026-07-17 07:49:25.165303       |
