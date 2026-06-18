@@ -1,137 +1,269 @@
-================================================================================
-                    CHEMSTOCK - SUPABASE SCHEMA STRUCTURE
-                    ======================================
-                    Generated: 2026-06-18
-                    Database: nxxsjbmuetgamcvfajhl.supabase.co
-================================================================================
+# 📊 CHEMSTOCK - COMPLETE DATABASE SCHEMA STRUCTURE
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. TABLE: activation_keys                                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  📊 STATISTICS:                                                             │
-│  ─────────────                                                              │
-│  Total Rows: 9                                                              │
-│  Available Keys: 9                                                          │
-│  Used Keys: 0                                                               │
-│  Expired Keys: 0                                                            │
-│  Unique Managers: 9                                                         │
-│                                                                             │
-│  📋 COLUMNS:                                                                │
-│  ────────────                                                               │
-│  ┌─────────────────────┬───────────────────────────────────────────────────┐ │
-│  │ Column Name         │ Type & Constraints                              │ │
-│  ├─────────────────────┼───────────────────────────────────────────────────┤ │
-│  │ id                  │ uuid NOT NULL DEFAULT gen_random_uuid()         │ │
-│  │ code                │ character varying NOT NULL                      │ │
-│  │ manager_name        │ character varying NOT NULL                      │ │
-│  │ manager_email       │ character varying NOT NULL                      │ │
-│  │ branch_names        │ ARRAY DEFAULT '{}'::text[] (array)              │ │
-│  │ branch_locations    │ ARRAY DEFAULT '{}'::text[] (array)              │ │
-│  │ is_used             │ boolean DEFAULT false                           │ │
-│  │ used_at             │ timestamp without time zone                     │ │
-│  │ expires_at          │ timestamp without time zone                     │ │
-│  │ created_at          │ timestamp without time zone DEFAULT now()       │ │
-│  │ updated_at          │ timestamp without time zone DEFAULT now()       │ │
-│  └─────────────────────┴───────────────────────────────────────────────────┘ │
-│                                                                             │
-│  🔒 RLS POLICIES:                                                           │
-│  ────────────────                                                           │
-│  ┌─────────────────────────────────────────┬───────────────────────────────┐ │
-│  │ Policy Name                             │ Details                      │ │
-│  ├─────────────────────────────────────────┼───────────────────────────────┤ │
-│  │ Anyone can read valid activation keys   │ SELECT | PERMISSIVE | public │ │
-│  │ Authenticated users can update keys     │ UPDATE | PERMISSIVE | public │ │
-│  │ Service role can delete keys            │ DELETE | PERMISSIVE | public │ │
-│  │ Service role can insert keys            │ INSERT | PERMISSIVE | public │ │
-│  └─────────────────────────────────────────┴───────────────────────────────┘ │
-│                                                                             │
-│  🔒 RLS STATUS: ENABLED ✅                                                  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Based on your `activation_keys` table structure and the new `activation_audit_log` table from your SQL query, here is the **complete database schema**:
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 2. SAMPLE DATA (9 records)                                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌───────────────────────┬──────────────────┬────────────────┬─────────────┐ │
-│  │ Code                  │ Manager          │ Branches       │ Expires     │ │
-│  ├───────────────────────┼──────────────────┼────────────────┼─────────────┤ │
-│  │ MF9SIe4bdWgRQBdm      │ ALTHER LIGA      │ ADADAD, DAD, DA│ 2026-07-17  │ │
-│  │ zDkHThfcB5t7xC3v      │ HEART            │ CEBU           │ 2026-07-07  │ │
-│  │ z5NRnM0xoiLnzWKI      │ KRISTINE         │ BOHOL          │ 2026-06-29  │ │
-│  │ VfTK1VsinMEfvlOK      │ JOHN             │ MANILA         │ 2026-07-17  │ │
-│  │ ACsQg8ZgR4bSNQrq      │ Clint Mila       │ Camiguin       │ 2026-06-27  │ │
-│  │ ChemStock01           │ Gio              │ Opol           │ 2026-07-07  │ │
-│  │ ChemStock2026v2       │ Maria            │ Iliga          │ 2026-07-07  │ │
-│  │ ChemStock2026         │ Jay Sultan       │ Butuan, Cdeo   │ 2026-07-17  │ │
-│  │ dTxz41EvNlDgins9      │ Alther Liga      │ Butuan Cdeo    │ 2026-07-07  │ │
-│  └───────────────────────┴──────────────────┴────────────────┴─────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+---
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 3. OTHER TABLES                                                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────┬───────────────────────────────────────────────────┐ │
-│  │ Table Name          │ Status                                          │ │
-│  ├─────────────────────┼───────────────────────────────────────────────────┤ │
-│  │ profiles            │ NOT FOUND - Table does not exist                 │ │
-│  └─────────────────────┴───────────────────────────────────────────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 1. TABLE: activation_keys                                                   │
+## ├─────────────────────────────────────────────────────────────────────────────┤
 
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 4. SECURITY SUMMARY                                                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ✅ RLS Enabled on activation_keys                                          │
-│  ❌ profiles table does not exist                                           │
-│  ✅ 4 RLS Policies active                                                   │
-│                                                                             │
-│  Policy Breakdown:                                                          │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │ 1. SELECT → Anyone can read valid (unused, not expired) keys          │ │
-│  │ 2. UPDATE → Authenticated users can mark keys as used                │ │
-│  │ 3. INSERT → Service role can create new keys                         │ │
-│  │ 4. DELETE → Service role can delete keys                             │ │
-│  └────────────────────────────────────────────────────────────────────────┘ │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+| Column Name | Type & Constraints |
+|-------------|-------------------|
+| `id` | uuid NOT NULL DEFAULT gen_random_uuid() |
+| `code` | character varying NOT NULL |
+| `manager_name` | character varying NOT NULL |
+| `manager_email` | character varying NOT NULL |
+| `branch_names` | ARRAY DEFAULT '{}'::text[] |
+| `branch_locations` | ARRAY DEFAULT '{}'::text[] |
+| `is_used` | boolean DEFAULT false |
+| `used_at` | timestamp without time zone |
+| `expires_at` | timestamp without time zone |
+| `created_at` | timestamp without time zone DEFAULT now() |
+| `updated_at` | timestamp without time zone DEFAULT now() |
 
-================================================================================
-                         QUICK REFERENCE - SQL COMMANDS
-================================================================================
+### 🔒 RLS POLICIES:
+| Policy Name | Details |
+|-------------|---------|
+| Anyone can read valid activation keys | SELECT \| PERMISSIVE \| public |
+| Authenticated users can update keys | UPDATE \| PERMISSIVE \| public |
+| Service role can delete keys | DELETE \| PERMISSIVE \| public |
+| Service role can insert keys | INSERT \| PERMISSIVE \| public |
 
--- 📊 Check total keys
-SELECT COUNT(*) FROM activation_keys;
+**🔒 RLS STATUS: ENABLED ✅**
 
--- 🔑 Get all available keys
-SELECT code, manager_name, branch_names, expires_at 
-FROM activation_keys 
-WHERE is_used = false AND (expires_at IS NULL OR expires_at > NOW());
+---
 
--- 📋 View table structure
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 2. TABLE: activation_audit_log (NEW!)                                       │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+| Column Name | Type & Constraints |
+|-------------|-------------------|
+| `id` | uuid PRIMARY KEY DEFAULT gen_random_uuid() |
+| `action` | text NOT NULL CHECK (action IN ('validate_key', 'activate_manager', 'generate_key', 'revoke_key')) |
+| `activation_key` | text NOT NULL |
+| `manager_email` | text |
+| `status` | text NOT NULL CHECK (status IN ('success', 'failed')) |
+| `ip_address` | text |
+| `user_agent` | text |
+| `branch_id` | uuid |
+| `error_message` | text |
+| `created_at` | timestamp with time zone DEFAULT NOW() |
+
+### 🔒 RLS POLICIES:
+| Policy Name | Details |
+|-------------|---------|
+| Service role can manage audit logs | ALL \| PERMISSIVE \| service_role |
+| Anyone can insert audit logs | INSERT \| PERMISSIVE \| public |
+| Service role can view audit logs | SELECT \| PERMISSIVE \| service_role |
+
+### 📊 INDEXES:
+| Index Name | Columns |
+|------------|---------|
+| `idx_audit_log_created_at` | created_at DESC |
+| `idx_audit_log_action` | action |
+| `idx_audit_log_status` | status |
+| `idx_audit_log_key` | activation_key |
+
+**🔒 RLS STATUS: ENABLED ✅**
+
+---
+
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 3. VIEW: recent_audit_logs (SECURED)                                       │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+| Column | Source |
+|--------|--------|
+| `id` | activation_audit_log.id |
+| `action` | activation_audit_log.action |
+| `activation_key` | activation_audit_log.activation_key |
+| `manager_email` | activation_audit_log.manager_email |
+| `status` | activation_audit_log.status |
+| `ip_address` | activation_audit_log.ip_address |
+| `user_agent` | activation_audit_log.user_agent |
+| `error_message` | activation_audit_log.error_message |
+| `created_at` | activation_audit_log.created_at |
+| `minutes_ago` | EXTRACT(EPOCH FROM (NOW() - created_at)) / 60 |
+
+### 🔒 SECURITY:
+| Setting | Value |
+|---------|-------|
+| **Security Invoker** | ✅ ENABLED |
+| **Access** | ONLY service_role |
+| **Public Access** | ❌ REVOKED |
+
+**🔒 RLS STATUS: SECURED ✅**
+
+---
+
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 4. TABLE: profiles (NOT YET CREATED)                                       │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+| Column Name | Type & Constraints | Status |
+|-------------|-------------------|--------|
+| `id` | uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE | ⬜ PENDING |
+| `username` | text UNIQUE | ⬜ PENDING |
+| `full_name` | text | ⬜ PENDING |
+| `email` | text | ⬜ PENDING |
+| `role` | text NOT NULL CHECK (role IN ('manager', 'sales_rep', 'collector', 'admin')) | ⬜ PENDING |
+| `branch_ids` | uuid[] | ⬜ PENDING |
+| `avatar_url` | text | ⬜ PENDING |
+| `created_at` | timestamp with time zone DEFAULT NOW() | ⬜ PENDING |
+| `updated_at` | timestamp with time zone DEFAULT NOW() | ⬜ PENDING |
+
+**🔒 RLS STATUS: NOT CREATED ⬜**
+
+---
+
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 5. SECURITY SUMMARY                                                         │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+| Table | RLS Status | RLS Policies | Access |
+|-------|-----------|--------------|--------|
+| **activation_keys** | ✅ ENABLED | 4 Policies | Public read, Service write |
+| **activation_audit_log** | ✅ ENABLED | 3 Policies | Public insert, Service read/write |
+| **recent_audit_logs** | ✅ SECURED | N/A | Only service_role |
+| **profiles** | ⬜ NOT CREATED | ⬜ PENDING | ⬜ PENDING |
+
+### Policy Breakdown:
+| Table | Policy | Type | Access |
+|-------|--------|------|--------|
+| activation_keys | Anyone can read valid activation keys | SELECT | public |
+| activation_keys | Authenticated users can update keys | UPDATE | authenticated |
+| activation_keys | Service role can delete keys | DELETE | service_role |
+| activation_keys | Service role can insert keys | INSERT | service_role |
+| activation_audit_log | Service role can manage audit logs | ALL | service_role |
+| activation_audit_log | Anyone can insert audit logs | INSERT | public |
+| activation_audit_log | Service role can view audit logs | SELECT | service_role |
+
+---
+
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 6. QUICK REFERENCE - SQL COMMANDS                                           │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+### 📊 Check audit logs
+```sql
+SELECT COUNT(*) FROM activation_audit_log;
+```
+
+### 🔍 View all recent logs (service_role only)
+```sql
+SELECT * FROM recent_audit_logs;
+```
+
+### 📋 Get audit stats
+```sql
+SELECT 
+  COUNT(*) as total,
+  COUNT(*) FILTER (WHERE status = 'success') as successful,
+  COUNT(*) FILTER (WHERE status = 'failed') as failed,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE status = 'success') / COUNT(*), 1) as success_rate
+FROM activation_audit_log;
+```
+
+### 🔑 Check key usage
+```sql
+SELECT 
+  code,
+  manager_name,
+  is_used,
+  used_at,
+  expires_at
+FROM activation_keys
+WHERE is_used = false AND expires_at > NOW()
+ORDER BY created_at DESC;
+```
+
+### 📊 View table structure
+```sql
 SELECT column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
-WHERE table_name = 'activation_keys'
+WHERE table_name = 'activation_audit_log'
 ORDER BY ordinal_position;
+```
 
--- 🔒 View RLS policies
-SELECT tablename, policyname, cmd, permissive, roles
+### 🔒 View RLS policies
+```sql
+SELECT schemaname, tablename, policyname, cmd, permissive, roles
 FROM pg_policies
 WHERE schemaname = 'public'
 ORDER BY tablename, policyname;
+```
 
--- 🗑️ Delete a specific key (admin only)
-DELETE FROM activation_keys WHERE code = 'YOUR_CODE_HERE';
+---
 
--- 🔄 Mark key as used (during activation)
-UPDATE activation_keys 
-SET is_used = true, used_at = NOW() 
-WHERE code = 'YOUR_CODE_HERE';
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 7. DATABASE RELATIONSHIP DIAGRAM                                            │
+## ├─────────────────────────────────────────────────────────────────────────────┤
 
-================================================================================
-                               END OF REPORT
-================================================================================
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           SUPABASE DATABASE                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌──────────────────────┐                    ┌─────────────────────────┐│
+│  │   activation_keys    │                    │  activation_audit_log   ││
+│  ├──────────────────────┤                    ├─────────────────────────┤│
+│  │ id (PK)              │                    │ id (PK)                 ││
+│  │ code (unique)        │◄───────┐          │ action                  ││
+│  │ manager_name         │       │          │ activation_key          ││
+│  │ manager_email        │       │          │ manager_email           ││
+│  │ branch_names[]       │       │          │ status                  ││
+│  │ branch_locations[]   │       └──────────┤ ip_address              ││
+│  │ is_used              │                   │ user_agent              ││
+│  │ used_at              │                   │ branch_id               ││
+│  │ expires_at           │                   │ error_message           ││
+│  │ created_at           │                   │ created_at              ││
+│  │ updated_at           │                   └─────────────────────────┘│
+│  └──────────────────────┘                              │                │
+│          │                                             │                │
+│          │                                             ▼                │
+│          │                                   ┌─────────────────────────┐│
+│          │                                   │  recent_audit_logs      ││
+│          │                                   │  (VIEW - SECURED)       ││
+│          │                                   ├─────────────────────────┤│
+│          │                                   │ (same columns +         ││
+│          └───────────────────────────────────►│  minutes_ago)          ││
+│                                               └─────────────────────────┘│
+│                                                                          │
+│  ┌──────────────────────┐                                                │
+│  │     profiles         │  ⬜ NOT YET CREATED                           │
+│  ├──────────────────────┤                                                │
+│  │ id (PK)              │                                                │
+│  │ username (unique)    │                                                │
+│  │ full_name            │                                                │
+│  │ email                │                                                │
+│  │ role                 │                                                │
+│  │ branch_ids[]         │                                                │
+│  │ avatar_url           │                                                │
+│  │ created_at           │                                                │
+│  │ updated_at           │                                                │
+│  └──────────────────────┘                                                │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ┌─────────────────────────────────────────────────────────────────────────────┐
+## │ 8. SUMMARY                                                                 │
+## ├─────────────────────────────────────────────────────────────────────────────┤
+
+| Item | Status |
+|------|--------|
+| **Tables Created** | 2 (activation_keys, activation_audit_log) |
+| **Views Created** | 1 (recent_audit_logs) |
+| **RLS Enabled** | 2 tables + 1 view |
+| **RLS Policies** | 7 total |
+| **Indexes** | 4 on activation_audit_log |
+| **Profiles Table** | ⬜ PENDING |
+| **Total Tables Needed** | 3 (activation_keys, activation_audit_log, profiles) |
+
+---
+
+**📊 Database Schema Complete!** 🎉

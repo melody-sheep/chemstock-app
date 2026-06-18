@@ -6,6 +6,7 @@ const API_URL = window.location.origin;
 const TOAST_TIMEOUT = 3000;
 let currentBranchCount = 1;
 let keysBlurred = true;
+let allAuditLogs = [];
 
 /* ============================================ */
 /* INIT                                          */
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupKeyboardShortcuts();
     setupBlurToggle();
     generateBranchFields(1);
+    startAuditAutoRefresh();
 });
 
 /* ============================================ */
@@ -114,17 +116,14 @@ function getBranchData() {
 function validateForm() {
     let isValid = true;
     
-    // Clear all previous errors
     clearAllErrors();
     
-    // Validate Manager Name
     const managerName = document.getElementById('managerName');
     if (!managerName.value.trim()) {
         markError(managerName, 'managerName-error', 'Full name is required');
         isValid = false;
     }
     
-    // Validate Manager Email
     const managerEmail = document.getElementById('managerEmail');
     if (!managerEmail.value.trim()) {
         markError(managerEmail, 'managerEmail-error', 'Email address is required');
@@ -134,7 +133,6 @@ function validateForm() {
         isValid = false;
     }
     
-    // Validate Branches
     const branchCount = parseInt(document.getElementById('branchCount').value) || 1;
     let hasBranchError = false;
     
@@ -165,12 +163,9 @@ function validateForm() {
 }
 
 function clearAllErrors() {
-    // Clear form group errors
     document.querySelectorAll('.form-group.has-error').forEach(el => el.classList.remove('has-error'));
     document.querySelectorAll('.branch-field-item.has-error').forEach(el => el.classList.remove('has-error'));
     document.querySelector('.branch-control')?.classList.remove('has-error');
-    
-    // Clear error texts
     document.querySelectorAll('.error-text').forEach(el => {
         el.textContent = '';
         el.classList.remove('show');
@@ -249,18 +244,21 @@ function switchView(view) {
     const titles = {
         dashboard: 'DASHBOARD',
         keys: 'ACTIVATION KEYS',
-        generate: 'GENERATE KEY'
+        generate: 'GENERATE KEY',
+        audit: 'AUDIT LOGS'
     };
     const subtitles = {
         dashboard: 'SYSTEM OVERVIEW',
         keys: 'RECORD MANAGEMENT',
-        generate: 'CREATE NEW RECORD'
+        generate: 'CREATE NEW RECORD',
+        audit: 'SECURITY & COMPLIANCE'
     };
     document.getElementById('page-title').textContent = titles[view] || 'DASHBOARD';
     document.querySelector('.page-subtitle').textContent = subtitles[view] || 'SYSTEM OVERVIEW';
 
     if (view === 'dashboard') { loadStats(); loadRecentKeys(); }
     if (view === 'keys') { loadAllKeys(); }
+    if (view === 'audit') { loadAuditLogs(); }
 }
 
 /* ============================================ */
@@ -376,7 +374,7 @@ function escapeHtml(str) {
 }
 
 /* ============================================ */
-/* GENERATE KEY FORM                           */
+/* GENERATE KEY FORM                            */
 /* ============================================ */
 function setupForm() {
     document.getElementById('generate-form').addEventListener('submit', async (e) => {
@@ -385,7 +383,6 @@ function setupForm() {
             await generateKey();
         } else {
             showToast('Please fill in all required fields', 'error');
-            // Scroll to first error
             const firstError = document.querySelector('.form-group.has-error, .branch-field-item.has-error');
             if (firstError) {
                 firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -456,10 +453,7 @@ async function generateKey() {
             showToast('Key generated successfully', 'success');
             loadStats();
             loadRecentKeys();
-
-            // Reset form but keep code field empty
             resetForm();
-
             resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
             showToast(`Error: ${result.error || 'Unknown error'}`, 'error');
@@ -564,7 +558,6 @@ function showToast(message, type = 'info') {
     }
 
     toast.classList.remove('success', 'error', 'show');
-
     messageEl.textContent = message;
 
     if (type === 'success') toast.classList.add('success');
@@ -585,9 +578,174 @@ function setupKeyboardShortcuts() {
         if (e.ctrlKey && e.key === '1') { e.preventDefault(); switchView('dashboard'); }
         if (e.ctrlKey && e.key === '2') { e.preventDefault(); switchView('keys'); }
         if (e.ctrlKey && e.key === '3') { e.preventDefault(); switchView('generate'); }
+        if (e.ctrlKey && e.key === '4') { e.preventDefault(); switchView('audit'); }
         if (e.ctrlKey && e.key === 'b') { e.preventDefault(); toggleBlur(); }
         if (e.key === 'Escape') {
             document.getElementById('toast').classList.remove('show');
         }
     });
+}
+
+/* ============================================ */
+/* AUDIT LOGS FUNCTIONS                         */
+/* ============================================ */
+
+async function loadAuditLogs() {
+    const tbody = document.getElementById('audit-logs-body');
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-text">LOADING AUDIT LOGS...</td></tr>`;
+
+    try {
+        const response = await fetch(`${API_URL}/api/audit-logs`);
+        const result = await response.json();
+
+        if (!result.success || !result.data) {
+            tbody.innerHTML = `<tr><td colspan="8" class="loading-text">NO AUDIT LOGS FOUND</td></tr>`;
+            return;
+        }
+
+        allAuditLogs = result.data;
+        updateAuditStats(result.data);
+        renderAuditLogs(result.data);
+        updateAuditBadge(result.data);
+
+    } catch (error) {
+        console.error('Error loading audit logs:', error);
+        tbody.innerHTML = `<tr><td colspan="8" class="loading-text">ERROR LOADING AUDIT LOGS</td></tr>`;
+    }
+}
+
+function updateAuditStats(logs) {
+    const total = logs.length;
+    const success = logs.filter(l => l.status === 'success').length;
+    const failed = logs.filter(l => l.status === 'failed').length;
+    const rate = total > 0 ? Math.round((success / total) * 100) : 0;
+
+    document.getElementById('audit-stat-total').textContent = total;
+    document.getElementById('audit-stat-success').textContent = success;
+    document.getElementById('audit-stat-failed').textContent = failed;
+    document.getElementById('audit-stat-rate').textContent = rate + '%';
+}
+
+function renderAuditLogs(logs) {
+    const tbody = document.getElementById('audit-logs-body');
+
+    const statusFilter = document.getElementById('filter-status').value;
+    const actionFilter = document.getElementById('filter-action').value;
+    const searchFilter = document.getElementById('filter-search').value.toLowerCase();
+
+    let filtered = logs;
+
+    if (statusFilter !== 'all') {
+        filtered = filtered.filter(l => l.status === statusFilter);
+    }
+
+    if (actionFilter !== 'all') {
+        filtered = filtered.filter(l => l.action === actionFilter);
+    }
+
+    if (searchFilter) {
+        filtered = filtered.filter(l => 
+            (l.manager_email && l.manager_email.toLowerCase().includes(searchFilter)) ||
+            (l.activation_key && l.activation_key.toLowerCase().includes(searchFilter))
+        );
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="loading-text">NO MATCHING LOGS FOUND</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(log => `
+        <tr>
+            <td>${formatTimestamp(log.created_at)}</td>
+            <td><span class="badge-action ${log.action}">${formatAction(log.action)}</span></td>
+            <td><code>${escapeHtml(log.activation_key)}</code></td>
+            <td>${escapeHtml(log.manager_email || 'N/A')}</td>
+            <td>${getAuditStatusBadge(log.status)}</td>
+            <td><span class="ip-address">${escapeHtml(log.ip_address || 'N/A')}</span></td>
+            <td class="user-agent-col">${escapeHtml(truncateUserAgent(log.user_agent))}</td>
+            <td class="error-col">${log.error_message ? `<span class="error-message">${escapeHtml(log.error_message)}</span>` : '—'}</td>
+        </tr>
+    `).join('');
+}
+
+function applyFilters() {
+    renderAuditLogs(allAuditLogs);
+}
+
+async function refreshAuditLogs() {
+    showToast('Refreshing audit logs...', 'info');
+    await loadAuditLogs();
+    showToast('Audit logs refreshed', 'success');
+}
+
+function formatTimestamp(dateStr) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).toUpperCase();
+}
+
+function formatAction(action) {
+    const map = {
+        'generate_key': 'Generate',
+        'activate_manager': 'Activate',
+        'revoke_key': 'Revoke',
+        'validate_key': 'Validate'
+    };
+    return map[action] || action;
+}
+
+function getAuditStatusBadge(status) {
+    if (status === 'success') {
+        return `<span class="badge badge-success">● SUCCESS</span>`;
+    }
+    return `<span class="badge badge-failed">● FAILED</span>`;
+}
+
+function truncateUserAgent(ua) {
+    if (!ua) return 'N/A';
+    if (ua.length <= 30) return ua;
+    return ua.substring(0, 30) + '...';
+}
+
+function updateAuditBadge(logs) {
+    const oneDayAgo = new Date();
+    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+
+    const recent = logs.filter(l => {
+        const logDate = new Date(l.created_at);
+        return logDate > oneDayAgo && l.status === 'failed';
+    });
+
+    const badge = document.getElementById('audit-badge');
+    if (recent.length > 0) {
+        badge.textContent = recent.length > 99 ? '99+' : recent.length;
+        badge.style.display = 'block';
+    } else {
+        badge.textContent = '0';
+        badge.style.display = 'none';
+    }
+}
+
+/* ============================================ */
+/* AUTO-REFRESH AUDIT LOGS                      */
+/* ============================================ */
+
+let auditRefreshInterval = null;
+
+function startAuditAutoRefresh() {
+    if (auditRefreshInterval) clearInterval(auditRefreshInterval);
+    auditRefreshInterval = setInterval(() => {
+        const activeView = document.querySelector('.view.active');
+        if (activeView && activeView.id === 'view-audit') {
+            loadAuditLogs();
+        }
+    }, 30000);
 }

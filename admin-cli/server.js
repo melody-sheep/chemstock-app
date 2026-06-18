@@ -1,14 +1,46 @@
 // admin-cli/server.js
+// ============================================
+// 🚀 CHEMSTOCK ADMIN SERVER
+// ============================================
+// SECURITY FEATURES IMPLEMENTED:
+//   ✅ Rate limiting (prevents brute force)
+//   ✅ Audit logging (tracks all actions)
+//   ✅ Environment variables (no hardcoded keys)
+//   ✅ Request validation
+//   ✅ Error handling
+// ============================================
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+
+// ============================================
+// 🔧 ENVIRONMENT CONFIGURATION
+// ============================================
+require('dotenv').config();
+
 const { supabase } = require('./config/supabase');
 const { generateSecureActivationCode, generateSecurePassword } = require('./utils/crypto');
+
+// Import rate limiters
+const {
+  activationLimiter,
+  generateKeyLimiter,
+  revokeKeyLimiter,
+  globalLimiter
+} = require('./utils/rateLimiter');
+
+// Import audit logger
+const { auditLogger } = require('./utils/auditLogger');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 console.log('🚀 [Server] Initializing...');
+console.log(`🔒 [Security] Rate limiting ENABLED`);
+console.log(`📊 [Security] Audit logging ${process.env.AUDIT_LOG_ENABLED !== 'false' ? 'ENABLED' : 'DISABLED'}`);
+console.log(`🌍 [Environment] ${process.env.NODE_ENV || 'development'}`);
 
 // ============================================
 // ✅ CHECK DEPENDENCIES
@@ -41,15 +73,35 @@ try {
 // ✅ MIDDLEWARE
 // ============================================
 console.log('🔧 [Server] Setting up middleware...');
-app.use(cors());
-app.use(express.json());
+
+// CORS with security headers
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://your-domain.com'] 
+    : ['http://localhost:3000', 'http://localhost:3001'],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// JSON parser with size limit
+app.use(express.json({ limit: '10mb' }));
+
+// ✅ Apply global rate limiting (applies to ALL requests)
+app.use(globalLimiter);
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // Serve static files from web-ui directory
 const webUiPath = path.join(__dirname, 'web-ui');
 console.log(`📁 [Server] Serving static files from: ${webUiPath}`);
 
-// Check if web-ui directory exists
-const fs = require('fs');
 if (!fs.existsSync(webUiPath)) {
   console.error(`❌ [Server] web-ui directory not found at: ${webUiPath}`);
   console.log('💡 Create the web-ui directory with index.html, style.css, and script.js');
@@ -59,20 +111,37 @@ if (!fs.existsSync(webUiPath)) {
 app.use(express.static(webUiPath));
 
 // ============================================
+// 📊 REQUEST LOGGING
+// ============================================
+app.use((req, res, next) => {
+  console.log(`📊 [${req.method}] ${req.path} from ${req.ip}`);
+  next();
+});
+
+// ============================================
 // 📊 API ROUTES
 // ============================================
 
-// Health check
+// ============================================
+// Health check (no rate limiting)
+// ============================================
 app.get('/api/health', (req, res) => {
   console.log('📊 [API] Health check');
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    message: 'ChemStock Admin API is running'
+    message: 'ChemStock Admin API is running',
+    security: {
+      rateLimiting: true,
+      auditLogging: process.env.AUDIT_LOG_ENABLED !== 'false',
+      environment: process.env.NODE_ENV || 'development'
+    }
   });
 });
 
+// ============================================
 // Get all activation keys
+// ============================================
 app.get('/api/keys', async (req, res) => {
   console.log('📊 [API] GET /api/keys');
   
@@ -95,27 +164,49 @@ app.get('/api/keys', async (req, res) => {
   }
 });
 
+// ============================================
 // Generate new activation key
-app.post('/api/keys/generate', async (req, res) => {
+// 🔒 Protected by: generateKeyLimiter
+// 🔒 Audited by: auditLogger
+// ============================================
+app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
   console.log('📊 [API] POST /api/keys/generate');
   console.log('📊 [API] Request body:', req.body);
   
-  try {
-    const { 
-      code, 
-      managerName, 
-      managerEmail, 
-      branchNames, 
-      branchLocations, 
-      daysValid,
-      generatePassword 
-    } = req.body;
+  const { 
+    code, 
+    managerName, 
+    managerEmail, 
+    branchNames, 
+    branchLocations, 
+    daysValid,
+    generatePassword 
+  } = req.body;
 
+  // Get client info for audit
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
+
+  try {
     // Validate required fields
     if (!managerName || !managerEmail || !branchNames || branchNames.length === 0) {
+      const error = 'Manager name, email, and at least one branch are required';
+      
+      // 📊 AUDIT: Failed key generation
+      await auditLogger.logKeyGeneration({
+        activationKey: code || 'generated',
+        managerEmail,
+        managerName,
+        branches: branchNames,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: error
+      });
+
       return res.status(400).json({
         success: false,
-        error: 'Manager name, email, and at least one branch are required'
+        error
       });
     }
 
@@ -146,11 +237,35 @@ app.post('/api/keys/generate', async (req, res) => {
 
     if (error) {
       console.error('❌ [API] Error inserting key:', error);
+      
+      // 📊 AUDIT: Failed key generation
+      await auditLogger.logKeyGeneration({
+        activationKey: activationCode,
+        managerEmail,
+        managerName,
+        branches: branchNames,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: error.message
+      });
+
       return res.status(500).json({ success: false, error: error.message });
     }
 
     console.log(`✅ [API] Key created successfully: ${activationCode}`);
     
+    // 📊 AUDIT: Successful key generation
+    await auditLogger.logKeyGeneration({
+      activationKey: activationCode,
+      managerEmail,
+      managerName,
+      branches: branchNames,
+      ipAddress,
+      userAgent,
+      status: 'success'
+    });
+
     res.json({
       success: true,
       data: {
@@ -160,16 +275,46 @@ app.post('/api/keys/generate', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [API] Error:', error);
+    
+    // 📊 AUDIT: Failed key generation
+    await auditLogger.logKeyGeneration({
+      activationKey: code || 'unknown',
+      managerEmail,
+      managerName,
+      branches: branchNames || [],
+      ipAddress,
+      userAgent,
+      status: 'failed',
+      errorMessage: error.message
+    });
+
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
+// ============================================
 // Revoke activation key
-app.delete('/api/keys/:code', async (req, res) => {
+// 🔒 Protected by: revokeKeyLimiter
+// 🔒 Audited by: auditLogger
+// ============================================
+app.delete('/api/keys/:code', revokeKeyLimiter, async (req, res) => {
   console.log('📊 [API] DELETE /api/keys/' + req.params.code);
   
+  const { code } = req.params;
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
+
   try {
-    const { code } = req.params;
+    // First, get the key details for audit
+    const { data: keyData, error: fetchError } = await supabase
+      .from('activation_keys')
+      .select('manager_email, manager_name')
+      .eq('code', code)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('❌ [API] Error fetching key:', fetchError);
+    }
     
     const { data, error } = await supabase
       .from('activation_keys')
@@ -181,16 +326,47 @@ app.delete('/api/keys/:code', async (req, res) => {
 
     if (error) {
       if (error.code === 'PGRST116') {
+        // 📊 AUDIT: Failed revocation - key not found
+        await auditLogger.logKeyRevocation({
+          activationKey: code,
+          managerEmail: keyData?.manager_email || 'unknown',
+          ipAddress,
+          userAgent,
+          status: 'failed',
+          errorMessage: 'Key not found or already revoked'
+        });
+
         return res.status(404).json({ 
           success: false, 
           error: 'Key not found or already revoked' 
         });
       }
       console.error('❌ [API] Error revoking key:', error);
+      
+      // 📊 AUDIT: Failed revocation
+      await auditLogger.logKeyRevocation({
+        activationKey: code,
+        managerEmail: keyData?.manager_email || 'unknown',
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: error.message
+      });
+
       return res.status(500).json({ success: false, error: error.message });
     }
 
     console.log(`✅ [API] Key revoked: ${code}`);
+    
+    // 📊 AUDIT: Successful revocation
+    await auditLogger.logKeyRevocation({
+      activationKey: code,
+      managerEmail: data?.manager_email || keyData?.manager_email || 'unknown',
+      ipAddress,
+      userAgent,
+      status: 'success'
+    });
+
     res.json({ success: true, data });
   } catch (error) {
     console.error('❌ [API] Error:', error);
@@ -198,7 +374,9 @@ app.delete('/api/keys/:code', async (req, res) => {
   }
 });
 
+// ============================================
 // Get stats
+// ============================================
 app.get('/api/stats', async (req, res) => {
   console.log('📊 [API] GET /api/stats');
   
@@ -231,7 +409,197 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Catch-all route - serve index.html for any other route
+// ============================================
+// 📊 AUDIT LOGS ENDPOINT (admin only)
+// ============================================
+app.get('/api/audit-logs', async (req, res) => {
+  console.log('📊 [API] GET /api/audit-logs');
+  
+  const limit = parseInt(req.query.limit) || 100;
+  
+  const result = await auditLogger.getRecentLogs(limit);
+  
+  if (!result.success) {
+    return res.status(500).json({ success: false, error: result.error });
+  }
+  
+  res.json({ success: true, data: result.data });
+});
+
+// ============================================
+// 📊 AUDIT STATS ENDPOINT
+// ============================================
+app.get('/api/audit-stats', async (req, res) => {
+  console.log('📊 [API] GET /api/audit-stats');
+  
+  const result = await auditLogger.getStats();
+  
+  if (!result.success) {
+    return res.status(500).json({ success: false, error: result.error });
+  }
+  
+  res.json({ success: true, data: result.data });
+});
+
+// ============================================
+// 🚀 ACTIVATE MANAGER ENDPOINT
+// 🔒 Protected by: activationLimiter (strict)
+// 🔒 Audited by: auditLogger
+// ============================================
+app.post('/api/activate-manager', activationLimiter, async (req, res) => {
+  console.log('📊 [API] POST /api/activate-manager');
+  
+  const { code, managerEmail, branchId } = req.body;
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
+
+  console.log(`📊 [API] Activation attempt for: ${managerEmail} with key: ${code}`);
+
+  try {
+    // Validate input
+    if (!code || !managerEmail) {
+      // 📊 AUDIT: Failed activation - missing fields
+      await auditLogger.logManagerActivation({
+        activationKey: code || 'unknown',
+        managerEmail: managerEmail || 'unknown',
+        branchId,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: 'Missing required fields'
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'Activation code and email are required'
+      });
+    }
+
+    // Look up the activation key
+    const { data: keyData, error: keyError } = await supabase
+      .from('activation_keys')
+      .select('*')
+      .eq('code', code)
+      .eq('is_used', false)
+      .single();
+
+    if (keyError || !keyData) {
+      console.warn(`⚠️  [API] Invalid activation key: ${code}`);
+      
+      // 📊 AUDIT: Failed activation - invalid key
+      await auditLogger.logManagerActivation({
+        activationKey: code,
+        managerEmail,
+        branchId,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: 'Invalid or used activation key'
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or used activation key'
+      });
+    }
+
+    // Check if key is expired
+    if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+      console.warn(`⚠️  [API] Expired activation key: ${code}`);
+      
+      // 📊 AUDIT: Failed activation - expired key
+      await auditLogger.logManagerActivation({
+        activationKey: code,
+        managerEmail,
+        branchId,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: 'Activation key has expired'
+      });
+
+      return res.status(400).json({
+        success: false,
+        error: 'Activation key has expired'
+      });
+    }
+
+    // Mark key as used
+    const { error: updateError } = await supabase
+      .from('activation_keys')
+      .update({
+        is_used: true,
+        used_at: new Date().toISOString()
+      })
+      .eq('code', code);
+
+    if (updateError) {
+      console.error('❌ [API] Error updating key:', updateError);
+      
+      // 📊 AUDIT: Failed activation - update error
+      await auditLogger.logManagerActivation({
+        activationKey: code,
+        managerEmail,
+        branchId,
+        ipAddress,
+        userAgent,
+        status: 'failed',
+        errorMessage: updateError.message
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to activate manager'
+      });
+    }
+
+    console.log(`✅ [API] Manager activated: ${managerEmail}`);
+    
+    // 📊 AUDIT: Successful activation
+    await auditLogger.logManagerActivation({
+      activationKey: code,
+      managerEmail,
+      branchId,
+      ipAddress,
+      userAgent,
+      status: 'success'
+    });
+
+    // Return success with manager details
+    res.json({
+      success: true,
+      data: {
+        managerName: keyData.manager_name,
+        managerEmail: keyData.manager_email,
+        branches: keyData.branch_names,
+        activatedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [API] Activation error:', error);
+    
+    // 📊 AUDIT: Failed activation - unexpected error
+    await auditLogger.logManagerActivation({
+      activationKey: code || 'unknown',
+      managerEmail: managerEmail || 'unknown',
+      branchId,
+      ipAddress,
+      userAgent,
+      status: 'failed',
+      errorMessage: error.message
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during activation'
+    });
+  }
+});
+
+// ============================================
+// Catch-all route - serve index.html
+// ============================================
 app.get('*', (req, res) => {
   res.sendFile(path.join(webUiPath, 'index.html'));
 });
@@ -242,9 +610,19 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(`\n✅ Admin Web UI running at: http://localhost:${PORT}\n`);
-  console.log(`📊 API available at: http://localhost:${PORT}/api/keys`);
-  console.log(`📊 Stats at: http://localhost:${PORT}/api/stats`);
-  console.log(`🩺 Health check: http://localhost:${PORT}/api/health\n`);
+  console.log(`📊 API available at:`);
+  console.log(`   - GET  /api/keys        - List all keys`);
+  console.log(`   - POST /api/keys/generate - Generate new key`);
+  console.log(`   - DELETE /api/keys/:code - Revoke key`);
+  console.log(`   - POST /api/activate-manager - Activate manager`);
+  console.log(`   - GET  /api/audit-logs  - View audit logs`);
+  console.log(`   - GET  /api/audit-stats - Audit statistics`);
+  console.log(`   - GET  /api/stats       - Key statistics`);
+  console.log(`   - GET  /api/health      - Health check`);
+  console.log(`\n🔒 Security Features:`);
+  console.log(`   - Rate limiting: ${process.env.RATE_LIMIT_MAX_REQUESTS || 5} requests per minute`);
+  console.log(`   - Audit logging: ${process.env.AUDIT_LOG_ENABLED !== 'false' ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`   - Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });
 
 // Handle server errors

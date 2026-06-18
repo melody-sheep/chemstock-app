@@ -1,7 +1,7 @@
 {
   "name": "chemstock-admin-cli",
   "version": "2.0.0",
-  "description": "ChemStock Admin CLI with Web UI",
+  "description": "ChemStock Admin CLI with Web UI - Secured with Rate Limiting & Audit Logging",
   "main": "index.js",
   "bin": {
     "chemstock-admin": "./index.js"
@@ -18,6 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
     "open": "^9.1.0"
   }
 }

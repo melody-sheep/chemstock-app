@@ -196,6 +196,24 @@ body {
     letter-spacing: 1.2px;
 }
 
+.nav-badge {
+    margin-left: auto;
+    background: var(--danger);
+    color: #ffffff;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+    min-width: 18px;
+    text-align: center;
+}
+
+.nav-item.active .nav-badge {
+    background: #ffffff;
+    color: var(--primary);
+}
+
 .sidebar-footer {
     padding: 12px 16px;
     border-top: 1px solid rgba(255,255,255,0.06);
@@ -379,6 +397,15 @@ body {
     text-transform: uppercase;
 }
 
+/* Audit Stats */
+.audit-stats-grid .stat-success .stat-number {
+    color: var(--success);
+}
+
+.audit-stats-grid .stat-failed .stat-number {
+    color: var(--error);
+}
+
 /* ============================================ */
 /* DATA PANEL                                   */
 /* ============================================ */
@@ -411,6 +438,7 @@ body {
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 /* ============================================ */
@@ -521,6 +549,55 @@ code {
     background: var(--danger-light);
     color: var(--danger);
     border-color: var(--danger);
+}
+
+.badge-success {
+    background: var(--success-light);
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.badge-failed {
+    background: var(--error-light);
+    color: var(--error);
+    border-color: var(--error);
+}
+
+/* Action Badges */
+.badge-action {
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border: 1px solid var(--gray-300);
+    background: var(--gray-50);
+    color: var(--gray-600);
+    white-space: nowrap;
+}
+
+.badge-action.generate_key {
+    border-color: #4a90d9;
+    background: #e8f0fe;
+    color: #4a90d9;
+}
+
+.badge-action.activate_manager {
+    border-color: #00a86b;
+    background: #e6f5ef;
+    color: #00a86b;
+}
+
+.badge-action.revoke_key {
+    border-color: #c0392b;
+    background: #fdf0ed;
+    color: #c0392b;
+}
+
+.badge-action.validate_key {
+    border-color: #d4a017;
+    background: #f5ede6;
+    color: #d4a017;
 }
 
 /* ============================================ */
@@ -647,6 +724,58 @@ code {
 }
 
 /* ============================================ */
+/* FILTER CONTROLS                              */
+/* ============================================ */
+.filter-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-select {
+    padding: 4px 10px;
+    border: 1px solid var(--gray-300);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--gray-700);
+    background: #ffffff;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    height: 30px;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(10, 22, 40, 0.06);
+}
+
+.filter-input {
+    padding: 4px 10px;
+    border: 1px solid var(--gray-300);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--gray-700);
+    background: #ffffff;
+    height: 30px;
+    min-width: 160px;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(10, 22, 40, 0.06);
+}
+
+.filter-input::placeholder {
+    color: var(--gray-400);
+    font-weight: 300;
+}
+
+/* ============================================ */
 /* FORMS                                        */
 /* ============================================ */
 .form {
@@ -722,7 +851,6 @@ code {
     font-weight: 300;
 }
 
-/* Input Error State */
 .form-group.has-error input {
     border-color: var(--error);
     background: var(--error-light);
@@ -920,7 +1048,6 @@ code {
     font-size: 9px;
 }
 
-/* Branch Fields Container Error */
 .branch-control.has-error {
     border-color: var(--error);
     background: var(--error-light);
@@ -1074,6 +1201,12 @@ code {
     .branch-field-item {
         grid-template-columns: 1fr;
     }
+    .filter-controls {
+        flex-wrap: wrap;
+    }
+    .filter-input {
+        min-width: 120px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1088,9 +1221,10 @@ code {
     .nav-item span.nav-label { display: none; }
     .nav-item { justify-content: center; padding: 10px; }
     .nav-icon { width: 20px; height: 20px; }
+    .nav-badge { display: none !important; }
     .sidebar-footer { display: none; }
     .main-content { padding: 12px 14px; }
-    .stats-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
     .form-row { grid-template-columns: 1fr; }
     .result-grid { grid-template-columns: 1fr; }
     .result-actions { flex-direction: column; }
@@ -1102,35 +1236,56 @@ code {
     .stat-number { font-size: 26px; }
     .data-panel { padding: 12px 14px; }
     .panel-actions { flex-wrap: wrap; }
-    .branch-count-control {
-        flex-wrap: wrap;
-    }
-    .branch-field-item {
-        grid-template-columns: 1fr;
-    }
+    .branch-count-control { flex-wrap: wrap; }
+    .branch-field-item { grid-template-columns: 1fr; }
+    .user-agent-col { display: none; }
+    .error-col { display: none; }
+    .filter-controls { flex-direction: column; width: 100%; }
+    .filter-select, .filter-input { width: 100%; }
 }
 
 @media (max-width: 480px) {
     .top-bar-right .top-bar-divider { display: none; }
     .top-bar-right .top-bar-status { display: none; }
-    .table-container {
-        font-size: 10px;
-    }
-    th, td {
-        padding: 4px 6px;
-        font-size: 10px;
-    }
-    .btn-sm {
-        font-size: 8px;
-        padding: 2px 8px;
-    }
-    .panel-header h2 {
-        font-size: 11px;
-    }
-    .stat-number {
-        font-size: 22px;
-    }
-    .branch-control {
-        padding: 12px;
-    }
+    .table-container { font-size: 10px; }
+    th, td { padding: 4px 6px; font-size: 10px; }
+    .btn-sm { font-size: 8px; padding: 2px 8px; }
+    .panel-header h2 { font-size: 11px; }
+    .stat-number { font-size: 22px; }
+    .branch-control { padding: 12px; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .audit-stats-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================ */
+/* AUDIT LOGS - EXTRA STYLES                    */
+/* ============================================ */
+.ip-address {
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--gray-500);
+    letter-spacing: 0.2px;
+}
+
+.error-message {
+    color: var(--error);
+    font-size: 10px;
+    font-weight: 400;
+    max-width: 120px;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.error-message:hover {
+    white-space: normal;
+    overflow: visible;
+    position: relative;
+    background: #ffffff;
+    padding: 4px 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 10;
+    border: 1px solid var(--gray-200);
 }
