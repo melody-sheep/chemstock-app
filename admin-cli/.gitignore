@@ -1,0 +1,69 @@
+# ============================================
+# 🔐 ADMIN CLI - SECURITY FIRST!
+# ============================================
+
+# NEVER COMMIT THESE!
+.env
+.env.*
+*.env
+*.env.*
+.env.local
+.env.production
+.env.development
+
+# Supabase keys
+supabase-keys.json
+secrets.json
+credentials.json
+
+# SSL certificates and keys (ADD THESE)
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# ============================================
+# 📦 DEPENDENCIES
+# ============================================
+
+node_modules/
+node_modules/**/*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# 📊 LOGS
+# ============================================
+
+logs/
+*.log
+audit-logs/
+*.audit.log
+
+# ============================================
+# 💻 IDE
+# ============================================
+
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ============================================
+# 📁 TEMP
+# ============================================
+
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
