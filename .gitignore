@@ -1,52 +1,375 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# ============================================
+# 🔐 SECURITY - NEVER COMMIT THESE!
+# ============================================
 
-# dependencies
+# Environment variables (CRITICAL!)
+.env
+.env.*
+*.env
+*.env.*
+.env.local
+.env.production
+.env.development
+.env.test
+.env.staging
+
+# Admin CLI environment (CRITICAL!)
+admin-cli/.env
+admin-cli/.env.*
+admin-cli/*.env
+
+# Supabase keys and secrets
+**/supabase-keys.json
+**/secrets.json
+**/credentials.json
+**/*.pem
+**/*.key
+**/*.crt
+**/*.cert
+**/*.p12
+**/*.pfx
+**/service-account.json
+**/firebase-credentials.json
+
+# API keys and tokens
+**/api-keys.json
+**/tokens.json
+**/.auth
+**/auth.json
+
+# ============================================
+# 📦 DEPENDENCIES
+# ============================================
+
 node_modules/
+node_modules/**/*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# 🏗️ BUILD OUTPUTS
+# ============================================
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
+.expo.webpack.cache/
+.expo-electron/
+.expo-ios/
+.expo-android/
 
-# Native
+# Native builds
+/ios/
+/android/
 .kotlin/
 *.orig.*
 *.jks
 *.p8
-*.p12
-*.key
 *.mobileprovision
+*.xcodeproj
+*.xcworkspace
+Pods/
+Podfile.lock
 
-# Metro
+# Build artifacts
+build/
+out/
+target/
+bin/
+obj/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# ============================================
+# 🚀 METRO / REACT NATIVE
+# ============================================
+
 .metro-health-check*
+metro.config.js.local
+rn-cli.config.js
+.haste-metadata.json
+.cache/
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# ============================================
+# 🧪 TEST COVERAGE
+# ============================================
+
+coverage/
+.nyc_output/
+*.lcov
+*.log
+test-results/
+jest-output.json
+__tests__/__snapshots__/
+
+# ============================================
+# 📝 LOGS
+# ============================================
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+error.log
+access.log
+
+# ============================================
+# 💻 IDE AND EDITOR FILES
+# ============================================
+
+# VSCode
+.vscode/
+.vscode/**/*
+*.code-workspace
+.vscode-test/
+
+# IntelliJ / WebStorm
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.idea_modules/
+.classpath
+.project
+.settings/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+*.un~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# ============================================
+# 🍎 OS GENERATED FILES
+# ============================================
 
 # macOS
 .DS_Store
-*.pem
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.tmp
+*.temp
+*.swp
 
-# local env files
-.env*.local
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
 
-# typescript
+# Linux
+*~
+.directory
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# 🧠 MISC
+# ============================================
+
+# TypeScript
 *.tsbuildinfo
+*.ts.map
+*.js.map
 
-# generated native folders
-/ios
-/android
+# Debug
+*.log
+*.pid
+*.seed
+*.pid.lock
 
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
 
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
 
-# Package manager lock files (to avoid conflicts)
-package-lock.json
-yarn.lock
+# Archives (unless needed)
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
-# Expo shared configuration
+# ============================================
+# 📱 MOBILE SPECIFIC
+# ============================================
+
+# iOS
+*.xccheckout
+*.xcuserstate
+*.xcuserdata
+*.xcworkspace.xcuserstate
+*.xcscheme
+xcuserdata/
+xcshareddata/
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+*.jar
+*.war
+*.ear
+*.war
+*.ear
+*.jks
+*.keystore
+*.properties
+*.xml
+gen/
+bin/
+libs/
+gradle/
+local.properties
+.idea/
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ============================================
+# 📁 PROJECT SPECIFIC
+# ============================================
+
+# React Native
+.expo/
 .expo-shared/
-".env" 
-"admin-cli/.env" 
+dist/
+web-build/
+expo-env.d.ts
+
+# Admin CLI
+admin-cli/node_modules/
+admin-cli/logs/
+admin-cli/temp/
+admin-cli/*.log
+admin-cli/.cache/
+
+# Database backups (DON'T DELETE! - But should be excluded from git)
+supabase_schema_structure(DONT_DELETE).txt
+*.sql
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+
+# ============================================
+# 📊 AUDIT AND MONITORING
+# ============================================
+
+audit-logs/
+*.audit.log
+*.metrics.log
+
+# ============================================
+# 🔄 CI/CD
+# ============================================
+
+.github/workflows/*.yml.local
+.gitlab-ci.yml.local
+circleci/config.yml.local
+azure-pipelines.yml.local
+bitbucket-pipelines.yml.local
+.jenkins/
+.jenkins/**/*
+
+# ============================================
+# 📝 DOCUMENTATION BUILDS
+# ============================================
+
+docs/_build/
+docs/build/
+docs/source/_build/
+docs/html/
+docs/latex/
+docs/man/
+docs/texinfo/
+docs/text/
+docs/doctrees/
+
+# ============================================
+# 🛡️ SECURITY EXCEPTIONS
+# ============================================
+
+# Allow essential non-sensitive files
+!example.env
+!.env.example
+!admin-cli/example.env
+
+# ============================================
+# 📦 MONOREPO / WORKSPACE
+# ============================================
+
+.pnpm-store/
+.npm/
+.yarn/
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+.lerna/
+lerna-debug.log
+
+# ============================================
+# 🚨 CRITICAL: NEVER IGNORE THESE
+# ============================================
+
+# !.gitignore
+# !.npmrc
+# !.nvmrc
+# !.node-version
+# !.prettierrc
+# !.eslintrc
+# !.babelrc
+# !.flowconfig
+# !.watchmanconfig
+# !app.json
+# !package.json
+# !README.md
+# !LICENSE

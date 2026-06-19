@@ -1,12 +1,11 @@
-// src/services/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============================================
-// 🔐 YOUR SUPABASE CREDENTIALS
+// 🔐 YOUR SUPABASE CREDENTIALS - UPDATED!
 // ============================================
 const SUPABASE_URL = 'https://nxxsjbmuetgamcvfajhl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54eHNqYm11ZXRnYW1jdmZhamhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDQ1NjQsImV4cCI6MjA5NjY4MDU2NH0.7OeYnak6VawjgzE84FU7Q46RmdukMFCVtJPDPSrOxtk';
+const SUPABASE_ANON_KEY = 'sb_publishable_bVHYEZwnhL6Hh894mfIuWg_-ecxTXcK';
 
 // ============================================
 // 🚀 Initialize Supabase Client
