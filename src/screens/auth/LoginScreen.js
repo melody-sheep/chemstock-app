@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import useKeyboard from '../../hooks/useKeyboard';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -35,6 +37,7 @@ const ANIMATION_DATA = [
 
 export default function LoginScreen() {
   const navigation = useNavigation();
+  const { isKeyboardVisible, keyboardHeight } = useKeyboard();
   
   const {
     username,
@@ -108,6 +111,10 @@ export default function LoginScreen() {
 
   const buttonWidth = screenWidth - (SPACING.lg * 2);
 
+  // Calculate bottom sheet position
+  // When keyboard is visible, move the bottom sheet up by keyboard height
+  const bottomSheetBottom = isKeyboardVisible ? keyboardHeight : 0;
+
   return (
     <>
       <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -121,7 +128,13 @@ export default function LoginScreen() {
             dotSize={32}
           />
 
-          <View style={styles.bottomSheet}>
+          {/* Bottom Sheet with dynamic position */}
+          <View 
+            style={[
+              styles.bottomSheet,
+              { bottom: bottomSheetBottom }
+            ]}
+          >
             <View style={styles.usernameWrapper}>
               <Input
                 icon="user"
@@ -203,7 +216,6 @@ const styles = StyleSheet.create({
   },
   bottomSheet: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: '#F7FEFF',
