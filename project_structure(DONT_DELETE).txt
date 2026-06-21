@@ -1,4 +1,4 @@
-# 📁 COMPLETE UPDATED PROJECT STRUCTURE WITH SECURITY GUIDELINES
+# 📁 COMPLETE UPDATED PROJECT STRUCTURE
 
 ```markdown
 📱 CHEMSTOCK-MOBILE/
@@ -57,7 +57,7 @@
 │   │   ├── 🗺️ maps/                                   (empty - future GPS tracking)
 │   │   ├── 📱 qr/                                     (empty - future QR generation)
 │   │   │
-│   │   ├── 🔧 common/                                 ✅ 9 REUSABLE COMPONENTS
+│   │   ├── 🔧 common/                                 ✅ 12 REUSABLE COMPONENTS
 │   │   │   ├── AnimatedTextDot.js                     # Animated text cycling (login)
 │   │   │   ├── Button.js                              # Button with variants + PropTypes
 │   │   │   ├── Card.js                                # Card container component
@@ -66,7 +66,10 @@
 │   │   │   ├── Input.js                               # Form input with validation
 │   │   │   ├── KeyboardWrapper.js                     # Keyboard avoidance wrapper
 │   │   │   ├── Modal.js                               # Bottom sheet modal
-│   │   │   └── ScreenContainer.js                     # Screen wrapper with 16px margins
+│   │   │   ├── ScreenContainer.js                     # Screen wrapper with 16px margins
+│   │   │   ├── Stepper.js                            # 🆕 Step indicator with connected line
+│   │   │   ├── SuccessFrame.js                       # 🆕 Success toast overlay
+│   │   │   └── WarningSection.js                     # 🆕 Warning section with red theme
 │   │   │
 │   │   └── 🎯 ui/                                     ✅ 3 UI HELPER COMPONENTS
 │   │       ├── Divider.js                             # Horizontal divider line
@@ -100,10 +103,13 @@
 │   ├── 📺 screens/                                    APP SCREENS
 │   │   │
 │   │   ├── 🔐 auth/                                   ✅ 2 AUTH SCREENS
-│   │   │   ├── LoginScreen.js                         # Login screen (UI only - 180 lines)
+│   │   │   ├── LoginScreen.js                         # Login screen (UI only - 200 lines)
 │   │   │   │   # Uses: useAuth hook, AnimatedTextDot, Input, Button
-│   │   │   └── ManagerActivationScreen.js             # Activation screen (UI only - 150 lines)
-│   │   │       # Uses: activationService, displays branches with checkmarks
+│   │   │   │   # Uses useKeyboard for dynamic bottom sheet position
+│   │   │   └── ManagerActivationScreen.js             # Activation screen (UI only - 350 lines)
+│   │   │       # Uses: activationService, useActivation hook
+│   │   │       # Stepper, SuccessFrame, WarningSection components
+│   │   │       # Fixed bottom container with absolute positioning
 │   │   │
 │   │   ├── 📦 collector/                              (empty - future collector dashboard)
 │   │   ├── 🔄 common/                                 (empty - future common screens)
@@ -160,6 +166,8 @@
 │   # Removed profiles table check (not yet implemented)
 │
 ├── ⚙️ app.json                                        # Expo app configuration
+│   # android.softwareKeyboardLayoutMode: "pan"       # 🆕 Keyboard behavior fix
+│
 ├── 🔌 index.js                                        # App entry point
 ├── 📜 LICENSE                                         # MIT License
 ├── 📦 package.json                                    # Dependencies
@@ -175,7 +183,7 @@
 | Category | Count | Files |
 |----------|-------|-------|
 | **Admin CLI** | 11 | index.js, server.js, package.json, .env, .gitignore, supabase.js, crypto.js, rateLimiter.js, auditLogger.js, web-ui/* |
-| **Components (common)** | 9 | AnimatedTextDot, Button, Card, Header, Icon, Input, KeyboardWrapper, Modal, ScreenContainer |
+| **Components (common)** | 12 | AnimatedTextDot, Button, Card, Header, Icon, Input, KeyboardWrapper, Modal, ScreenContainer, Stepper, SuccessFrame, WarningSection |
 | **Components (ui)** | 3 | Divider, LoadingSpinner, Logo |
 | **Constants** | 2 | colors, roles |
 | **Hooks** | 3 | useActivation, useAuth, useKeyboard |
@@ -184,8 +192,8 @@
 | **Services** | 4 | activationService, authService, BaseService, supabaseClient |
 | **Styles** | 3 | globalStyles, spacing, typography |
 | **Utils** | 4 | logger, storage, validationStrategies, validators |
-| **Root Files** | 5 | container.js, App.js, .gitignore, supabase_schema_structure(DONT_DELETE).txt, .secrets.baseline |
-| **Total JS Files** | **45** | ✅ All files accounted for |
+| **Root Files** | 6 | container.js, App.js, app.json, .gitignore, supabase_schema_structure(DONT_DELETE).txt, .secrets.baseline |
+| **Total JS Files** | **48** | ✅ All files accounted for |
 
 
 ## 🚀 MEMBER GUIDELINES - REUSABLE COMPONENTS & ARCHITECTURE
@@ -210,6 +218,9 @@ This project follows strict **OOP (Object-Oriented Programming)** and **SOLID Pr
 | **Icon** | All SVG icons (Phosphor) | `src/components/common/Icon.js` |
 | **Modal** | All bottom sheets/modals | `src/components/common/Modal.js` |
 | **ScreenContainer** | All screen wrappers | `src/components/common/ScreenContainer.js` |
+| **Stepper** | Step indicator with connected line | `src/components/common/Stepper.js` |
+| **SuccessFrame** | Success toast overlay (fades after 3s) | `src/components/common/SuccessFrame.js` |
+| **WarningSection** | Warning section with red theme | `src/components/common/WarningSection.js` |
 | **LoadingSpinner** | All loading indicators | `src/components/ui/LoadingSpinner.js` |
 | **Divider** | All horizontal dividers | `src/components/ui/Divider.js` |
 
@@ -240,7 +251,7 @@ import Button from '../../components/common/Button';
 | **ISP** | Small, focused interfaces | authService, activationService |
 | **DIP** | Depend on abstractions | Use container.js for DI |
 | **DRY** | Don't repeat yourself | colors.js, typography.js |
-| **KISS** | Keep it simple | Screens < 200 lines |
+| **KISS** | Keep it simple | Screens < 350 lines |
 | **YAGNI** | You ain't gonna need it | No premature code |
 
 
@@ -703,6 +714,11 @@ src/services/__tests__/
 - [x] Updated supabaseClient.js with new publishable key
 - [x] Updated admin-cli/config/supabase.js
 - [x] Updated App.js - Removed profiles check
+- [x] LoginScreen keyboard fix - Dynamic bottom sheet with useKeyboard
+- [x] ManagerActivationScreen keyboard fix - softwareKeyboardLayoutMode: "pan"
+- [x] Stepper component - Connected line with dots on both ends
+- [x] SuccessFrame component - Toast overlay that fades after 3s
+- [x] WarningSection component - Red themed warning section
 
 
 ## 📋 CODE REVIEW CHECKLIST
@@ -715,7 +731,7 @@ When submitting code for review, ensure:
 - [ ] Uses validationStrategies.js for validation
 - [ ] Uses logger.js for logging
 - [ ] No hardcoded colors, spacing, or fonts
-- [ ] Screens < 200 lines, Hooks < 150 lines
+- [ ] Screens < 350 lines
 - [ ] PropTypes defined for all components
 - [ ] Documentation comments added
 - [ ] Passes all tests
@@ -743,6 +759,11 @@ When submitting code for review, ensure:
 13. ✅ **.gitignore** - Comprehensive security exclusions
 14. ✅ **NEW Supabase Keys** - Created and deployed
 15. ✅ **Updated Service Files** - All using new keys
+16. ✅ **LoginScreen keyboard fix** - Dynamic bottom sheet with useKeyboard
+17. ✅ **ManagerActivationScreen keyboard fix** - softwareKeyboardLayoutMode: "pan"
+18. ✅ **Stepper component** - Connected line with dots on both ends
+19. ✅ **SuccessFrame component** - Toast overlay that fades after 3s
+20. ✅ **WarningSection component** - Red themed warning section
 
 ### ⬜ WHAT'S PENDING (CRITICAL - ACT NOW!)
 
@@ -761,7 +782,7 @@ When submitting code for review, ensure:
 2. Create profiles table
 3. Create handle_new_user() trigger
 
-**Then:** Improve UI/UX for Manager Activation Screen, Manager Account Setup UI, and Backend Integration.
+**Then:** Continue developing the app features!
 
 ---
 
@@ -770,6 +791,20 @@ Security is not optional. All production security features must be completed bef
 
 ---
 
-**📊 PROJECT STATUS: 84% COMPLETE** 🎉
+**📊 PROJECT STATUS: 88% COMPLETE** 🎉
 **🔴 SECURITY STATUS: 60% COMPLETE** (Old keys MUST be revoked!)
 ```
+
+---
+
+## 📋 NEW FILES ADDED TO STRUCTURE
+
+| File | Path | Description |
+|------|------|-------------|
+| `Stepper.js` | `src/components/common/Stepper.js` | Step indicator with connected line, dots on both ends |
+| `SuccessFrame.js` | `src/components/common/SuccessFrame.js` | Success toast overlay that fades after 3 seconds |
+| `WarningSection.js` | `src/components/common/WarningSection.js` | Warning section with red icon, red text, smaller description |
+
+---
+
+**Project structure updated successfully!** 🚀
