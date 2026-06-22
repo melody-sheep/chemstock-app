@@ -25,8 +25,15 @@ export const ICONS = {
   arrowLeft: {
     svg: 'M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z',
   },
+  // ============================================================
+  // UPDATED: Arrow Right with BOLDER weight (thicker stroke)
+  // ============================================================
   arrowRight: {
-    svg: 'M34,128a6,6,0,0,1,6-6H201.51L139.76,60.24a6,6,0,0,1,8.48-8.48l72,72a6,6,0,0,1,0,8.48l-72,72a6,6,0,0,1-8.48-8.48L201.51,134H40A6,6,0,0,1,34,128Z',
+    // Original: Standard weight
+    // svg: 'M34,128a6,6,0,0,1,6-6H201.51L139.76,60.24a6,6,0,0,1,8.48-8.48l72,72a6,6,0,0,1,0,8.48l-72,72a6,6,0,0,1-8.48-8.48L201.51,134H40A6,6,0,0,1,34,128Z',
+    
+    // NEW: BOLDER weight - Using stroke-width="8" instead of "6"
+    svg: 'M34,128a8,8,0,0,1,8-8H201.51L139.76,60.24a8,8,0,0,1,11.31-11.31l72,72a8,8,0,0,1,0,11.31l-72,72a8,8,0,0,1-11.31-11.31L201.51,136H42A8,8,0,0,1,34,128Z',
   },
   // Building icon for empty branch state
   building: {
@@ -39,14 +46,20 @@ const ICON_NAMES = [
   'checkmarkCircle', 'send', 'arrowLeft', 'arrowRight', 'building'
 ];
 
-export default function Icon({ name, size = 20, color = '#757575' }) {
+export default function Icon({ name, size = 20, color = '#757575', style }) {
   try {
     if (!name || !ICONS[name]) {
       console.warn(`Icon "${name}" not found. Available: ${ICON_NAMES.join(', ')}`);
       return null;
     }
     return (
-      <Svg width={size} height={size} viewBox="0 0 256 256" fill={color}>
+      <Svg 
+        width={size} 
+        height={size} 
+        viewBox="0 0 256 256" 
+        fill={color}
+        style={style}
+      >
         <Path d={ICONS[name].svg} />
       </Svg>
     );
@@ -60,9 +73,11 @@ Icon.propTypes = {
   name: PropTypes.oneOf(ICON_NAMES).isRequired,
   size: PropTypes.number,
   color: PropTypes.string,
+  style: PropTypes.object,
 };
 
 Icon.defaultProps = {
   size: 20,
   color: '#757575',
+  style: {},
 };

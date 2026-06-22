@@ -23,7 +23,6 @@ import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import SuccessFrame from '../../components/common/SuccessFrame';
 import Stepper from '../../components/common/Stepper';
-import WarningSection from '../../components/common/WarningSection';
 import useActivation from '../../hooks/useActivation';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -122,6 +121,8 @@ export default function ManagerActivationScreen() {
     const isButtonEnabled = isValidCode && branchInfo && branchInfo.names && branchInfo.names.length > 0;
     const hasBranches = branchInfo && branchInfo.names && branchInfo.names.length > 0;
     
+    const buttonWidth = screenWidth - (SPACING.lg * 2);
+    
     return (
       <>
         <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -151,14 +152,14 @@ export default function ManagerActivationScreen() {
               </Text>
             </View>
             
-            {/* SUCCESS FRAME - Overlay */}
+            {/* SUCCESS FRAME */}
             <SuccessFrame 
               visible={showSuccessFrame}
               branchCount={branchCount}
               onFadeComplete={handleSuccessFrameFade}
             />
             
-            {/* SCROLLVIEW - flex:1 takes remaining space */}
+            {/* SCROLLVIEW */}
             <ScrollView 
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
@@ -209,6 +210,7 @@ export default function ManagerActivationScreen() {
                   hasBranches ? styles.branchListContainerAdaptive : styles.branchListContainerEmpty
                 ]}>
                   {hasBranches ? (
+                    // Has Branches - Light green background, solid border
                     branchInfo.names.map((name, index) => (
                       <View key={index} style={styles.branchItem}>
                         <Icon name="checkmark" size={16} color={COLORS.success} />
@@ -223,6 +225,7 @@ export default function ManagerActivationScreen() {
                       </View>
                     ))
                   ) : (
+                    // Empty State - NO background color, dashed border
                     <View style={styles.emptyBranchContainer}>
                       <Icon name="building" size={16} color="#757575" />
                       <Text style={styles.emptyBranchText}>
@@ -236,12 +239,19 @@ export default function ManagerActivationScreen() {
               <View style={styles.scrollBottomPadding} />
             </ScrollView>
             
-            {/* BOTTOM - FIXED POSITION - NEVER MOVES */}
+            {/* BOTTOM - Warning (centered, icon on top) + Button */}
             <View 
               style={[styles.bottomContainer, { bottom: insets.bottom || 0 }]}
               pointerEvents="box-none"
             >
-              <WarningSection />
+              {/* Warning Section - Centered, Icon on top, text width = button width */}
+              <View style={styles.bottomWarningWrapper}>
+                <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                <Text style={styles.bottomWarningTitle}>Warning</Text>
+                <Text style={[styles.bottomWarningText, { width: buttonWidth }]}>
+                  This will set up your device for manager access. Only continue if you're authorized to manage this branch.
+                </Text>
+              </View>
               
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
@@ -405,20 +415,27 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginBottom: 6,
   },
-  branchListContainer: {
+  // EMPTY STATE - NO background color, dashed border
+  branchListContainerEmpty: {
+    height: 100,
     borderWidth: 0.5,
     borderColor: '#757575',
+    borderStyle: 'dashed',
     borderRadius: 12,
     padding: SPACING.md,
     backgroundColor: 'transparent',
-  },
-  branchListContainerEmpty: {
-    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // WITH BRANCHES - Light green background, solid border
   branchListContainerAdaptive: {
     minHeight: 40,
+    borderWidth: 0.5,
+    borderColor: '#757575',
+    borderStyle: 'solid',
+    borderRadius: 12,
+    padding: SPACING.md,
+    backgroundColor: COLORS.success + '10', // ← LIGHT GREEN BG
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
   },
@@ -461,6 +478,7 @@ const styles = StyleSheet.create({
   scrollBottomPadding: {
     height: 20,
   },
+  // BOTTOM - FIXED POSITION
   bottomContainer: {
     position: 'absolute',
     left: 0,
@@ -469,9 +487,34 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 10 : 5,
     zIndex: 999,
   },
+  bottomWarningWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 4,
+    paddingBottom: 6,
+  },
+  bottomWarningTitle: {
+    fontSize: 15,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.error,
+    marginTop: 2,
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  bottomWarningText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 0,
+  },
   buttonContainer: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: 10,
+    paddingTop: 4,
     paddingBottom: 56,
   },
   continueButton: {
