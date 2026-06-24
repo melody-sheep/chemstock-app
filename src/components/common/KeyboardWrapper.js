@@ -9,10 +9,10 @@ import {
   View,
 } from 'react-native';
 
-export default function KeyboardWrapper({ children }) {
+export default function KeyboardWrapper({ children, behavior = 'padding' }) {
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : behavior}
       style={styles.container}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >

@@ -25,17 +25,9 @@ export const ICONS = {
   arrowLeft: {
     svg: 'M222,128a6,6,0,0,1-6,6H54.49l61.75,61.76a6,6,0,1,1-8.48,8.48l-72-72a6,6,0,0,1,0-8.48l72-72a6,6,0,0,1,8.48,8.48L54.49,122H216A6,6,0,0,1,222,128Z',
   },
-  // ============================================================
-  // UPDATED: Arrow Right with BOLDER weight (thicker stroke)
-  // ============================================================
   arrowRight: {
-    // Original: Standard weight
-    // svg: 'M34,128a6,6,0,0,1,6-6H201.51L139.76,60.24a6,6,0,0,1,8.48-8.48l72,72a6,6,0,0,1,0,8.48l-72,72a6,6,0,0,1-8.48-8.48L201.51,134H40A6,6,0,0,1,34,128Z',
-    
-    // NEW: BOLDER weight - Using stroke-width="8" instead of "6"
     svg: 'M34,128a8,8,0,0,1,8-8H201.51L139.76,60.24a8,8,0,0,1,11.31-11.31l72,72a8,8,0,0,1,0,11.31l-72,72a8,8,0,0,1-11.31-11.31L201.51,136H42A8,8,0,0,1,34,128Z',
   },
-  // Building icon for empty branch state
   building: {
     svg: 'M216.49,111.51l-80-80a12,12,0,0,0-17,0l-80,80A12,12,0,0,0,36,120v96a4,4,0,0,0,4,4H216a4,4,0,0,0,4-4V120A12,12,0,0,0,216.49,111.51ZM212,212H44V120a4,4,0,0,1,1.17-2.83l80-80a4,4,0,0,1,5.66,0l80,80A4,4,0,0,1,212,120Z',
   },
@@ -46,7 +38,7 @@ const ICON_NAMES = [
   'checkmarkCircle', 'send', 'arrowLeft', 'arrowRight', 'building'
 ];
 
-export default function Icon({ name, size = 20, color = '#757575', style }) {
+export default function Icon({ name, size = 20, color = '#757575', style, stroke = null, strokeWidth = 0 }) {
   try {
     if (!name || !ICONS[name]) {
       console.warn(`Icon "${name}" not found. Available: ${ICON_NAMES.join(', ')}`);
@@ -58,6 +50,8 @@ export default function Icon({ name, size = 20, color = '#757575', style }) {
         height={size} 
         viewBox="0 0 256 256" 
         fill={color}
+        stroke={stroke || color}
+        strokeWidth={strokeWidth}
         style={style}
       >
         <Path d={ICONS[name].svg} />
@@ -74,10 +68,14 @@ Icon.propTypes = {
   size: PropTypes.number,
   color: PropTypes.string,
   style: PropTypes.object,
+  stroke: PropTypes.string,
+  strokeWidth: PropTypes.number,
 };
 
 Icon.defaultProps = {
   size: 20,
   color: '#757575',
   style: {},
+  stroke: null,
+  strokeWidth: 0,
 };

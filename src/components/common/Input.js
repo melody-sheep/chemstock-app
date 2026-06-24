@@ -35,8 +35,11 @@ export default function Input({
   label = null,
   required = false,
   onTogglePasswordVisibility = null,
+  onFocus = null,
+  onBlur = null,
 }) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const isPassword = secureTextEntry;
   const showPasswordToggle = isPassword && !rightIcon;
   const inputSecureText = isPassword && !isPasswordVisible;
@@ -86,12 +89,31 @@ export default function Input({
     }
   };
 
-  // Convert error to string if it's an object
+  const handleLeftIconPress = () => {
+    try {
+      if (inputRef && inputRef.current) {
+        inputRef.current.focus();
+        console.log('📱 [Input] Left icon tapped - focusing input');
+      }
+    } catch (error) {
+      console.error('Error focusing input from left icon:', error);
+    }
+  };
+
+  const handleFocus = (e) => {
+    setIsFocused(true);
+    if (onFocus) onFocus(e);
+  };
+
+  const handleBlur = (e) => {
+    setIsFocused(false);
+    if (onBlur) onBlur(e);
+  };
+
   const errorMessage = typeof error === 'string' ? error : error?.message || null;
 
   return (
     <View style={styles.container}>
-      {/* Label - ✅ Properly wrapped in Text */}
       {label && (
         <View style={styles.labelContainer}>
           <Text style={styles.labelText}>
@@ -101,9 +123,18 @@ export default function Input({
         </View>
       )}
       
-      {/* Input wrapper */}
-      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null]}>
-        {icon && <View style={styles.iconLeft}>{renderIcon()}</View>}
+      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null, isFocused && styles.inputFocused]}>
+        {icon && (
+          <TouchableOpacity
+            style={styles.iconLeft}
+            onPress={handleLeftIconPress}
+            activeOpacity={0.6}
+            accessibilityLabel={`Focus ${placeholder}`}
+            accessibilityRole="button"
+          >
+            {renderIcon()}
+          </TouchableOpacity>
+        )}
         
         <TextInput
           ref={inputRef}
@@ -127,6 +158,8 @@ export default function Input({
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
           blurOnSubmit={blurOnSubmit}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           accessibilityLabel={placeholder}
           accessibilityHint={`Enter your ${placeholder?.toLowerCase() || 'text'}`}
         />
@@ -158,7 +191,6 @@ export default function Input({
         )}
       </View>
       
-      {/* ✅ Error message - Properly wrapped in Text */}
       {errorMessage && (
         <View style={styles.errorRow}>
           <Text style={styles.errorText}>{errorMessage}</Text>
@@ -168,7 +200,6 @@ export default function Input({
   );
 }
 
-// PropTypes for type checking
 Input.propTypes = {
   placeholder: PropTypes.string,
   value: PropTypes.string,
@@ -187,9 +218,10 @@ Input.propTypes = {
   label: PropTypes.string,
   required: PropTypes.bool,
   onTogglePasswordVisibility: PropTypes.func,
+  onFocus: PropTypes.func,
+  onBlur: PropTypes.func,
 };
 
-// Default props
 Input.defaultProps = {
   placeholder: '',
   value: '',
@@ -207,6 +239,8 @@ Input.defaultProps = {
   label: null,
   required: false,
   onTogglePasswordVisibility: null,
+  onFocus: null,
+  onBlur: null,
 };
 
 const styles = StyleSheet.create({
@@ -238,6 +272,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F7FEFF',
     height: 44,
   },
+  inputFocused: {
+    borderColor: COLORS.primary,
+    borderWidth: 1,
+  },
   input: {
     flex: 1,
     fontSize: TYPOGRAPHY.fontSize.base,
@@ -261,10 +299,16 @@ const styles = StyleSheet.create({
   iconLeft: {
     paddingLeft: SPACING.md,
     paddingRight: SPACING.xs,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconRight: {
     paddingRight: SPACING.md,
     paddingLeft: SPACING.sm,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputError: {
     borderColor: COLORS.error,

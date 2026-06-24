@@ -12,6 +12,7 @@ const { width: screenWidth } = Dimensions.get('window');
 /**
  * SuccessFrame - Full width, no rounded corners
  * Positioned 50px below Header 2
+ * Shows: ✅ [x] branches ready for setup (no extra "check char" icon)
  */
 export default function SuccessFrame({ visible, branchCount = 0, onFadeComplete }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -53,9 +54,10 @@ export default function SuccessFrame({ visible, branchCount = 0, onFadeComplete 
 
   if (!visible) return null;
 
+  // ✅ REMOVED: "check char" icon - now only shows checkmark + count + text
   const messageText = branchCount === 1 
-    ? '✓ 1 branch ready for setup'
-    : `✓ ${branchCount} branches ready for setup`;
+    ? `${branchCount} branch ready for setup`
+    : `${branchCount} branches ready for setup`;
 
   return (
     <Animated.View 
