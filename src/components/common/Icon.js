@@ -1,6 +1,25 @@
 // src/components/common/Icon.js
 import React from 'react';
 import Svg, { Path } from 'react-native-svg';
+import {
+  UserCircle,
+  FileText,
+  Bell,
+  MapPin,
+  Package,
+  User as UserFill,
+  TrayArrowDown,
+  TrayArrowUp,
+  CheckCircle,
+  ArrowsClockwise,
+  Warning,
+  NavigationArrow,
+  Users,
+  House,
+  Bookmark,
+  GearSix,
+  SquaresFour,
+} from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
 export const ICONS = {
@@ -33,22 +52,79 @@ export const ICONS = {
   },
 };
 
+// Icons rendered directly via phosphor-react-native — these support weight
+// variants (thin/light/regular/bold/fill/duotone), unlike the hand-traced
+// paths above which are fixed to a single style.
+const PHOSPHOR_ICONS = {
+  profile: UserCircle,
+  document: FileText,
+  notification: Bell,
+  location: MapPin,
+  package: Package,
+  person: UserFill,
+  trayDown: TrayArrowDown,
+  trayUp: TrayArrowUp,
+  checkCircle: CheckCircle,
+  returns: ArrowsClockwise,
+  warning: Warning,
+  navigation: NavigationArrow,
+  users: Users,
+  home: House,
+  bookmark: Bookmark,
+  settings: GearSix,
+  grid: SquaresFour,
+};
+
 const ICON_NAMES = [
-  'warningTriangle', 'user', 'key', 'checkmark', 
-  'checkmarkCircle', 'send', 'arrowLeft', 'arrowRight', 'building'
+  'warningTriangle', 'user', 'key', 'checkmark',
+  'checkmarkCircle', 'send', 'arrowLeft', 'arrowRight', 'building',
+  'profile', 'document', 'notification', 'location',
+  'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
+  'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
 ];
 
-export default function Icon({ name, size = 20, color = '#757575', style, stroke = null, strokeWidth = 0 }) {
+export default function Icon({
+  name,
+  size = 20,
+  color = '#757575',
+  style = {},
+  stroke = null,
+  strokeWidth = 0,
+  weight = 'regular',
+  duotoneColor = null,
+  duotoneOpacity = 0.2,
+}) {
   try {
-    if (!name || !ICONS[name]) {
+    if (!name) {
+      console.warn(`Icon name is required. Available: ${ICON_NAMES.join(', ')}`);
+      return null;
+    }
+
+    const PhosphorIcon = PHOSPHOR_ICONS[name];
+    if (PhosphorIcon) {
+      // duotoneColor/duotoneOpacity only affect weight="duotone" — Phosphor
+      // ignores them for every other weight, so it's safe to always pass.
+      return (
+        <PhosphorIcon
+          size={size}
+          color={color}
+          weight={weight}
+          style={style}
+          duotoneColor={duotoneColor ?? color}
+          duotoneOpacity={duotoneOpacity}
+        />
+      );
+    }
+
+    if (!ICONS[name]) {
       console.warn(`Icon "${name}" not found. Available: ${ICON_NAMES.join(', ')}`);
       return null;
     }
     return (
-      <Svg 
-        width={size} 
-        height={size} 
-        viewBox="0 0 256 256" 
+      <Svg
+        width={size}
+        height={size}
+        viewBox="0 0 256 256"
         fill={color}
         stroke={stroke || color}
         strokeWidth={strokeWidth}
@@ -70,12 +146,7 @@ Icon.propTypes = {
   style: PropTypes.object,
   stroke: PropTypes.string,
   strokeWidth: PropTypes.number,
-};
-
-Icon.defaultProps = {
-  size: 20,
-  color: '#757575',
-  style: {},
-  stroke: null,
-  strokeWidth: 0,
+  weight: PropTypes.oneOf(['thin', 'light', 'regular', 'bold', 'fill', 'duotone']),
+  duotoneColor: PropTypes.string,
+  duotoneOpacity: PropTypes.number,
 };

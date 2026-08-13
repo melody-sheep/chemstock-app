@@ -9,7 +9,33 @@ class AuthService extends BaseService {
     this.currentSession = null;
     console.log('🔐 [AuthService] Service initialized');
   }
-  
+
+  /**
+   * Look up branch names for a set of branch IDs.
+   * Degrades gracefully (empty string) if the branches table is missing
+   * or the lookup fails, so it never breaks login/session fetching.
+   */
+  async _fetchBranchNames(branchIds) {
+    if (!branchIds || branchIds.length === 0) return '';
+
+    try {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('name')
+        .in('id', branchIds);
+
+      if (error) {
+        console.error('❌ [AuthService] Branch fetch error:', error);
+        return '';
+      }
+
+      return (data || []).map((b) => b.name).join(', ');
+    } catch (error) {
+      console.error('❌ [AuthService] Branch fetch error:', error);
+      return '';
+    }
+  }
+
   /**
    * Login user with Supabase Auth
    * @param {Object} credentials - { username, password }
@@ -65,7 +91,9 @@ class AuthService extends BaseService {
       if (profileError) {
         console.error('❌ [AuthService] Profile fetch error:', profileError);
       }
-      
+
+      const branchName = await this._fetchBranchNames(profile?.branch_ids);
+
       const result = {
         success: true,
         token: data.session.access_token,
@@ -76,6 +104,7 @@ class AuthService extends BaseService {
           full_name: profile?.full_name || null,
           role: profile?.role || null,
           branchIds: profile?.branch_ids || [],
+          branchName,
           isActivated: !!profile,
         }
       };
@@ -225,6 +254,8 @@ class AuthService extends BaseService {
         .eq('id', session.user.id)
         .single();
 
+      const branchName = await this._fetchBranchNames(profile?.branch_ids);
+
       const user = {
         id: session.user.id,
         email: session.user.email,
@@ -232,6 +263,7 @@ class AuthService extends BaseService {
         full_name: profile?.full_name || null,
         role: profile?.role || null,
         branchIds: profile?.branch_ids || [],
+        branchName,
         isActivated: !!profile,
       };
       
