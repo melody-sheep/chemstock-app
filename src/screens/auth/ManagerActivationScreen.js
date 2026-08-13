@@ -153,6 +153,7 @@ export default function ManagerActivationScreen() {
     branchInfo,
     setActivationKey,
     submit,
+    completeSetup,
   } = useActivation();
   
   // ============================================
@@ -449,91 +450,77 @@ export default function ManagerActivationScreen() {
     }
   };
   
-  const handleCompleteSetup = () => {
-    console.log('📱 [ManagerActivationScreen] 🎯 Completing setup');
-    
-    try {
-      let hasError = false;
-      const errors = { username: '', password: '', confirmPassword: '' };
-      
-      if (!managerUsername || !managerUsername.trim()) {
-        errors.username = 'Please enter your full name';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Username empty');
-      } else if (managerUsername.trim().length < 2) {
-        errors.username = 'Name must be at least 2 characters';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Username too short');
-      }
-      
-      if (!managerPassword) {
-        errors.password = 'Please create a password';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Password empty');
-      } else if (managerPassword.length < 8) {
-        errors.password = 'Password must be at least 8 characters';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Password too short');
-      } else if (!/[A-Z]/.test(managerPassword) && !/[a-z]/.test(managerPassword)) {
-        errors.password = 'Password must contain uppercase and lowercase letters';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Password missing case variety');
-      } else if (!/[0-9]/.test(managerPassword)) {
-        errors.password = 'Password must contain at least one number';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Password missing number');
-      } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(managerPassword)) {
-        errors.password = 'Password must contain at least one special character';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Password missing special char');
-      }
-      
-      if (!confirmPassword) {
-        errors.confirmPassword = 'Please confirm your password';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Confirm password empty');
-      } else if (managerPassword !== confirmPassword) {
-        errors.confirmPassword = 'Passwords do not match';
-        hasError = true;
-        console.warn('⚠️ [ManagerActivationScreen] Confirm password mismatch');
-      }
-      
-      if (hasError) {
-        console.warn('⚠️ [ManagerActivationScreen] Validation errors found');
-        setStep2Errors(errors);
-        return;
-      }
-      
-      setStep2Errors({ username: '', password: '', confirmPassword: '' });
-      
-      console.log('✅ [ManagerActivationScreen] Setup complete!');
-      console.log(`👤 [ManagerActivationScreen] Username: ${managerUsername}`);
-      console.log(`🔒 [ManagerActivationScreen] Password: ${'*'.repeat(managerPassword.length)}`);
-      console.log(`🏢 [ManagerActivationScreen] Branches: ${branchInfo?.names?.join(', ') || 'N/A'}`);
-      
-      Alert.alert(
-        'Setup Complete! 🎉',
-        `Account created for ${managerUsername}\n\nBranches: ${branchInfo?.names?.join(', ') || 'N/A'}\n\nYou will be redirected to the dashboard.`,
-        [
-          {
-            text: 'Go to Dashboard',
-            onPress: () => {
-              console.log('📱 [ManagerActivationScreen] 🚀 Navigating to Dashboard');
-              try {
-                navigation.navigate('Login');
-              } catch (err) {
-                console.error('❌ [ManagerActivationScreen] Navigation error:', err);
-              }
-            },
-          },
-        ]
-      );
-    } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Setup error:', err);
-      Alert.alert('Error', 'An unexpected error occurred during setup. Please try again.');
+  const handleCompleteSetup = async () => {
+  console.log('📱 [ManagerActivationScreen] 🎯 Completing setup');
+
+  try {
+    let hasError = false;
+    const errors = { username: '', password: '', confirmPassword: '' };
+
+    if (!managerUsername || !managerUsername.trim()) {
+      errors.username = 'Please enter your full name';
+      hasError = true;
+    } else if (managerUsername.trim().length < 2) {
+      errors.username = 'Name must be at least 2 characters';
+      hasError = true;
     }
-  };
-  
+
+    if (!managerPassword) {
+      errors.password = 'Please create a password';
+      hasError = true;
+    } else if (managerPassword.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+      hasError = true;
+    } else if (!/[A-Z]/.test(managerPassword) && !/[a-z]/.test(managerPassword)) {
+      errors.password = 'Password must contain uppercase and lowercase letters';
+      hasError = true;
+    } else if (!/[0-9]/.test(managerPassword)) {
+      errors.password = 'Password must contain at least one number';
+      hasError = true;
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(managerPassword)) {
+      errors.password = 'Password must contain at least one special character';
+      hasError = true;
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password';
+      hasError = true;
+    } else if (managerPassword !== confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
+      hasError = true;
+    }
+
+    if (hasError) {
+      setStep2Errors(errors);
+      return;
+    }
+
+    setStep2Errors({ username: '', password: '', confirmPassword: '' });
+
+    const result = await completeSetup(managerUsername.trim(), managerPassword);
+
+    if (!result.success) {
+      Alert.alert('Setup Failed', result.message || 'Please try again.');
+      return;
+    }
+
+    if (result.hasSession) {
+      navigation.replace('ManagerDashboard', {
+        name: result.profile.fullName || result.profile.username || managerUsername,
+      });
+    } else {
+      Alert.alert(
+        'Account Created',
+        'Please check your email to confirm your account, then log in.',
+        [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+      );
+    }
+  } catch (err) {
+    console.error('❌ [ManagerActivationScreen] Setup error:', err);
+    Alert.alert('Error', 'An unexpected error occurred during setup. Please try again.');
+  }
+};
+
   // ============================================
   // COMPUTED PROPERTIES
   // ============================================

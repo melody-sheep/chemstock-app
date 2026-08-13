@@ -53,17 +53,30 @@ class AuthService extends BaseService {
       console.log('📧 [AuthService] User email:', data.user?.email);
       
       this.currentSession = data.session;
+
+      //Fetch Profiless (role, branch, username)
+
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
       
-      // ✅ REMOVED: No profile fetching since profiles table is deleted
-      // Just return the auth user data
+      if (profileError) {
+        console.error('❌ [AuthService] Profile fetch error:', profileError);
+      }
+      
       const result = {
         success: true,
         token: data.session.access_token,
         user: {
           id: data.user.id,
           email: data.user.email,
-          username: data.user.email?.split('@')[0] || credentials.username,
-          // No role or branch info yet - will come from activation
+          username: profile?.username || data.user.email?.split('@')[0] || credentials.username,
+          full_name: profile?.full_name || null,
+          role: profile?.role || null,
+          branchIds: profile?.branch_ids || [],
+          isActivated: !!profile,
         }
       };
       
@@ -141,6 +154,7 @@ class AuthService extends BaseService {
           email: authData.user.email,
           username: userData.username,
         },
+        session: authData.session, 
         message: 'User registered successfully. Please activate your account.'
       };
       
@@ -205,13 +219,20 @@ class AuthService extends BaseService {
       
       console.log('✅ [AuthService] Session found for user:', session.user?.id);
       
-      // ✅ REMOVED: No profile fetching
-      // Just return the auth user
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
       const user = {
         id: session.user.id,
         email: session.user.email,
         username: session.user.email?.split('@')[0],
-        // No role or branch info yet
+        full_name: profile?.full_name || null,
+        role: profile?.role || null,
+        branchIds: profile?.branch_ids || [],
+        isActivated: !!profile,
       };
       
       console.log('✅ [AuthService] User fetched:', user.username);

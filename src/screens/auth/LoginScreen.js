@@ -66,8 +66,7 @@ export default function LoginScreen() {
       } else {
         // Navigate to appropriate dashboard
         if (user.role === 'manager') {
-          // TODO: Navigate to Manager Dashboard
-          Alert.alert('Success', `Welcome ${user.username}!`);
+          navigation.replace('ManagerDashboard', { name: user.fullName || user.username });
         } else if (user.role === 'sales_rep') {
           // TODO: Navigate to Sales Rep Dashboard
           Alert.alert('Success', `Welcome ${user.username}!`);

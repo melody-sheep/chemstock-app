@@ -91,25 +91,27 @@ Sprints are two weeks long, running from today through the pilot testing phase d
 
 ## Sprint 1 — Foundation & Role System
 
-**Dates:** Aug 12 – Aug 24, 2026 · **Status:** 🟨 In Progress
+**Dates:** Aug 12 – Aug 24, 2026 · **Status:** 🟨 In Progress (core auth/role gap closed Aug 13; staff-creation and role dashboards still open)
 
 **Goal:** Close the auth/role gap that currently blocks every downstream feature, and lock in the backend architecture direction.
 
 **Backlog**
-- Design and create the `branches` table (`branch_id`, `name`, `region`, `city`, `address`, `manager_id`, `is_active`)
-- Design and create the `user_profiles` table (`user_id` → `auth.users`, `username`, `role`, `branch_id`, timestamps)
-- Wire `activationService.activateManager()` to insert a `user_profiles` row (role = manager, branch_id from the key) on success
-- Update `authService.login()` / `getCurrentUser()` to fetch and attach role + branch from `user_profiles`
-- Build the Manager → Create Sales Rep / Collector account flow (Figma Figure 19) using the same profile-creation pattern
-- Team decision: direct Supabase calls from the mobile client vs. an Express API layer, per the proposed 3-tier architecture — document the decision in `AGENTS.md` or a short ADR
-- Enable and verify Row-Level Security policies on `activation_keys`, `activation_audit_log`, `branches`, and `user_profiles`
-- Wire up role-based navigation so Manager / Sales Rep / Collector land on distinct (even if placeholder) dashboards
-- Repo hygiene: remove the stray `console.log('❌` and `{` files accidentally created in `admin-cli/`
+- ✅ Design and create the `branches` table (`id`, `name`, `region`, `city`, `address`, `is_active` — no `manager_id`, deliberately; see `SESSION_HANDOFF.md` §4)
+- ✅ Design and create the `user_profiles` table (`id` → `auth.users`, `username`, `role`, `branch_ids` array, timestamps)
+- ✅ Wire `activationService.activateManager()` to insert a `user_profiles` row (role = manager, branch_ids from the key) on success — via an atomic `activate_manager()` RPC
+- ✅ Update `authService.login()` / `getCurrentUser()` to fetch and attach role + branch from `user_profiles`
+- ⬜ Build the Manager → Create Sales Rep / Collector account flow (Figma Figure 19) — blocked on a real constraint, not just unbuilt: client-side `signUp()` would hijack the manager's own session, needs a privileged backend call (Edge Function or new `admin-cli`-style endpoint)
+- 🟨 Team decision: direct Supabase calls from the mobile client vs. an Express API layer — recommended (stay direct + RLS, backend only for staff creation) but not yet written into `AGENTS.md` as a decision record
+- ✅ Enable and verify Row-Level Security policies on `activation_keys`, `activation_audit_log`, `branches`, and `user_profiles` (re-verify with the query in `SESSION_HANDOFF.md` §3)
+- 🟨 Wire up role-based navigation so Manager / Sales Rep / Collector land on distinct (even if placeholder) dashboards — Manager dashboard done, Sales Rep/Collector still TODO alerts, no screens built
+- ⬜ Repo hygiene: remove the stray `,`, `console.log('❌`, and `{` files (confirmed still present as of Aug 13)
 
 **Definition of Done**
-- A manager can activate a key, log in, and land on a role-correct dashboard shell showing their branch
-- A manager can create a Sales Rep or Collector account; that account can log in and lands on its own dashboard shell
-- RLS is verified enabled on every table currently in use
+- ✅ A manager can activate a key, log in, and land on a role-correct dashboard shell showing their branch — confirmed working end-to-end Aug 13 (dashboard shows a placeholder welcome message; branch display itself not yet built since `branch_ids` isn't populated by `admin-cli` yet)
+- ⬜ A manager can create a Sales Rep or Collector account; that account can log in and lands on its own dashboard shell
+- 🟨 RLS is verified enabled on every table currently in use — enabled per this session's SQL, not independently re-checked since
+
+Full detail on this sprint's session-by-session work: `capstone_docs/MD Folder/SESSION_HANDOFF.md`.
 
 ---
 

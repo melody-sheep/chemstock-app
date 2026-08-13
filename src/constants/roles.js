@@ -1,7 +1,7 @@
 ﻿// src/constants/roles.js
 export const ROLES = {
   MANAGER: 'manager',
-  SALES_REP: 'salesrep',
+  SALES_REP: 'sales_rep',
   COLLECTOR: 'collector',
 };
 

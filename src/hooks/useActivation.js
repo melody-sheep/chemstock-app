@@ -241,6 +241,59 @@ class ActivationViewModel {
     }
   }
   
+  async completeSetup(username, password) {
+    console.log('🚀 [useActivation] completeSetup called');
+
+    if (!this.branchInfo) {
+      this.error = 'Please validate your activation code first';
+      this.notifyStateChange();
+      return { success: false, message: this.error };
+    }
+
+    this.isLoading = true;
+    this.error = '';
+    this.notifyStateChange();
+
+    try {
+      const registerResult = await this.authService.register({
+        email: this.branchInfo.managerEmail,
+        password,
+        username,
+      });
+
+      if (!registerResult.success) {
+      throw new Error(registerResult.message || 'Failed to create account');
+      }
+
+      const activationResult = await this.activationService.activateManager(
+        this.activationKey,
+        registerResult.user.id,
+        { username, fullName: username }
+      );
+
+      if (!activationResult.success) {
+        throw new Error(activationResult.message);
+      }
+
+      console.log('✅ [useActivation] Setup complete:', activationResult.data);
+
+      return {
+        success: true,
+        hasSession: !!registerResult.session,
+        profile: activationResult.data,
+      };
+
+    } catch (error) {
+      console.error('❌ [useActivation] completeSetup error:', error);
+      this.error = error.message || 'Setup failed. Please try again.';
+      return { success: false, message: this.error };
+
+    } finally {
+      this.isLoading = false;
+      this.notifyStateChange();
+    }
+  }
+
   reset() {
     console.log('🔄 [useActivation] Reset called');
     debugLog('debug', 'ActivationViewModel', 'Resetting state');
@@ -300,6 +353,18 @@ export const useActivation = (userId) => {
     console.log('🚀 [useActivation] submit callback invoked');
     return await viewModel.submit();
   }, [viewModel]);
+
+  const completeSetup = useCallback(async (username, password) => {
+    return await viewModel.completeSetup(username, password);
+  }, [viewModel]);
+
+  return {
+    ...state,
+    setActivationKey,
+    submit,
+    completeSetup,   // NEW
+    reset,
+  };
   
   const reset = useCallback(() => {
     console.log('🔄 [useActivation] reset callback invoked');

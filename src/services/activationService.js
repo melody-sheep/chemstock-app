@@ -177,6 +177,7 @@ class ActivationService extends BaseService {
           managerEmail: record.manager_email,
           branchNames: branchNames,
           branchLocations: branchLocations,
+          branchIds: record.branch_ids || [],
           code: record.code,
           expiresAt: record.expires_at,
           isUsed: record.is_used
@@ -216,122 +217,81 @@ class ActivationService extends BaseService {
    * @returns {Promise<Object>} Activation result
    */
   async activateManager(key, userId, userData = {}) {
-    console.log('========================================');
-    console.log('🚀 [ActivationService] activateManager called');
-    console.log('🔑 [ActivationService] Key:', key);
-    console.log('🆔 [ActivationService] User ID:', userId);
-    console.log('📋 [ActivationService] User data:', userData);
-    
-    debugLog('info', 'ActivationService', 'Activating manager', { key, userId });
-    
-    try {
-      this.validateRequired(['key', 'userId'], { key, userId });
-      
-      console.log('🔍 [ActivationService] Step 1: Validating key...');
-      const validation = await this.validateKey(key);
-      
-      console.log('📊 [ActivationService] Validation result:', validation);
-      
-      if (!validation.success) {
-        console.log('❌ [ActivationService] Validation failed:', validation.message);
-        throw new Error(validation.message);
+  console.log('🚀 [ActivationService] activateManager called');
+  debugLog('info', 'ActivationService', 'Activating manager', { key, userId });
+
+  try {
+    this.validateRequired(['key', 'userId'], { key, userId });
+
+    // Friendly pre-check — the RPC re-validates atomically regardless,
+    // this just gives a better error message for the common cases.
+    const validation = await this.validateKey(key);
+    if (!validation.success) {
+      throw new Error(validation.message);
+    }
+
+    console.log('📡 [ActivationService] Calling activate_manager RPC...');
+    const { data: profile, error: rpcError } = await supabase.rpc('activate_manager', {
+      p_code: key.trim(),
+      p_user_id: userId,
+      p_username: userData.username,
+      p_full_name: userData.fullName || userData.username,
+    });
+
+    if (rpcError) {
+      console.error('❌ [ActivationService] RPC error:', rpcError);
+      if (isRLSError(rpcError)) {
+        throw new Error('Permission denied to activate this key. Please contact support.');
       }
-      
-      console.log('✅ [ActivationService] Key validation passed');
-      
-      console.log('🔄 [ActivationService] Step 2: Marking key as used...');
-      console.log('📡 [ActivationService] UPDATE activation_keys SET is_used=true WHERE code=' + key.trim());
-      
-      const { error: updateKeyError } = await supabase
-        .from('activation_keys')
-        .update({
-          is_used: true,
-          used_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('code', key.trim());
-      
-      if (updateKeyError) {
-        console.error('❌ [ActivationService] Error updating key:', updateKeyError);
-        console.error('❌ [ActivationService] Error code:', updateKeyError.code);
-        console.error('❌ [ActivationService] Error message:', updateKeyError.message);
-        
-        if (isRLSError(updateKeyError)) {
-          console.log('🔒 [ActivationService] RLS error on update');
-          throw new Error('Permission denied to activate this key. Please contact support.');
-        }
-        
-        throw updateKeyError;
+      throw new Error(rpcError.message || 'Failed to activate manager.');
+    }
+
+    console.log('✅ [ActivationService] Manager activated:', profile);
+    debugLog('info', 'ActivationService', 'Activation completed', {
+      userId,
+      branchCount: profile.branch_ids?.length || 0
+    });
+
+    return {
+      success: true,
+      message: `Successfully activated for ${validation.data.branchNames.length} branch(es): ${validation.data.branchNames.join(', ')}`,
+      data: {
+        managerId: profile.id,
+        username: profile.username,
+        fullName: profile.full_name,
+        role: profile.role,
+        branchIds: profile.branch_ids,
+        branchNames: validation.data.branchNames,
+        branchLocations: validation.data.branchLocations,
+        managerName: validation.data.managerName,
+        managerEmail: validation.data.managerEmail,
+        activationId: validation.data.activationId
       }
-      
-      console.log('✅ [ActivationService] Key marked as used successfully');
-      
-      const branchNames = validation.data.branchNames || [];
-      const branchLocations = validation.data.branchLocations || [];
-      
-      console.log('========================================');
-      console.log('🎉 [ActivationService] ======================================');
-      console.log('🎉 [ActivationService] MANAGER ACTIVATION COMPLETE!');
-      console.log('🎉 [ActivationService] ======================================');
-      console.log('👤 [ActivationService] Manager ID:', userId);
-      console.log('👤 [ActivationService] Manager Name:', validation.data.managerName);
-      console.log('📧 [ActivationService] Manager Email:', validation.data.managerEmail);
-      console.log('🏢 [ActivationService] Branches Assigned:');
-      branchNames.forEach((name, index) => {
-        console.log(`   ${index + 1}. ${name} ${branchLocations[index] ? `(${branchLocations[index]})` : ''}`);
-      });
-      console.log('📊 [ActivationService] Total Branches:', branchNames.length);
-      console.log('🔑 [ActivationService] Activation Code:', validation.data.code);
-      console.log('🆔 [ActivationService] Activation ID:', validation.data.activationId);
-      console.log('✅ [ActivationService] Status: ACTIVATED');
-      console.log('🎉 [ActivationService] ======================================');
-      console.log('========================================');
-      
-      debugLog('info', 'ActivationService', 'Activation completed', { 
-        userId, 
-        branchNames: branchNames,
-        branchCount: branchNames.length
-      });
-      
-      return {
-        success: true,
-        message: `Successfully activated for ${branchNames.length} branch(es): ${branchNames.join(', ')}`,
-        data: {
-          managerId: userId,
-          branchNames: branchNames,
-          branchLocations: branchLocations,
-          managerName: validation.data.managerName,
-          managerEmail: validation.data.managerEmail,
-          activationId: validation.data.activationId
-        }
-      };
-      
-    } catch (error) {
-      console.error('❌ [ActivationService] Error in activateManager:', error);
-      console.error('❌ [ActivationService] Error stack:', error.stack);
-      console.error('❌ [ActivationService] Error code:', error.code);
-      
-      if (isRLSError(error)) {
-        console.log('🔒 [ActivationService] RLS error in activateManager');
-        return {
-          success: false,
-          message: 'Permission denied to activate this key. Please contact support.',
-          data: null,
-          errorCode: 'RLS_ERROR'
-        };
-      }
-      
-      this.handleError(error, { key, userId });
-      
+    };
+
+  } catch (error) {
+    console.error('❌ [ActivationService] Error in activateManager:', error);
+
+    if (isRLSError(error)) {
       return {
         success: false,
-        message: error.message || 'Failed to activate manager. Please try again.',
+        message: 'Permission denied to activate this key. Please contact support.',
         data: null,
-        errorCode: error.code || 'UNKNOWN_ERROR'
+        errorCode: 'RLS_ERROR'
       };
     }
+
+    this.log('error', 'Activation error', { key, userId, error: error.message });
+
+    return {
+      success: false,
+      message: error.message || 'Failed to activate manager. Please try again.',
+      data: null,
+      errorCode: error.code || 'UNKNOWN_ERROR'
+    };
   }
-  
+}
+
   async checkKeyExists(key) {
     console.log('🔍 [ActivationService] checkKeyExists called for:', key);
     
