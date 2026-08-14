@@ -41,20 +41,6 @@ class AuthService extends BaseService {
       if (agentLoginError) {
         console.error(`❌ [AuthService] Agent login RPC error: ${agentLoginError.message}`);
       }
-<<<<<<< Updated upstream
-      
-      const result = {
-        success: true,
-        token: data.session.access_token,
-        user: {
-          id: data.user.id,
-          email: data.user.email,
-          username: profile?.username || data.user.email?.split('@')[0] || credentials.username,
-          full_name: profile?.full_name || null,
-          role: profile?.role || null,
-          branchIds: profile?.branch_ids || [],
-          isActivated: !!profile,
-=======
 
       if (agentProfile) {
         console.log('✅ [AuthService] Agent login successful:', agentProfile.username);
@@ -93,7 +79,6 @@ class AuthService extends BaseService {
             throw new Error('Invalid username or password');
           }
           email = resolvedEmail;
->>>>>>> Stashed changes
         }
 
         console.log('📧 [AuthService] Using email:', email);
