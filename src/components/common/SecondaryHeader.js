@@ -19,7 +19,7 @@ export default function SecondaryHeader({
   height = 120,
   backgroundColor = '#F7FEFF',
   borderColor = '#555353',
-  borderWidth = 0.5,
+  borderWidth = 0,
   style = {},
 }) {
   return (

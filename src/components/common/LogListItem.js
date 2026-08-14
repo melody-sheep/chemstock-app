@@ -16,6 +16,7 @@ export default function LogListItem({
   text,
   style = {},
 }) {
+  console.log(`📋 [LogListItem] Rendering "${text}" with icon="${icon}"`);
   return (
     <View style={[styles.row, style]}>
       <View style={[styles.iconBadge, { backgroundColor: `${iconColor}15` }]}>
@@ -55,7 +56,7 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#272632',

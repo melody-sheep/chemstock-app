@@ -68,15 +68,20 @@ export default function BottomNavBar({
       <View style={styles.tabGroup}>{LEFT_TABS.map(renderTab)}</View>
       <View style={styles.tabGroup}>{RIGHT_TABS.map(renderTab)}</View>
 
-      <TouchableOpacity
-        style={[styles.fab, { bottom: BAR_HEIGHT - FAB_SIZE / 2 + insets.bottom }]}
-        onPress={onFabPress}
-        activeOpacity={0.85}
-        accessibilityLabel="Quick actions"
-        accessibilityRole="button"
+      <View
+        style={[styles.fabWrapper, { bottom: BAR_HEIGHT - FAB_SIZE / 2 + insets.bottom }]}
+        pointerEvents="box-none"
       >
-        <Icon name="grid" size={24} color="#FFFFFF" weight="fill" />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={onFabPress}
+          activeOpacity={0.85}
+          accessibilityLabel="Quick actions"
+          accessibilityRole="button"
+        >
+          <Icon name="grid" size={24} color="#FFFFFF" weight="fill" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -116,10 +121,13 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
-  fab: {
+  fabWrapper: {
     position: 'absolute',
-    left: '50%',
-    marginLeft: -FAB_SIZE / 2,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  fab: {
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,

@@ -8,16 +8,18 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
  * ActionCard - Grid tile for dashboard "Main Operation" style menus.
- * Duotone icon (top-left) + title. Meant to be laid out in a 2-column grid
- * by the parent screen.
+ * Duotone icon (left) + title (right). Meant to be laid out in a 2-column
+ * grid by the parent screen.
  */
 export default function ActionCard({
   icon,
   iconColor = '#03045E',
+  duotoneColor = null,
   title,
   onPress = null,
   style = {},
 }) {
+  console.log(`🔲 [ActionCard] Rendering "${title}" with icon="${icon}" duotoneColor=${duotoneColor}`);
   return (
     <TouchableOpacity
       style={[styles.card, style]}
@@ -26,7 +28,14 @@ export default function ActionCard({
       accessibilityLabel={title}
       accessibilityRole="button"
     >
-      <Icon name={icon} size={28} color={iconColor} weight="duotone" style={styles.icon} />
+      <Icon
+        name={icon}
+        size={28}
+        color={iconColor}
+        duotoneColor={duotoneColor}
+        weight="duotone"
+        style={styles.icon}
+      />
       <Text style={styles.title}>{title}</Text>
     </TouchableOpacity>
   );
@@ -35,6 +44,7 @@ export default function ActionCard({
 ActionCard.propTypes = {
   icon: PropTypes.string.isRequired,
   iconColor: PropTypes.string,
+  duotoneColor: PropTypes.string,
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func,
   style: PropTypes.object,
@@ -42,27 +52,31 @@ ActionCard.propTypes = {
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
-    padding: SPACING.md,
+    padding: SPACING.sm,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
     ...Platform.select({
       web: {
-        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
       },
     }),
   },
   icon: {
-    marginBottom: SPACING.sm,
+    marginRight: SPACING.sm,
   },
   title: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    flex: 1,
+    flexWrap: 'wrap',
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#272632',

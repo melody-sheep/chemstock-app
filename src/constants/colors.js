@@ -35,4 +35,18 @@ export const COLORS = {
   accentPurple: '#6C5CE7',
   accentOrange: '#FF7800',
   accentBlue: '#07B2F5',
+
+  // Main Operation duotone icon colors — stroke/fill pairs, one per tile
+  // (receiveStock reuses `primary` above for its stroke, no separate entry)
+  iconReceiveFill: '#ECECFF',
+  iconReleaseStroke: '#4CF294',
+  iconReleaseFill: '#DEFFED',
+  iconReturnStroke: '#F57E07',
+  iconReturnFill: '#FFECD9',
+  iconAlertStroke: '#FF0000',
+  iconAlertFill: '#FFEEEE',
+  iconTrackStroke: '#0085F9',
+  iconTrackFill: '#E3F2FF',
+  iconAgentStroke: '#B700FF',
+  iconAgentFill: '#FFD9F5',
 };

@@ -8,12 +8,13 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
  * StatCard - Quick-stat tile: duotone icon, bold value, label.
- * Flat card with a colored left accent stroke (no shadow, no full border).
+ * Flat card with a colored left accent stroke and a soft shadow.
  * Used in dashboard "Quick Stats" rows across roles.
  */
 export default function StatCard({
   icon,
   iconColor = '#03045E',
+  strokeWidth = 0,
   accentColor = '#03045E',
   backgroundColor = '#FFFFFF',
   borderLeftColor = '#03045E',
@@ -21,15 +22,25 @@ export default function StatCard({
   label,
   style = {},
 }) {
+  console.log(`📊 [StatCard] Rendering "${label}" with icon="${icon}"`);
   return (
     <View style={[styles.card, { backgroundColor, borderLeftColor }, style]}>
-      <Icon name={icon} size={28} color={iconColor} weight="duotone" style={styles.icon} />
-      <Text style={[styles.value, { color: accentColor }]} numberOfLines={1}>
-        {value}
-      </Text>
-      <Text style={styles.label} numberOfLines={1}>
-        {label}
-      </Text>
+      <Icon
+        name={icon}
+        size={28}
+        color={iconColor}
+        strokeWidth={strokeWidth}
+        weight="duotone"
+        style={styles.icon}
+      />
+      <View style={styles.textColumn}>
+        <Text style={[styles.value, { color: accentColor }]} numberOfLines={1}>
+          {value}
+        </Text>
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -37,6 +48,7 @@ export default function StatCard({
 StatCard.propTypes = {
   icon: PropTypes.string.isRequired,
   iconColor: PropTypes.string,
+  strokeWidth: PropTypes.number,
   accentColor: PropTypes.string,
   backgroundColor: PropTypes.string,
   borderLeftColor: PropTypes.string,
@@ -48,15 +60,27 @@ StatCard.propTypes = {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderRadius: 10,
     borderLeftWidth: 2,
     padding: SPACING.md,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  textColumn: {
+    flexShrink: 1,
   },
   icon: {
-    marginBottom: SPACING.sm,
+    marginRight: SPACING.sm,
   },
   value: {
-    fontSize: TYPOGRAPHY.fontSize['2xl'],
+    fontSize: TYPOGRAPHY.fontSize.xl,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },

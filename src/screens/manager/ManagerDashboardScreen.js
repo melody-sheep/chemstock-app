@@ -15,13 +15,12 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-const SECONDARY_HEADER_HEIGHT = 100;
-const SCROLL_DIRECTION_THRESHOLD = 4;
+const SECONDARY_HEADER_HEIGHT = 80;
 
 const QUICK_STATS = [
   {
     key: 'totalItems',
-    icon: 'package',
+    icon: 'boxPackage',
     iconColor: COLORS.accentGold,
     accentColor: COLORS.accentGold,
     backgroundColor: '#FFFDF5',
@@ -31,8 +30,9 @@ const QUICK_STATS = [
   },
   {
     key: 'pendingRequest',
-    icon: 'person',
+    icon: 'peopleGroup',
     iconColor: COLORS.accentPink,
+    strokeWidth: 0.6,
     accentColor: COLORS.accentPink,
     backgroundColor: '#FFF5F8',
     borderLeftColor: COLORS.accentPink,
@@ -42,12 +42,12 @@ const QUICK_STATS = [
 ];
 
 const MAIN_OPERATIONS = [
-  { key: 'receiveStock', icon: 'trayDown', iconColor: COLORS.accentPurple, title: 'Receive Stock', screen: null },
-  { key: 'releaseStock', icon: 'checkCircle', iconColor: COLORS.success, title: 'Release Stock', screen: null },
-  { key: 'manageReturns', icon: 'returns', iconColor: COLORS.accentOrange, title: 'Manage Returns', screen: null },
-  { key: 'alerts', icon: 'warning', iconColor: COLORS.error, title: 'Alerts / Discrepancies', screen: null },
-  { key: 'trackDeliveries', icon: 'navigation', iconColor: COLORS.accentBlue, title: 'Track Deliveries', screen: null },
-  { key: 'agentAccounts', icon: 'users', iconColor: COLORS.accentPink, title: 'Agent Accounts', screen: 'AgentAccounts' },
+  { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: null },
+  { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: null },
+  { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: null },
+  { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
+  { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },
+  { key: 'agentAccounts', icon: 'agentsGroup', iconColor: COLORS.iconAgentStroke, duotoneColor: COLORS.iconAgentFill, title: 'Agent Accounts', screen: 'AgentAccounts' },
 ];
 
 const RECENT_LOGS = [
@@ -60,8 +60,23 @@ export default function ManagerDashboardScreen() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  const secondaryHeaderHeight = useRef(new Animated.Value(SECONDARY_HEADER_HEIGHT)).current;
-  const lastScrollY = useRef(0);
+  // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
+  // clamped to [0, header height], so the header slides in lockstep with the
+  // finger instead of snapping on a threshold. interpolate() maps that to a
+  // translateY on an absolutely-positioned header (not a layout-affecting
+  // height), so even JS-driven (useNativeDriver:false) this never touches
+  // Yoga layout — only a transform repaint, which is cheap and jank-free.
+  // (Native-driven caused a native animated-node-graph crash on this RN
+  // version — see debugging notes; JS-driven sidesteps it entirely.)
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const clampedScrollY = useRef(
+    Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
+  ).current;
+  const secondaryHeaderTranslateY = clampedScrollY.interpolate({
+    inputRange: [0, SECONDARY_HEADER_HEIGHT],
+    outputRange: [0, -SECONDARY_HEADER_HEIGHT],
+    extrapolate: 'clamp',
+  });
 
   useEffect(() => {
     authService.getCurrentUser().then(setUser);
@@ -70,28 +85,10 @@ export default function ManagerDashboardScreen() {
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
 
-  const animateSecondaryHeader = (toValue) => {
-    Animated.timing(secondaryHeaderHeight, {
-      toValue,
-      duration: 200,
-      useNativeDriver: false, // height can't be animated by the native driver
-    }).start();
-  };
-
-  const handleScroll = (event) => {
-    const currentY = event.nativeEvent.contentOffset.y;
-    const delta = currentY - lastScrollY.current;
-
-    if (currentY <= 0) {
-      animateSecondaryHeader(SECONDARY_HEADER_HEIGHT); // always shown at the very top
-    } else if (delta > SCROLL_DIRECTION_THRESHOLD) {
-      animateSecondaryHeader(0); // scrolling down - hide
-    } else if (delta < -SCROLL_DIRECTION_THRESHOLD) {
-      animateSecondaryHeader(SECONDARY_HEADER_HEIGHT); // scrolling up - reveal
-    }
-
-    lastScrollY.current = currentY;
-  };
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: false }
+  );
 
   return (
     <>
@@ -108,44 +105,50 @@ export default function ManagerDashboardScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <Animated.View style={{ height: secondaryHeaderHeight, overflow: 'hidden' }}>
-          <SecondaryHeader height={SECONDARY_HEADER_HEIGHT}>
-            <View style={styles.secondaryContent}>
-              <Text style={styles.welcomeText}>
-                Welcome, <Text style={styles.welcomeName}>{managerName}</Text>!
-              </Text>
+        <View style={styles.body}>
+          <Animated.View
+            style={[
+              styles.secondaryHeaderWrapper,
+              { transform: [{ translateY: secondaryHeaderTranslateY }] },
+            ]}
+          >
+            <SecondaryHeader height={SECONDARY_HEADER_HEIGHT}>
+              <View style={styles.secondaryContent}>
+                <Text style={styles.welcomeText}>
+                  Welcome, <Text style={styles.welcomeName}>{managerName}</Text>!
+                </Text>
 
-              <View style={styles.statusRow}>
-                <Text style={styles.statusText}>Status</Text>
+                <View style={styles.statusRow}>
+                  <Text style={styles.statusText}>Status</Text>
 
-                <View style={styles.statusGroup}>
-                  <View style={styles.onlineDot} />
-                  <Text style={styles.statusText}>Online</Text>
-                </View>
+                  <View style={styles.statusGroup}>
+                    <View style={styles.onlineDot} />
+                    <Text style={styles.statusText}>Online</Text>
+                  </View>
 
-                <View style={styles.statusGroup}>
-                  <Icon
-                    name="location"
-                    size={16}
-                    color="#FF0000"
-                    weight="duotone"
-                    duotoneColor="#FCB8B8"
-                    duotoneOpacity={1}
-                  />
-                  <Text style={styles.statusText}>{branchName}</Text>
+                  <View style={styles.statusGroup}>
+                    <Icon
+                      name="location"
+                      size={16}
+                      color="#FF0000"
+                      weight="duotone"
+                      duotoneColor="#FCB8B8"
+                      duotoneOpacity={1}
+                    />
+                    <Text style={styles.statusText}>{branchName}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </SecondaryHeader>
-        </Animated.View>
+            </SecondaryHeader>
+          </Animated.View>
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.statsRow}>
             {QUICK_STATS.map((stat) => (
@@ -153,6 +156,7 @@ export default function ManagerDashboardScreen() {
                 key={stat.key}
                 icon={stat.icon}
                 iconColor={stat.iconColor}
+                strokeWidth={stat.strokeWidth}
                 accentColor={stat.accentColor}
                 backgroundColor={stat.backgroundColor}
                 borderLeftColor={stat.borderLeftColor}
@@ -169,6 +173,7 @@ export default function ManagerDashboardScreen() {
                 key={operation.key}
                 icon={operation.icon}
                 iconColor={operation.iconColor}
+                duotoneColor={operation.duotoneColor}
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
@@ -187,7 +192,8 @@ export default function ManagerDashboardScreen() {
               />
             ))}
           </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
 
         <BottomNavBar activeTab={activeTab} onTabPress={setActiveTab} />
       </View>
@@ -200,12 +206,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  body: {
+    flex: 1,
+    position: 'relative',
+  },
+  secondaryHeaderWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 10,
+  },
   content: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
+    paddingTop: SECONDARY_HEADER_HEIGHT + SPACING.md,
     paddingBottom: 96,
   },
   secondaryContent: {
@@ -266,6 +284,7 @@ const styles = StyleSheet.create({
   },
   operationCard: {
     width: '48%',
+    minHeight: 64,
   },
   logsList: {
     gap: SPACING.sm,
