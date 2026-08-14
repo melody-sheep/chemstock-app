@@ -11,6 +11,7 @@ import {
 import PropTypes from 'prop-types';
 import { useNavigation } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
+import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -28,10 +29,17 @@ export default function Header({
   showBackButton = false,
   backButtonText = 'Back',
   showOnlineStatus = false,
+  showProfileIcon = false,
+  onProfilePress = null,
+  showDocumentIcon = false,
+  onDocumentPress = null,
+  showNotificationIcon = false,
+  onNotificationPress = null,
   title = null,
   height = 56,
   backgroundColor = '#03045E',
   textColor = '#FFFFFF',
+  paddingHorizontal = SPACING.lg,
   onBackPress = null,
 }) {
   const navigation = useNavigation();
@@ -55,7 +63,7 @@ export default function Header({
         {
           height: height,
           backgroundColor: backgroundColor,
-          paddingHorizontal: SPACING.lg,
+          paddingHorizontal: paddingHorizontal,
         },
       ]}
     >
@@ -75,11 +83,29 @@ export default function Header({
             </Text>
           </TouchableOpacity>
         )}
+
+        {showProfileIcon && (
+          <View style={styles.profileRow}>
+            <TouchableOpacity
+              onPress={onProfilePress}
+              activeOpacity={0.7}
+              accessibilityLabel="Profile"
+              accessibilityRole="button"
+            >
+              <Icon name="profile" size={28} color={textColor} weight="fill" />
+            </TouchableOpacity>
+            {title && title !== '' && (
+              <Text style={[styles.leftTitle, { color: textColor }]}>
+                {title}
+              </Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Center Section */}
       <View style={styles.centerSection}>
-        {title && title !== '' && (
+        {!showProfileIcon && title && title !== '' && (
           <Text style={[styles.title, { color: textColor }]}>
             {title}
           </Text>
@@ -96,6 +122,31 @@ export default function Header({
             </Text>
           </View>
         )}
+
+        {(showDocumentIcon || showNotificationIcon) && (
+          <View style={styles.rightIconsRow}>
+            {showDocumentIcon && (
+              <TouchableOpacity
+                onPress={onDocumentPress}
+                activeOpacity={0.7}
+                accessibilityLabel="Documents"
+                accessibilityRole="button"
+              >
+                <Icon name="document" size={22} color={textColor} weight="fill" />
+              </TouchableOpacity>
+            )}
+            {showNotificationIcon && (
+              <TouchableOpacity
+                onPress={onNotificationPress}
+                activeOpacity={0.7}
+                accessibilityLabel="Notifications"
+                accessibilityRole="button"
+              >
+                <Icon name="notification" size={22} color={textColor} weight="fill" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -105,22 +156,18 @@ Header.propTypes = {
   showBackButton: PropTypes.bool,
   backButtonText: PropTypes.string,
   showOnlineStatus: PropTypes.bool,
+  showProfileIcon: PropTypes.bool,
+  onProfilePress: PropTypes.func,
+  showDocumentIcon: PropTypes.bool,
+  onDocumentPress: PropTypes.func,
+  showNotificationIcon: PropTypes.bool,
+  onNotificationPress: PropTypes.func,
   title: PropTypes.string,
   height: PropTypes.number,
   backgroundColor: PropTypes.string,
   textColor: PropTypes.string,
+  paddingHorizontal: PropTypes.number,
   onBackPress: PropTypes.func,
-};
-
-Header.defaultProps = {
-  showBackButton: false,
-  backButtonText: 'Back',
-  showOnlineStatus: false,
-  title: null,
-  height: 56,
-  backgroundColor: '#03045E',
-  textColor: '#FFFFFF',
-  onBackPress: null,
 };
 
 const styles = StyleSheet.create({
@@ -162,11 +209,26 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     marginLeft: SPACING.xs,
   },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  leftTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginLeft: 25,
+  },
   title: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     textAlign: 'center',
+  },
+  rightIconsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   onlineContainer: {
     flexDirection: 'row',
