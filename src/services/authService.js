@@ -68,7 +68,7 @@ class AuthService extends BaseService {
         console.error(`❌ [AuthService] Agent login RPC error: ${agentLoginError.message}`);
       }
 
-      if (agentProfile) {
+      if (agentProfile && agentProfile.id) {
         console.log('✅ [AuthService] Agent login successful:', agentProfile.username);
         const branchName = await this._fetchBranchNames(agentProfile?.branch_ids);
 
