@@ -18,53 +18,30 @@ class AuthService extends BaseService {
     console.log('========================================');
     console.log('🔐 [AuthService] Login attempt');
     console.log('👤 [AuthService] Username:', credentials.username);
-    console.log('🔑 [AuthService] Password length:', credentials.password?.length);
     
     debugLog('info', 'AuthService', 'Login attempt', { 
       username: credentials.username 
     });
     
-    try {
+    try {   
       // Validate input
       this.validateRequired(['username', 'password'], credentials);
-      
-      // Supabase uses email, but your system uses username
-      const email = credentials.username.includes('@') 
-        ? credentials.username 
-        : `${credentials.username}@chemstock.local`;
-      
-      console.log('📧 [AuthService] Using email:', email);
-      console.log('📡 [AuthService] Calling supabase.auth.signInWithPassword...');
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: credentials.password,
-      });
-      
-      if (error) {
-        console.error('❌ [AuthService] Sign in error:', error);
-        console.error('❌ [AuthService] Error code:', error.code);
-        console.error('❌ [AuthService] Error message:', error.message);
-        throw error;
-      }
-      
-      console.log('✅ [AuthService] Sign in successful');
-      console.log('🆔 [AuthService] User ID:', data.user?.id);
-      console.log('📧 [AuthService] User email:', data.user?.email);
-      
-      this.currentSession = data.session;
+      const trimmedUsername = credentials.username.trim();
 
-      //Fetch Profiless (role, branch, username)
+      //========================================
+      //1. Try agent (Sales Rep / Collector) login first
+      //No Supabase Auth involved - just a username + password_hash
+      //Row in user_profiles, verified server-side
+      //========================================
+      const { data: agentProfile, error: agentLoginError } = await supabase.rpc('verify_agent_login', {
+        p_username: trimmedUsername,
+        p_password: credentials.password,
+      }); 
 
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-      
-      if (profileError) {
-        console.error('❌ [AuthService] Profile fetch error:', profileError);
+      if (agentLoginError) {
+        console.error(`❌ [AuthService] Agent login RPC error: ${agentLoginError.message}`);
       }
+<<<<<<< Updated upstream
       
       const result = {
         success: true,
@@ -77,33 +54,109 @@ class AuthService extends BaseService {
           role: profile?.role || null,
           branchIds: profile?.branch_ids || [],
           isActivated: !!profile,
-        }
-      };
-      
-      console.log('✅ [AuthService] Login successful');
-      console.log('👤 [AuthService] User ID:', result.user.id);
-      
-      debugLog('info', 'AuthService', 'Login successful', { 
-        userId: result.user.id
-      });
-      
-      return result;
-      
-    } catch (error) {
-      console.error('❌ [AuthService] Login error:', error);
-      console.error('❌ [AuthService] Error stack:', error.stack);
-      
-      this.handleError(error, { username: credentials.username });
-      
-      if (isRLSError(error)) {
-        throw new Error('Permission denied. Please contact support.');
+=======
+
+      if (agentProfile) {
+        console.log('✅ [AuthService] Agent login successful:', agentProfile.username);
+        const branchName = await this._fetchBranchNames(agentProfile?.branch_ids);
+
+        return {
+          success: true,
+          token: null, 
+          user: {
+            id: agentProfile.id,
+            email: null,
+            username: agentProfile.username,
+            full_name: agentProfile.full_name,
+            role: agentProfile.role,
+            branchIds: agentProfile.branch_ids || [],
+            branchName,
+            isActivated: true,
+            authMode: 'agent',
+          },
+        };
       }
-      
-      throw new Error(error.message === 'Invalid login credentials' 
-        ? 'Invalid username or password' 
-        : getFriendlyErrorMessage(error));
+
+        //========================================
+        //2. Fall back to Supabase Auth (manager / admin login)
+        //========================================
+        let email = trimmedUsername;
+        if (!email.includes('@')) {
+          console.log('📡 [AuthService] Resolving username to email via RPC...');
+          const { data: resolvedEmail, error: lookupError } = await supabase.rpc(
+            'get_email_by_username',
+            { p_username: trimmedUsername }
+          );
+
+          if (lookupError || !resolvedEmail) {
+            console.warn('⚠️ [AuthService] Username not found:', email);
+            throw new Error('Invalid username or password');
+          }
+          email = resolvedEmail;
+>>>>>>> Stashed changes
+        }
+
+        console.log('📧 [AuthService] Using email:', email);
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password: credentials.password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        this.currentSession = data.session;
+
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('❌ [AuthService] Profile fetch error:', profileError);
+        }
+
+        const branchName = await this._fetchBranchNames(profile?.branch_ids);
+
+        const result = {
+          success: true,
+          token: data.session.access_token,
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            username: profile?.username || data.user.email?.split('@')[0] || credentials.username,
+            full_name: profile?.full_name || null,
+            role: profile?.role || null,
+            branchIds: profile?.branch_ids || [],
+            branchName,
+            isActivated: !!profile,
+            authMode: 'supabase',
+          }
+        };
+            
+        console.log('✅ [AuthService] Login successful');
+        debugLog('info', 'AuthService', 'Login successful', {userId: result.user.id});
+        return result;
+        
+      } catch (error) {
+          console.error('❌ [AuthService] Login error:', error);
+
+          this.handleError(error, { username: credentials.username });
+
+          if (isRLSError(error)) {
+            throw new Error('Permission denied. Please contact support.');
+          }
+
+          throw new Error(error.message === 'Invalid login credentials' 
+            ? 'Invalid username or password' 
+            : getFriendlyErrorMessage(error));
+      }
     }
-  }
+    
+  
   
   /**
    * Register new user (for managers to create accounts)
@@ -137,9 +190,6 @@ class AuthService extends BaseService {
       
       console.log('✅ [AuthService] Auth user created');
       console.log('🆔 [AuthService] User ID:', authData.user?.id);
-      
-      // ✅ REMOVED: Profile creation since profiles table is deleted
-      // The activation will handle storing branch info later
       
       console.log('✅ [AuthService] Registration successful (no profile created)');
       
@@ -175,6 +225,7 @@ class AuthService extends BaseService {
   /**
    * Logout user
    */
+
   async logout() {
     console.log('🚪 [AuthService] Logout called');
     debugLog('info', 'AuthService', 'Logout');

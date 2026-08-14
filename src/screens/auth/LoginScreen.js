@@ -58,25 +58,21 @@ export default function LoginScreen() {
   useEffect(() => {
     if (user && !isLoading) {
       // Check if manager needs activation
-      if (user.role === 'manager' && !user.isActivated) {
-        // Navigate to activation screen with userId
-        navigation.replace('ManagerActivation', { 
-          userId: user.id 
+      if (user.role === 'manager') {
+        navigation.replace('ManagerDashboard', { 
+          name: user.full_name || user.username,
         });
-      } else {
-        // Navigate to appropriate dashboard
-        if (user.role === 'manager') {
-          navigation.replace('ManagerDashboard', { name: user.fullName || user.username });
-        } else if (user.role === 'sales_rep') {
-          // TODO: Navigate to Sales Rep Dashboard
-          Alert.alert('Success', `Welcome ${user.username}!`);
-        } else if (user.role === 'collector') {
-          // TODO: Navigate to Collector Dashboard
-          Alert.alert('Success', `Welcome ${user.username}!`);
-        }
+      } else if (user.role === 'sales_rep') {
+        navigation.replace('SalesRepDashboard', {
+          name: user.full_name || user.username,
+        });
+      } else if (user.role === 'collector') {
+        navigation.replace('CollectorDashboard', {
+          name: user.full_name || user.username,
+        });
       }
-    }
-  }, [user, isLoading, navigation]);
+      }
+    }, [user, isLoading, navigation]);
 
   const handleLogin = async () => {
     Keyboard.dismiss();

@@ -358,6 +358,11 @@ export const useActivation = (userId) => {
     return await viewModel.completeSetup(username, password);
   }, [viewModel]);
 
+  const reset = useCallback(() => {
+    console.log('🔄 [useActivation] reset callback invoked');
+    viewModel.reset();
+  }, [viewModel]);
+
   return {
     ...state,
     setActivationKey,
@@ -365,11 +370,6 @@ export const useActivation = (userId) => {
     completeSetup,   // NEW
     reset,
   };
-  
-  const reset = useCallback(() => {
-    console.log('🔄 [useActivation] reset callback invoked');
-    viewModel.reset();
-  }, [viewModel]);
   
   return {
     ...state,
