@@ -15,7 +15,13 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-const SECONDARY_HEADER_HEIGHT = 80;
+const SECONDARY_HEADER_HEIGHT = 100;
+
+// 2nd_header_scan_img.png is 344x400 natively; deriving the width from the
+// header height (instead of hardcoding it) keeps the image flush against
+// the right edge if SECONDARY_HEADER_HEIGHT ever changes.
+const HEADER_ILLUSTRATION_ASPECT_RATIO = 344 / 400;
+const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
 const QUICK_STATS = [
   {
@@ -42,7 +48,7 @@ const QUICK_STATS = [
 ];
 
 const MAIN_OPERATIONS = [
-  { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: null },
+  { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: 'ReceiveStock' },
   { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: null },
   { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: null },
   { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
@@ -92,7 +98,7 @@ export default function ManagerDashboardScreen() {
 
   return (
     <>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <StatusBar style="light" />
       <View style={styles.container}>
         <Header
           showProfileIcon={true}
@@ -112,9 +118,13 @@ export default function ManagerDashboardScreen() {
               { transform: [{ translateY: secondaryHeaderTranslateY }] },
             ]}
           >
-            <SecondaryHeader height={SECONDARY_HEADER_HEIGHT}>
+            <SecondaryHeader
+              height={SECONDARY_HEADER_HEIGHT}
+              illustration={require('../../../assets/manager_assets/2nd_header_scan_img.png')}
+              illustrationWidth={HEADER_ILLUSTRATION_WIDTH}
+            >
               <View style={styles.secondaryContent}>
-                <Text style={styles.welcomeText}>
+                <Text style={styles.welcomeText} numberOfLines={1}>
                   Welcome, <Text style={styles.welcomeName}>{managerName}</Text>!
                 </Text>
 
@@ -284,7 +294,7 @@ const styles = StyleSheet.create({
   },
   operationCard: {
     width: '48%',
-    minHeight: 64,
+    minHeight: 72,
   },
   logsList: {
     gap: SPACING.sm,

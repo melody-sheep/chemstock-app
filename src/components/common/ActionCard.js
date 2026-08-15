@@ -1,10 +1,11 @@
 // src/components/common/ActionCard.js
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { SHADOWS } from '../../styles/shadows';
 
 /**
  * ActionCard - Grid tile for dashboard "Main Operation" style menus.
@@ -59,16 +60,7 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
-    ...Platform.select({
-      web: {
-        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-      },
-    }),
+    ...SHADOWS.cardSoft,
   },
   icon: {
     marginRight: SPACING.sm,

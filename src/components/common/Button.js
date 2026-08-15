@@ -3,14 +3,17 @@ import React from 'react';
 import {
   TouchableOpacity,
   Text,
+  View,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
   Platform,
 } from 'react-native';
 import PropTypes from 'prop-types';
+import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { SPACING } from '../../styles/spacing';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -23,7 +26,7 @@ const { width: screenWidth } = Dimensions.get('window');
  * @param {Function} props.onPress - Callback when button is pressed
  * @param {boolean} props.loading - Shows activity indicator when true
  * @param {boolean} props.disabled - Disables button interaction
- * @param {number} props.width - Button width (defaults to screen width - 40)
+ * @param {number} props.width - Button width (defaults to screen width minus the standard SPACING.lg screen padding on both sides)
  * @param {number} props.height - Button height (default: 56)
  * @param {'primary'|'black'} props.variant - Color variant (default: 'primary')
  * @param {number} props.fontSize - Text size (default: 18)
@@ -38,12 +41,16 @@ export default function Button({
   onPress,
   loading = false,
   disabled = false,
-  width = screenWidth - 40,
+  width = screenWidth - SPACING.lg * 2,
   height = 56,
   variant = 'primary',
   fontSize = 18,
   fontFamily = TYPOGRAPHY.fontFamily?.medium || 'System',
   borderRadius = 12,
+  icon = null,
+  iconPosition = 'left',
+  iconWeight = 'regular',
+  iconSize = 20,
   style,
   textStyle,
   hasShadow = true,
@@ -53,6 +60,7 @@ export default function Button({
     try {
       if (disabled) return COLORS.primaryLight;
       if (variant === 'black') return '#000000';
+      if (variant === 'outline') return '#FFFFFF';
       if (variant === 'primary') return COLORS.primary;
       // Fallback for invalid variant
       console.warn(`Invalid variant "${variant}" provided to Button. Using "primary".`);
@@ -66,12 +74,22 @@ export default function Button({
   const getTextColor = () => {
     try {
       if (variant === 'black') return '#FFFFFF';
+      if (variant === 'outline') return COLORS.primary;
       return COLORS.textWhite;
     } catch (error) {
       console.error('Error getting button text color:', error);
       return '#FFFFFF';
     }
   };
+
+  const getBorderStyle = () => {
+    if (variant === 'outline') {
+      return { borderWidth: 1.5, borderColor: disabled ? COLORS.primaryLight : COLORS.primary };
+    }
+    return null;
+  };
+
+  const textColor = getTextColor();
 
   return (
     <TouchableOpacity
@@ -88,6 +106,7 @@ export default function Button({
             },
           }),
         },
+        getBorderStyle(),
         hasShadow && styles.shadow,
         style,
       ]}
@@ -99,21 +118,29 @@ export default function Button({
       accessibilityState={{ disabled: disabled || loading }}
     >
       {loading ? (
-        <ActivityIndicator color={getTextColor()} size="small" />
+        <ActivityIndicator color={textColor} size="small" />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            {
-              fontSize: fontSize,
-              fontFamily: fontFamily,
-              color: getTextColor(),
-            },
-            textStyle,
-          ]}
-        >
-          {title}
-        </Text>
+        <View style={styles.content}>
+          {icon && iconPosition === 'left' && (
+            <Icon name={icon} size={iconSize} color={textColor} weight={iconWeight} style={styles.iconLeft} />
+          )}
+          <Text
+            style={[
+              styles.text,
+              {
+                fontSize: fontSize,
+                fontFamily: fontFamily,
+                color: textColor,
+              },
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
+          {icon && iconPosition === 'right' && (
+            <Icon name={icon} size={iconSize} color={textColor} weight={iconWeight} style={styles.iconRight} />
+          )}
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -127,10 +154,14 @@ Button.propTypes = {
   disabled: PropTypes.bool,
   width: PropTypes.number,
   height: PropTypes.number,
-  variant: PropTypes.oneOf(['primary', 'black']),
+  variant: PropTypes.oneOf(['primary', 'black', 'outline']),
   fontSize: PropTypes.number,
   fontFamily: PropTypes.string,
   borderRadius: PropTypes.number,
+  icon: PropTypes.string,
+  iconPosition: PropTypes.oneOf(['left', 'right']),
+  iconWeight: PropTypes.oneOf(['thin', 'light', 'regular', 'bold', 'fill', 'duotone']),
+  iconSize: PropTypes.number,
   style: PropTypes.object,
   textStyle: PropTypes.object,
   hasShadow: PropTypes.bool,
@@ -140,12 +171,16 @@ Button.propTypes = {
 Button.defaultProps = {
   loading: false,
   disabled: false,
-  width: screenWidth - 40,
+  width: screenWidth - SPACING.lg * 2,
   height: 56,
   variant: 'primary',
   fontSize: 18,
   fontFamily: TYPOGRAPHY.fontFamily?.medium || 'System',
   borderRadius: 12,
+  icon: null,
+  iconPosition: 'left',
+  iconWeight: 'regular',
+  iconSize: 20,
   hasShadow: true,
 };
 
@@ -159,8 +194,19 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  content: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   text: {
     fontWeight: '600',
+  },
+  iconLeft: {
+    marginRight: SPACING.sm,
+  },
+  iconRight: {
+    marginLeft: SPACING.sm,
   },
   shadow: {
     shadowColor: '#000000',

@@ -83,7 +83,7 @@ export default function AgentAccountsScreen() {
 
   return (
     <>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <StatusBar style="light" />
       <View style={styles.container}>
         <Header
           showBackButton={true}

@@ -19,6 +19,14 @@ import {
   Bookmark,
   GearSix,
   SquaresFour,
+  QrCode,
+  Plus,
+  Lock,
+  Calendar,
+  Camera,
+  Minus,
+  XCircle,
+  CaretDown,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -123,6 +131,14 @@ const PHOSPHOR_ICONS = {
   bookmark: Bookmark,
   settings: GearSix,
   grid: SquaresFour,
+  qrCode: QrCode,
+  plus: Plus,
+  lock: Lock,
+  calendar: Calendar,
+  camera: Camera,
+  minus: Minus,
+  xCircle: XCircle,
+  caretDown: CaretDown,
 };
 
 const ICON_NAMES = [
@@ -131,6 +147,7 @@ const ICON_NAMES = [
   'profile', 'document', 'notification', 'location',
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
+  'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown',
   'boxPackage', 'peopleGroup',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

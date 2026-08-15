@@ -9,7 +9,7 @@ import {
   Text,
 } from 'react-native';
 import PropTypes from 'prop-types';
-import { User, Lock, Eye, EyeSlash, Key } from 'phosphor-react-native';
+import { User, Lock, Eye, EyeSlash, Key, MagnifyingGlass } from 'phosphor-react-native';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -60,6 +60,9 @@ export default function Input({
       }
       if (icon === 'eyeSlash') {
         return <EyeSlash size={20} color="#757575" weight="regular" />;
+      }
+      if (icon === 'search') {
+        return <MagnifyingGlass size={20} color="#757575" weight="regular" />;
       }
       return null;
     } catch (error) {
@@ -205,7 +208,7 @@ Input.propTypes = {
   value: PropTypes.string,
   onChangeText: PropTypes.func,
   secureTextEntry: PropTypes.bool,
-  icon: PropTypes.oneOf(['user', 'lock', 'key', 'eye', 'eyeSlash', null]),
+  icon: PropTypes.oneOf(['user', 'lock', 'key', 'eye', 'eyeSlash', 'search', null]),
   rightIcon: PropTypes.node,
   onRightIconPress: PropTypes.func,
   keyboardType: PropTypes.string,

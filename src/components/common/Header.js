@@ -177,6 +177,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 0,
+    // Always paints above sibling content (e.g. a collapsing secondary
+    // header/scroll area animating underneath it) regardless of mount order.
+    zIndex: 20,
+    elevation: 20,
   },
   leftSection: {
     flexShrink: 1,
@@ -217,7 +221,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    marginLeft: 25,
+    marginLeft: SPACING.sm,
   },
   title: {
     fontSize: TYPOGRAPHY.fontSize.lg,

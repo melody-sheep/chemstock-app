@@ -2,6 +2,12 @@
 import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
+import { COLORS } from '../../constants/colors';
+
+// Standard height for sub-screen SecondaryHeaders (title + status badge row).
+// The Manager Dashboard's own welcome-block header is taller and sets its
+// own height directly — this constant is only for the simpler sub-screens.
+export const SUBSCREEN_HEADER_HEIGHT = 64;
 
 /**
  * SecondaryHeader - Full-width info bar displayed directly below the main Header.
@@ -18,8 +24,8 @@ export default function SecondaryHeader({
   illustrationWidth = 96,
   height = 120,
   backgroundColor = '#F7FEFF',
-  borderColor = '#555353',
-  borderWidth = 0,
+  borderColor = COLORS.border,
+  borderWidth = 0.5,
   style = {},
 }) {
   return (
@@ -29,8 +35,8 @@ export default function SecondaryHeader({
         {
           height,
           backgroundColor,
-          borderColor,
-          borderWidth,
+          borderBottomColor: borderColor,
+          borderBottomWidth: borderWidth,
         },
         style,
       ]}

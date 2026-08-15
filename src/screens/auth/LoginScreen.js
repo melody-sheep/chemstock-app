@@ -112,7 +112,7 @@ export default function LoginScreen() {
 
   return (
     <>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <StatusBar style="light" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
           <AnimatedTextDot
@@ -184,19 +184,23 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.alertRow} pointerEvents="none">
-              <Icon name="warningTriangle" size={14} color="#FF0000" />
+              <Icon name="warningTriangle" size={13} color={COLORS.error} />
               <Text style={styles.alertText}>
                 Access is restricted to authorized personnel only.
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.managerActivationContainer}
-              onPress={handleManagerActivation}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.managerActivationText}>Manager Activation</Text>
-            </TouchableOpacity>
+            <View style={styles.footerSection}>
+              <View style={styles.footerDivider} />
+              <TouchableOpacity
+                style={styles.managerActivationButton}
+                onPress={handleManagerActivation}
+                activeOpacity={0.7}
+              >
+                <Icon name="key" size={14} color={COLORS.primary} />
+                <Text style={styles.managerActivationText}>Manager Activation</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </TouchableWithoutFeedback>
@@ -218,7 +222,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     paddingTop: 0,
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.lg,
     shadowColor: '#000000',
     shadowOffset: {
       width: 0,
@@ -279,25 +283,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
+    gap: SPACING.xs,
     marginTop: SPACING.sm,
     marginBottom: SPACING.xs,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 20,
+    backgroundColor: COLORS.error + '10',
   },
   alertText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
-    color: '#FF0000',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginLeft: SPACING.xs,
+    color: COLORS.error,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
     textAlign: 'center',
   },
-  managerActivationContainer: {
+  footerSection: {
+    marginTop: SPACING.md,
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    marginTop: SPACING.xs,
+  },
+  footerDivider: {
+    height: 1,
+    alignSelf: 'stretch',
+    backgroundColor: COLORS.border,
+    marginBottom: SPACING.md,
+  },
+  managerActivationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   managerActivationText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    color: '#FF0000',
+    color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
-    textDecorationLine: 'underline',
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
 });

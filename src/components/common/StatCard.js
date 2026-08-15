@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { SHADOWS } from '../../styles/shadows';
 
 /**
  * StatCard - Quick-stat tile: duotone icon, bold value, label.
@@ -14,6 +15,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 export default function StatCard({
   icon,
   iconColor = '#03045E',
+  iconSize = 36,
   strokeWidth = 0,
   accentColor = '#03045E',
   backgroundColor = '#FFFFFF',
@@ -27,7 +29,7 @@ export default function StatCard({
     <View style={[styles.card, { backgroundColor, borderLeftColor }, style]}>
       <Icon
         name={icon}
-        size={28}
+        size={iconSize}
         color={iconColor}
         strokeWidth={strokeWidth}
         weight="duotone"
@@ -48,6 +50,7 @@ export default function StatCard({
 StatCard.propTypes = {
   icon: PropTypes.string.isRequired,
   iconColor: PropTypes.string,
+  iconSize: PropTypes.number,
   strokeWidth: PropTypes.number,
   accentColor: PropTypes.string,
   backgroundColor: PropTypes.string,
@@ -62,16 +65,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     borderRadius: 10,
     borderLeftWidth: 2,
     padding: SPACING.md,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    ...SHADOWS.card,
   },
   textColumn: {
     flexShrink: 1,
