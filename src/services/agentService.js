@@ -28,15 +28,34 @@ class AgentService extends BaseService {
                 if (error.code === '23505') {
                     throw new Error('That username is already taken.');
                 }
-            throw new Error(error.message || 'Failed to create account');   
+            throw new Error(error.message || 'Failed to create account');
             }
 
             return { success: true, data };
-        
+
 
         } catch (error) {
-            this.logError(error, 'createAgentAccount', {error: error.message});
-            return { success: false, error: error.message || 'Failed to create account' };
+            this.log('error', 'createAgentAccount failed', { error: error.message });
+            return { success: false, message: error.message || 'Failed to create account' };
+        }
+    }
+
+    async getMyAgentAccounts() {
+        debugLog('info', 'AgentService', 'Fetching agent accounts');
+
+        try {
+            const { data, error } = await supabase.rpc('get_my_agent_accounts');
+
+            if (error) {
+                console.error('❌ [AgentService] Error fetching agent accounts:', error);
+                throw new Error(error.message || 'Failed to load accounts');
+            }
+
+            return { success: true, data: data || [] };
+
+        } catch (error) {
+            this.log('error', 'getMyAgentAccounts failed', { error: error.message });
+            return { success: false, message: error.message || 'Failed to load accounts', data: [] };
         }
     }
 }

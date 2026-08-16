@@ -23,6 +23,51 @@ require('dotenv').config();
 const { supabase } = require('./config/supabase');
 const { generateSecureActivationCode, generateSecurePassword } = require('./utils/crypto');
 
+// ============================================
+// 🏢 BRANCH RESOLUTION
+// Activation keys need real branch_ids (not just free-text names) so
+// activate_manager() can copy them onto the manager's profile, and so every
+// agent account that manager later creates inherits real branch scoping.
+// Matches existing branches by name (case-insensitive) and creates any
+// that don't exist yet — the form stays exactly as-is, this just resolves
+// what's typed into it against the branches table.
+// ============================================
+async function resolveBranchIds(branches) {
+  const branchIds = [];
+
+  for (const branch of branches) {
+    const { data: existing, error: findError } = await supabase
+      .from('branches')
+      .select('id')
+      .ilike('name', branch.name)
+      .maybeSingle();
+
+    if (findError) {
+      throw new Error(`Failed to look up branch "${branch.name}": ${findError.message}`);
+    }
+
+    if (existing) {
+      branchIds.push(existing.id);
+      continue;
+    }
+
+    const { data: created, error: createError } = await supabase
+      .from('branches')
+      .insert([{ name: branch.name, city: branch.location || null }])
+      .select('id')
+      .single();
+
+    if (createError) {
+      throw new Error(`Failed to create branch "${branch.name}": ${createError.message}`);
+    }
+
+    console.log(`✅ [Branches] Created new branch: ${branch.name} (${created.id})`);
+    branchIds.push(created.id);
+  }
+
+  return branchIds;
+}
+
 // Import rate limiters
 const {
   activationLimiter,
@@ -212,13 +257,22 @@ app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
 
     // Use provided code or generate one
     const activationCode = code?.trim() || generateSecureActivationCode(16);
-    
+
     // Calculate expiration date
     const days = parseInt(daysValid) || 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + days);
 
     console.log(`📊 [API] Creating key: ${activationCode} for ${managerName}`);
+
+    // Resolve typed branch names against the branches table (creating any
+    // that don't exist yet) so this key carries real branch_ids, not just
+    // display text.
+    const branchPairs = branchNames.map((name, i) => ({
+      name: name.trim(),
+      location: branchLocations?.[i]?.trim() || '',
+    }));
+    const branchIds = await resolveBranchIds(branchPairs);
 
     // Insert into database
     const { data, error } = await supabase
@@ -229,6 +283,7 @@ app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
         manager_name: managerName.trim(),
         branch_names: branchNames.map(b => b.trim()),
         branch_locations: branchLocations ? branchLocations.map(b => b.trim()) : [],
+        branch_ids: branchIds,
         expires_at: expiresAt.toISOString(),
         is_used: false
       }])

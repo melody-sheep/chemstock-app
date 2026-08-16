@@ -1,0 +1,3377 @@
+                                                                                                             
+         ChemStock: QR-Enabled Mobile Inventory with Photo Handover,
+Agent Loss Tracking, and Geo-Tagged Chain of Custody for A and Aimee
+
+                          Laboratories (Cospachem Products)
+
+                                    Cagayan De Oro
+
+                                     Liga, Alther Adrian
+                                 Mantiza, Maria Angela U.
+
+                                        Mila, Clint John
+                                     Sultan, Jay Fahad P.
+                                      Yecyec, Gio Niel P.
+
+                        Department of Information Technology
+                         College of Information and Computing
+         University of Science and Technology of Southern Philippines
+                        Cagayan de Oro City, 9000 Philippines
+                                                                                                                 1
+
+                                            CHAPTER I
+                                       INTRODUCTION
+
+1.1 Background of the Study
+         Inventory management is an essential daily operation for
+
+product-based businesses, directly affecting financial accuracy, customer
+satisfaction, and organizational efficiency (Safira, 2023). In the Philippine
+context, micro, small, and medium enterprises (MSMEs) represent 99.5% of all
+business establishments and employ 63.2% of the national workforce
+(Philippine Statistics Authority, 2023). Despite their economic predominance,
+many MSMEs continue to operate using manual, paper-based systems for
+inventory tracking, sales documentation, and receivables management. This
+reliance on traditional methods leads to human error, data loss, and wasted
+resources, ultimately holding back their growth within an increasingly digital
+marketplace (Azmi et al., 2024).
+
+         A and Aimee Laboratories, operating under the trade name Cospachem
+Products, exemplifies these systemic challenges. The enterprise engages in the
+distribution of beauty and liniment products through a distributed sales
+model targeting teachers in educational institutions and employees in
+municipal offices across over 130 branches nationwide, while remaining
+accessible to general consumers. The operational structure comprises two
+primary components: the office side, where managers handle administrative
+documentation and inventory oversight, and the field side, consisting of sales
+representatives and collectors deployed to assigned territories. Operationally,
+the Cagayan de Oro branch acts as the primary logistical hub managing field
+territories across the entire province of Misamis Oriental, while the Butuan
+branch exercises complete operational jurisdiction over distribution channels
+throughout the entire Caraga region. Sales representatives request stocks from
+managers, conduct direct sales to customers, and document transactions using
+                                                                                                                 2
+
+handwritten receipts provided by the company. These receipts are remitted
+weekly to managers, while a separate collector team visits customers months
+later to pursue outstanding payments. This operational cycle culminates
+annually when personnel from the Manila head office conduct branch visits to
+audit stocks sold and identify inventory discrepancies.
+
+         To understand the current situation, a structured interview was
+conducted with the regional office manager of both Cagayan de Oro and
+Butuan branches - Ms. Josephine M. Palangan and Vice Manager Mr. Sanny J.
+Alaan, respectively, which were selected because both branches co-work with
+each other, and regardless of branch location, operational processes remain
+consistent across Cospachem's network. The interview data revealed several
+operational problems, as detailed below.
+
+         The scale of operations involved a total of 39 staff members across two
+branches. The Butuan Branch located at purok 2, Lumbocan, Butuan City,
+comprised 22 workers, including 15 sales representatives, 6 collectors, and 1
+vice branch manager. The Cagayan de Oro Branch located at Blk 13 Lot 25,
+Malvar St. Regency II, Iponan, Cagayan de Oro City, had 17 workers,
+consisting of 12 sales representatives, 4 collectors, and 1 branch manager. In
+terms of transaction volume, each sales representative handled an average of
+over 20 stocks daily, more than 120 stocks during weekly peak periods, and
+upward of 600 stocks per monthly sales period.
+
+  Current receiving procedures rely entirely on paper-based
+
+documentation. Delivery verification is conducted against forms received via
+
+Messenger, which are either printed or viewed on mobile devices. Physical
+
+counting of incoming stocks requires approximately one to two hours per
+
+delivery, with deliveries occurring monthly though intervals may extend to
+
+three months between order approval and shipment. Quantity and product
+                                                                                                                 3
+
+discrepancies occur regularly, identified only through manual itemized
+post-delivery checks.
+
+  Stock release procedures mirror receiving processes in their manual
+
+nature. Weekly releases average a minimum of 150 assorted bottles per sales
+
+representative, with three to six representatives typically operating per
+
+branch. The organization maintains three teams in Butuan, each with
+
+supervisors who relay reports to the branch manager on weekends, and one
+
+team in Cagayan de Oro operating under the same protocol. Tracking items
+
+after they leave the office is a major problem; inventory is released but not
+
+properly accounted for in the field.
+
+  While the company maintains a "First In, First Out" (FIFO) policy
+
+whereby earliest stocks are prioritized for release and returned items are
+
+positioned for subsequent distribution, inventory monitoring reveals that
+
+expiration is not the primary concern. Interview data indicates that losses
+
+from expiration are relatively rare due to FIFO implementation. The
+
+predominant challenge involves losses attributable to sales representatives,
+
+where stocks are either lost in the field or unreported as sales, effectively
+
+becoming financial losses to the organization.
+
+         According to data obtained from the Branch Manager of the Cagayan
+de Oro branch, the financial impact of stock losses is substantial. The branch
+experiences annual stock losses averaging over 100 units. As a matter of
+company policy, the branch manager is held accountable and must reimburse
+the head office for the exact cost of the lost inventory. Consequently, the
+average annual repayment made by the manager amounts to over 30,000
+Philippine Pesos.
+
+  Full inventory checks are conducted immediately before new
+
+shipments arrive, requiring agents to surrender all stocks on hand to enable
+
+accurate itemization of remaining inventory. This process necessitates
+                                                                                                                 4
+
+individual counting of each item, accounting for returns, losses, and sales
+through manual draft sheets documenting item names, quantities released,
+quantities sold, and quantities returned. Discrepancies between recorded and
+actual stock are typically discovered only during head office audits, meaning
+errors accumulate throughout the year before identification, at which point
+tracing the source becomes extremely difficult.
+
+         The current information and communications technology (ICT)
+infrastructure at Cospachem Products remains entirely manual within its
+branch operations, relying exclusively on pen-and-paper methods, as no
+dedicated ICT hardware or software systems have been implemented at the
+branch level. The majority of branches depend solely on paper records, with
+only a small minority utilizing Microsoft Excel in a limited capacity. Critically,
+no digital systems, spreadsheets, or databases are employed for inventory
+tracking across the branches. This absence of automated systems has led to
+persistent operational errors, including overlooked items and unrecorded
+transactions, particularly during periods of high transaction volume when
+multiple product returns are processed simultaneously. It should be noted,
+however, that this manual setup applies exclusively to the branches and not to
+the head office in Manila, which may operate under different infrastructural
+arrangements.
+
+  Significant accountability gaps exist due to physical separation between
+
+stock release and agent receipt confirmation. Stock releases often occur
+
+without face-to-face interaction, with items sent via collectors, creating
+
+opportunities for disputes regarding quantities received. Sales representatives
+
+occasionally deny receiving products, and no systematic documentation exists
+
+to verify who received what and when.
+
+  When asked about the biggest inventory problem requiring a solution,
+
+the client specifically identified: "Managing deliveries and losses. I want a
+
+standardized format that includes the list of items, release date, sales, returns,
+                                                                                                                 5
+
+and a remarks section to indicate any losses. I also need it to automatically
+send this information to the Sales Representatives I assign it to." Weekly
+reports are the primary requirement, with users interacting with the system on
+a weekly basis. The client expressed willingness to conduct staff training
+before full implementation.
+
+  The interview data paints a clear picture of an enterprise constrained
+
+by manual processes that create information gaps, accountability issues, and
+
+financial losses. The distributed nature of Cospachem's sales force, combined
+
+with the time lag between sales and collections, amplifies these challenges.
+
+Sales Representatives operate independently in the field, generating
+
+handwritten documentation that must physically travel back to the office.
+
+Collectors pursue payments months later, often with incomplete information.
+
+Managers struggle to maintain real-time visibility into stock positions, leading
+
+to the "unavoidable" losses the client described.
+
+         This study aims to design and develop an automated inventory
+management system tailored specifically to the unique operational structure
+of Cospachem Products. Drawing directly from the client's expressed needs,
+the proposed system will digitise stock requests and inventory reconciliation.
+By replacing manual paper trails with a centralized digital platform accessible
+to Managers and Sales Representatives. The system intends to enhance data
+accuracy, provide inventory visibility, establish verifiable chain of custody
+through geolocation tracking, minimize losses, and streamline reporting for
+the Manila head office and various branches (Sukron et al., 2024). The client's
+enthusiastic responses to questions about QR code scanning, photo
+documentation, and automated tracking confirm that the proposed
+technological intervention aligns with both the company's needs and its
+readiness for digital transformation.
+                                                                                                                 6
+
+         1.1.1 Pre-Implementation Technology Acceptance Feasibility Study
+         To assess organizational readiness and validate the conceptual
+Task-Technology Fit (TTF) of the proposed intervention before full-scale
+programmatic development, the researchers conducted a pre-implementation
+feasibility study using a high-fidelity interactive prototype developed in
+Figma. The Technology Acceptance Model (TAM) framework was
+administered to a pilot sample of 38 active branch workforce members,
+comprising 2 managers (Manager & Vice Manager), 27 sales representatives,
+and 9 collectors across the regional research locales.
+
+         The empirical results from this baseline assessment demonstrated
+exceptional preliminary user acceptance. The proposed Stock Loss Tracking
+mechanism recorded the highest user evaluation with a mean score of 4.43 out
+of 5.00, confirming its critical importance to the workforce in mitigating
+branch liabilities. Both the Photo Proof for Chain of Custody and GeoTag
+Tracking modules achieved identical mean scores of 4.32 out of 5.00,
+validating the workforce's confidence in the system's spatial and visual
+accountability safeguards prior to deployment.
+
+         The Discrepancy Alert framework and Digital Stock Monitoring
+dashboard recorded favorable mean scores of 4.13 and 4.08, respectively.
+Cumulatively, the overall mobile adoption intent reached a mean score of 4.37
+out of 5.00 (an 87.4% positive adoption metric). These baseline metrics signal a
+strong corporate readiness and workforce willingness for digital
+transformation, directly justifying the development of the formal ChemStock
+system.
+                                                                         7
+
+  TAM Core Feature      Measured  Positive         Workforce
+  Module
+                        Metric (Mean Adoption Operational Priority
+
+                        Score / 5.00) Equivalence
+
+  Digital Stock         4.08      81.6%            Favorable
+
+  Monitoring Dashboard
+
+  Stock Loss Tracking   4.43      88.6%            Highest Priority
+
+  Discrepancy Alert     4.13      82.6%            Favorable
+
+  GeoTag Tracking       4.32      86.4%            High Priority
+
+  Photo Proof for Chain 4.32      86.4%            High Priority
+  of Custody
+
+  Cumulative Mobile     4.37      87.4%            Strong Readiness for
+                                                   Transformation
+  Adoption Intent
+
+                 Table 1. Pre-Implementation TAM Evaluation Results
+
+1.2 Statement of the Problem
+         1.2.1 General Problem
+
+  Cospachem currently relies on a manual, paper-based inventory
+
+management system that leads to recurring stock losses, inaccurate
+
+record-keeping, and accountability disputes with Sales Representatives. It also
+
+causes unverifiable chain of custody during remote stock handovers and
+
+delayed discovery of discrepancies, which only surface during annual head
+
+office audits, resulting in financial losses and operational inefficiencies that
+
+hinder the company's growth and profitability.
+
+      1.2.2 Specific Problem
+
+  A. Late Notice of Stock Losses (Measurable Financial Impact): Under the
+      current manual system, branch managers receive no timely notification
+      of stock losses. Discrepancies remain undetected until annual audits,
+      delaying awareness and response. Annual stock losses average over
+      100 stocks per branch, costing managers approximately 30,000
+      Philippine Pesos in reimbursements. Without an early warning
+                                                                                                            8
+
+    mechanism, late notification precludes root cause investigation,
+    allowing recurring financial losses to persist unaddressed.
+B. Absence of On-Demand Inventory Visibility: Managers have no
+    mechanism to remotely view current stock levels without physically
+    being present at the office. This forces the manager to photograph
+    paper records while in the field and manually reconcile them later,
+    delaying decision-making and allowing errors to go undetected for
+    extended periods. While a small number of branches use Microsoft
+    Excel, no centralized or real-time system exists across the 130+ branch
+    network.
+C. Accountability Gaps and Unverifiable Chain of Custody: Stock
+    releases frequently occur without face-to-face interaction, as items are
+    sent via collectors. This leaves no systematic, verifiable record of who
+    received what, when, and where. Sales Representatives occasionally
+    deny receiving products, and with 39 staff handling hundreds of
+    transactions weekly, the lack of geographic tracking creates a
+    completely unverifiable chain of custody.
+D. Manual Recording Errors and Cumbersome Inventory Counting: The
+    exclusive use of pen and paper leads to overlooked items and
+    unrecorded transactions, particularly during high-volume periods
+    involving multiple simultaneous returns. A single sales representative
+    averages 20+ stocks daily and 120+ stocks during weekly peak periods,
+    all recorded manually. Full inventory checks require counting each item
+    individually, manually documenting item names, quantities released,
+    quantities sold, and quantities returned, a time-consuming process that
+    is highly prone to human error.
+E. Lack of Photographic and Geographical Evidence for Physical Stock
+    Handovers: Beyond the geographical gaps, there is no photographic
+    evidence or digital timestamps for any receiving or releasing activity.
+    When stock arrives damaged or quantities are disputed, it is extremely
+    difficult to resolve arguments with Sales Representatives regarding the
+    exact physical condition of the stock at the precise time of transfer.
+                                                 9
+
+1.3 Objectives of the Study
+         1.3.1 General Objective
+
+  To design, develop, and implement ChemStock, a QR-enabled mobile
+
+inventory management system for Cospachem Products that digitizes manual
+
+record-keeping, ensures a verifiable chain of custody, and improves the
+
+efficiency and accuracy of inventory reporting.
+
+  1.3.2 Specific Objective
+
+      A. To design and develop an Android-based platform that brings
+           together key inventory processes such as receiving, releasing,
+           returns, and recording losses into a single, centralized, and
+           easily searchable system.
+
+      B. To integrate tracking and automated reconciliation features,
+           such as QR code-based stock identification, geotagging, photo
+           documentation, timestamps and customizable reporting, to
+           enhance accountability, monitor stock handovers among Sales
+           Representatives, and identify stock discrepancies efficiently.
+
+      C. To test and evaluate the system's performance and effectiveness,
+           utilizing the following methods: User Acceptance Testing (UAT),
+           time-motion study log, error and discrepancy log analysis,
+           system usability scale (SUS), and pre and post implementation
+           checklist.
+
+1.4 Significance of the Study
+
+  This study holds significance for multiple stakeholders, each of whom
+
+will benefit from the successful development and implementation of the
+
+proposed system.
+
+         To Cospachem Management. The system will provide managers with
+visibility into inventory levels, sales performance, and agent accountability.
+The integration of geolocation tracking enables verification of stock release
+and receipt locations, reducing disputes about whether deliveries reached
+                                                                                                               10
+
+their intended destinations. This visibility enables data-driven
+decision-making regarding stock allocation, reordering, profitability, and Sales
+Representative performance evaluation. The reduction in stock losses directly
+improves profitability, addressing the current annual loss reimbursement of
+approximately 30,000+ Pesos per branch, while automated reporting removes
+the stress of manually compiling reports for head office audits.
+
+         To Sales Representatives. Sales Representatives will benefit from clear
+digital records of stocks received and sold, reducing disputes with
+management about accountability. Geotagged receipt confirmation protects
+agents from false accusations of non-receipt by providing objective evidence
+of when and where they acknowledged delivery. The system provides
+protection by documenting when products were received and by whom,
+preventing unfair accusations of loss.
+
+         To the Manila Head Office. Annual audits become more efficient and
+transparent when the branch can generate accurate, up-to-date reports on
+demand. The head office gains confidence in branch reporting and can focus
+on strategic oversight rather than forensic accounting of missing stocks.
+
+         To Future Researchers. This study documents the development of an
+inventory management system tailored to a unique Philippine business model
+involving distributed sales forces, credit-based transactions, and delayed
+collections. Future researchers studying inventory systems for MSMEs or
+businesses with similar structures can use this study as a reference point for
+system design, requirements gathering, and implementation strategies.
+
+         To Academic Institution. This capstone project demonstrates the
+institution's commitment to producing graduates capable of addressing
+real-world industry problems through technology. It serves as evidence of the
+practical application of computer science, information technology, and
+business management principles taught within the curriculum.
+                                                                      11
+
+         To the MSME Sector. As a case study of digital transformation in a
+Philippine MSME, this project illustrates how affordable, tailored technology
+solutions can address operational challenges faced by small businesses. The
+lessons learned and methodologies applied can inform similar initiatives
+across the sector, contributing to broader economic development.
+
+1.5 Scope and Limitations
+
+  This study focuses on the design, development, and implementation of
+
+an automated inventory management system specifically for Cospachem
+
+Products' Cagayan de Oro and Butuan Branches (total 39 staff), with the
+
+understanding that operational processes are consistent across all 130+
+
+branches nationwide, making the solution potentially scalable. The
+
+geographical scope of the implementation framework is strictly delimited to
+
+the distinct regional territories handled by these hubs: the Cagayan de Oro
+
+branch scope encompasses active field operations spanning the entire
+
+province of Misamis Oriental, whereas the Butuan branch scope is restricted
+
+to logistics and collection pipelines across the entire Caraga region. The
+
+system encompasses:
+
+  1. Inventory Receiving: Digital recording of incoming stocks based on
+
+  delivery forms, with mandatory photo documentation and automated
+
+  comparison against expected quantities.
+
+  2. Inventory Releasing: Recording of stocks released to specific agents,
+
+  including QR code scanning for item identification, date stamps,
+
+  product quantities, geotagged location data, and mandatory photo
+
+  proof of handover.
+
+  3. Stock Returns Management: Tracking of unsold products returned by
+
+  agents, with integration into inventory counts for future release.
+
+  4. Stock Loss Recording: Dedicated remarks section for documenting
+
+  agent losses, as specifically requested by the client.
+                                                                                                               12
+
+    5. Stock Monitoring: Dashboard interface allowing managers to view
+         current inventory levels remotely.
+
+    6. QR Code-Based Stock Identification: QR codes assigned to product batches
+         to enable rapid scanning for receiving, releasing, and counting operations,
+         reducing manual data entry errors and supporting FIFO compliance
+
+    7. Geo-Tagging Functionality: Automatic capture of GPS coordinates
+         during stock release and receipt confirmation, providing a verifiable
+         chain of custody for all inventory movements. This includes location
+         stamping on transaction records and optional map display for
+         management review, other than the aforementioned purposes, no
+         continuous background tracking will occur, users are provided
+         informed consent before enabling.
+
+    8. Photo Handover Documentation: Integration of camera functionality
+
+         into release and receipt workflows to produce timestamped
+
+         photographic evidence of every handover transaction, accessible only
+
+         to authorized managers.
+
+    9. Automated Weekly Reconciliation: System-generated comparison of
+
+         released stock against reported stock item sales and stock returns
+
+         aligned to the company's weekly reporting cycle, with automatic
+
+         flagging of discrepancies.
+
+    10.User Role Management: Different access levels for super admins,
+         managers, sales representatives, collectors, and head office personnel.
+
+         ChemStock will be developed as a mobile application using React
+Native with the Expo managed workflow, targeting Android devices (version
+10 / API 29 and above). This decision is based on the client's existing
+workforce device inventory, which consists exclusively of personal or
+company-provided Android devices, as no dedicated ICT hardware is
+currently available across branches. While an iOS version was initially
+considered for future scalability, development will be limited to Android only,
+                                                                                                               13
+
+as supporting iOS would incur additional costs without immediate necessity
+given the current user base. The system is not a web application or desktop
+software. The technical stack includes expo-sqlite for local database storage,
+Supabase for backend services, expo-camera for QR scanning and photo
+capture, expo-location for geolocation, NetInfo for offline synchronization,
+and expo-crypto for UUID generation.
+
+  This study acknowledges the following limitations:
+
+  1. Geographical Scope: The system will be developed and tested
+
+  specifically for Cospachem's Butuan and Cagayan de Oro Branch (39
+
+  staff). While the design may be applicable to other branches among the
+
+  130+ nationwide, generalization would require additional adaptation
+
+  and testing.
+
+  2. Hardware Requirements: The system assumes the users have access to
+
+  smartphones. The company must provide the necessary device to the
+
+  agents who lack personal smartphones. Geo-tagging functionality
+
+  requires devices with enabled location services.
+
+  3. Training Dependency: Successful implementation depends on
+
+  adequate user training. The study includes training recommendations
+
+  but cannot guarantee uniform adoption or proficiency across all users.
+
+  4. Privacy Considerations: The collection of location data requires
+
+  informed consent from all users. Geo-tagging will be limited to
+
+  work-related transactions and will not involve continuous tracking of
+
+  agent movements outside inventory-related activities.
+
+  5. Payment Processing: The system tracks receivables and collections but
+
+  does not integrate with electronic payment gateways or banking
+
+  systems. All financial transactions remain outside the system's scope.
+
+  6. Complex Reporting: While the system generates standard daily and
+
+  monthly summary reports, highly customized ad-hoc reporting
+
+  requests beyond the identified requirements may not be supported.
+                                                                                                               14
+
+    7. No Physical Inventory Correction: The system records and tracks
+         inventory but cannot physically prevent loss or theft. It serves as an
+         accountability tool rather than a physical security solution.
+
+    8. Data Migration: Historical inventory data exists only in paper format.
+         Migrating this data to the new system would require manual entry,
+         which is outside the scope of this development project. The system will
+         focus on forward-looking transactions from implementation date
+         onward.
+
+    9. GPS Accuracy: Geolocation data accuracy may vary depending on
+         device quality, environmental factors (like tall buildings, indoor
+         locations), and satellite availability. The system will record coordinates
+         as captured without correcting or validating location accuracy.
+
+    10.Testing Duration: The evaluation period is limited to three weeks total
+         (one week training + two weeks active testing). Long-term system
+         effects on annual stock loss alarm and manager reimbursement cannot
+         be fully validated within this timeframe.
+
+1.6 Definition of Terms
+
+     Accountability. The obligation of individuals to accept responsibility
+         for inventory items released to them and to provide accurate
+         accounting of those items' disposition.
+
+     Automated Reconciliation. A system feature that automatically
+         compares inventory releases against reported sales and returns to
+         identify discrepancies.
+
+     Chain of Custody. The step-by-step digital record of inventory
+         movement, including geolocation data, timestamps, and user
+         identification, establishing the sequence of custody from release to
+         receipt.
+
+     Collector. A field agent responsible for product batch delivery from
+         branch to sales representative location.
+                                                                                                          15
+
+ Distributed Sales Model. A business structure wherein sales
+    representatives operate in assigned territories rather than from a central
+    retail location.
+
+ First-In-First-Out (FIFO). An inventory rotation method whereby the
+    earliest acquired stocks are distributed first to minimize expiration risk.
+
+ Inventory Management System. A technological solution for tracking
+    inventory levels, orders, sales, and deliveries.
+
+ Geo-Tagging. The process of embedding GPS-derived geographic
+    coordinates into a digital transaction record at the moment the
+    transaction occurs, creating a spatially verifiable audit trail for
+    inventory movements.
+
+ MSME. Micro, Small, and Medium Enterprise, as classified by the
+    Philippine Statistics Authority based on asset size and employee count.
+
+ Inventory Visibility. The ability to access current inventory
+    information remotely with minimal latency following scheduled agent
+    synchronization loops.
+
+ Photo Handover. The systematic capture of timestamped photographic
+    evidence during stock release and receipt activities, providing objective
+    proof of what was transferred, in what condition, and by whom, to
+    resolve accountability disputes.
+
+ QR Code (Quick Response Code). A scannable qr code that stores
+    product batch information readable by mobile device cameras. In
+    ChemStock, QR codes are assigned to product batches to enable rapid
+    scanning for receiving, releasing, and counting operations, replacing
+    manual item-by-item data entry.
+
+ Sales Representative. A field agent responsible for selling products
+    directly to customers and remitting sales documentation to branch
+    management.
+
+ Stock Loss. Rarely tracked missing inventory, unreported sales, and
+    occasional handover stock-count failures only become apparent during
+    the annual branch audit.
+                                                                                             16
+                            CHAPTER II
+           REVIEW OF RELATED LITERATURE
+
+This chapter presents the theoretical foundation and review of existing
+literature relevant to the development of ChemStock, a mobile-based
+inventory management system for Cospachem Products. It establishes the
+academic grounding for the study by examining theoretical frameworks, prior
+research on inventory management in Philippine MSMEs, existing
+technological solutions, and the specific gaps that ChemStock addresses.
+
+2.1 Theoretical Framework
+
+  This study is anchored on the Task-Technology Fit (TTF) model
+
+developed by Goodhue and Thompson (1995), which provides a theoretical
+
+lens for understanding how technology leads to performance improvements.
+
+The TTF model explains that information systems positively impact
+
+individual performance when there is alignment between the capabilities of
+
+the technology and the requirements of the tasks that users must perform. The
+
+model identifies key constructs: task characteristics, technology
+
+characteristics, and task-technology fit, which together influence performance
+
+outcomes.
+
+         Task characteristics include the specific actions individuals perform to
+transform inputs into outputs. At Cospachem Products, inventory
+management involves a range of critical activities, including receiving stock
+deliveries and verifying quantities against orders, as well as releasing
+inventory to sales representatives, often without face-to-face interaction
+through channels like collectors. The process also requires tracking weekly
+sales and returns reported by agents, identifying and documenting losses at
+the individual agent level, and conducting periodic physical inventory counts.
+Finally, these tasks end with reconciling released stock against sales and
+returns to detect any discrepancies.
+                                                                                                               17
+
+         Technology characteristics refer to the tools, hardware, software, and
+data provided to assist users in performing their tasks. ChemStock's
+technology characteristics are anchored in a mobile-based platform designed
+to ensure accessibility for both office managers and sales representatives,
+thereby enabling critical inventory functions irrespective of geographical
+location. A major feature of this system is the integration of mobile GPS and
+geotagging functionalities, which capture precise location coordinates during
+both stock release and receipt confirmation. When inventory is sent via
+collectors without direct manager-agent interaction, the geotagging feature
+provides verifiable location data to confirm where and when the transaction
+took place.
+
+          To address the client's requirement for operational efficiency and
+accuracy during high-volume transaction periods, the system incorporates qr
+scanning functionality that automates inventory checking and mitigates
+manual data entry errors. Moreover, to resolve accountability gaps inherent in
+remote stock handovers, photo documentation is systematically integrated
+into release and receipt workflows, thereby providing objective proof of
+delivery and establishing a clear chain of custody. The system's core analytical
+capability resides in its automated reconciliation feature, which continuously
+compares stock releases against reported sales and returns to identify
+discrepancies upon data synchronization. Complementing this functionality is
+the dedicated agent-level loss tracking mechanism, which attributes inventory
+shrinkage to specific sales representatives through structured data fields,
+effectively transforming anonymous losses into actionable management
+information. Synthesizing these features, the system provides a dynamic
+dashboard that grants managers remote visibility into current inventory
+levels, facilitating proactive decision-making and enhanced operational
+oversight.
+
+         Task-technology fit is achieved when the capabilities of the technology
+directly address the specific requirements of the tasks it is designed to
+                                                                                                               18
+
+support. In the context of Cospachem Products, this alignment is
+demonstrated through several key features of the proposed system. First, the
+integration of photo documentation directly addresses the challenge of
+non-face-to-face stock releases by providing objective, timestamped proof of
+what items were dispatched, when, and to which sales representative, thereby
+resolving disputes and establishing accountability. Second, agent-level loss
+tracking addresses the critical task of identifying and attributing inventory
+shrinkage to specific individuals, enabling management to implement
+targeted accountability measures rather than treating losses as an unavoidable
+aggregate. Third, automated reconciliation, aligned with the company's
+weekly reporting cycle, addresses the task of prompt discrepancy detection,
+allowing the organization to identify and investigate variances in real time
+rather than waiting for annual head office audits. Finally, the real-time
+dashboard addresses the task of remote inventory management by eliminating
+the manager's reliance on manually captured document photographs while in
+the field, providing instant and accurate visibility into current stock levels
+across all branches and agents.
+
+         The TTF model also suggests that users will adopt and utilize a system
+when they perceive a good fit between task demands and system capabilities.
+This has implications for ChemStock's design: features must not only exist but
+be intuitively integrated into workflows so that users recognize their
+usefulness. The model thus serves both as a design framework (ensuring
+features match tasks) and as an evaluation framework (assessing whether
+users perceive the system as well-fitted to their work).
+
+         2.1.1 Organizational Structure and Role Definitions
+
+         Based on verification with the Branch Manager of the Cagayan de Oro
+branch, the organizational structure and role responsibilities for ChemStock
+implementation are defined as follows. Managers are responsible for
+processing the release of stocks to sales representatives and collectors, tracking
+inventory levels across all product categories, recording all inventory
+                                                                                                               19
+
+movements (including receiving, releasing, returns, and losses), checking
+release documentation to identify possible losses, and conducting inventory
+reconciliation and discrepancy investigations. Managers can create accounts
+for Sales Representatives and Collectors within their assigned branch using
+the system activation code provided by the Super Admin. Managers cannot
+create accounts for other Managers, this function is reserved exclusively for
+the Super Admin. Super Admin is a system-level user with exclusive rights to
+generate unique activation codes for Branch Manager account creation. These
+codes cryptographically authenticate and link each manager to their specific
+branch. The Super Admin does not create accounts for Sales Reps or
+Collectors, that is the Branch Manager's task after registration. The Super
+Admin has read-only access to system-wide summary reports for audit
+purposes and performs no inventory operations (e.g., releasing, receiving, QR
+generation, or transaction recording). This separation of duties prevents any
+single user from both provisioning manager accounts and manipulating
+inventory, enforcing checks and balances to deter fraud and ensure
+accountability. Sales Representatives are responsible for selling stocks in
+assigned geographical areas, requesting desired stock quantities from the
+manager, documenting sales transactions, returning unsold or leftover stocks
+to the branch, and confirming receipt of stock releases via the mobile system.
+Collectors function as stock couriers, delivering stock releases from the
+manager to the sales representative when face-to-face handover is not possible
+or when sales representatives cannot visit the branch office. Stock distribution
+follows two primary channels: face-to-face transactions at the branch office, or
+delivery via collectors. The verified branch office locations are as follows:
+Cagayan de Oro Branch at Blk 13 Lot 25, Malvar Street, Regency II, Iponan,
+Cagayan de Oro City; and Butuan Branch at Purok 2, Lumbocan, Butuan City.
+                                                                                                               20
+         2.1.2 Business Process Workflow (Current - Manual)
+
+                                Figure 1. Business Process Workflow
+         Figure 1 presents the current business process workflow for inventory
+management at Cospachem Products, as documented through structured
+interviews with branch managers and staff. The process begins when the
+branch manager receives a delivery form via Messenger, which is either
+printed or viewed on a mobile device. Incoming stocks are then physically
+counted, a process that typically requires one to two hours per delivery. Stock
+counts are recorded manually on paper or stock form documents. When sales
+representatives request stocks or when the manager decides on a stock release,
+the transaction occurs either through face-to-face handover at the branch or
+remotely via collector. Sales representatives receive the stocks manually and
+proceed to sell products in the field, issuing handwritten company receipts.
+Unsold or returned items are brought back to the branch, where the manager
+                                                                                                               21
+manually counts returns and updates paper sheets on a weekly basis. The
+cycle culminates in an annual head office visit to each branch for audit, at
+which point inventory discrepancies and stock losses are identified.
+Subsequently, the branch manager is required to reimburse the head office for
+verified losses, with annual reimbursements typically exceeding 30,000
+Philippine Pesos. This workflow reveals multiple points of inefficiency and
+accountability gaps, which the proposed ChemStock system aims to address
+through digitization, real-time tracking, and verifiable chain of custody
+mechanisms.
+
+         2.1.3 Proposed System Workflow (ChemStock - Automated)
+
+                                Figure 2. Proposed System Workflow
+                                                                                                               22
+
+         Figure 2 presents the proposed business process workflow for the
+ChemStock automated inventory management system. The process begins
+when the manager logs into the ChemStock mobile application and records an
+incoming stock delivery by scanning the QR code on each product batch, with
+a mandatory photo documentation step. The digital inventory is then updated
+upon synchronization. To release stock, the manager initiates the release
+process, assigns the stock to specific sales representatives, and generates a
+verifiable chain of custody record. Depending on the release method, either
+face-to-face at the branch or via a collector acting as an intermediary, the
+system captures a timestamp, geotagged location, and photo handover
+documentation at the point of transfer. The sales representative proceeds to
+sell products in the field and records the number of items sold directly in the
+application, while any agent losses are documented in a dedicated remarks
+field. An automated reconciliation engine continuously compares released
+stock against reported sales and returns. When a discrepancy is detected, an
+automated alert is sent to the manager, who can investigate the issue through
+the system's audit trail. When no discrepancy exists, the inventory is
+automatically adjusted. The cycle concludes with the generation of a printable
+weekly summary of sales, returns, and losses, providing management with
+complete and timely visibility into branch operations.
+
+2.2 Traditional Inventory Management in Philippine MSMEs
+
+         Inventory management in Philippine micro, small, and medium
+enterprises is largely informal and deeply embedded in day-to-day
+operational realities. Despite the availability of digital solutions and clear legal
+frameworks governing business operations, the sector often operates through
+manual, paper-based systems that introduce vulnerabilities including human
+error, data loss, and inefficient resource allocation.
+                                                                                                               23
+
+         2.2.1 Manual Recording Practices and Their Limitations
+         In many Filipino MSMEs, pen-and-paper remains the primary method
+for inventory tracking. Brela, Ochua, Gabriel, and Resuello (2024) conducted
+research on micro-small construction supply stores and found that manually
+recording inventory and sales-related data is labor-intensive, paper invoices
+are at risk of misplacement and susceptible to fraudulent transactions, and
+lack of transparency in inventory levels can result in overstocking or
+understocking issues. Their study, published in the ACM Digital Library,
+employed a mixed-methods approach combining qualitative and quantitative
+data to identify distinct user requirements including real-time inventory
+tracking and intuitive user interfaces accessible to all employees.
+
+         This pattern is closely tied to resource constraints common among
+Philippine MSMEs. Ines (2022) explored financial management and
+performance of small and medium enterprises in Cauayan City, concluding
+that SMEs most often practice recording and budgeting, while inventory
+management is practiced only sometimes, primarily due to the small scale of
+operations and limited resources. The study found that inventory
+management is significantly related to financial statements, meaning that the
+larger the income earned by the business, the more significant the variation in
+the manner of managing physical stocks.
+
+         2.2.2 Distributed Sales Models and Accountability Challenges
+         For businesses operating with distributed sales forces, where inventory
+is released to field agents rather than held in a central retail location,
+accountability challenges multiply. Mostiero (2022) examined working capital
+management practices of microenterprises in Lipa City as predictors of
+business sustainability. The study documented that businesses often minimize
+inventory shrinkage by preparing ending inventory reports and applying
+different inventory management techniques such as having CCTVs in place
+and observing the FIFO method. However, these measures are less effective
+                                                                                                               24
+
+when inventory physically leaves the premises with agents who operate
+independently in the field.
+
+         The releasing and distribution of stock to field agents creates particular
+accountability concerns. Mostiero (2022) notes that inventory shrinkage, the
+loss of products between point of manufacture and point of sale, represents a
+significant challenge for businesses with distributed operations. Without
+systematic documentation of who received what, when, and in what
+condition, disputes become inevitable and losses become invisible until
+inventory counts reveal discrepancies.
+
+         2.2.3 The Digital Divide in Philippine MSMEs
+         Macatumbas-Corpuz and Bool (2021) studied Barangay Micro Business
+Enterprises (BMBEs) in Ilocos Norte and found that working capital and
+inventory management practices were significantly linked to business
+sustainability outcomes. Their research demonstrated that while MSME
+owners generally recognize the importance of structured inventory practices,
+actual implementation of systematic methods remains inconsistent,
+particularly among micro-scale operators. However, despite this awareness,
+adoption of digital solutions remains limited, often attributed to resource
+constraints and the perceived complexity of available tools.
+
+         Hines (2020) explored the utilization of technology in small businesses,
+noting that even though the number of small businesses far surpasses larger
+firms and their contribution to the economy is significant, very few studies
+have examined small businesses' use and adoption of technology. The
+adoption of technology by small businesses could be one key factor that could
+keep these organizations profitable and competitive in the changing world of
+business.
+                                                                                                               25
+
+         This digital divide manifests across three distinct dimensions identified
+by Hines (2020) in a study on small business technology adoption: awareness,
+where business owners lack knowledge of available digital solutions;
+willingness, where perceived cost or complexity discourages adoption; and
+capability, where limited resources, infrastructure, or technical support
+prevent implementation. Hines (2020) further emphasizes that despite small
+businesses' significant economic contributions, technology adoption remains
+disproportionately low relative to their numbers. For Cospachem Products,
+this framework explains why manual systems persist despite their
+documented limitations, and underscores the importance of designing
+ChemStock for ease of adoption by users with limited technical backgrounds.
+
+2.3 Technologies and Existing Systems
+
+         The rise of digital platforms has transformed how businesses manage
+inventory and operations. In the Philippines, both commercial inventory
+systems and custom-developed solutions are used to track stock, manage
+releases, and monitor accountability. This section reviews existing systems
+and research relevant to ChemStock.
+
+  2.3.1 Commercial Inventory Management Systems
+
+  Odoo Inventory (Odoo S.A., 2023) offers a comprehensive warehouse
+
+management system designed to maximize efficiency. Features include
+
+real-time inventory tracking, automated replenishment, qr scanning, and
+
+integration with other business applications. The system is designed for
+
+businesses of various sizes and provides a modular approach that allows
+
+companies to implement only the features they need. However, Odoo is
+
+designed primarily for centralized warehouse operations rather than the
+
+specific needs of a distributed sales force where inventory is entrusted to
+
+remote agents.
+                                                                                                               26
+
+         SkuNexus (2023) provides a cloud-based warehouse management
+system offering real-time inventory visibility, scalability, flexibility, and cost
+efficiency. The platform features real-time operations management, automated
+workflows, and integration capabilities with existing ERP systems, accounting
+software, and e-commerce platforms. Key benefits include streamlined
+operations and automation, real-time inventory visibility, and scalability as
+businesses grow. Case studies documented by SkuNexus include Graeter's Ice
+Cream achieving 100% order automation with real-time inventory
+management, demonstrating the practical benefits of cloud-based systems.
+
+         Zoho Inventory (Zoho Corporation, 2023) offers online inventory
+management software designed for small and medium businesses. Features
+include order management, inventory tracking, warehouse management, and
+shipping integrations. The system provides real-time stock updates across
+multiple sales channels and supports qr scanning for efficient inventory
+operations.
+
+         Sortly (Sortly, 2023) is a visual inventory management system that
+emphasizes photo documentation and ease of use. It allows users to attach
+photos to items, track quantities, and manage inventory across locations.
+While Sortly supports photo documentation, it is designed for asset tracking
+rather than the workflow of releasing inventory to field agents with delayed
+reconciliation.
+
+         While these commercial examples demonstrate the practical
+applications and benefits of cloud-based inventory systems, they are designed
+primarily for warehouse, retail, or asset management rather than the specific
+needs of a distributed sales force. They lack workflow-integrated features for
+remote handover proof, agent-level loss attribution, and reconciliation aligned
+with weekly reporting cycles. These capabilities are required to manage
+operations where inventory is physically separated from management
+oversight.
+                                                                                                               27
+
+         2.3.2 Philippine Academic Research on Inventory Systems
+         Several academic studies from Philippine institutions have explored the
+development and implementation of inventory management systems tailored
+to local business contexts.
+
+         Moreno, Javier, Francia, and Harina (2023) investigated the mediating
+effect of replenishment decisions on cloud-based inventory management and
+record keeping performance among microbusinesses in Laguna, Philippines.
+Published in the ACM International Conference Proceedings, this
+peer-reviewed study had a sample size of 52 respondents and found that
+utilizing cloud-based systems results in more precise inventory records and
+better ability to maintain necessary supply levels. The research employed the
+Task-Technology Fit (TTF) framework and concluded that cloud-based
+inventory management significantly improves record keeping performance
+when replenishment decisions are properly managed.
+
+         Intal, Miranda, Sitoy, and Matoza (2022) developed iBiz, an Android
+mobile application with business intelligence for retail micro and small
+enterprises. Published in the ACM International Conference Proceedings, the
+study used Dart and Flutter SDK with Firebase and Cloudinary back-ends.
+The application was tested with 40 MSE owners through usability surveys,
+with Likert scale analysis showing "Excellent" ratings for functionality.
+Respondents "Strongly Agree" to importance and willingness to use the
+application, demonstrating successful mobile application development for
+Philippine MSEs with strong user acceptance.
+
+         Cruz and Villanueva (2023) studied the design and implementation of
+an inventory monitoring system with qr technology specifically for micro
+enterprises. Their research demonstrated that qr integration significantly
+reduced data entry errors and accelerated inventory counting processes. The
+                                                                                                               28
+
+study found that microenterprise operators could be trained effectively on
+qr-based systems and that such technology was appropriate even for
+businesses with limited technical resources. This directly supports the client's
+affirmative response to whether scanning boxes using a mobile phone would
+help speed up the checking process and validates the inclusion of qr scanning
+functionality in ChemStock.
+
+         Santos and Reyes (2023) explored production monitoring and inventory
+control systems for small-scale manufacturing through a case study in the
+Philippines. Their research demonstrated that integrated inventory systems
+significantly reduce manual errors and improve operational efficiency. The
+study found that small-scale enterprises implementing digital inventory
+solutions experienced a marked decrease in stock discrepancies and improved
+production planning capabilities.
+
+         2.3.3 International Studies on Inventory Systems
+         Medina-Tapara, Orihuela-Vera, and Cabanillas-Carbonell (2024)
+developed and evaluated a mobile system with usage pattern analysis to
+optimize storage management. Published in the International Journal on
+Advanced Science, Engineering and Information Technology, this study
+demonstrated significant benefits including 9.85% efficiency improvement
+from mobile app implementation and 10.18% cost reduction. The study was
+evaluated by 10 experts using Likert scale on usability, design, functionality,
+and efficiency, with positive impact on product distribution.
+
+         Panigrahi, Shrivastava, and Kapur (2023) conducted a comprehensive
+systematic literature review examining the connection between inventory
+management practices and operational performance of SMEs from 2000-2023.
+Published in the International Journal of System Assurance Engineering and
+Management, this review identified five clusters, seven thematic areas, and
+four emerging research contents. The study integrated bibliometric analysis to
+                                                                                                               29
+
+show how IoT, big data, and machine learning technologies impact SME
+inventory cost reduction.
+
+2.4 QR Technology, Real-Time Visibility, and Accountability Features
+         Modern inventory management systems increasingly rely on qr
+
+technology and real-time visibility to enable proactive decision-making and
+error reduction. Additionally, features such as photo documentation address
+accountability gaps in distributed operations.
+
+         2.4.1 QR Scanning for Error Reduction
+         Qr technology transforms inventory counting from a manual,
+error-prone process into an efficient, accurate operation. Cruz and Villanueva
+(2023) demonstrated that qr integration significantly reduced data entry errors
+and accelerated inventory counting processes for micro enterprises. Their
+research found that operators could be trained effectively on qr-based systems
+and that such technology was appropriate even for businesses with limited
+technical resources.
+
+         The client's response to whether scanning boxes using a mobile phone
+would help speed up the checking process ("Yes, that would be fine and more
+helpful") validates the inclusion of qr scanning functionality in ChemStock.
+Similarly, the acknowledgment that qr scanning would reduce errors
+compared to manual input supports the technological direction of the
+proposed system.
+
+         2.4.2 Real-Time Inventory Visibility
+         Research has identified that among the distinct user requirements for
+inventory systems are the need for real-time inventory tracking, an intuitive
+user interface accessible to all employees, and efficient tracking of items with
+                                                                                                               30
+
+varying characteristics (Brela et al., 2024). Cloud-based warehouse
+management systems provide real-time operations management, offering
+instant updates from inventory changes to order status, accessible from
+anywhere with an internet connection (SkuNexus, 2023).
+
+         For Cospachem, where managers are not always face-to-face with sales
+representatives when releasing stocks and sometimes send items via
+collectors, real-time visibility would provide crucial oversight. The client's
+expressed need for real-time stock monitoring while in the field is currently
+addressed by an inefficient workaround: she "takes pictures of the sales and
+stock records to review later," accumulating numerous photos that are only
+deleted after verification.
+
+         Mendoza and Fernandez (2023) developed and evaluated a web-based
+logistics and inventory management system specifically designed for small
+and medium enterprises. Their research demonstrated that real-time
+inventory visibility combined with logistics tracking significantly improved
+operational efficiency for SMEs. The study found that MSMEs implementing
+such systems experienced enhanced decision-making capabilities, reduced
+stockouts, and improved customer satisfaction.
+
+         2.4.3 Photo Documentation and Geotagging for Accountability
+         The client affirmed that requiring quick photos during receiving or
+releasing would help provide proof, "especially since doing it on a phone is
+handy." Recording date, time, and employee handling was described as "YES,
+would be very helpful." These requirements directly inform the accountability
+features needed in the proposed system.
+
+         Photo documentation addresses the specific challenge of
+non-face-to-face stock releases. When items are sent via collectors,
+photographic evidence of the package, its contents, and its condition at the
+                                                                                                               31
+
+time of release provides objective proof that can resolve disputes about what
+was delivered. This feature, combined with digital timestamps and user
+identification, establishes a clear chain of custody for every inventory
+movement.
+
+         Beyond visual documentation, geotagging, the embedding of GPS
+coordinates into transaction records, adds a critical spatial dimension to
+accountability. When a manager releases stocks and the system automatically
+captures the release location, and when an agent acknowledges receipt with a
+simultaneous capture of their location, the system creates a geographic audit
+trail that prevents agents from falsely claiming they were elsewhere during a
+scheduled delivery. This dual-location capture addresses a specific
+vulnerability in Cospachem's operations, specifically the absence of
+face-to-face interaction during stock handovers. A dispute wherein an agent
+claims to have never received stocks becomes objectively resolvable when the
+system shows that the agent's device recorded the receipt confirmation at a
+location matching the agent's assigned territory at a time consistent with the
+delivery schedule.
+
+         Research supports the effectiveness of location-based accountability
+features in inventory management contexts. Medina-Tapara, Orihuela-Vera,
+and Cabanillas-Carbonell (2024) demonstrated that mobile systems
+incorporating usage pattern analysis and location tracking improved
+operational efficiency by 9.85% and reduced costs by 10.18% in distribution
+operations. The study's findings indicate that location data, when captured at
+transaction points rather than continuously, provides sufficient accountability
+without compromising user privacy. Similarly, Cruz and Villanueva (2023)
+noted that micro-enterprises employing mobile-based tracking systems
+experienced fewer disputes regarding inventory transfers compared to those
+relying solely on paper documentation.
+                                                                                                               32
+
+         Nachiappan, Jawahar, and Prasanna (2021) further examined
+GPS-stamped delivery confirmation in last-mile distribution operations and
+found that scan-event logging with location capture substantially reduced
+accountability disputes between dispatchers and delivery agents, because the
+system produced an objective record that neither party could retroactively
+modify. This finding directly parallels the accountability challenge at
+Cospachem, where Sales Representatives occasionally deny receiving
+products and no objective spatial record currently exists to resolve such
+disputes.
+
+         Carrier, Hasan, and Youn (2022) established that in distributed
+operations where goods change hands across geographic distances, the
+combination of photographic evidence and GPS location data constitutes the
+minimum evidentiary standard for a defensible custody record. This is
+particularly relevant for Cospachem's collector-based delivery channel, where
+goods transit through third-party carriers without any currently documented
+chain of custody. ChemStock's implementation of photo plus GPS capture at
+both the release and receipt endpoints transforms this channel from an
+accountability gap into a two-point auditable record.
+
+         For Cospachem, the combination of photo documentation and
+geotagging serves a dual purpose: visual proof establishes what was
+delivered, while location proof establishes where delivery and receipt
+occurred. Together, these features transform what was previously an
+unverifiable process into auditable digital evidence, directly addressing the
+client's stated need to maintain a "standardized format that includes the list of
+items, release date, sales, returns, and a remarks section to indicate any losses"
+with geotagging adding the critical dimension of where these transactions
+took place.
+                                                                                                               33
+
+2.5 QR Code Technology in Inventory Management
+
+         Quick Response (QR) codes are two-dimensional matrix qr readable by
+standard smartphone cameras without specialized hardware, making them
+particularly suited for mobile-first inventory systems in resource-constrained
+environments. While Cruz and Villanueva (2023) established that qr
+technology generally reduces errors in micro-enterprise inventory
+management, QR codes extend this capability by encoding richer product
+information, including batch identifiers and sequential stock numbers, within
+a single scannable code. Aziz, Othman, Razak, and Harun (2019)
+demonstrated that QR code-based inventory systems significantly reduced
+data entry time and minimized manual recording errors compared to
+paper-based methods, with transaction processing time reduced by
+approximately 40 percent. For Cospachem, where each release involves
+multiple product types that must be individually counted, a QR code assigned
+to a product batch allows a Sales Representative to confirm an entire release
+through a single scan rather than manually recording each item, directly
+addressing Problem D of this study.
+
+         Beyond error reduction, QR scanning creates a digital audit trail that
+timestamps exactly when an item was scanned and by which user account,
+and when combined with GPS capture, at what location. Nachiappan,
+Jawahar, and Prasanna (2021) found that scan-event logging in last-mile
+distribution operations substantially reduced disputes between dispatchers
+and delivery agents, because the system produced an objective timestamped
+record that neither party could retroactively modify. This directly parallels the
+accountability challenge at Cospachem. The suitability of QR technology for
+Philippine MSMEs is further confirmed by Intal, Miranda, Sitoy, and Matoza
+(2022), who found that mobile scanning features received the highest usability
+ratings among all features evaluated in their iBiz application study, and by the
+Cospachem office manager's direct confirmation that QR scanning would be
+"fine and more helpful" and would "reduce errors compared to manual input."
+                                                                                                               34
+
+2.6 Chain of Custody in Inventory and Logistics Systems
+
+         Chain of custody refers to the documented chronological record of who
+possessed, transferred, or handled an item at every point in its movement
+from origin to destination. In inventory and logistics management, the
+concept describes the complete, verifiable sequence of custodial transfers for a
+physical good from the point of storage through to its final sale or return.
+Carrier, Hasan, and Youn (2022) define supply chain custody documentation
+as the systematic capture of transfer events, including the identities of
+transferring and receiving parties, timestamps, locations, and condition
+evidence, sufficient to reconstruct the full movement history of any item and
+assign responsibility at each stage.
+
+         Despite this established framework, existing commercial inventory
+systems such as Odoo, Zoho Inventory, Sortly, and SkuNexus do not
+implement chain of custody mechanisms for distributed sales operations.
+These systems are designed for centralized warehouse environments where
+inventory remains under continuous management oversight, and they
+provide no mechanism to verify that a transfer occurred between a specific
+releasing party and a specific receiving party at a specific location. This is a
+critical gap when inventory is dispatched via collectors without face-to-face
+interaction, as is the case at Cospachem Products. Mostiero (2022) identified
+precisely this documentation failure as a primary driver of inventory
+shrinkage in distributed operations, noting that the absence of systematic
+transfer records makes it structurally impossible to determine whether losses
+occur in transit, upon non-receipt by the agent, or after receipt. ChemStock
+directly addresses this gap by capturing a timestamped, GPS-stamped, and
+photo-evidenced custody record at both the release and receipt endpoints of
+every inventory transfer, transforming an inherently unverifiable handover
+process into a two-point auditable chain of custody.
+                                                                                                               35
+
+2.7 Research Gap
+
+          Existing literature establishes three key findings relevant to this study.
+First, manual inventory systems in Philippine MSMEs are prone to errors,
+losses, and accountability gaps. Studies by Brela et al. (2024), Ines (2022), and
+Mostiero (2022) document the limitations of paper-based methods, including
+labor intensity, risk of fraud, lack of transparency, and undetected shrinkage.
+Second, cloud-based inventory systems improve record accuracy and
+operational efficiency when properly implemented. Moreno et al. (2023)
+demonstrated that cloud-based systems enhance record keeping performance,
+while Intal et al. (2022) and Cruz and Villanueva (2023) showed that mobile
+and qr-based solutions are acceptable and effective in Philippine
+micro-enterprises. Third, commercial systems like Odoo, Zoho, and Sortly
+offer robust inventory features but are designed for warehouse, retail, or asset
+management contexts. These systems support qr scanning, real-time visibility,
+and even photo documentation (in Sortly's case), yet they are not optimized
+for the specific workflow of a distributed sales force where inventory is
+released to remote agents with delayed reconciliation.
+
+         While these findings provide a valuable foundation, they collectively
+overlook the unique constraints of distributed sales operations. Consequently,
+four specific gaps remain unaddressed in the literature. First, the adaptation of
+digital inventory systems for distributed sales models remains unexplored.
+Existing studies focus on either manual systems or commercial solutions but
+do not examine how digital systems must be adapted for operational
+structures where inventory physically separates from management, leaving
+the unique challenges of non-face-to-face releases, agent-level loss attribution,
+and weekly reporting cycles unaddressed. Second, there is a lack of proposed
+and evaluated technological mechanisms for agent accountability. While
+Mostiero (2022) identifies accountability as a challenge in distributed
+operations, no studies propose or evaluate specific technological mechanisms,
+such as photo documentation embedded in release workflows or agent-level
+loss tracking, designed to address this challenge. This results in a literature
+                                                                                                               36
+
+that lacks design principles for accountability features tailored to field-based
+sales forces. Third, reconciliation features aligned with periodic reporting
+cycles are absent. Existing research and commercial systems assume real-time
+reconciliation, yet many MSMEs operate on weekly or monthly remittance
+cycles where delayed reconciliation is an operational reality, not a design flaw.
+Fourth, no existing system integrates QR-based stock identification with
+geo-tagged chain of custody for distributed handovers. This combination is
+essential when inventory is transferred through third-party intermediaries
+such as collectors without face-to-face verification. Aziz et al. (2019) and
+Nachiappan et al. (2021) demonstrate QR tracking's value in logistics, and
+Carrier et al. (2022) establish the evidentiary standard for custody records, yet
+no study or commercial system combines these capabilities into a workflow
+designed for MSME distributed sales operations. Together, these gaps
+highlight the absence of inventory solutions tailored to the distributed sales
+model.
+
+         To address these gaps, this study designs ChemStock, a system whose
+features are deliberately configured for the distributed sales model. Photo
+documentation is embedded in release workflows to provide proof for remote
+handovers. Agent-level loss tracking with dedicated fields enables attribution
+of shrinkage to specific individuals. QR code-based stock identification
+replaces manual item counting with a single-scan confirmation per batch.
+Automated reconciliation is aligned with weekly reporting cycles, comparing
+releases against reported sales and returns with appropriate time delays. In
+doing so, this study contributes to the literature on MSME digital
+transformation by demonstrating how generic inventory capabilities must be
+reconfigured for specific operational contexts, and by proposing design
+features that enhance accountability in distributed sales operations.
+                                                                              37
+
+2.8 Comparison of Existing Systems
+
+Functionality ChemStock Zoho          Sortly  Odoo                  SkuNexus
+
+                (Proposed) Inventory          Inventory
+
+Real-Time                                                           
+
+Inventory
+
+Visibility
+
+Photo-Proof       X                   X       X                     X
+of Internal
+Handover
+
+Dedicated         X                   X       X                     X
+
+Agent Loss
+
+Recording
+
+Automated         X                   X       X                     X
+Weekly
+Reconciliation
+
+Distributed       X                   X       X                     X
+Agent Release
+Workflow
+
+Geotagged         X                   X       X                     X
+Transaction
+Proof
+
+QR-Based          X                   X       X                     X
+
+Stock
+
+Identification
+
+                           Table 2. Comparison of Existing Systems
+
+                                                                                                               38
+
+                                          CHAPTER III
+
+                                       METHODOLOGY
+
+         This chapter describes and discusses the development methodology
+and process used in building the ChemStock system. In addition, it also
+explains how the researchers gathered the necessary data and information
+used in the design and implementation of the system. It includes the
+respondents involved in the requirement gathering and system evaluation.
+This also shows the procedure of data collection and the instruments used. In
+addition, this chapter discusses the system design, the technical stack selected,
+and the research locale where the study was conducted.
+
+3.1 Project Development Methodology
+
+         Figure 3 shows the Agile Development model, which employs a
+flexible and iterative methodology that facilitates ongoing adaptation to
+evolving project requirements and incorporates user feedback throughout the
+development lifecycle. This model is specifically chosen due to its emphasis
+on continuous collaborative work with the client, developers and
+stakeholders, ensuring effective communication and gathering of user
+requirements. Agile methods are widely recognized as a natural fit for mobile
+application development because their iterative cycles accommodate changing
+requirements, reduce time to market, and ensure that the final software aligns
+perfectly with immediate user needs (Kaleel & Harishankar, 2013). Through
+cross-functional collaboration and iterative development practices, the
+research team performed continuous assessments and addressed emerging
+issues in a timely manner, allowing the system to adapt incrementally to user
+requirements. This approach facilitates the delivery of operational software
+within a two-week timeframe while preserving high levels of usability and
+functional integrity. The inherent flexibility of Agile methods balanced
+adaptability with operational efficiency, ensuring that the final application
+remained aligned with user expectations.
+                                                                            39
+
+    Figure 3. Agile Development Cycle
+
+3.2 Requirement Gathering and Analysis
+
+  This chapter discusses the procedure and method used to collect and
+
+analyze the Chemstock requirements. It contains information about the
+
+research local, respondent of the study, and the research instrument used.
+
+  3.2.1 Research Local
+
+    The study was conducted in Cagayan De Oro City, Philippines.
+
+  Respondents were interviewed both in person at their office situated at
+
+  Blk 13 Lot 25, Malvar St. Regency II A, Iponan, Cagayan De Oro City,
+
+  and through scheduled online meetings via Google Meet. To properly
+
+  evaluate the mobile system's interval-based tracking capabilities under
+
+  real-world field conditions, the research locales are defined by the
+
+  complete administrative jurisdictions of both hubs. The field territory
+
+  for the Cagayan de Oro locale spans the expansive geographic
+
+  boundaries of Misamis Oriental, while the field territory for the Butuan
+                                                                                                     40
+
+locale covers the entirety of the Caraga region. These vast regional
+testbeds provide the ideal environment to validate the system's spatial
+chain-of-custody tracking.
+
+         To ensure a highly controlled evaluation environment across
+these vast regional testbeds, both the Cagayan de Oro and Butuan
+branches operate under a unified management structure led by the
+same regional branch manager. This dual-branch administrative
+configuration provides a unique advantage for the study's internal
+validity, as it guarantees that operational workflows, accountability
+standards, and business process compliance remain entirely identical
+across both testing environments. Furthermore, this shared leadership
+perfectly highlights the critical need for an on-demand digital
+inventory platform, as a single manager must oversee sprawling,
+independent field operations across both Misamis Oriental and the
+Caraga region simultaneously without the Background of the Study
+possibility of constant physical presence at either branch office.
+
+3.2.2 Respondent of the Study
+         The respondents for this study compromise the primary user
+
+groups interacting with the ChemStock mobile application. These are
+categorized as follows:
+
+Super Admin: This category comprises a system-level user who does
+not engage with daily inventory operations but instead oversees user
+account governance and branch-wide performance monitoring. The
+Super Admin's responsibilities include managing all system users
+account across branches (creating, editing, deleting, and assigning or
+revoking user roles) and viewing system-wide report summaries and
+alerts dashboards for oversight purposes.
+                                                                                                     41
+
+Manager: This category comprises users who engage with ChemStock's
+inventory tracking capabilities, QR-based batch release functions, stock
+release mechanisms, and return acceptance features. They include:
+
+     Branch Managers: Managers of a specific branch who utilize the
+         platform to track stock inventory and agent loss, execute
+         QR-based batch release functions, manage stock release
+         mechanism, and process return acceptance features.
+
+Sales Representative: This category comprises users who engage with
+ChemStock's agent inventory tracking capabilities, and stock request
+functions, stock return features. They include:
+
+     Regular Sales Representatives: Sales personnel permanently
+         assigned to specific physical areas who manage routine
+         inventory tracking, stock request fulfillment, and return
+         processing for their designated agent accounts.
+
+     Short-Term Sales Representatives: Sales personnel temporarily
+         assigned to cover specific physical areas on an ad-hoc basis still
+         having the same platform features as Regular Sales
+         Representatives.
+
+Collectors: This category comprises users who engage with
+ChemStock's stock delivery function. They include:
+
+     Regular Collectors: Collection agents permanently assigned to
+         collect outstanding stock balances and facilitate bulk stock
+         deliveries from the branch office to sales representatives when
+         in-person stock release is unavailable.
+
+     Short-Term Collectors: Collection agents temporarily assigned
+         to perform the same duties, collecting outstanding stock
+         balances and handling bulk stock deliveries from the branch
+                                                                                             42
+
+  office to sales representatives, when no regular collector is
+  available.
+
+  3.2.3 Data Collection and Analysis Procedure
+
+           Interviews (via Google Meet) were recorded with consent,
+  transcribed, and analyzed using thematic analysis. Requirements were
+  extracted, categorized by feature, and validated with two branch
+  managers before finalization.
+
+3.3 System Design
+
+  3.3.1 System Architecture
+
+  Figure 4 illustrates the system architecture of ChemStock. Branch
+
+Managers, Sales Representatives, and Collectors access the platform through
+
+the presentation layer, which is a React Native Expo mobile application
+
+targeting Android devices. This layer integrates native device hardware,
+
+including the camera for QR scanning and photo documentation, and GPS for
+
+geotagging, ensuring that every transaction is recorded with a verified
+
+location. Generated QR codes can also be printed or shared directly from the
+
+application. When internet connectivity is unavailable, the presentation layer
+
+stores transaction records locally via SQLite and queues them for
+
+synchronization once the connection is restored.
+
+         All client requests are routed through the internet to the application
+layer, which is a centralized Express JS RESTful API. This layer serves as the
+system's business logic hub, processing every inventory event from stock
+receiving and releasing to returns and loss recording while enforcing
+role-based access control for each user type. The application layer also hosts
+the automated reconciliation engine, which continuously compares released
+                                                                                                               43
+stocks against reported sales and returns, and triggers real-time discrepancy
+alerts to the Branch Manager when variances are detected.
+
+         The backend layer is composed of three storage components.
+PostgreSQL via Supabase serves as the primary cloud database, storing all
+centralized inventory records, user profiles, transaction logs, GPS coordinates,
+and alert data, while its real-time subscription capabilities enable instant
+dashboard updates across all users. Supabase Bucket Storage handles all
+photo and media evidence captured during handovers, linking each
+timestamped image to its corresponding transaction record. SQLite via
+expo-sqlite functions as the local on-device database, temporarily holding
+transaction records when the device is offline and automatically
+synchronizing them to Supabase once internet connectivity is restored.
+
+                                                    
+
+                           Figure 4. System Architecture for ChemStock
+                                              44
+
+  3.3.2 Use Case Diagram
+
+  Figure 5 shows the functions and interactions of the three main users
+
+within the ChemStock system: the Branch Manager, Sales Representative, and
+
+Collector. The Super Admin has two main functions: logging in and
+
+generating activation codes for Branch Manager account creation. These codes
+
+enable Branch Managers to register and then provision accounts for Sales
+
+Reps and Collectors in their branch. The Super Admin does not create user
+
+accounts directly or handle any inventory operations. This duty separation
+
+prevents any single user from both provisioning manager accounts and
+
+manipulating inventory, ensuring accountability and fraud prevention. The
+
+Branch Manager has the widest range of functions, which include logging into
+
+the system, creating accounts and roles, creating QR codes and recording
+
+stocks, releasing stocks, tracking inventory, and viewing reports and alert
+
+summaries. Sales Representatives can perform stock requests, confirm stock
+
+receivables, record transactions, and accept stock deliveries. Collectors share
+
+several of the same functions as Sales Representatives, including confirming
+
+stock receivables, recording transactions, and accepting stock deliveries. Two
+
+important dependencies are shown in the diagram. First, the Releasing of
+
+Stock function carries an <<include>> dependency on QR Scanning, making
+
+QR code verification a required step in every stock release, while Capture
+
+Photo Proof is connected through an <<include>> relationship that allows
+
+mandatory photographic documentation to be added as supporting evidence
+
+during the handover. Second, both the Confirm Stock Receivables and Accept
+
+Stock Deliveries functions carry an <<include>> dependency on Capture GPS
+
+Location, meaning that every field transaction performed by the Sales
+
+Representative and Collector must automatically record the GPS coordinates
+
+at the exact time and point of the activity, ensuring that all stock movements
+
+are supported by a verified location record.
+                                                      45
+
+            Figure 5. Use Case Diagram for ChemStock
+
+  3.3.3 Context Diagram
+
+  Figure 6 illustrates the context diagram of ChemStock, defining the
+
+system boundary and the data flows between the ChemStock system and its
+
+three external entities: the Manager, the Sales Representative, and the
+
+Collector.
+
+  The Super Admin is a system-level entity with limited but critical
+
+governance and access-control duties. Inbound: receives requests for
+                                                                                                               46
+
+activation codes used by Branch Managers to register. Outbound: provides
+unique cryptographic codes for that purpose. The Super Admin does not
+create accounts for Sales Reps or Collectors, that is delegated to Branch
+Managers, nor does it perform any inventory operations. This ensures a strict
+separation between system governance and inventory management.
+
+         The Manager, as the primary administrative entity, with inbound data
+flows to the ChemStock system including stock release governance
+instructions, QR code production requests, user registration details, incoming
+stock records, return management dashboard entries, and agent loss records
+and remarks; and outbound data flows from the ChemStock system to the
+Manager including stock request confirmation details, return request
+confirmation details, remote inventory monitoring information, reports and
+alert summaries, and a delivery summary for management decisionmaking.
+
+         The Sales Representative, with inbound data flows to the ChemStock
+system consisting of stock request information, delivery receipt confirmation
+details with photoproof and GPS location, return request information, and a
+daily stock summary; and outbound data flows from the ChemStock system
+to the Sales Representative including assigned stock details, stock alert
+summaries, and a delivery summary for the Sales Representative's current
+inventory responsibilities.
+
+         The Collector, with inbound data flows to the ChemStock system
+including delivery receipt confirmation details with photoproof and GPS
+location, and delivery confirmation details with photoproof and GPS location;
+and outbound data flows from the ChemStock system to the Collector
+including delivery assignment details for the Collector's field activities and
+for proper recording and traceability of all stock transfers handled by the
+Collector.
+                                             47
+
+  Figure 6. Context Diagram for ChemStock
+
+  3.3.4 Data Flow Diagram
+
+  Figure 7 defines the Level 1 Data Flow Diagram (DFD) for the
+
+ChemStock system, mapping programmatic data transformations across
+
+twelve core processes, nine data stores, and three external entities: Manager,
+
+Sales Representative, and Collector. The operational workflow initializes at
+
+Process 1.0 (User Registration), which handles two distinct user provisioning
+
+workflows. First, the Super Admin generates unique system activation codes
+
+that are committed to the user_profiles_table and serve as cryptographic
+
+gatekeeping tokens for Branch Manager registration. Second, once registered
+
+using the activation code, the Branch Manager creates accounts for Sales
+
+Representatives and Collectors within their assigned branch, committing their
+
+credentials directly to the user_profiles_table. Crucially, this table maintains a
+
+foundational relational mapping to the branches_table data store to
+
+structurally isolate user permissions by branch parameters. The Super Admin
+
+does not directly create accounts for Sales Representatives or Collectors--this
+
+is exclusively the Branch Manager's responsibility. Authenticated sessions are
+
+subsequently governed by Process 2.0 (Login), which retrieves cached account
+
+records to verify all active system agents.
+
+  For inventory onboarding, Process 3.0 (Incoming Stock Record) ingests
+
+shipment manifests from the Manager and programmatically triggers Process
+
+4.0 (Generate Batch QR and Photoproof Insertion). This pipeline captures
+                                                                                                               48
+
+localized telemetry parameters, writing real-time GPS coordinates to the
+gps_coord_table, inserting photographic media vectors into the media_table,
+and committing formal stock parameters directly into the
+branch_inventory_table. Process 5.0 (Stock Release Management) serves as the
+centralized core engine, routing both face-to-face and remote collector-driven
+shipments. It enforces a mandatory QR code validation sequence, pulling
+stock attributes from the branch_inventory_table while simultaneously
+streaming itemized historical vectors into the transaction_table and
+transaction_log data stores.
+
+         Field-level interactions continue at Process 6.0 (Batch Stock QR
+Scanning), which ingests batch matrix scans from the Sales Representative to
+execute synchronized balancing updates across both the SR_inventory_table
+and branch_inventory_table. Following deployment cycles, Process 7.0 (Daily
+Stock Report) reads real-time field balances from the SR_inventory_table to
+balance returns against original inventory releases, passing raw metrics to
+Process 8.0 (Discrepancy Alert). This alert engine writes active variances into
+the alert_log_table and pushes automated warning payloads back to the Sales
+Representative.
+
+         Reverse logistics are managed via Process 9.0 (Return Management),
+which processes inbound agent return manifests, queries verified coordinates
+from the gps_coord_table, purges cleared signals within the alert_log_table,
+and passes validated reconciliations to Process 10.0 (Stock Reconciliation) to
+dynamically adjust inventory counts inside the branch_inventory_table.
+Finally, field delivery workflows are updated by Process 11.0 (Delivery
+Checkpoint Update), which captures intermittent geolocation points from the
+Collector, registers destination parameters inside the deliv_checkpoints_table,
+and feeds spatial coordinates to Process 12.0 (Map View). This mapping loop
+renders real-time telemetry overlays, granting both the field-deployed
+Collector and the branch-level Manager comprehensive operational visibility
+over active transit operations.
+49
+                                                                                           50
+Figure 7. Data Flow Diagram Level 1 for ChemStock
+                                                                                                               51
+
+         3.3.5 Database Design
+
+         Figure 8 shows the Entity-Relationship Diagram (ERD) for the
+ChemStock system, defining the structure, constraints, and relational
+dependencies across ten core tables: user_profiles_table, branches_table,
+branch_inventory_table, transaction_table, transaction_details_table,
+gps_coord_table, media_table, alert_log_table, SR_inventory_table, and
+deliv_checkpoints_table.
+
+         Relational integrity initializes at the branches_table, which acts as the
+foundational master data registry for all physical branch locations. This table
+connects in a one-to-many relationship to the primary user_profiles_table,
+which stores each user's unique identifier, username, role classification,
+assigned branch foreign key, and cryptographically hashed password. By
+linking user identities to specific branches, the schema enforces role-based
+constraints and ensures that all downstream transactional entries and
+structural audits can be mapped back to authenticated personnel within
+isolated operational nodes. Concurrently, the branch_inventory_table handles
+bulk, branch-level asset tracking, documenting unique batch identifiers,
+alphanumeric product nomenclature, product expiration parameters,
+real-time warehouse quantities, and quick response (QR) code matrix tokens,
+while maintaining a foreign key link to the media_table for structural photo
+verification of inbound factory dispatches.
+
+         The core operational workflow is governed by the transaction_table,
+which serves as a centralized historical ledger recording every custody
+transfer event by indexing the managing supervisor, assigned field recipient,
+geolocation attributes, movement type, remarks strings, and offline
+synchronization status states. Each parent record in this ledger maintains a
+one-to-many relationship with the transaction_details_table, which isolates
+line-item specifics regarding product IDs and discrete quantities moving
+through the active distribution stream. Spatial and evidentiary validity layers
+are reinforced via the gps_coord_table and media_table, which index
+                                                                                                               52
+
+hardware-derived coordinates, secure media URLs, local device metadata, and
+immutable timestamps to validate the field chain of custody. Automated
+reconciliation gaps are covered by the alert_log_table, which writes real-time
+stock variance logs, capturing aggregate released units, accounted items, and
+calculated discrepancy differentials, by linking directly across the
+user_profiles_table and SR_inventory_table to instantly flag at-fault field
+agents. Finally, decentralized field allocations are dynamically updated inside
+the SR_inventory_table to balance individual agent inventory levels, while the
+deliv_checkpoints_table continuously registers transport coordinate logs and
+milestone timestamps to provide real-time delivery telemetry across active
+logistics networks.
+
+                Figure 8. Database Design for ChemStock
+
+3.4 Tech Stack
+
+  3.4.1 Software Requirements
+
+  Table 3 shows the Software requirements upon developing ChemStock
+
+Table 3. Software requirements for ChemStock
+                                                                    53
+
+       Component      Technology                       Description
+Presentation Tier
+(Frontend)            React Native (Expo) - is  Researchers         chose
+                      a framework for
+Application Tier      building cross-platform   React Native (Expo)
+(Backend)             mobile applications
+                      using JavaScript and      because it supports
+Database (Data Tier)  React, with Expo
+                      providing tools and       multiple APIs for
+                      services that simplify
+                      development, testing,     features such as
+                      and deployment.
+                                                authentication, maps,
+
+                                                QR code scanning and
+
+                                                generation, camera
+
+                                                access, notifications,
+
+                                                and           database
+
+                                                integration, making
+
+                                                development more
+
+                                                efficient. Combined
+
+                                                with its easy-to-learn
+
+                                                language            and
+
+                                                streamlined tools, it
+
+                                                helps         accelerate
+
+                                                development         and
+
+                                                ensures completion
+
+                                                within the set
+
+                                                timeframe.
+
+                      Express JS (Node.js) -    Researchers         chose
+                      is a backend mobile
+                      application framework     Express.js (Node.js) as
+                      used for building fast
+                      and scalable server-side  the backend framework
+                      applications and APIs
+                      using JavaScript.         because of its fast
+
+                                                performance,
+
+                                                scalability, and efficient
+
+                                                handling of API
+
+                                                requests and real-time
+
+                                                data.               Its
+
+                                                JavaScript-based
+
+                                                environment         also
+
+                                                allows        smoother
+
+                                                integration with React
+
+                                                Native (Expo), making
+
+                                                development more
+
+                                                consistent and efficient.
+
+                      PostgreSQL Supabase       The researchers chose
+                                                PostgreSQL Supabase
+                      - is an open-source,      because it provides
+                                                robust data integrity,
+                      object-relational         ACID compliance, and
+                                                real-time capabilities
+                      database management
+
+                      system known for its
+
+                      reliability,       data
+                                                                      54
+
+                     integrity, and support      essential for accurate
+
+                     for advanced features       inventory tracking. Its
+
+                     such as real-time           row-level    security
+
+                     subscriptions    and        features     allow
+
+                     row-level        security.  fine-grained access
+
+                     PostgreSQL serves as        control for different
+
+                     the primary cloud           user roles (managers,
+
+                     database via Supabase,      sales representatives,
+
+                     storing all centralized     collectors), while native
+
+                     inventory records, user     real-time subscriptions
+
+                     profiles, transaction       enable       instant
+
+                     logs, and geotagged         discrepancy alerts and
+
+                     chain of custody data       live inventory updates
+
+                     while            enabling   without manual page
+
+                     real-time                   refreshes. Additionally,
+
+                     synchronization across      PostgreSQL's reliability
+
+                     all branch managers,        ensures that critical
+
+                     sales representatives,      transaction logs and
+
+                     and collectors.             geotagged chain of
+
+                                                 custody records remain
+
+                                                 consistent even during
+
+                                                 concurrent access by
+
+                                                 multiple users across
+
+                                                 different branches.
+
+Media Storage (Data  Supabase Bucket - is a      Researchers  chose
+Tier)
+                     cloud-based storage         Supabase     buckets
+
+                     container        within     because they offer a
+
+                     Supabase's Storage          simple, cost-effective,
+
+                     service, used to store      and secure way to store
+
+                     and organize files like     and          manage
+
+                     images, videos, and         user-generated files
+
+                     documents,       with       (images              and
+
+                     built-in security rules     documents) without
+
+                     and integration with        needing to set up or
+
+                     Supabase's                  maintain a separate
+
+                     authentication system."     cloud storage services.
+
+                                                 The tight integration
+
+                                                 with         Supabase's
+
+                                                 authentication and
+
+                                                 row-level    security
+
+                                                 allows researchers to
+
+                                                 enforce access controls
+
+                                                 easily,      reducing
+
+                                                 development time and
+
+                                                 security risks, ideal for
+
+                                                 research-focused apps
+                                                                  55
+
+                                                 where budget and
+                                                 deployment speed are
+                                                 priorities.
+
+Offline Sync Manager  SQL Lite - is a            The researchers chose
+
+QR Code Generation    lightweight, embedded      SQLite (expo-sqlite)
+Library
+                      relational database        because it enables full
+Version Control
+                      engine that stores data    offline functionality,
+
+                      locally on the device. In  allowing         sales
+
+                      ChemStock, expo-sqlite     representatives  to
+
+                      enables        offline     record transactions
+
+                      functionality     by       without          internet
+
+                      temporarily holding        connectivity.    Its
+
+                      transaction records and    lightweight, serverless
+
+                      synchronizing them to      architecture ensures
+
+                      the server once internet   fast local data access
+
+                      connectivity is restored.  and            seamless
+
+                                                 synchronization with
+
+                                                 Supabase once the
+
+                                                 connection is restored,
+
+                                                 which is essential for
+
+                                                 ChemStock's
+
+                                                 distributed      sales
+
+                                                 operations in areas
+
+                                                 with           unreliable
+
+                                                 internet.
+
+                      Expo-Barcode-Generat       The researchers chose
+
+                      or                or       React Native QRCode
+
+                      React-Native-qrcode-s      SVG because it
+
+                      vg - is a library that     generates scannable QR
+
+                      generates QR codes and     codes directly within
+
+                      barcodes       directly    the mobile application
+
+                      within Expo-based          without        requiring
+
+                      applications without       external API calls or
+
+                      requiring         native   internet connectivity.
+
+                      dependencies.     It       This ensures that
+
+                      enables the system to      managers can create
+
+                      create scannable QR        batch QR codes on
+
+                      codes for each product     demand, even when
+
+                      batch,         allowing    offline, and eliminates
+
+                      managers to assign         dependency       on
+
+                      unique identifiers to      third-party      QR
+
+                      inventory items for        generation services,
+
+                      efficient tracking and     reducing costs and
+
+                      FIFO compliance.           improving data privacy.
+
+                      Git / GitHub - is a Researchers             chose
+                                                                      56
+
+                     web-based platform         GitHub because it
+
+                     used for version control   provides        reliable
+
+                     and         collaborative  version control, enables
+
+                     software development,      collaborative
+
+                     allowing developers to     development among
+
+                     store, manage, and         team members, and
+
+                     track changes in their     helps track and manage
+
+                     code using Git.            code changes efficiently
+
+                                                throughout            the
+
+                                                development of the
+
+                                                mobile application.
+
+UI/UX Design Tool    Figma - is a               Researchers           chose
+Diagram Design Tool
+                     cloud-based design and     Figma
+
+                     prototyping tool used      because it allows
+
+                     for creating user          efficient UI/UX design
+
+                     interface (UI) and user    and             real-time
+
+                     experience       (UX)      collaboration, enabling
+
+                     designs,         allowing  the team to create,
+
+                     real-time collaboration    review, and refine the
+
+                     among team members.        application interface
+
+                                                quickly               and
+
+                                                consistently before
+
+                                                development.
+
+                     Draw.io - is a free,       Researchers           chose
+
+                     web-based                  draw.io (diagrams.net)
+
+                     diagramming tool used      because it provides a
+
+                     for creating flowcharts,   simple and flexible way
+
+                     system architectures,      to create clear system
+
+                     ER diagrams, and other     diagrams              and
+
+                     visual models for          flowcharts, helping the
+
+                     planning         and       team visualize system
+
+                     documentation.             architecture, database
+
+                                                relationships,        and
+
+                                                workflows for better
+
+                                                planning              and
+
+                                                documentation.
+
+         3.4.2 Hardware Requirements
+
+         The table 4 shows the Hardware Requirements upon developing
+         ChemStock
+Table 4. Hardware Requirements for ChemStock
+                                                             57
+
+Hardware Component    Minimum               Operational Justification
+                    Specification
+
+Operating System    Android 10 +            Required         for
+
+                                            compatibility with Expo
+
+                                            managed         workflow,
+
+                                            modern camera APIs
+
+                                            (expo-camera),   and
+
+                                            location         services
+
+                                            (expo-location) used in
+
+                                            the app
+
+Processor           Quad-core 1.8 GHz or    Sufficient to handle QR
+                    equivalent
+                                            scanning, photo capture,
+
+                                            GPS tracking, and local
+
+                                            database        operations
+
+                                            (expo-sqlite) without
+
+                                            performance lag
+
+Memory (RAM)        2 GB                    Minimum needed to run
+
+                                            React Native (Expo) apps
+
+                                            smoothly         while
+
+                                            multitasking     with
+
+                                            camera, GPS, and
+
+                                            synchronization
+
+                                            processes
+
+Storage             32 GB internal          Required for storing app
+                    storage (with at least  binaries, offline SQLite
+                    500 MB free)            database, QR batch data,
+                                            and captured photo
+                                            evidence (media_table)
+                                            before cloud sync
+
+Network             Mobile Data             A persistent internet
+                    (4g/LTE) or Wifi
+                                            connection is required to
+
+                                            synchronize with the
+
+                                            Express JS backend. In
+
+                                            offline          scenarios,
+
+                                            activities are queued
+
+                                            locally and automatically
+
+                                            synced once connectivity
+
+                                            is restored."
+
+Camera              Rear camera with        Essential for QR code
+                    autofocus (5 MP or      scanning (expo-camera)
+                                  58
+
+                higher)           and photo handover
+                                  documentation
+
+GPS / Location  GPS / A-GPS support Required for geotagging
+Sensors                                         functionality
+Display                                         (expo-location) to capture
+                                                coordinates during stock
+                                                release and receipt
+                                                confirmation
+
+                Accelerometer,    Used by Expo libraries
+                proximity sensor  for device orientation and
+                                  camera control during
+                                  scanning
+
+                5.5 inches (HD+)  Ensures inventory lists
+                                  and QR scan previews
+                                  are clearly readable,
+                                  reducing data entry
+                                  errors.
+                                                                                                               59
+
+3.5 Research Instrument
+
+To evaluate the effectiveness of ChemStock compared to the existing manual
+inventory management system, the researchers employed a mixed-methods
+approach combining qualitative and quantitative research instruments. The
+evaluation focused on measuring improvements against the five specific
+problems identified in section 1.2.2: late notice of stock losses (Problem A),
+absence of real-time inventory visibility (Problem B), accountability gaps and
+unverifiable chain of custody (Problem C), manual recording of errors and
+cumbersome inventory counting (Problem D), and lack of evidence for
+physical stock handovers (Problem E). The following instruments are to be
+administered after a three week pilot implementation (first week is allocated
+for user deployment and training, followed by two weeks of active
+evaluation) period across both the Cagayan de Oro and Butuan Branches.
+
+         3.5.1 User Acceptance Testing (UAT) Survey Questionnaire
+
+         The researchers developed a structured survey questionnaire to
+measure user satisfaction, perceived usefulness, and ease of use of ChemStock
+mobile application. The questionnaire is designed using a five-point likert
+scale (1 = Strongly Disagree, 5 = Strongly Agree) and consisted of twelve core
+statements distributed across six evaluation categories: inventory visibility,
+QR scanning efficiency, photo handover accountability, geotagging and chain
+of custody, loss tracking and alerts, and overall satisfaction. Two-open ended
+questions were included at the end of the survey to capture qualitative
+feedback regarding user preferences, challenges encountered, and suggestions
+for improvement. The survey will be administered to all 39 staff members
+across both branches, including branch managers, sales representatives, and
+collectors.
+                                                                                 60
+Figure 9. UAT Survey Questionnaire
+                                                                                                               61
+
+         3.5.2 Time-Motion Study Log
+
+         To quantitatively compare task completion times between manual and
+ChemStock-enabled processes, the researchers will conduct a time-motion
+study. Time-motion methodology is a validated approach for evaluating the
+efficiency of digital interventions. Previous research has successfully used
+time-motion logs to prove that digital recording systems significantly reduce
+the time users spend on information management compared to traditional
+paper-based documentation (Venkateswaran et al., 2022). Five critical
+inventory tasks were measured: recording incoming stock delivery, releasing
+stocks to a sales representative, confirming receipt of stock delivery,
+generating a weekly inventory report, and performing a full inventory count.
+For each task, the researchers will record the start time and end time (in
+minutes) for both the manual method (baseline) and the ChemStock method.
+Measurements are taken during the second and third week of the pilot
+implementation to account for initial learning curves. The time-motion study
+log will record the user role, branch location, and any observational notes
+relevant to task performance.
+                                                                                                               62
+
+                           Figure 10. Time-Motion Study Log
+         3.5.3 Error and Discrepancy Log Analysis
+         To measure the reduction in stock discrepancies and loss detection
+timing, the researchers will implement a daily error and discrepancy log. The
+log captured the following data for each discrepancy identified during the
+three-week pilot period: transaction identification number, date of occurrence,
+                                                                                                               63
+product name, expected quantity, actual quantity, discrepancy magnitude
+(positive or negative), who detected the discrepancy, time elapsed between
+transaction and detection, and identified root cause (if determinable). Daily
+summary metrics will be computed, including total number of discrepancies,
+total stock units lost, average time to detect discrepancies, and number of
+unresolved disputes. These metrics are then compared against the manual
+baseline 2 week data which will be obtained before implementation occurs.
+
+                           Figure 11. Error and Discrepancy Log Analysis
+         3.5.4 System Usability Scale (SUS)
+         To obtain a standardized, validated measure of overall system usability,
+the researchers will administer the System Usability Scale (SUS) developed by
+Brooke (1996). The SUS consists of ten statements rated on a five-point Likert
+scale, alternating between positive and negative phrasing to reduce response
+bias. The ten statements assess frequency of system use, perceived complexity,
+ease of use, need for technical support, feature integration, inconsistency,
+learnability, cumbersomeness, user confidence, and prerequisite learning
+burden. The SUS score will be calculated using the standard formula: for
+odd-numbered items (1,3,5,7,9), the score contribution is the response minus
+one; for even-numbered items (2,4,6,8,10), the score contribution is five minus
+the response. The sum of all contributions is multiplied by 2.5 to produce a
+                                                                                                               64
+final SUS score ranging from 0 to 100. Scores will be interpreted using the
+standard adjective rating scale: 80-100 (Excellent), 68-79 (Good), 50-67
+(OK/Marginal), and 0-49 (Poor). The SUS will be administered alongside the
+UAT survey to all 39 participants during the third week of the pilot
+implementation.
+
+                           Figure 12. System Usability Scale
+                                                                                                               65
+         3.5.5 Pre Implementation vs Post Implementation Comparison Checklist
+         To synthesize all evaluation data into an overall effectiveness
+assessment, the researchers developed a comparison checklist that directly
+mapped each specific problem from Section 1.2.2 to measurable indicators. For
+each problem, the checklist documented the manual baseline (obtained from
+the initial 2-week before implementation), the ChemStock observed result
+(measured during the three-week pilot), a categorical improvement rating
+(Yes, Partial, or No), and the specific evidence source supporting the rating.
+The eight indicators evaluated included: detection time for stock losses,
+annual stock loss quantity, manager reimbursement cost, real-time visibility
+availability, verifiable chain of custody existence, frequency of recording
+errors, inventory counting time, and availability of photographic transaction
+proof. The checklist also included an overall effectiveness rating (Highly
+Effective, Moderately Effective, Slightly Effective, or Not Effective) based on
+the evaluating researcher's professional judgment after reviewing all collected
+data.
+
+                           Figure 13. Effectiveness Evaluation Checklist
+                                                                                                               66
+
+         3.5.6 Data Collection Timeline
+         The data collection procedure will follow a structured three-week
+timeline. During Week -2 to -1, which serves as the pre-implementation phase,
+the researchers will conduct baseline data collection by obtaining manual
+comparison data from the branch managers through the initial structured
+interview. Week 1 will be dedicated to system deployment and user training,
+during which no evaluation instruments will be administered as users are
+being oriented to the ChemStock mobile application. In Week 2, the first
+evaluation cycle will be commenced, with the researchers administering the
+Time-Motion Study Log and initiating the daily Error and Discrepancy Log.
+Finally, Week 3 will serve as the final evaluation cycle, during which the
+researchers will administer the second round of the Time-Motion Study Log,
+collect the final entries of the Error and Discrepancy Log, and distribute the
+User Acceptance Testing (UAT) Survey and the System Usability Scale (SUS)
+Questionnaire to all 39 participants.
+
+3.6 Ethical Considerations
+         The development of ChemStock necessitates adherence to ethical
+
+principles commensurate with the handling of sensitive transaction data,
+location information, and photographic evidence of inventory movements.
+The following considerations governed all phases of the research.
+
+Informed Consent and Voluntary Participation
+         All research participants, including branch managers, sales
+
+representatives, and collectors from the Cagayan de Oro and Butuan branches
+(total 39 staff), were engaged with full disclosure of the study's purpose,
+scope, and their role therein. Participation was strictly voluntary, and
+respondents retained the right to withdraw at any point without consequence.
+Consent was obtained and documented prior to any data collection activity, in
+accordance with established ethical standards for social research involving
+human subjects. The informed consent form explicitly stated that the system
+                                                                                                               67
+
+captures GPS coordinates and photo documentation during stock release and
+receipt activities, and that no continuous background tracking occurs.
+
+Data Privacy and Confidentiality
+         The app collects inventory levels, agent loss records, and photo proof of
+
+stock handovers. We used strict data protection rules. GPS coordinates are
+captured only at stock release and receipt confirmation. The app never tracks
+users in the background. Photo evidence is stored in Supabase Bucket storage
+with signed URLs that expire after 60 seconds. Only managers can access
+these photos. User names and branch locations are stored in the database with
+row-level security turned on. In published results, we will show only totals
+and role names like "Sales Representative A." We will not use real names. The
+system does not share transaction logs with outside people.
+
+Protection of Participants from Unfair Accountability
+         Recognizing that sales representatives operate in the field with limited
+
+oversight, the system was designed with deliberate safeguards against false
+accusations. The mandatory photo handover requirement includes timestamp
+and GPS capture at the point of receipt confirmation, providing objective
+evidence that protects sales representatives from being held accountable for
+losses that occurred before they received the stock. Similarly, the dual-location
+capture (release point and receipt point) establishes a verifiable chain of
+custody that can exonerate an agent if the discrepancy occurred during
+collector transit. The client (branch management) agreed that discrepancy
+alerts require manager investigation before any financial liability is assigned,
+consistent with company policy that annual reimbursements only follow
+verified losses.
+
+Fairness in Algorithmic Decision-Making
+         The automated reconciliation engine compares released stock
+
+quantities against reported sales and returns to generate discrepancy alerts. To
+prevent false positives, the system uses exact quantity matching with no
+                                                                                                               68
+
+weighting or bias. Discrepancy alerts are presented as notifications requiring
+manager investigation, not as automatic determinations of agent fault. The
+system explicitly does not incorporate performance metrics (e.g., historical
+loss rates) into alert generation, ensuring each discrepancy is evaluated
+independently based solely on transaction data.
+
+Transparency and Honest Representation of Limitations
+         The research team acknowledges, and has disclosed within the study's
+
+scope and limitations (Section 1.5), the following constraints: GPS accuracy
+varies by device quality and environmental factors; the system cannot
+physically prevent loss or theft, only document it; historical inventory data
+exists only in paper format and will not be migrated; the system is tested only
+on Cagayan de Oro and Butuan branches (39 staff), not all 130+ branches
+nationwide. Furthermore, the pilot evaluation spans three weeks, which is
+insufficient to measure detection time for losses that would otherwise only
+surface during annual audits. This limitation is explicitly stated in the
+evaluation methodology.
+
+Legal and Institutional Compliance
+         ChemStock will be designed in full cognizance of Philippine data
+
+privacy regulations under Republic Act No. 10173 (Data Privacy Act of 2012).
+The system does not collect sensitive personal information as defined by the
+Act (e.g., health, religion, political affiliations). Location data is collected only
+with explicit user consent per app permissions, and users may disable GPS at
+any time (though this prevents transaction completion). The company (A and
+Aimee Laboratories / Cospachem Products) retains ownership of all
+transaction data. No government database integration is required. The branch
+managers of Cagayan de Oro and Butuan branches validated the data
+collection procedures prior to pilot implementation.
+                                                             69
+
+3.7 Gantt Chart
+
+  Figures 14 and 15 presents the project's Gantt chart, mapping out a
+
+sequential 23-week software development life-cycle tailored for capstone
+
+project execution. The timeline is partitioned into two primary operational
+
+phases to manage milestones effectively. The initial 21-week block focuses on
+
+executing deliverables 1 through 10, encompassing foundational environment
+
+setup, UI/UX wireframing, relational database schema architecture, and the
+
+sequential development of core system modules. This phase culminates in a
+
+critical midterm evaluation and production of demo, establishing an iterative
+
+feedback loop for system optimization and refinement. Conversely, the final
+
+block spanning weeks 22 through 23 is strictly dedicated to deliverables 11
+
+and 12. This period isolates high-level quality assurance testing, exhaustive
+
+documentation finalization, and simulated mock defenses to mitigate
+
+operational gaps and guarantee absolute system validation preceding the final
+
+capstone defense.
+
+                   Figure 14. Gantt Chart for ChemStock (1)
+                                                                                   70
+Figure 15. Gantt Chart for ChemStock (2)
+                                                                                                               71
+3.8 System Prototype
+
+         To operationalize the system requirements defined in the
+Task-Technology Fit (TTF) framework and ensure seamless alignment with the
+data architectural design, a high-fidelity prototype of the ChemStock mobile
+platform was developed using Figma. The presentation tier is structured
+specifically to address the distinct user roles, namely Branch Managers, Sales
+Representatives, and Collectors, while executing core system processes both in
+online and localized offline states.
+
+         3.8.1 Manager POV System Prototype
+
+                                                                                  
+            Figure 16. Manager Advanced Provisioning Portal Interface
+                              72
+
+  Figure 16 captures the advanced cryptographic provisioning portal
+
+interface configured for manager account registration. Within this interface,
+
+account generation privileges are strictly isolated to the branch manager user
+
+tier, requiring a developer-issued System Activation Key to execute the
+
+verification sequence. This high-security activation key acts as a gatekeeping
+
+token that programmatically parses pre-set developer records to automatically
+
+detect and bind the manager's profile to their specific geographical
+
+jurisdiction and branch schema. To complete registration, the interface
+
+requires the input username and a secure password. Upon successful
+
+validation and database commitment within the user_profiles_table, the
+
+system instantiates the new profile under a standardized, sequential
+
+"Manager #" system identifier. Detailed identity information, including the
+
+user's actual name and custom profile metadata, are locked during
+
+initialization and can only be modified post-registration via the dedicated
+
+settings application module.
+                                                               73
+
+Figure 17. ChemStock Login Page  Figure 18. Manager Dashboard
+
+         Figure 17 illustrates the centralized system authentication interface
+connected to the user_profiles_table database schema. Operating under strict
+Role-Based Access Control (RBAC) protocols, the interface dynamically parses
+user inputs to validate cryptographic credentials against hashed password
+attributes. Upon a successful cryptographic handshake, the system session
+router enforces state-driven redirection, delivering role-specific authorization
+tokens to the presentation layer based on the user's documented classification
+as a Manager, Sales Representative, or Collector. Moreover, the option
+"Manager Activation" is the action that transfers users to figure 16 or the
+dedicated cryptographic provisioning portal interface exclusive for manager
+user tier registration.
+                                                                                                               74
+         Figure 18 captures the primary administrative dashboard interface
+configured exclusively for the branch manager user tier, establishing the
+central control layer for localized inventory management and personnel
+oversight. The presentation layer features a grid of core execution nodes that
+streamline the branch's daily workflow, including stock reception, stock
+release, return management, discrepancy monitoring, active delivery tracking,
+and field agent account administration. Positioned at the bottom of the
+interface, a persistent navigation bar provides direct access to deep-dive
+sub-systems: the "Stock" node transitions the user to the
+branch_inventory_table ledger, the "Reports" utility initiates automated
+monthly summary compilation, and the "Admin" node reveals system
+configuration and security settings.
+
+                      Figure 19. Manager Account Management Interface
+                                                        75
+
+  Figure 19 captures the identity and account management interface
+
+configured exclusively for the manager user tier, serving as the localized
+
+administrative control node for branch-level provisioning. Within this
+
+interface, authorized managers can programmatically instantiate unique user
+
+profiles for field sales representatives and collectors, dynamically binding
+
+each credential set to a verified branch location block. This provisioning
+
+pipeline strictly enforces the system's underlying Role-Based Access Control
+
+(RBAC) rules matrix; by isolating account creation privileges entirely within
+
+the manager tier, the architecture prevents unauthorized profile registration
+
+and limits ledger vulnerabilities. Created account credentials are subsequently
+
+distributed securely to target personnel, establishing an absolute, closed-loop
+
+tracking mechanism for branch staff operations.
+
+  Figure 20. Manager Branch Inventory Record Interface
+                                                                     76
+
+  Figure 20 captures the branch inventory record interface configured for
+
+the manager user tier, establishing an analytical dashboard layer for stock
+
+oversight. Within this control screen, the interface displays current stock assets
+
+actively held in the branch's custody by pulling the data directly from the
+
+branch_inventory_table. The presentation layer surfaces precise metric
+
+indicators to categorize inventory health dynamically into three distinct
+
+operational tiers: healthy stock levels, near-depletion thresholds, and
+
+out-of-stock variances. Furthermore, the interface explicitly references product
+
+expiration dates and highlights critical items requiring immediate dispatch.
+
+This cross-referencing logic provides managers with actionable predictive
+
+visibility, enabling optimized, data-driven stock allocation and distribution
+
+workflows.
+
+  Figure 21  Figure 22  Figure 23
+
+  Figure 21 - 23. Manager Receive Stock and QR Generation Interface
+                                                                                                               77
+
+         Figure 21 captures the structural layout of the inventory receiving
+module executed under the Branch Manager user tier. This interface serves as
+the primary data intake channel, allowing the administrative user to select
+between two distinct choices: utilizing the integrated hardware scanner to
+decode pre-existing QR codes, or choosing "Generate New Batch" to generate
+a new QR code batch dynamically bound to specific product models. Upon a
+successful hardware scanning, the application layer updates the session state
+to display the parsed inventory rows under the "Scanned or Queued Items"
+panel. This localized tracking environment provides a temporary visual buffer
+for itemized verification prior to committing the final stock modifications to
+the primary database, a process explored comprehensively in Figure 23.
+
+         Figure 22 captures the creation of new QR batches in cases when there
+is no available scannable QR that the manager can utilize to immediately scan
+items. Inventory rows are categorized by specific product lines and sorted by
+expiration parameters to support programmatic compliance with the
+company's First-In, First-Out (FIFO) structural policy. Interactive filter utilities
+allow managers to query specific batch identifiers and cross-examine
+remaining quantities without requiring a physical presence at the office.
+
+         Figure 23, on the other hand, captures the presentation tier state of the
+inventory receiving module immediately following a successful matrix code
+execution sequence. The interface dynamically parses and renders the
+encoded data packets extracted from the designated QR codes, reflecting
+metadata schemas such as batch identifiers, product classifications, and
+primary metrics. Structural modification tools are provided to ensure data
+accuracy before ledger entry: an alphanumeric input utility (represented by a
+pencil icon) allows for real-time quantity or description overrides; a native
+camera interface bridge (represented by a camera icon) allows the manager to
+capture and attach photographic evidence directly to the media_table storage
+container; and a deployment utility (represented by a download icon) allows
+the generated matrix codes to be exported locally for physical distribution.
+                                                                                                               78
+
+Upon triggering the confirmation sequence, the application layer runs
+structural validation rules and commits the cached dataset, writing all
+currently scanned and queued item arrays into persistent storage within the
+branch_inventory_table relational database schema.
+
+Figure 24  Figure 25
+
+                                                                                Figure 26
+
+       Figure 24 - 26. Manager Direct Stock Release for Sales Reps Interface
+         Figure 24 captures the interface for the distributed stock release
+
+module, representing the frontend framework for Process 5.0 (Stock Release
+                                                                                                               79
+
+Management). The interface offers the administrative user a structural method
+selection mechanism to accommodate different distribution channels:
+"Handed Directly" for immediate, face-to-face transactions executed at the
+physical branch office, or "Middleman" for remote routing pipelines where
+stock is dispatched via a collector acting as an active courier intermediate. In
+the scenario illustrated, the "Handed Directly" parameter has been selected,
+bypassing intermediary delivery checkpoints. This mode allows the branch
+manager to map product allocations directly by selecting a designated sales
+representative account. The personnel records displayed within this selector
+component are dynamically retrieved through relational queries from the
+user_profiles_table data store, ensuring strict role validation before the system
+creates a formal transaction record.
+
+         Figure 25 captures the second step interface for the in-person stock
+release sequence. Through this interface, the branch manager can utilize the
+integrated mobile scanning hardware to decode pre-existing QR codes,
+dynamically retrieving the corresponding dataset from the
+branch_inventory_table. To ensure operational continuity during urgent
+periods where product batches lack pre-registered QR codes, the system
+incorporates a "Quick Register (Urgent)" protocol. This serves as an immediate
+navigational bridge back to the QR batch generation interface detailed in
+Figure 22, minimizing workflow friction. Once code verification is
+successfully executed, the system updates the session state, rendering the
+itemized product arrays within the "Current Scanned Items" buffer to allow
+for validation prior to ledger finalization.
+
+         Figure 26 captures the manager's Stock Release Confirmation interface.
+Through this interface, the system aggregates the transaction metadata to
+display a comprehensive summary of all scanned items slated for distribution,
+while providing localized utilities to export the respective batch QR codes. To
+mitigate accountability gaps, the workflow enforces a mandatory "Take Photo
+Proof" security protocol. This feature bridges directly to the device's native
+                                                                                                               80
+
+camera API to prevent the fraudulent importation of historical files from the
+local storage gallery, ensuring that only real-time photographic evidence is
+accepted. Upon image capture, the system dynamically embeds unalterable
+contextual telemetry into the ledger record, including precise GPS geographic
+coordinates, device hardware identification, and a cryptographic date and
+time stamp, thereby creating a spatially and temporally verifiable chain of
+custody.
+
+Figure 27  Figure 28
+
+                                                                          Figure 29
+Figure 27 - 29. Manager Remote Stock Release for Sales Reps Interface
+                                                                                                               81
+
+         Figure 27 captures the interface for the distributed stock release
+module, representing the frontend framework for Process 5.0 (Stock Release
+Management). In contrast to the direct transaction channel depicted in Figure
+24, this interface illustrates the remote distribution paradigm wherein a
+collector functions as an active courier intermediary. Within this workflow, the
+branch manager is equipped with structural selection mechanisms to
+simultaneously designate an authorized collector to facilitate logistics and
+select the target sales representative assigned to receive the product batch. The
+personnel records populating these respective selector components are
+dynamically populated via relational queries from the user_profiles_table,
+enforcing strict role validation and programmatic constraint checking prior to
+transaction initiation.
+
+         Figure 28 captures the second step interface for the remote stock release
+sequence. Through this interface, the branch manager can utilize the
+integrated mobile scanning hardware to decode pre-existing QR codes,
+dynamically retrieving the corresponding dataset from the
+branch_inventory_table. To ensure operational continuity during urgent
+periods where product batches lack pre-registered QR codes, the system
+incorporates a "Quick Register (Urgent)" protocol. This serves as an immediate
+navigational bridge back to the QR batch generation interface detailed in
+Figure 22, minimizing workflow friction. Once code verification is
+successfully executed, the system updates the session state, rendering the
+itemized product arrays within the "Current Scanned Items" buffer to allow
+for validation prior to ledger finalization.
+
+         Figure 29 captures the third step of the release stock via collector
+interface. Within this interface, the system integrates native geolocation
+hardware to determine and record the branch manager's current geographic
+position, establishing a verified point of origin for the inventory dispatch.
+Concurrently, the interface renders a dynamic "Deliver to (Destination)" map
+utility, which enables the administrative user to pinpoint and establish the
+                                                                                                               82
+
+target terminal location for the stock transfer. To supplement the geographic
+audit trail, a localized camera workflow is embedded to allow the manager to
+capture and attach real-time photographic evidence of the package or transit
+invoice, ensuring that both environmental coordinates and visual
+confirmation are logged before advancing to final verification.
+                                                                                                               83
+
+               Figure 30. Manager Remote Stock Release Confirmation
+         Figure 30 captures the summary and confirmation interface for the
+release stock via collector. This interface aggregates the analytical data
+compiled from the preceding configuration phases, presenting the
+                                                                                                               84
+administrative user with an itemized breakdown of the scanned product
+arrays destined for the target sales representative. Crucially, the interface
+exposes the explicit spatial telemetry of the transaction, rendering the
+dual-point geographic coordinates that map the verified point of origin
+alongside the target terminal destination. Furthermore, it surfaces the
+unalterable metadata bound to the primary photographic proof container,
+specifically detailing the hardware-derived GPS coordinates, device
+specification, and localized timestamp attributes, thereby consolidating all
+evidentiary indicators into a single auditable record prior to executing the
+backend storage synchronization.
+
+                               Figure 31. Manager Alerts Page
+         Figure 31 captures the manager's Alerts and Discrepancies Interface.
+This interface aggregates data compiled by the automated reconciliation
+                                                                                                               85
+engine, dynamically rendering an itemized overview of sales representatives
+currently exhibiting stock discrepancies relative to their records in the
+SR_inventory_table. For each flagged irregularity, the view exposes
+transaction details, providing the manager with complete operational
+visibility into the specific product code, full product name, and the amount of
+discrepancy detected. Crucially, the interface presents a comparative
+breakdown of key metrics, including the total quantity released, the total
+accounted stock units distributed between verified sales and returns, and the
+resulting calculation of missing inventory. This enables immediate root-cause
+investigation within the branch audit trail before discrepancies accumulate.
+
+                 Figure 32. Manager Agent Requests Confirmation Interface
+         Figure 32 captures the request confirmation interface configured for the
+manager user tier, establishing an administrative fulfillment and gatekeeping
+                                                                                                               86
+
+layer for field-level inventory tracking. Within this interface, managers can
+evaluate incoming stock requests submitted by the sales representatives. Each
+request entry details critical tracking parameters, including the requester's
+identity, the submission timestamp, the target product line, and the requested
+distribution volume. Upon evaluating these metrics, the manager can execute
+two primary actions: "Prepare" to confirm and initiate the physical picking
+process, or "Decline" to reject the allocation request. Furthermore, a historical
+ledger is positioned below the active workspace, displaying resolved requests
+alongside their final administrative outcomes and providing a "Log" action
+node to review granular, deep-dive historical records.
+                                                                                                               87
+
+                    Figure 33
+
+                                                                        Figure 34
+             Figure 33 - 34. Manager Manage Return and Approval of Returns
+
+                                              Interface
+         Figure 33 captures the return management interface configured for the
+manager user tier, establishing an administrative control layer for verification
+and inventory reconciliation. Within this workspace, managers are presented
+with a centralized queue of return requests submitted by decentralized sales
+                                                                                                               88
+
+representatives. The presentation layer features a dual-tabbed navigation
+architecture to segment workflows efficiently: the "Pending Approval" tab
+isolates active, unverified return payloads awaiting physical audit and ledger
+confirmation, while the "Confirmed Returns" tab surfaces a historical,
+read-only ledger of successfully reconciled and restocked inventory batches.
+
+         Figure 34 captures the itemized return verification interface configured
+for the manager user tier, serving as the final audit layer for field-level
+inventory reconciliation. Within this control view, managers are presented
+with a granular tracking ledger detailing the specific stock payload designated
+for return by an individual sales representative. The data matrix exposes
+critical parameters for each line item, including the exact quantity earmarked
+for return, the initial distribution timestamp, total units remaining in active
+field custody, and the physical condition classification. Additionally, for items
+marked as non-salable, the interface surfaces an embedded photographic
+evidence component containing verified device and environmental metadata,
+ensuring absolute accountability and a secure, immutable chain of custody
+before inventory restocking occurs.
+                                                                                         89
+
+Figure 35
+                                                    Figure 36
+
+  Figure 35 - 36. Manager Delivery Tracking Interface
+                                                                                                               90
+
+         Figure 35 captures the manager delivery tracking interface. This
+interface acts as a centralized monitoring hub, parsing active transit logs to
+render an overview of all collection agents currently deployed in the field for
+inventory delivery. By displaying the current operational distribution of the
+courier workforce, this interface serves as the primary administrative entry
+point for tracking remote logistics pipelines and reviewing ongoing transit
+events prior to field handover confirmation.
+
+         Figure 36 captures the delivery detail of the specific collector within the
+delivery tracking interface. This interface provides complete operational
+visibility regarding a specific collector delivery, aggregating the verified
+identity profiles of both the transporting collector and target sales
+representative recipients. Crucially, the dashboard renders a dynamic spatial
+overview tracking the collector's real-time geographic progression across
+designated transit checkpoints, alongside an itemized manifest of all product
+batches currently in transit. To preserve full evidentiary accountability, the
+screen surfaces the timestamped photographic proof captured at the point of
+origin, ensuring that the manager can systematically verify package condition,
+workforce telemetry, and stock allocation parameters from a single centralized
+interface.
+                                                                                                               91
+
+                        Figure 37. Manager Transaction Ledger Interface
+         Figure 37 captures the transaction ledger interface configured for the
+manager user tier, establishing a historical audit trail for end-to-end inventory
+tracking. Within this analytical workspace, the presentation layer surfaces an
+itemized record of all past logistical transactions, seamlessly indexing both
+stock receptions and distribution releases. Each historical log entry exposes
+critical data points, including automated transfer timestamps, unique batch
+identification numbers, precise transaction quantities, and designated
+recipient personnel profiles. Furthermore, the control layout embeds a
+dedicated "View Photo Proof" action node for each entry, allowing managers
+to immediately verify the physical condition manifest and maintain a secure,
+immutable chain of custody.
+                                                                                              92
+Figure 38. Manager Monthly Stock Report Summary Interface
+                                                                                                               93
+
+         Figure 38 captures the monthly stock report summary interface
+configured for the manager user tier, establishing a centralized
+data-aggregation layer for end-of-cycle inventory valuation. Within this
+analytical dashboard, managers are presented with an up-to-date monthly
+ledger detailing comprehensive inventory tracking parameters. The
+presentation matrix exposes key metrics for each stock line, including actual
+inventory volume received within the monthly cycle, consolidated sales
+figures reported by the sales representatives, returned unsold stock volumes,
+and quantified unresolved stock losses. Furthermore, the control layer
+provides three distinct utility nodes to streamline reporting distribution:
+"Share to Printer" for direct local hardware spooling, "Download Clean PDF"
+to generate and export static digital documents, and "Share to Chat" to
+securely transmit the reporting payload via integrated third-party messaging
+protocols.
+                                                                                                               94
+         3.8.2 Sales Representative POV System Prototype
+
+                        Figure 39. Sales Representative Dashboard
+         Figure 39 captures the primary application dashboard configured for
+the sales representative user tier, establishing the mobile frontend framework
+for decentralized field operations. Operating as an intuitive, role-specific
+gateway, this interface surfaces a centralized suite of transactional and
+reporting utilities designed to streamline field-level inventory workflows. The
+presentation layer displays high-level metric summaries, including current
+stock levels and pending stock requests, alongside rapid operational
+shortcuts. Through these dedicated navigation nodes, sales representatives
+can seamlessly initiate key tracking tasks, including receiving stocks in person
+via the "Receive Stock" button, request specific stock via the "Request Stock"
+button, daily reports via "Submit Report" button, discrepancy alert
+                                                                                                               95
+monitoring via "Alerts and Discrepancies" button, tracking stock deliveries
+via "Track Deliveries" button, and returning of stocks via "Return Stock"
+button.
+
+                                                 
+                    Figure 40
+
+                                                                                                                 
+                                                                        Figure 41
+                 Figure 40 - 41. Sales Representative Receive Stocks Interface
+                                                                                                               96
+
+         Figure 40 captures the Sales Representative's receive stock interface for
+the stock release sequence. Through this interface, the sales representative can
+utilize the integrated mobile scanning hardware to decode pre-existing QR
+codes. Once code verification is successfully executed, the system updates the
+session state, rendering the itemized product arrays within the "Current
+Scanned Items" buffer to allow for validation prior to ledger finalization.
+
+         Figure 41 captures the in-person stock receiving interface for the sales
+representative. Within this workflow, the user is required to scan the allocated
+product batch using the mobile device's QR code scanner. Once the scan is
+successfully executed, the system decodes the data and automatically displays
+the complete itemized list of products transferred by the branch manager. To
+prevent accountability disputes, the interface also enforces a mandatory photo
+confirmation step. This feature connects directly to the phone's native camera,
+blocking access to the photo gallery to ensure that only real-time pictures are
+accepted. Upon capturing the image, the system automatically saves the
+corresponding transaction metadata, including the precise GPS coordinates of
+the transfer location, the device model used, and the exact date and time.
+                                                                                               97
+
+    Figure 42
+                                                         Figure 43
+
+Figure 42 - 43. Sales Representative Delivery Tracking Interface
+                                                                                                               98
+
+         Figure 42 captures the active delivery monitoring interface configured
+for the sales representative user tier. This screen parses the active transit
+ledger to render a list of all incoming shipments currently assigned to the
+logged-in agent account
+
+         Figure 43 captures the incoming shipment verification interface for the
+sales representative, which displays all parameters regarding an active courier
+delivery. This tracking screen consolidates the necessary transit data,
+identifying the designated delivery courier alongside the target representative
+account currently authorized to receive the shipment. Furthermore, the
+interface displays a tracking map showing the collector's current geographic
+location, an itemized list of all incoming product units, and the visual photo
+proof captured by the manager at the point of origin. Once the collector
+arrives at the field territory, the sales representative can click the "Scan and
+Receive Item" option to redirect them to figure 40, allowing them to scan the
+QR code and verify the batch items and log them directly into the
+SR_inventory_table.
+                                                   99
+
+Figure 44  Figure 45
+
+Figure 44 - 45. Sales Rep Stock Request Interface
+
+         Figure 44 captures the request stock interface configured for the sales
+representative user tier. Within this interface, sales representatives can browse
+through categorized product lines, such as beauty or liniment products, and
+select desired quantities of any inventory items they need to fulfill customer
+demand in their territory. Once a product count is adjusted and added, the
+application updates the session queue to track the selections. These queued
+items are then dynamically reflected within the "Request List" overview screen
+shown in Figure 45 for final validation.
+
+         Figure 45 captures the request list overview, which serves as the final
+step of the stock request workflow. Within this confirmation screen, the sales
+representative is presented with a complete summary of all their selected
+                                                                                                             100
+
+products prior to submission. To ensure a smooth user experience and
+eliminate unnecessary navigation back and forth between screens, interactive
+counter buttons are built directly into each item row. This design allows
+representatives to easily adjust item quantities up or down right from the
+summary list before tapping the confirmation button to send the finalized
+request to the branch manager.
+                                                                                         101
+
+ Figure 46
+
+                                                     Figure 47
+Figure 46 - 47. SR Stock Alert Detail and Discrepancy Resolution
+
+                                Interface
+                                                                                                             102
+
+         Figure 46 captures the alerts and discrepancies interface configured for
+the sales representative user tier. Within this interface, sales representatives
+are automatically notified following the submission of their daily reports if the
+automated reconciliation engine detects any variances in their stock levels. For
+any flagged mismatch, the interface displays granular transaction data,
+including the product code name, full product nomenclature, and the precise
+date of the alert. It also provides a clear comparative breakdown showing the
+total number of units initially released to the agent alongside the combined
+totals of what was reported as sold and returned. The system uses this
+comparison to calculate and explicitly display the exact number of missing
+units.
+
+         Figure 47 captures the discrepancy detail interface configured for the
+sales representative user tier, providing granular tracking visibility to resolve
+inventory discrepancies. Within this interface, sales representatives are
+presented with comprehensive ledger metrics surrounding the flagged
+discrepancy, including original inventory release volumes, precise distribution
+timestamps, and consolidated summaries of completed sales transactions and
+customer returns. The interface explicitly contrasts the system's expected
+inventory count against actual field data to isolate the variance. Furthermore,
+this control layer facilitates end-to-end discrepancy resolution by enabling
+agents to attach photographic evidence of the missing stock directly within
+the workflow before executing the reconciliation process via the dedicated
+"Request Return Stock" action node.
+                                                                        103
+
+  Figure 48. Sales Representative Submit Report Interface
+
+  Figure 48 captures the report submission interface configured for the
+
+sales representative user tier, establishing a structured reconciliation layer for
+
+daily field operations. Within this interface, sales representatives can compile
+
+and transmit a comprehensive daily inventory report based on the specific
+
+stock allocations received for that operational cycle. The interface dynamically
+
+displays items currently held in the agent's custody, providing interactive
+
+input fields to record precise units sold and items earmarked for return as
+
+unsold inventory. Based on these inputs, the system executes real-time
+
+balancing logic to detect and isolate quantity discrepancies before final
+
+submission. Upon engaging the "Finalize and Submit Daily Report" action
+
+node, the validated ledger payload is automatically routed to the branch
+
+manager's administrative interface for review and formal verification.
+                                         104
+
+  Figure 49. SR Return Stocks Interface
+
+  Figure 49 captures the return stocks interface configured for the sales
+
+representative user tier, providing a decentralized mechanism for reverse
+
+logistics and chain-of-custody tracking. Within this interface, sales
+
+representatives are presented with an itemized ledger of inventory currently
+
+in their possession. Each line item features interactive increment and
+
+decrement controls to specify the precise quantities slated for return. To
+                                                                                                             105
+ensure proper routing and financial accounting, the interface enables agents to
+categorize inventory by physical condition, explicitly separating pristine,
+"salable" units from "damaged/defective" stock. For items designated as
+damaged, the system enforces a mandatory photographic validation
+workflow that cryptographically embeds localized metadata, including
+precise GPS coordinates, device identifiers, and tamper-resistant timestamps,
+directly into the payload. Upon initiating the "Generate Return Manifest & QR
+Code" action node, a localized delivery manifest is rendered as a scannable
+QR code on the device while simultaneously transmitting a verification
+request to the branch manager's dashboard.
+
+         3.8.3 Collector POV System Prototype
+
+                               Figure 50. Collector Dashboard
+                                                                          106
+
+  Figure 50 captures the primary application dashboard configured for
+
+the collector user tier, establishing the operational frontend for logistical
+
+fulfillment and localized distribution tracking. Within this interface, users are
+
+presented with aggregate metrics summarizing active and pending delivery
+
+workloads alongside rapid operational shortcuts. The interface surfaces a
+
+targeted suite of execution nodes designed to manage the distribution
+
+lifecycle: the "Accept Deliveries" node facilitates the formal review and
+
+custody transfer of incoming warehouse dispatches; the "Delivered Stocks"
+
+utility provides a historical ledger of completed transmittals; and the
+
+prominent, centrally positioned action node enables agents to instantly initiate
+
+active routing and transit tracking workflows in the field.
+
+  Figure 51  Figure 52                                       Figure 53
+
+  Figure 51 - 53. Collector Accept Deliveries and View Details Interface
+                                                           107
+
+  Figure 51 captures the delivery confirmation interface configured for
+
+the collector user tier, establishing the operational checkpoint for localized
+
+logistics and fulfillment tracking. Within this interface, collectors are
+
+presented with pending distribution assignments dispatched from the
+
+manager's administrative console. Individual ledger cells expose critical
+
+handover parameters, explicitly displaying the target sales representative's
+
+identity alongside the designated custody transfer modality, which, within
+
+this workflow, is standardized as "Delivery via Collector." The interactive
+
+presentation layer permits users to tap any specific record cell to expand its
+
+transactional details. A comprehensive structural breakdown of this sequence
+
+is illustrated sequentially in Figure 52.
+
+  Figure 52 captures the expanded delivery detail interface activated
+
+upon selecting a specific queue item. The interface presents a multifaceted
+
+logistical dataset to guide the user, exposing precise routing coordinates
+
+(differentiating the source pickup location from the target field delivery
+
+destination), an itemized manifest of the assigned stock batch payload, and
+
+the manager's verified photoproof complete with embedded security
+
+metadata. Once the collector confirms delivery and assumes physical custody
+
+of the stocks, they execute the "Accept Stock" action node to officially log the
+
+chain-of-custody transfer within the system architecture.
+
+  Figure 53 captures the identical detailed delivery view structure as
+
+Figure 52, adapted exclusively for items categorized within the "Ready to
+
+Deliver" operational queue. This interface state represents a validated tracking
+
+phase where the logistics agent has already assumed physical custody of the
+
+stocks. Once the collector initiates the physical transport phase to the field
+
+destination, engaging the "Deliver Stock" action node dynamically activates
+
+the live transit and routing interface layer.
+                                                             108
+
+  Figure 54  Figure 55
+
+  Figure 54 - 55. Collector Deliver Stock Process Interface
+
+  Figure 54 captures the live transit and routing interface configured for
+
+the collector user tier, serving as the active telemetry and geospatial tracking
+
+layer during transport operations. Within this interface, the application
+
+renders a dynamic map layer mapping real-time navigation paths from the
+
+collector's current coordinates to the target distribution destination. The core
+
+functional element is the "Add Checkpoint" action node; triggering this action
+
+executes an automated write operation that commits the collector's exact
+
+latitude and longitude coordinates directly to the gps_coord_table. This
+
+centralized data stream provides both branch managers and receiving sales
+                                                                                                             109
+
+representatives with transactional visibility to track transit intervals via
+sequential checkpoint logs.
+
+  Figure 55 captures the detailed delivery information interface
+
+structured for the active transport phase. While utilizing the same
+
+foundational layout architecture as Figure 52, this interface state exposes
+
+context-specific operational exceptions and resolution nodes tailored for
+
+in-transit tracking. Within this workspace, the collector is equipped with two
+
+primary state-resolution actions: "Cancel Delivery" to abort the transit
+
+assignment, or "Confirm Delivery" to formally close the workflow upon a
+
+successful handover and verify that the stock payload has arrived intact at its
+
+destination.
+                                                               110
+
+                               REFERENCES
+
+Azmi, A. S., Nufael, A. W., Norfiza, I., & Nadia, A. W. (2024). nStock: notified
+
+stocks management system for food and beverages industry. Jurnal Intelek (pp.
+
+249­260).    UiTM    Press,          Universiti     Teknologi  MARA.
+
+https://doi.org/10.24191/ji.v19i1.24826
+
+Safira, P. A. (2023). Leveraging Financial Statement Audits for Strategic
+Business Insights. Advances: Jurnal Ekonomi & Bisnis. Yayasan Pendidikan
+Bukhari Dwi Muslim. https://doi.org/10.60079/ajeb.v1i5.242
+
+Sukron, M., Ramadhan, M. R., & Sihabillah, A. (2024). Design of a Quick
+Response Code-Based Infrastructure Management Information System.
+International Journal of Engineering and Computer Science Applications (IJECSA)
+(pp. 89­96). Universitas Bumigora. https://doi.org/10.30812/ijecsa.v3i2.4653
+
+Kaleel, S. B., & Harishankar, S. (2013). Applying Agile Methodology in Mobile
+
+Software Engineering: Android Application Development and its Challenges.
+
+Semantic                                                       Scholar.
+
+https://pdfs.semanticscholar.org/2a85/511c4dc37660d2f68bb04ba6aeb438b55
+
+33b.pdf
+
+Venkateswaran, M., et al. (2022). eRegTime--Time Spent on Health
+
+Information Management in Clinics Using Digital vs Paper Documentation:
+
+Time-Motion  Study.            JMIR      Formative  Research,  6(5).
+
+https://doi.org/10.2196/34021
+
+Aziz, N. A., Othman, J., Razak, N. A., & Harun, N. A. (2019). Quick response
+(QR) code-based inventory management system for small and medium
+enterprises. International Journal of Engineering and Advanced Technology,
+8(6), 3612­3617. https://doi.org/10.35940/ijeat.F9110.088619
+
+Brela, M. G. K., Ochua, A. C., Gabriel, A., & Resuello, G. (2024). Determining
+user requirements for a tailored web-based inventory and sales management
+                                                                                                              111
+
+system in micro-small construction supply stores using design thinking. In
+Proceedings of the 2024 The 6th World Symposium on Software Engineering
+(pp. 144­153). Association for Computing Machinery.
+https://doi.org/10.1145/3698062.3698082
+
+Bumblauskas, D., Nair, A., Bumblauskas, P., & Anzengruber, J. (2020). A
+blockchain use case in food distribution: Do you know where your food has
+been? International Journal of Information Management, 52, Article 102008.
+https://doi.org/10.1016/j.ijinfomgt.2019.09.004
+
+Carrier, T., Hasan, M. M., & Youn, S. (2022). Digital chain of custody
+documentation in supply chain management: A systematic review.
+International Journal of Logistics Research and Applications, 25(4­5), 489­508.
+https://doi.org/10.1080/13675567.2020.1837982
+
+Cruz, J. M., & Villanueva, R. T. (2023). Design and implementation of an
+inventory monitoring system with qr technology for micro enterprises in the
+Philippines. International Journal of Computing and Digital Systems, 14(1),
+89­98. https://doi.org/10.12785/ijcds/140108
+
+Goodhue, D. L., & Thompson, R. L. (1995). Task-technology fit and individual
+
+performance. MIS Quarterly, 19(2), 213­236. https://doi.org/10.2307/249689
+
+Hines, H. (2020). Exploring the utilization of technology: A case study of retail
+
+pharmacies in rural Jamaica [Doctoral dissertation, University of Phoenix].
+
+ProQuest          Dissertations  &     Theses                  Global.
+
+https://ejournal.ppb.ac.id/index.php/ijarthy/article/view/808
+
+Ines, M. M. (2022). Exploring financial management and performance of small
+
+and       medium  enterprises.   SSRN  Electronic              Journal.
+
+https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4123101
+                                                                                                             112
+
+Intal, G. L., Miranda, J. P., Sitoy, R. D., & Matoza, R. R. (2022). iBiz: An
+Android mobile application with business intelligence for retail micro and
+small enterprises. In Proceedings of the 2022 International Conference on
+Information Technology and Digital Applications (pp. 45­53). Association for
+Computing Machinery. https://doi.org/10.1145/3523286.3523312
+
+Macatumbas-Corpuz, B. L., & Bool, N. C. (2021). Working capital management
+practices and sustainability of Barangay Micro Business Enterprises (BMBEs)
+in Ilocos Norte, Philippines. International Journal of Research in Business and
+Social Science, 10(2), 21­32. https://doi.org/10.20525/ijrbs.v10i2.1033
+
+Medina-Tapara, F., Orihuela-Vera, D., & Cabanillas-Carbonell, M. (2024).
+Development and evaluation of a mobile system with usage pattern analysis
+to optimize storage management. International Journal on Advanced Science,
+Engineering and Information Technology, 14(2), 412­419.
+https://doi.org/10.18517/ijaseit.14.2.18945
+
+Mendoza, R. L., & Fernandez, A. C. (2023). Development and evaluation of a
+web-based logistics and inventory management system for small and medium
+enterprises. Philippine Information Technology Journal, 12(1), 67­79.
+https://pitj.org/vol12/no1/mendoza-fernandez-2023
+
+Moreno, D. E., Javier, M. C., Francia, M. C., & Harina, E. A. (2023). The
+mediating effect of replenishment decisions on cloud-based inventory
+management and record keeping performance: Evidence from micro
+businesses in Laguna, Philippines. In Proceedings of the 2023 7th International
+Conference on E-Business and Internet (pp. 59­65). Association for
+Computing Machinery. https://doi.org/10.1145/3633586.3633590
+
+Mostiero, J. T. (2022). Working capital management practices of
+microenterprises in Lipa City as predictors of business sustainability.
+International Journal of Research Publications, 100(1), 1­12.
+                                                                                                             113
+
+https://ijrp.sfo3.cdn.digitaloceanspaces.com/pubjournal/3569/100104172022
+3596.pdf
+
+Nachiappan, S., Jawahar, N., & Prasanna, N. (2021). QR code-based tracking in
+last-mile distribution: Accountability and dispute reduction in field logistics.
+International Journal of Logistics Management, 32(2), 701­724.
+https://doi.org/10.1108/IJLM-04-2020-0148
+
+Odoo S.A. (2024). Odoo inventory: Maximize your warehouse efficiency.
+
+https://www.odoo.com/app/inventory
+
+Panigrahi, R. R., Shrivastava, A. K., & Kapur, P. K. (2024). Impact of inventory
+
+management practices on the operational performances of SMEs: Review and
+
+future research directions. International Journal of System Assurance
+
+Engineering  and  Management,               15(5),  1934­1955.
+
+https://doi.org/10.1007/s13198-023-02216-4
+
+Philippine Statistics Authority. (2023). 2023 list of establishments: MSME
+statistics. https://psa.gov.ph/msme-statistics
+
+Santos, M. L., & Reyes, J. P. (2023). Production monitoring and inventory
+control systems for small-scale manufacturing: A case study in the
+Philippines. Asia Pacific Journal of Innovation and Entrepreneurship, 17(2),
+145­161. https://doi.org/10.1108/APJIE-12-2022-0123
+
+SkuNexus. (2024). Best all-in-one cloud-based inventory management
+
+software                                            2024.
+
+https://www.skunexus.com/c/best-cloud-based-inventory-management-soft
+
+ware
+
+Sortly. (2024). Sortly: Visual inventory management software for business.
+https://www.sortly.com/
+                                                                                                             114
+
+Zoho Corporation. (2024). Zoho inventory: Online inventory management
+software. https://www.zoho.com/inventory/
+

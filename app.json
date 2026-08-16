@@ -24,7 +24,27 @@
     "plugins": [
       "expo-asset",
       "expo-status-bar",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ChemStock needs camera access to capture shipment proof photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ChemStock needs your location to record where stock was received."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "ChemStock needs access to your photos to save generated QR codes.",
+          "savePhotosPermission": "ChemStock needs permission to save generated QR codes to your photos.",
+          "granularPermissions": ["photo"]
+        }
+      ]
     ]
   }
 }

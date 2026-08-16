@@ -2,23 +2,23 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: August 14, 2026 (end of agent-account-creation session)
+Last updated: August 16, 2026 (end of Receive Stock backend + admin-cli branch fix session)
 
 ---
 
 ## 1. Who's on this project
 
-**Alther Adrian Liga, Maria Angela U. Mantiza, Clint John Mila, Jay Fahad P. Sultan, Gio Niel P. Yecyec.** Only Jay was present for both the Aug 13 and Aug 14 sessions covered below. Alther built the Manager Dashboard UI independently (see §3) and left his own notes in `alther_development.md`.
+**Alther Adrian Liga, Maria Angela U. Mantiza, Clint John Mila, Jay Fahad P. Sultan, Gio Niel P. Yecyec.** Only Jay was present for the Aug 13, Aug 14, and this Aug 16 session (run across two different devices — the branch/schema-decisions half happened on one device, the actual build happened on another; both are captured together below since it was one continuous line of work). Alther built the Manager Dashboard UI and the initial Receive Stock screen scaffolding independently — see his own notes in `alther_development.md` for that work in full detail; §6 below picks up exactly where his Aug 16 entry leaves off.
 
 ## 2. What this project is
 
-**ChemStock** — a QR-enabled mobile inventory management system (capstone project) for **A and Aimee Laboratories / Cospachem Products**, a Philippine MSME distributing beauty/liniment products through a distributed sales force across the Cagayan de Oro and Butuan branches. Full requirements, literature review, and system design live in `capstone_docs/[PROPOSAL] ChemStock.pdf`. The proposal's ERD image (shown to Claude directly in the Aug 14 session, not re-extracted from the PDF) is the source of truth for planned tables — see §4 for how the live schema currently compares to it.
+**ChemStock** — a QR-enabled mobile inventory management system (capstone project) for **A and Aimee Laboratories / Cospachem Products**, a Philippine MSME distributing beauty/liniment products through a distributed sales force across the Cagayan de Oro and Butuan branches. Full requirements, literature review, and system design live in `capstone_docs/[PROPOSAL] ChemStock.pdf`. A plain-text extraction of it (`capstone_docs/proposal.txt`, via `pdftotext -layout`) now also sits in the repo, untracked — useful for fast full-text search of the ERD/DFD narrative in future sessions since the diagrams themselves are images `Read` can't parse directly; worth deciding whether to commit it or gitignore it.
 
 Core idea: replace paper-based stock receiving/releasing/returns with QR scanning, mandatory photo handover proof, GPS geotagging, agent-level loss tracking, and automated weekly reconciliation.
 
-**Stack:** React Native (Expo ~57, RN 0.86), Android-only, Supabase (Postgres + Auth + Bucket storage), local SQLite for offline sync (not yet implemented). A separate `admin-cli/` (Express + web UI) exists for Super Admin activation-key management.
+**Stack:** React Native (Expo ~57.0.12, RN 0.86.2), Android-only, Supabase (Postgres + Auth + Bucket storage), local SQLite for offline sync (not yet implemented). A separate `admin-cli/` (Express + web UI) exists for Super Admin activation-key management. **Testing is via plain Expo Go, not a custom dev client** (confirmed: no `android/`/`ios/` folder, no `eas.json` in the repo) — this matters a lot, see §7.
 
-**Roles:** Super Admin (governance only, generates manager activation keys via `admin-cli`) → Branch Manager (Supabase-Auth-backed, creates Sales Rep/Collector accounts, receives/releases stock) → Sales Rep / Collector (field roles, **not** Supabase-Auth-backed as of Aug 14 — see §4). Role string values live in `src/constants/roles.js`: `manager`, `sales_rep`, `collector`.
+**Roles:** Super Admin (governance only, generates manager activation keys via `admin-cli`) → Branch Manager (Supabase-Auth-backed, creates Sales Rep/Collector accounts, receives/releases stock) → Sales Rep / Collector (field roles, **not** Supabase-Auth-backed — plain `user_profiles` rows with `password_hash`, verified via RPC, no `auth.users` row at all). Role string values live in `src/constants/roles.js`: `manager`, `sales_rep`, `collector`.
 
 ## 3. Actual current implementation status
 
@@ -26,24 +26,24 @@ Core idea: replace paper-based stock receiving/releasing/returns with QR scannin
 |---|---|---|
 | Requirements, TAM study, proposal, Figma prototype | ✅ Done | |
 | Expo/RN scaffold, navigation, base components | ✅ Done | |
-| Login screen (UI + wired, all 3 roles) | ✅ Done | `src/screens/auth/LoginScreen.js` |
+| Login screen (all 3 roles, wired) | ✅ Done | `src/screens/auth/LoginScreen.js` |
 | Manager Activation screen (both steps, wired) | ✅ Done | `src/screens/auth/ManagerActivationScreen.js` |
-| Manager Dashboard (real UI) | ✅ Done | Built by Alther Aug 14 — see below, not a placeholder anymore |
-| Sales Rep / Collector dashboards (placeholder) | ✅ Done (Aug 14) | Just "Welcome `<name>`" — same bare-shell stage the Manager dashboard was at after Aug 13, deliberately not built out further today |
-| Agent account creation (Manager → Sales Rep/Collector) | 🟨 Built, **last test not confirmed working** | See §4/§5 — the very last fix of the session (a case-only file rename not being picked up by Metro) was applied but never confirmed by an actual successful login before the session ended |
+| Manager Dashboard | ✅ Done | Built by Alther |
+| Sales Rep / Collector dashboards | 🟨 Placeholder only | Just "Welcome `<name>`" — unchanged since Aug 14 |
 | Supabase: `activation_keys`, `activation_audit_log`, `branches`, `user_profiles` | ✅ Done | |
-| Supabase: `activate_manager()` RPC | ✅ Done, confirmed working | |
-| Supabase: `get_email_by_username()` RPC | 🟨 Exists, **still not confirmed working** | Carried over from Aug 13 — no bare-username manager login was tested Aug 14 either, only agent (Sales Rep/Collector) logins, which don't use this path at all |
-| Supabase: `create_agent_account()` / `verify_agent_login()` RPCs | ✅ Done (Aug 14) | See §4 |
-| Manager → create Sales Rep/Collector account UI | ✅ Done (Aug 14) | `src/screens/manager/AgentAccountsScreen.js` |
-| Architecture: direct Supabase calls vs. Express API layer | 🟨 Recommended, still not formally recorded in `AGENTS.md` | Unchanged from Aug 13 |
-| Everything else (inventory, transactions, QR, geotagging, photo proof, reconciliation, alerts, reports, offline sync) | ⬜ Not started | Scoped for Sprints 2–5 |
+| Supabase: `activate_manager()`, `create_agent_account()`, `verify_agent_login()`, `get_email_by_username()`, `get_my_agent_accounts()` RPCs | ✅ Done, confirmed working | Agent login/creation confirmed working this session (was unconfirmed at end of Aug 14) |
+| Manager → create Sales Rep/Collector account (form) | ✅ Done, confirmed working | `src/screens/manager/AgentAccountsScreen.js` |
+| Manager → **list** Sales Rep/Collector accounts | ✅ Done, confirmed working (this session) | New `src/screens/manager/ManageAccountsScreen.js` — Dashboard's tile now opens this list first; "Add Account" from here opens the (unchanged) create form. Confirmed RLS-isolated per manager via two-manager test. |
+| `admin-cli` populates `activation_keys.branch_ids` at key generation | ✅ Done (this session), **implementation not yet verified by an actual test key generation** | See §6 — resolves branch names against `branches` table, creates missing ones. Restart the admin-cli server to pick this up if it hasn't been yet. |
+| Receiving stock: product catalog, camera proof, GPS/device metadata, preview, QR generation, Supabase persistence | ✅ Done, confirmed working end-to-end (this session) | See §6. Confirmed: DB write succeeds, QR renders. Save-to-Gallery specifically does **not** work in Expo Go (platform limitation, not a bug — see §7) and is deferred, not fixed. |
+| Architecture: direct Supabase calls vs. Express API layer | 🟨 Recommended (direct Supabase + RLS), still not formally recorded in `AGENTS.md` | Unchanged — still a to-do |
+| Everything else (transactions/release, geotagging beyond receiving, reconciliation, alerts, reports, offline sync) | ⬜ Not started | Scoped for Sprints 3–5 |
 
-**Manager Dashboard UI (built by Alther, Aug 14, independent of the Claude session):** real navy header (profile/document/notification icons), collapsing `SecondaryHeader` (welcome text + branch/online status), Quick Stats row, 6-tile Main Operation grid (only "Agent Accounts" navigates anywhere), Recent Logs list, `BottomNavBar` with floating FAB. Built from a screenshot description, not the actual Figma/PDF — icons, colors, and stat data are approximations per his own notes in `alther_development.md`.
+**Known repo hygiene item — still unresolved across 4 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
 
-**Known repo hygiene item — still unresolved across 3 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
+**Data hygiene note:** any Sales Rep/Collector account created *before* this session's admin-cli fix likely has an empty `branch_ids` array (inherited from a manager whose own `branch_ids` was empty at activation time, because `admin-cli` never populated it). A one-time backfill SQL was given to Jay this session (copies `branch_ids` from `created_by` → manager onto any agent row where it's still `{}`) — confirm whether it was actually run before assuming existing agent accounts have correct branch scoping.
 
-**Supabase Auth settings:** "Confirm email" is off (intentional, needed for manager activation's session flow). At one point during the Aug 13 session the whole Email provider got toggled off by mistake and was fixed — worth a occasional sanity check that it's still: provider ON, confirm-email OFF.
+---
 
 ## 4. What got built Aug 14 — Sales Rep / Collector account creation
 
@@ -54,12 +54,12 @@ Jay wanted a simple way for a Branch Manager to create Sales Rep/Collector accou
 Jay shared the proposal's ERD image. Compared to what's actually live:
 - Proposed `user_profiles_table`: `user_id`, `username`, `role` (ENUM), singular `branch_id`, `password_hash`. Live `user_profiles`: `id`, `username`, `full_name`, `email`, `role` (text+check), **array** `branch_ids`, `created_by` — the array exists because one activation key already supports multiple branches per manager; `password_hash` didn't exist until today (managers use Supabase Auth instead); `full_name`/`email`/`created_by` aren't in the ERD but are needed for the Supabase-Auth-backed manager flow.
 - Proposed `branches_table.manager_id` (FK): deliberately not implemented — `user_profiles.branch_ids` is the single source of truth for the manager↔branch relationship instead, to avoid two places that could disagree.
-- Everything else in the ERD (`deliv_checkpoints`, `media`, `transaction`, `transaction_details`, `gps_coord`, `branch_inventory`, `alert_log`, `SR_inventory`) — not built yet, expected for Sprints 2+.
+- Everything else in the ERD (`deliv_checkpoints`, `media`, `transaction`, `transaction_details`, `gps_coord`, `branch_inventory`, `alert_log`, `SR_inventory`) — not built yet at the time. **Update from this session (§6): `media`, `gps_coord` (as `gps_coordinates`), and `branch_inventory` now exist, adapted for the receiving flow specifically — see §6 for how they diverge from the proposal's literal per-row design.**
 
 ### The architecture decision made today
 Sales Rep/Collector accounts live **only** in `user_profiles`, with a real `password_hash` — no `auth.users` row, no email, no Supabase Auth involved at all. This actually matches the ERD better than the manager flow does (the ERD never had a separate auth-provider concept). Managers are completely unaffected — still Supabase-Auth-backed exactly as before.
 
-**Known trade-off, explicitly flagged to Jay, not yet a problem but will be:** because agent accounts never get a Supabase Auth session, they have no JWT, so `auth.uid()` is always null for them. Fine for today's goal (log in, land on a placeholder dashboard) but means once Sprint 2+ needs Sales Reps/Collectors to read/write RLS-protected tables (inventory, transactions), this approach won't support that as-is and will need revisiting — likely a custom session/token scheme, or reconsidering whether agents should get real Supabase Auth accounts after all (with the manager-creates-account flow going through a privileged backend call instead of client-side `signUp()`, to avoid hijacking the manager's own session — see the `git log`/prior-session note on why client-side `signUp()` can't be used for this).
+**Known trade-off, explicitly flagged to Jay, not yet a problem but will be:** because agent accounts never get a Supabase Auth session, they have no JWT, so `auth.uid()` is always null for them. Fine for login/placeholder dashboards, but means once Sales Reps/Collectors need to read/write RLS-protected tables (inventory, transactions) themselves, this approach won't support that as-is and will need revisiting — likely a custom session/token scheme, or reconsidering whether agents should get real Supabase Auth accounts after all.
 
 ### Database changes (all run in Supabase SQL editor)
 - `CREATE EXTENSION IF NOT EXISTS pgcrypto;`
@@ -79,7 +79,7 @@ Sales Rep/Collector accounts live **only** in `user_profiles`, with a real `pass
 - `src/screens/auth/LoginScreen.js` — wired the `sales_rep`/`collector` post-login navigation branches (previously `Alert.alert` TODOs).
 
 ### Test account created this session
-`seph@gmail.com` / `seph@2003`, role `sales_rep`, full name "Seph Plongplong" — created successfully via the new form. Login was still being debugged when the session ended (see §5) — **don't assume this account logs in cleanly yet, verify first.**
+`seph@gmail.com` / `seph@2003`, role `sales_rep`, full name "Seph Plongplong" — created successfully via the new form. Login was still being debugged when the Aug 14 session ended. **Resolved this session (§6/§7 of that date): agent account creation and login are now confirmed working** — Jay tested creating a fresh account on a second manager/branch and confirmed the RLS scoping (a manager only ever sees agent accounts they personally created) holds correctly.
 
 ## 5. Debugging log — Aug 14 (a lot happened, worth reading before repeating any of it)
 
@@ -95,27 +95,91 @@ In rough chronological order:
 8. **File casing mismatch**: `CollectorDashboardScreen.js` was imported with a capital C but saved on disk as `collectorDashboardScreen.js` (lowercase). Windows itself doesn't care, but Metro's module resolution does, causing `Element type is invalid: ... got: object`. Jay renamed the file to match — but **case-only renames often don't trigger file-watcher updates at all**, especially on Windows, so Metro kept running against its old module map. Needed a full process stop/restart (not just a reload) to pick it up.
 9. **Recurring theme all session, worth internalizing**: multiple times, a fix that was verifiably correct on disk still produced the *old* error message in the terminal. Every time, it was Metro/Expo Go serving a stale bundle, not a wrong fix. When this happens: fully stop the dev server (not just reload), run `npx expo start -c`, and fully close + rescan Expo Go rather than backgrounding/foregrounding it.
 
-**End-of-session state**: the case-only-rename fix (item 8) was applied and a restart was suggested, but the session ended before Jay confirmed whether login actually succeeded afterward. **First thing to check next session.**
+---
 
-## 6. Git / commit status
+## 6. What got built this session (Aug 16, continued) — Manage Accounts split, Receive Stock backend, admin-cli branch fix
 
-Branch: **`main`** (this session ran directly on `main`, not a feature branch — different from earlier sessions).
+By the start of this session, Alther had already built the Receive Stock scaffolding described at the bottom of `alther_development.md` (UI-only `ReceiveStockScreen`/`AddNewBatchesScreen`, mock 3-product catalog, stubbed photo/QR). This session wired all of it to real data and closed out the remaining Sprint 1 gap in `admin-cli`.
 
-As of session end, uncommitted in the working tree:
-- Modified: `src/hooks/useActivation.js`, `src/navigation/AppNavigator.js`, `src/screens/auth/LoginScreen.js`, `src/screens/manager/AgentAccountsScreen.js`, `src/services/authService.js`
-- Untracked: `src/screens/collector/`, `src/screens/salesrep/`, `src/services/agentService.js`
+### 6a. Manage Accounts screen split
+Jay wanted the Dashboard's "Agent Accounts" tile to open a **list** of the manager's own Sales Rep/Collector accounts first, with an "Add Account" button from there opening the existing create form — rather than the tile jumping straight to the form.
+- **New** `src/screens/manager/ManageAccountsScreen.js` — two sections (Sales Representatives / Collectors), refetches on screen focus (`useFocusEffect`) so a newly-created account shows up immediately on the way back from the create form.
+- **New RPC** `get_my_agent_accounts()` — `SECURITY DEFINER`, scoped to `created_by = auth.uid()`, returns only non-sensitive columns (explicitly not `password_hash`).
+- `agentService.js` gained `getMyAgentAccounts()`. Also fixed **the same two bugs from Aug 14 item 2 above, still present**: `this.logError(...)` (doesn't exist) → `this.log('error', ...)`, and a `{ error: ... }` vs `{ message: ... }` return-shape mismatch that meant the screen's failure `Alert` was always showing "undefined."
+- `ManagerDashboardScreen.js`'s tile repointed from `AgentAccounts` → `ManageAccounts`; `AppNavigator.js` updated.
+- **Confirmed working**: tested with two different manager accounts on two different branches — each only sees accounts they personally created, confirming the RLS scoping is real, not just client-side filtering.
 
-Nothing from today has been committed. Recommend reviewing and committing once the login flow is confirmed working.
+### 6b. Receive Stock: full backend, camera, GPS, device metadata, QR
+The actual feature: manager searches/selects from a real 24-product catalog, captures a mandatory camera-only shipment photo, previews with GPS/branch/device/timestamp metadata, and on confirm the whole batch is written to Supabase and a single QR code is generated for the shipment.
 
-Also still true from Aug 13: `src/hooks/useActivation.js` has a harmless-but-untidy leftover — a second, unreachable `return {...}` statement after the real one in the `useActivation` hook. Never got cleaned up, still there.
+**Schema decision, flagged and confirmed with Jay before building:** the proposal's ERD ties a QR token to each individual `branch_inventory` row (one QR per product batch — matches later Sales Rep scan-to-receive figures). Jay explicitly chose **one shared QR per whole shipment** instead. To support that without duplicating GPS/photo/QR across every line item, added one wrapper table beyond the literal ERD:
 
-## 7. Suggested first steps in a new session
+- `gps_coordinates` — one row per shipment (lat/long/captured_by/captured_at)
+- `media` — one row per shipment photo (storage_path/device_model/device_os/uploaded_by) — deliberately stores a bucket **path**, not a public URL (proposal requires signed URLs, manager-only access)
+- `receiving_batches` (new, not in the literal ERD) — one row per "Add New Batches" submission; holds the single shared `qr_code`, FKs to `gps_coordinates`/`media`/`branches`, `received_by`
+- `branch_inventory` — one row per selected product line, FK to `receiving_batches`, plus `product_code`/`product_name`/`batch_number`/`quantity`/`mfg_date`/`exp_date` (Mfg/Exp intentionally left blank/optional in the UI per Jay — fields exist and are wired, just no date-picker yet)
+- `receive_stock_batch(...)` RPC — `SECURITY DEFINER`, atomic (one GPS row + one media row + one receiving_batches row + N branch_inventory rows in a single transaction), manager-only, returns the generated `qr_code`
+- RLS on all four tables: `SELECT` scoped to `received_by`/`captured_by`/`uploaded_by = auth.uid()` — this is what actually enforces Jay's requirement that a manager's receiving transactions are only ever visible to that manager (relevant for the "Stocks" page he's planning next), not just app-side filtering
+- Supabase Storage bucket `shipment-media` (private) with per-manager-folder upload/read policies
 
-1. Confirm whether the Sales Rep login (`seph@gmail.com` / `seph@2003`) actually works after the case-rename fix + restart from the end of this session. If not, start debugging from there.
-2. Once confirmed, test a bare-username **manager** login (no `@`) to finally verify the `get_email_by_username` path — this has been unverified across two sessions now.
-3. `git status` / `git diff` — review and commit today's agent-account-creation work.
-4. Delete the three stray 0-byte files (still hasn't happened across 3 sessions).
-5. Decide whether the "no real auth session for agents" trade-off (§4) is acceptable long-term, or whether it needs to be revisited before Sprint 2 needs RLS-protected agent data access.
-6. Update `admin-cli`'s key-generation form to populate `activation_keys.branch_ids` — every key generated so far still only writes the old free-text branch fields (carried over from Aug 13, still not done).
-7. Write the direct-Supabase-vs-Express-API architecture decision into `AGENTS.md` (carried over, still not done).
-8. Clean up the dead code in `useActivation.js` (§6).
+**Code:**
+- `src/constants/productCatalog.js` — the 24 product codes (PWBS, FHVCO, WLG, GSSL, PGL, DS, AMB, AOL, 7HWO, TWNC, NC-s, 7HDT, VNCM, 3VNMG, AIR2, BSCS, RSCS, PCB, GSP, TBC, TBC-s, MBG, AMG, HPDL) as `{code, name, image}`. No `products` table exists in the ERD (branch_inventory stores nomenclature directly), so this is intentionally a static app-side list, not DB-backed. `name` defaults to `code` (no full names given yet); `image` is `null` everywhere pending real product photos.
+- `src/components/common/CameraCaptureModal.js` (new, reusable) — full-screen `expo-camera` `CameraView` capture, no gallery entry point anywhere in the UI (matches the proposal's explicit anti-fraud requirement). Built reusable since release/delivery-confirmation photo proof will need the same thing later.
+- `src/services/inventoryService.js` (new) — `uploadShipmentPhoto()`, `receiveStockBatch()`.
+- `src/screens/manager/AddNewBatchesScreen.js` — rewritten to use the real catalog, real photo thumbnails, blank Mfg/Exp `Input` fields, and the real camera modal instead of an `Alert` stub.
+- `src/screens/manager/ReceiveStockPreviewScreen.js` (new) — recap + GPS (`expo-location`)/device (`expo-device`)/branch/timestamp metadata block, "Receive and Generate QR" → renders the QR via `react-native-qrcode-svg`.
+- New dependencies: `expo-camera`, `expo-location`, `expo-device`, `react-native-qrcode-svg`, `expo-media-library`, `expo-file-system` (all via `npx expo install`). **`expo-blob` was installed then deliberately uninstalled again** — see §7.
+- `app.json` — added `expo-camera`/`expo-location`/`expo-media-library` plugin blocks with permission strings (none existed before this session).
+
+**Confirmed working end-to-end**: Jay tested the full flow — product selection, camera capture, GPS/device/branch metadata populating, DB write succeeding, QR rendering. Save-to-Gallery specifically does not work under Expo Go — see §7, this is expected and deferred, not a bug to chase further right now.
+
+### 6c. `admin-cli` branch_ids fix
+Root cause finally fixed: `admin-cli/server.js`'s `/api/keys/generate` never touched the `branches` table, only wrote free-text `branch_names`/`branch_locations`. Every manager activated through a CLI-generated key therefore got an empty `user_profiles.branch_ids` — which then propagated to every agent account that manager went on to create (confirmed: Jay found exactly this on a test Sales Rep account).
+
+- New `resolveBranchIds()` helper in `server.js`: for each typed branch name, looks up a matching `branches` row (case-insensitive) or creates one, returns the ids.
+- `/api/keys/generate` now writes `branch_ids` on the `activation_keys` insert. **The web-ui form itself was not changed** — same free-text name/location fields as before; resolution happens server-side. Trade-off: a typo'd branch name creates a duplicate `branches` row rather than reusing the existing one — acceptable for now given there are only 2 real branches, flagged to Jay as something a proper branch-picker dropdown would fix later if it becomes a real problem.
+- Syntax-checked (`node -c server.js`), **not yet functionally verified** — needs an actual server restart + test key generation to confirm `branch_ids` populates correctly.
+- Backfill SQL given to Jay for the already-broken data (copies `branch_ids` from `created_by` → manager onto any agent account where it's still `{}`) — not yet confirmed run.
+
+---
+
+## 7. Debugging log — this session (Aug 16, continued)
+
+1. **`SafeAreaView` deprecation warning** on `AddNewBatchesScreen` — traced to `CameraCaptureModal.js` importing the deprecated `SafeAreaView` from `react-native` instead of `react-native-safe-area-context` (used correctly everywhere else in the app). One-line import fix.
+2. **"Branch keeps loading" forever on the Receive Stock preview screen** — two layered causes: (a) a real UI bug, `manager?.branchName || 'Loading branch…'` conflated "still fetching" with "fetched but empty" — fixed with an explicit `isLoadingManager` state; (b) the actual root cause underneath, `branches` table was empty / this manager's `branch_ids` was empty — which is the exact same root cause §6c's admin-cli fix addresses systemically. Manually backfilled one branch + one manager's `branch_ids` to unblock testing in the moment.
+3. **`Response.blob()` performance warning** on photo upload (RN's Blob polyfill does a base64 roundtrip) — initially "fixed" by switching to the `expo-blob` package. **This was reverted** once the media-library saga (below) revealed the real pattern: brand-new packages risk not being in Expo Go's bundled native modules at all. Since the original `response.blob()` approach already worked correctly (just with a cosmetic warning), swapping in an unverified new native dependency wasn't worth the risk of turning a working upload into a crash. `expo-blob` was uninstalled again.
+4. **Save-to-Gallery, multi-round saga — ended in a genuine platform limitation, not a code bug:**
+   - First attempt (`expo-media-library`'s new `Asset.create()` API) → `Cannot find native module 'ExpoMediaLibraryNext'`. Root cause: plain Expo Go (confirmed via no `android/`/`ios/`/`eas.json`) only ships native modules Expo pre-baked into it; brand-new "next-gen" rewritten modules aren't in there yet.
+   - Switched to `expo-media-library/legacy` + `expo-file-system/legacy` (older function-based APIs, backed by the modules Expo Go has bundled for years) → got past the missing-module error, but then: `You have requested the AUDIO permission, but it is not declared in AndroidManifest.` The unscoped `requestPermissionsAsync()` call defaults to requesting photo+video+audio; narrowed to `requestPermissionsAsync(true, ['photo'])` (write-only, photos only, matching our actual use case).
+   - Still failed with Expo's own explicit message: *"Due to changes in Android's permission requirements, Expo Go can no longer provide full access to the media library. To test the full functionality of this module, you can create a development build."* This is a hard Expo Go platform restriction, not fixable in app code at all.
+   - **Decision (Jay's call, presented as an explicit choice):** defer testing Save-to-Gallery rather than set up a dev client right now. The code is left in place and is believed correct for whenever a real dev build exists — **confirmed conceptually** (a custom/production build compiles the project's own `AndroidManifest.xml` from `app.json`'s plugin config, which already has the right permission strings), but genuinely untested since Expo Go can't run it.
+5. **General lesson reinforced by items 3–4**: on this project (Expo Go, no dev client), any newly-added native package is a real risk until proven otherwise — check for a `/legacy` import path first if something isn't found, and don't reach for the newest-looking API by default.
+
+---
+
+## 8. Git / commit status
+
+Branch: **`main`**, up to date with `origin/main`.
+
+**Nothing from this session is committed.** As of session end:
+- Modified: `admin-cli/server.js`, `app.json`, `package.json`, `src/navigation/AppNavigator.js`, `src/screens/manager/AddNewBatchesScreen.js`, `src/screens/manager/ManagerDashboardScreen.js`, `src/services/agentService.js`
+- Untracked: `capstone_docs/proposal.txt` (see §2 — decide keep/gitignore), `src/components/common/CameraCaptureModal.js`, `src/constants/productCatalog.js`, `src/screens/manager/ManageAccountsScreen.js`, `src/screens/manager/ReceiveStockPreviewScreen.js`, `src/services/inventoryService.js`
+
+Recommend reviewing and committing once the admin-cli branch fix and the backfill SQL are actually verified (§6c/§9).
+
+Also still true from Aug 14: `src/hooks/useActivation.js` has a harmless-but-untidy leftover — a second, unreachable `return {...}` statement after the real one. Never got cleaned up.
+
+**Full SQL for everything built this session** (the four new tables, RLS policies, storage bucket + policies, and the `receive_stock_batch` RPC) was given to Jay directly in chat and is not yet saved anywhere durable in the repo itself — only in a local Claude Code plan file on one specific device (`~/.claude/plans/sunny-swimming-treehouse.md`), which won't be available from a different device. **Worth doing soon:** save the actual DDL into the repo (e.g. a `supabase/migrations/` folder or a plain `capstone_docs/schema.sql`) so it survives across devices/sessions the way this handoff doc does.
+
+## 9. Suggested first steps in a new session
+
+1. Restart the `admin-cli` server and generate one real test key — confirm `activation_keys.branch_ids` actually populates (§6c, implemented but unverified).
+2. Run the backfill SQL from §6c/§3 if not already done, and re-check that previously-created agent accounts now have correct `branch_ids`.
+3. Save this session's SQL (tables/RLS/RPC/bucket for the receiving flow) into the repo itself, not just chat history — see §8.
+4. `git status` / `git diff` — review and commit this session's work once the above two are verified.
+5. Delete the three stray 0-byte files (still hasn't happened across 4 sessions).
+6. Decide whether to invest in a real development build now (unblocks Save-to-Gallery, and will be needed regardless for QR-scan-to-receive and offline SQLite sync coming up) — deferred this session, still an open decision.
+7. Write the direct-Supabase-vs-Express-API architecture decision into `AGENTS.md` (carried over from Aug 14, still not done).
+8. Decide the fate of `capstone_docs/proposal.txt` (commit as a reference copy, or gitignore it).
+9. Clean up the dead code in `useActivation.js` (§8).
+10. Sprint-2-proper work once the above is settled: wire `ReceiveStockScreen`'s "Scan QR Code" path (receiving via an *existing* QR — separate from this session's "generate a new QR" path, deliberately left untouched), and start the "Stocks" page Jay mentioned (view what's currently on-hand per branch, reading from `branch_inventory` — RLS is already in place to scope it per-manager).

@@ -1,60 +1,66 @@
 // src/screens/manager/AddNewBatchesScreen.js
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-// Placeholder catalog — there's no products table yet, so this stands in
-// for what would eventually be a Supabase-backed product search.
-const MOCK_PRODUCTS = [
-  { id: 'linx', name: 'Liniment X', batchNumber: 'BTNR-LINX-001', qty: 50, mfgDate: '05/20/2026', expDate: '05/20/2030', color: COLORS.accentOrange },
-  { id: 'liny', name: 'Liniment Y', batchNumber: 'BTNR-LINY-001', qty: 60, mfgDate: '05/20/2026', expDate: '05/20/2030', color: COLORS.success },
-  { id: 'bcrz', name: 'Beauty Cream Z', batchNumber: 'BTNR-BCRZ-001', qty: 40, mfgDate: '06/02/2026', expDate: '06/02/2029', color: COLORS.accentPink },
-];
+const PLACEHOLDER_IMAGE = require('../../../assets/image/empty_box1.png');
 
 export default function AddNewBatchesScreen() {
+  const navigation = useNavigation();
   const [searchText, setSearchText] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [items, setItems] = useState([]);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
 
   const handleDocumentPress = () => {
     Alert.alert('Ledger', 'The stock ledger is coming soon.');
   };
 
-  const selectedIds = items.map((item) => item.id);
-  const availableProducts = MOCK_PRODUCTS.filter((p) => !selectedIds.includes(p.id));
+  const selectedCodes = items.map((item) => item.code);
+  const availableProducts = PRODUCT_CATALOG.filter((p) => !selectedCodes.includes(p.code));
   const query = searchText.trim().toLowerCase();
   const suggestions = query
-    ? availableProducts.filter((p) => p.name.toLowerCase().includes(query))
+    ? availableProducts.filter((p) => p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query))
     : (showSuggestions ? availableProducts : []);
 
   const handleSelectProduct = (product) => {
-    setItems((prev) => [...prev, { ...product, registeredQty: product.qty }]);
+    setItems((prev) => [...prev, { ...product, registeredQty: 1, mfgDate: '', expDate: '' }]);
     setSearchText('');
     setShowSuggestions(false);
   };
 
-  const handleRemoveProduct = (id) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const handleRemoveProduct = (code) => {
+    setItems((prev) => prev.filter((item) => item.code !== code));
   };
 
-  const handleAdjustQty = (id, delta) => {
+  const handleAdjustQty = (code, delta) => {
     setItems((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, registeredQty: Math.max(1, item.registeredQty + delta) } : item
+        item.code === code ? { ...item, registeredQty: Math.max(1, item.registeredQty + delta) } : item
       )
     );
   };
 
-  const handleTakePhoto = () => {
-    Alert.alert('Shipment Proof', 'Camera capture is coming soon (expo-camera, Sprint 2).');
+  const handleDateChange = (code, field, value) => {
+    setItems((prev) =>
+      prev.map((item) => (item.code === code ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handlePhotoCaptured = (uri) => {
+    setPhotoUri(uri);
   };
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
@@ -64,10 +70,11 @@ export default function AddNewBatchesScreen() {
       Alert.alert('No Products Selected', 'Search and add at least one product before saving.');
       return;
     }
-    Alert.alert(
-      'Save to Preview',
-      `${items.length} item(s), ${totalUnits} units. Preview & backend save are coming soon.`
-    );
+    if (!photoUri) {
+      Alert.alert('Photo Required', 'Take a photo of the waybill/invoice before saving.');
+      return;
+    }
+    navigation.navigate('ReceiveStockPreview', { items, photoUri });
   };
 
   return (
@@ -91,7 +98,7 @@ export default function AddNewBatchesScreen() {
           <Text style={styles.sectionTitle}>Search Product:</Text>
           <Input
             icon="search"
-            placeholder="Search product name"
+            placeholder="Search product name or code"
             value={searchText}
             onChangeText={setSearchText}
             rightIcon={<Icon name="caretDown" size={18} color={COLORS.primary} weight="bold" />}
@@ -102,12 +109,12 @@ export default function AddNewBatchesScreen() {
             <View style={styles.suggestionsBox}>
               {suggestions.map((product) => (
                 <TouchableOpacity
-                  key={product.id}
+                  key={product.code}
                   style={styles.suggestionRow}
                   onPress={() => handleSelectProduct(product)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.suggestionSwatch, { backgroundColor: product.color }]} />
+                  <Image source={product.image || PLACEHOLDER_IMAGE} style={styles.suggestionThumb} resizeMode="cover" />
                   <Text style={styles.suggestionText}>{product.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -119,19 +126,17 @@ export default function AddNewBatchesScreen() {
             <Text style={styles.mutedText}>No products selected yet.</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-              {items.map((item, index) => (
-                <View key={item.id} style={styles.chip}>
+              {items.map((item) => (
+                <View key={item.code} style={styles.chip}>
                   <TouchableOpacity
                     style={styles.chipRemove}
-                    onPress={() => handleRemoveProduct(item.id)}
+                    onPress={() => handleRemoveProduct(item.code)}
                     accessibilityLabel={`Remove ${item.name}`}
                     accessibilityRole="button"
                   >
                     <Icon name="xCircle" size={18} color={COLORS.error} weight="fill" />
                   </TouchableOpacity>
-                  <View style={[styles.chipThumb, { backgroundColor: item.color }]}>
-                    <Text style={styles.chipNumber}>{index + 1}</Text>
-                  </View>
+                  <Image source={item.image || PLACEHOLDER_IMAGE} style={styles.chipThumb} resizeMode="cover" />
                   <Text style={styles.chipName} numberOfLines={1}>{item.name}</Text>
                 </View>
               ))}
@@ -153,34 +158,49 @@ export default function AddNewBatchesScreen() {
                 <Text style={styles.itemsCardHeaderText}>List of Items</Text>
               </View>
               {items.map((item) => (
-                <View key={item.id} style={styles.itemRow}>
-                  <View style={[styles.itemThumb, { backgroundColor: item.color }]} />
+                <View key={item.code} style={styles.itemRow}>
+                  <Image source={item.image || PLACEHOLDER_IMAGE} style={styles.itemThumb} resizeMode="cover" />
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemMeta}>Qty: {item.registeredQty}   BN: {item.batchNumber}</Text>
-                    <View style={styles.itemDatesRow}>
-                      <Icon name="calendar" size={12} color={COLORS.textSecondary} />
-                      <Text style={styles.itemDateText}>Mfg: {item.mfgDate}</Text>
-                      <Icon name="calendar" size={12} color={COLORS.error} />
-                      <Text style={[styles.itemDateText, styles.itemDateTextExp]}>Exp: {item.expDate}</Text>
+                    <View style={styles.stepperInline}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleAdjustQty(item.code, -1)}
+                        accessibilityLabel={`Decrease ${item.name} quantity`}
+                      >
+                        <Icon name="minus" size={14} color={COLORS.primary} />
+                      </TouchableOpacity>
+                      <Text style={styles.stepperValue}>{item.registeredQty}</Text>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleAdjustQty(item.code, 1)}
+                        accessibilityLabel={`Increase ${item.name} quantity`}
+                      >
+                        <Icon name="plus" size={14} color={COLORS.primary} />
+                      </TouchableOpacity>
                     </View>
-                  </View>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.id, -1)}
-                      accessibilityLabel={`Decrease ${item.name} quantity`}
-                    >
-                      <Icon name="minus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{item.registeredQty}</Text>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.id, 1)}
-                      accessibilityLabel={`Increase ${item.name} quantity`}
-                    >
-                      <Icon name="plus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
+                    <View style={styles.itemDatesRow}>
+                      <View style={styles.dateField}>
+                        <Text style={styles.dateFieldLabel}>Mfg:</Text>
+                        <TextInput
+                          style={styles.dateFieldInput}
+                          placeholder="MM/DD/YYYY"
+                          placeholderTextColor="#B0B0B0"
+                          value={item.mfgDate}
+                          onChangeText={(text) => handleDateChange(item.code, 'mfgDate', text)}
+                        />
+                      </View>
+                      <View style={styles.dateField}>
+                        <Text style={[styles.dateFieldLabel, styles.dateFieldLabelExp]}>Exp:</Text>
+                        <TextInput
+                          style={styles.dateFieldInput}
+                          placeholder="MM/DD/YYYY"
+                          placeholderTextColor="#B0B0B0"
+                          value={item.expDate}
+                          onChangeText={(text) => handleDateChange(item.code, 'expDate', text)}
+                        />
+                      </View>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -188,15 +208,25 @@ export default function AddNewBatchesScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
-          <TouchableOpacity style={styles.photoRow} onPress={handleTakePhoto} activeOpacity={0.7}>
-            <View style={styles.photoIconBox}>
-              <Icon name="camera" size={22} color={COLORS.primary} />
-            </View>
-            <Icon name="xCircle" size={16} color={COLORS.error} weight="fill" />
-            <Text style={styles.photoText}>
-              Take Photo of Waybill/Invoice <Text style={styles.requiredAsterisk}>*</Text>
-            </Text>
-          </TouchableOpacity>
+          {photoUri ? (
+            <TouchableOpacity style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)} activeOpacity={0.7}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
+              <View style={styles.photoPreviewInfo}>
+                <Text style={styles.photoText}>Photo captured</Text>
+                <Text style={styles.photoRetakeText}>Tap to retake</Text>
+              </View>
+              <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.photoRow} onPress={() => setIsCameraVisible(true)} activeOpacity={0.7}>
+              <View style={styles.photoIconBox}>
+                <Icon name="camera" size={22} color={COLORS.primary} />
+              </View>
+              <Text style={styles.photoText}>
+                Take Photo of Waybill/Invoice <Text style={styles.requiredAsterisk}>*</Text>
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.summaryText}>
             📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
@@ -204,6 +234,12 @@ export default function AddNewBatchesScreen() {
 
           <Button title="Save to Preview" onPress={handleSaveToPreview} />
         </ScrollView>
+
+        <CameraCaptureModal
+          visible={isCameraVisible}
+          onClose={() => setIsCameraVisible(false)}
+          onCapture={handlePhotoCaptured}
+        />
       </View>
     </>
   );
@@ -242,10 +278,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  suggestionSwatch: {
-    width: 24,
-    height: 24,
+  suggestionThumb: {
+    width: 32,
+    height: 32,
     borderRadius: 6,
+    backgroundColor: '#F1F5F9',
   },
   suggestionText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -279,22 +316,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 10,
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-    padding: 4,
-  },
-  chipNumber: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    textAlign: 'center',
-    lineHeight: 18,
-    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
   },
   chipName: {
     marginTop: 4,
@@ -353,7 +375,7 @@ const styles = StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
     padding: SPACING.md,
     borderTopWidth: 1,
@@ -363,6 +385,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 8,
+    backgroundColor: '#F1F5F9',
   },
   itemInfo: {
     flex: 1,
@@ -373,38 +396,11 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  itemMeta: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  itemDatesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  itemDateText: {
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-    marginRight: SPACING.xs,
-  },
-  itemDateTextExp: {
-    color: COLORS.error,
-  },
-  stepper: {
+  stepperInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 20,
-    paddingHorizontal: SPACING.xs,
-    paddingVertical: 4,
+    marginTop: 4,
   },
   stepperBtn: {
     width: 22,
@@ -421,6 +417,38 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#272632',
+  },
+  itemDatesRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  dateField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    paddingHorizontal: SPACING.xs,
+  },
+  dateFieldLabel: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+    marginRight: 4,
+  },
+  dateFieldLabelExp: {
+    color: COLORS.error,
+  },
+  dateFieldInput: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: '#272632',
+    paddingVertical: 6,
   },
   photoRow: {
     flexDirection: 'row',
@@ -447,6 +475,31 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: '#272632',
+  },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.success,
+    borderRadius: 12,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.success + '10',
+  },
+  photoPreviewThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+  },
+  photoPreviewInfo: {
+    flex: 1,
+  },
+  photoRetakeText: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
   requiredAsterisk: {
     color: COLORS.error,
