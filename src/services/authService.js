@@ -2,6 +2,14 @@
 import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
 import { debugLog, logError } from '../utils/logger';
+import storage from '../utils/storage';
+
+// Agents (Sales Rep/Collector) log in via a username+password_hash RPC, not
+// Supabase Auth, so there's no supabase.auth session to recover their
+// identity from later. This key persists the agent's profile across
+// screens/focus events instead — see login()'s agent branch and
+// getCurrentUser()'s fallback below.
+const AGENT_SESSION_KEY = 'chemstock_agent_session';
 
 class AuthService extends BaseService {
   constructor() {
@@ -72,20 +80,33 @@ class AuthService extends BaseService {
         console.log('✅ [AuthService] Agent login successful:', agentProfile.username);
         const branchName = await this._fetchBranchNames(agentProfile?.branch_ids);
 
+        const agentUser = {
+          id: agentProfile.id,
+          email: null,
+          username: agentProfile.username,
+          full_name: agentProfile.full_name,
+          role: agentProfile.role,
+          branchIds: agentProfile.branch_ids || [],
+          branchName,
+          isActivated: true,
+          authMode: 'agent',
+        };
+
+        // Clear any stale real Supabase session first — getCurrentUser()
+        // checks supabase.auth.getSession() before the agent session, so a
+        // leftover session from a *previous, different* Supabase-Auth login
+        // that was never signed out would otherwise win and return the
+        // wrong person entirely.
+        await supabase.auth.signOut();
+
+        // No Supabase Auth session exists for agents, so persist this
+        // manually — getCurrentUser() reads it back on every screen focus.
+        await storage.set(AGENT_SESSION_KEY, agentUser);
+
         return {
           success: true,
           token: null,
-          user: {
-            id: agentProfile.id,
-            email: null,
-            username: agentProfile.username,
-            full_name: agentProfile.full_name,
-            role: agentProfile.role,
-            branchIds: agentProfile.branch_ids || [],
-            branchName,
-            isActivated: true,
-            authMode: 'agent',
-          },
+          user: agentUser,
         };
       }
 
@@ -119,6 +140,10 @@ class AuthService extends BaseService {
         }
 
         this.currentSession = data.session;
+
+        // Mirror of the agent branch above — clear any stale agent session
+        // so a later-expired Supabase session can't fall back to it.
+        await storage.remove(AGENT_SESSION_KEY);
 
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
@@ -240,18 +265,23 @@ class AuthService extends BaseService {
   async logout() {
     console.log('🚪 [AuthService] Logout called');
     debugLog('info', 'AuthService', 'Logout');
-    
+
     try {
+      // Always clear the agent session — harmless no-op for a Supabase-Auth
+      // user (manager), required for an agent (no Supabase session to sign
+      // out of at all).
+      await storage.remove(AGENT_SESSION_KEY);
+
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('❌ [AuthService] Logout error:', error);
         throw error;
       }
-      
+
       this.currentSession = null;
       console.log('✅ [AuthService] Logout successful');
       debugLog('info', 'AuthService', 'Logout successful');
-      
+
     } catch (error) {
       console.error('❌ [AuthService] Logout error:', error);
       this.handleError(error);
@@ -275,10 +305,14 @@ class AuthService extends BaseService {
       }
       
       if (!session) {
-        console.log('ℹ️ [AuthService] No active session');
-        return null;
+        console.log('ℹ️ [AuthService] No active Supabase session — checking for an agent session');
+        const agentUser = await storage.get(AGENT_SESSION_KEY);
+        if (agentUser) {
+          console.log('✅ [AuthService] Restored agent session:', agentUser.username);
+        }
+        return agentUser;
       }
-      
+
       console.log('✅ [AuthService] Session found for user:', session.user?.id);
       
       const { data: profile } = await supabase

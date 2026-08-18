@@ -22,6 +22,7 @@ export default function SecondaryHeader({
   children = null,
   illustration = null,
   illustrationWidth = 96,
+  illustrationMarginRight = 0,
   height = 120,
   backgroundColor = '#F7FEFF',
   borderColor = COLORS.border,
@@ -46,7 +47,7 @@ export default function SecondaryHeader({
       {illustration && (
         <Image
           source={illustration}
-          style={[styles.illustration, { width: illustrationWidth }]}
+          style={[styles.illustration, { width: illustrationWidth, marginRight: illustrationMarginRight }]}
           resizeMode="contain"
         />
       )}
@@ -58,6 +59,7 @@ SecondaryHeader.propTypes = {
   children: PropTypes.node,
   illustration: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
   illustrationWidth: PropTypes.number,
+  illustrationMarginRight: PropTypes.number,
   height: PropTypes.number,
   backgroundColor: PropTypes.string,
   borderColor: PropTypes.string,

@@ -28,6 +28,9 @@ import {
   XCircle,
   CaretDown,
   Funnel,
+  NotePencil,
+  Clock,
+  Truck,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -141,6 +144,9 @@ const PHOSPHOR_ICONS = {
   xCircle: XCircle,
   caretDown: CaretDown,
   filter: Funnel,
+  notePencil: NotePencil,
+  clock: Clock,
+  truck: Truck,
 };
 
 const ICON_NAMES = [
@@ -150,6 +156,7 @@ const ICON_NAMES = [
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter',
+  'notePencil', 'clock', 'truck',
   'boxPackage', 'peopleGroup',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

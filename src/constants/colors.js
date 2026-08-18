@@ -49,4 +49,22 @@ export const COLORS = {
   iconTrackFill: '#E3F2FF',
   iconAgentStroke: '#B700FF',
   iconAgentFill: '#FFD9F5',
+
+  // Sales Rep Main Operation duotone icon colors — stroke/fill pairs.
+  // Alerts/Track tiles reuse iconAlert*/iconTrack* above (same concept,
+  // same color already fits the Sales Rep mockup too).
+  srReceiveStroke: '#6C5CE7',
+  srReceiveFill: '#ECECFF',
+  srRequestStroke: '#F72E75',
+  srRequestFill: '#FFECF3',
+  srReportStroke: '#FF7800',
+  srReportFill: '#FFF1E0',
+  srReturnStroke: '#8E7CF0',
+  srReturnFill: '#F1EEFF',
+
+  // Collector Main Operation duotone icon colors — stroke/fill pairs.
+  // "Delivered Stock" reuses iconRelease*/successCircle above (same
+  // green-checkmark concept already fits).
+  colAcceptStroke: '#6C5CE7',
+  colAcceptFill: '#ECECFF',
 };

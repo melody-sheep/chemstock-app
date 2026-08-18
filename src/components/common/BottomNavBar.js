@@ -31,6 +31,7 @@ export default function BottomNavBar({
   activeTab = 'dashboard',
   onTabPress = null,
   onFabPress = null,
+  fabIcon = 'grid',
 }) {
   const insets = useSafeAreaInsets();
 
@@ -79,7 +80,7 @@ export default function BottomNavBar({
           accessibilityLabel="Quick actions"
           accessibilityRole="button"
         >
-          <Icon name="grid" size={24} color="#FFFFFF" weight="fill" />
+          <Icon name={fabIcon} size={24} color="#FFFFFF" weight="fill" />
         </TouchableOpacity>
       </View>
     </View>
@@ -90,6 +91,7 @@ BottomNavBar.propTypes = {
   activeTab: PropTypes.oneOf(['dashboard', 'stock', 'reports', 'settings']),
   onTabPress: PropTypes.func,
   onFabPress: PropTypes.func,
+  fabIcon: PropTypes.string,
 };
 
 const styles = StyleSheet.create({
