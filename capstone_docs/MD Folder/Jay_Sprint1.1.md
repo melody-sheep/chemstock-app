@@ -2,13 +2,13 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: August 16, 2026 (end of Receive Stock backend + admin-cli branch fix session)
+Last updated: August 18, 2026 (end of Manager Stocks screen + Transaction Logs + shipment photo corruption fix session)
 
 ---
 
 ## 1. Who's on this project
 
-**Alther Adrian Liga, Maria Angela U. Mantiza, Clint John Mila, Jay Fahad P. Sultan, Gio Niel P. Yecyec.** Only Jay was present for the Aug 13, Aug 14, and this Aug 16 session (run across two different devices — the branch/schema-decisions half happened on one device, the actual build happened on another; both are captured together below since it was one continuous line of work). Alther built the Manager Dashboard UI and the initial Receive Stock screen scaffolding independently — see his own notes in `alther_development.md` for that work in full detail; §6 below picks up exactly where his Aug 16 entry leaves off.
+**Alther Adrian Liga, Maria Angela U. Mantiza, Clint John Mila, Jay Fahad P. Sultan, Gio Niel P. Yecyec.** Only Jay was present for the Aug 13, Aug 14, Aug 16, and this Aug 18 session. Alther built the Manager Dashboard UI and the initial Receive Stock screen scaffolding independently — see his own notes in `alther_development.md` for that work in full detail; §6 below picks up exactly where his Aug 16 entry leaves off, and §9 covers Aug 18.
 
 ## 2. What this project is
 
@@ -35,11 +35,17 @@ Core idea: replace paper-based stock receiving/releasing/returns with QR scannin
 | Manager → create Sales Rep/Collector account (form) | ✅ Done, confirmed working | `src/screens/manager/AgentAccountsScreen.js` |
 | Manager → **list** Sales Rep/Collector accounts | ✅ Done, confirmed working (this session) | New `src/screens/manager/ManageAccountsScreen.js` — Dashboard's tile now opens this list first; "Add Account" from here opens the (unchanged) create form. Confirmed RLS-isolated per manager via two-manager test. |
 | `admin-cli` populates `activation_keys.branch_ids` at key generation | ✅ Done (this session), **implementation not yet verified by an actual test key generation** | See §6 — resolves branch names against `branches` table, creates missing ones. Restart the admin-cli server to pick this up if it hasn't been yet. |
-| Receiving stock: product catalog, camera proof, GPS/device metadata, preview, QR generation, Supabase persistence | ✅ Done, confirmed working end-to-end (this session) | See §6. Confirmed: DB write succeeds, QR renders. Save-to-Gallery specifically does **not** work in Expo Go (platform limitation, not a bug — see §7) and is deferred, not fixed. |
+| Receiving stock: product catalog, camera proof, GPS/device metadata, preview, QR generation, Supabase persistence | ✅ Done | DB write + QR generation confirmed Aug 16. **Shipment photo upload was silently corrupting files until Aug 18 — see §9.** Save-to-Gallery still doesn't work in Expo Go (platform limitation, not a bug — see §7) and is deferred. |
+| Manager Stocks screen (Healthy/Almost Out/Out of Stock, search, near-expiry filter) | ✅ Done, confirmed working (Aug 18) | `src/screens/manager/ManagerStockScreen.js` — see §9 |
+| Transaction Logs screen (receiving history + detail sheet with photo/GPS/QR, date filter) | ✅ Done, confirmed working (Aug 18) | `src/screens/manager/StockLogsScreen.js` — see §9 |
+| Dashboard: dynamic Total Items stat, dynamic Recent Logs, QR scanner FAB | ✅ Done (Aug 18) | QR scan only decodes and displays the raw value so far — **not yet validated against `receiving_batches.qr_code`**, deliberately deferred |
+| Branch-wide (not just per-manager) stock/log visibility | ✅ Done (Aug 18), additive RLS | See §9 — a manager now sees a branch's full stock/history, not just what they personally received |
 | Architecture: direct Supabase calls vs. Express API layer | 🟨 Recommended (direct Supabase + RLS), still not formally recorded in `AGENTS.md` | Unchanged — still a to-do |
-| Everything else (transactions/release, geotagging beyond receiving, reconciliation, alerts, reports, offline sync) | ⬜ Not started | Scoped for Sprints 3–5 |
+| Everything else (transactions/release, geotagging beyond receiving, reconciliation, alerts, reports, offline sync, QR-scan-to-receive validation) | ⬜ Not started | Scoped for Sprints 3–5 |
 
-**Known repo hygiene item — still unresolved across 4 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
+**Known repo hygiene item — still unresolved across 5 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
+
+**Known data hygiene item (Aug 18):** any shipment photo uploaded before the Aug 18 fix (see §9) is permanently corrupted in Supabase Storage — the upload bug produced unrecoverable bytes, not just a bad reference. Only affects early test data.
 
 **Data hygiene note:** any Sales Rep/Collector account created *before* this session's admin-cli fix likely has an empty `branch_ids` array (inherited from a manager whose own `branch_ids` was empty at activation time, because `admin-cli` never populated it). A one-time backfill SQL was given to Jay this session (copies `branch_ids` from `created_by` → manager onto any agent row where it's still `{}`) — confirm whether it was actually run before assuming existing agent accounts have correct branch scoping.
 
@@ -171,15 +177,53 @@ Also still true from Aug 14: `src/hooks/useActivation.js` has a harmless-but-unt
 
 **Full SQL for everything built this session** (the four new tables, RLS policies, storage bucket + policies, and the `receive_stock_batch` RPC) was given to Jay directly in chat and is not yet saved anywhere durable in the repo itself — only in a local Claude Code plan file on one specific device (`~/.claude/plans/sunny-swimming-treehouse.md`), which won't be available from a different device. **Worth doing soon:** save the actual DDL into the repo (e.g. a `supabase/migrations/` folder or a plain `capstone_docs/schema.sql`) so it survives across devices/sessions the way this handoff doc does.
 
-## 9. Suggested first steps in a new session
+## 9. What got built this session (Aug 18) — Manager Stocks screen, Transaction Logs, filters, shipment photo corruption fix
 
-1. Restart the `admin-cli` server and generate one real test key — confirm `activation_keys.branch_ids` actually populates (§6c, implemented but unverified).
-2. Run the backfill SQL from §6c/§3 if not already done, and re-check that previously-created agent accounts now have correct `branch_ids`.
-3. Save this session's SQL (tables/RLS/RPC/bucket for the receiving flow) into the repo itself, not just chat history — see §8.
-4. `git status` / `git diff` — review and commit this session's work once the above two are verified.
-5. Delete the three stray 0-byte files (still hasn't happened across 4 sessions).
-6. Decide whether to invest in a real development build now (unblocks Save-to-Gallery, and will be needed regardless for QR-scan-to-receive and offline SQLite sync coming up) — deferred this session, still an open decision.
-7. Write the direct-Supabase-vs-Express-API architecture decision into `AGENTS.md` (carried over from Aug 14, still not done).
-8. Decide the fate of `capstone_docs/proposal.txt` (commit as a reference copy, or gitignore it).
-9. Clean up the dead code in `useActivation.js` (§8).
-10. Sprint-2-proper work once the above is settled: wire `ReceiveStockScreen`'s "Scan QR Code" path (receiving via an *existing* QR — separate from this session's "generate a new QR" path, deliberately left untouched), and start the "Stocks" page Jay mentioned (view what's currently on-hand per branch, reading from `branch_inventory` — RLS is already in place to scope it per-manager).
+Session opened with a full repo re-study (confirming everything in §1–§8 was still accurate, plus reading the live `CREATE TABLE` SQL Jay pasted for `branches`/`user_profiles`/`gps_coordinates`/`media`/`receiving_batches`/`branch_inventory`, which matched §6b exactly). Then built the "Stocks" page mentioned at the end of §6b/old §9.
+
+### The ask
+A Manager Stocks screen matching a provided mockup — Healthy (≥50 units) / Almost Out (<50) / Out of Stock buckets, reachable from the dashboard's "Total Items" stat or the bottom nav's Stock tab. Plus: make the dashboard's Total Items stat and Recent Logs dynamic (real data, not the Aug 13 placeholders), make the FAB open a real QR scanner, and add a Transaction Logs screen (document icon) showing receiving history with a detail view.
+
+### Architecture decision: branch-wide vs. per-manager visibility
+Asked Jay directly since it needed an RLS change only he could run. Chose **branch-wide** (matches the "Branch Inventory" label in the mockup) over the existing per-manager scoping from §6b. Implemented as **additive** policies — a new branch-scoped SELECT policy alongside each existing owner-scoped one on `branch_inventory`, `receiving_batches`, `gps_coordinates`, `media`, plus one on `storage.objects` for shared photo access. Nothing that worked before broke (Postgres ORs permissive policies of the same command together). **SQL saved to the repo this time**, unlike Aug 16's (see §8's note about that) — `capstone_docs/sql/2026-08-18_branch_wide_stock_visibility.sql`. Confirmed applied and working.
+
+### What got built
+- **`src/screens/manager/ManagerStockScreen.js`** (new) — buckets `branch_inventory` rows by quantity, sorted soonest-expiring-first; Out of Stock is `PRODUCT_CATALOG` minus any product code with an existing batch (no `products` table exists to track that directly — same reasoning as §6b's catalog decision). Search filters all three buckets by name/code.
+- **`src/screens/manager/StockLogsScreen.js`** (new) — lists `receiving_batches` (branch-scoped) via one Supabase query with embedded FK relations (`gps_coordinates`, `media`, `branch_inventory` all embedded in a single `.select()` — no manual joins/grouping). Tapping a row opens a detail bottom sheet: items, GPS, device info, QR code, shipment photo (signed URL, fetched on demand per-row rather than eagerly for the whole list).
+- **`StockBatchCard.js`, `QRScannerModal.js`, `FilterSheet.js`** (new, reusable components) — batch card for the Stocks screen; full-screen QR scanner using `expo-camera`'s built-in `barcodeScannerSettings`/`onBarcodeScanned` (no new dependency, confirmed present in the installed version before using it); a generic bottom-sheet radio-list, now used by both screens' filters.
+- **Dashboard**: Total Items now sums real stock; Recent Logs shows real receiving activity and is tappable — jumps straight into that transaction's detail sheet on the Logs screen by passing the already-fetched log object as a nav param, so it opens instantly instead of waiting on a refetch; FAB opens the QR scanner (decodes and displays the raw value only — **matching against `receiving_batches.qr_code` is deliberately not built yet**, Jay's explicit call, "we'll work on this more soon").
+- **Filters** (added on request after a suggestion pass): Stocks screen — "All Batches" / "Near Expiry Only" (within `NEAR_EXPIRY_DAYS` = 30, `src/constants/inventory.js`), red dot on the icon + dismissible chip when active. Logs screen — "All Time" / "Today" / "This Week" (rolling 7 days) / "This Month" (rolling 30 days) — rolling windows chosen over calendar boundaries to sidestep a week-start-day debate.
+- `inventoryService.js` gained `getBranchStock()`, `getReceivingLogs()`, `getShipmentPhotoUrl()`. `LogListItem.js` gained an optional `onPress` (existing read-only usages elsewhere unaffected).
+
+### Real bug found and fixed: shipment photos uploading corrupted
+`uploadShipmentPhoto()` used `fetch(uri).blob()` to read the camera photo before uploading. Confirmed today: React Native's Blob polyfill silently corrupts binary data from local `file://` URIs on this setup. The upload call never errored (Supabase Storage doesn't validate that stored bytes are a real image), so it looked fine until actually viewing a photo, which failed with `unknown image format`. **This is the same `response.blob()` code Aug 16 §7.3 flagged as just a cosmetic "perf warning" and deliberately left alone** — the warning was hiding a real correctness bug, not only a performance one. Worth remembering: a "just a warning, still works" call is only as trustworthy as whatever actually exercised the code path — nothing had actually round-tripped a photo back through view until this session.
+
+**Fix**: read the file as base64 via `expo-file-system/legacy` (same `/legacy` pattern as the rest of the app, see §7.4) and decode it to raw bytes with a small hand-rolled decoder (`src/utils/base64.js` — deliberately no new dependency; verified against known test vectors, including a real JPEG magic-byte header, before shipping). This is Supabase's own documented recommendation for React Native uploads specifically because of this Blob issue.
+
+**Known casualty**: any shipment photo uploaded before this fix is permanently corrupted in storage — the bytes themselves are gone, not just a bad reference. Only affects early test data; don't be surprised if an old transaction's photo still won't load.
+
+## 10. Debugging log — Aug 18
+
+1. Diagnosed the missing-photo report in three ruled-out steps rather than guessing: (a) confirmed it wasn't an Expo Go/dev-client limitation like Aug 16's Save-to-Gallery issue — signed URL fetching is plain HTTPS, no native module involved; (b) added debug logging (the `media` embed's contents, the resolved signed URL) plus an `Image onError` handler, since React Native's `Image` silently swallows load failures with zero console output otherwise; (c) confirmed the RLS policies were actually present via `pg_policies` before looking elsewhere — only once that was ruled out did the `onError` output ("unknown image format") point at corrupted bytes.
+2. A `LogListItem.js` edit mid-session (adding `onPress`/`TouchableOpacity`) accidentally dropped the pre-existing `View` import. Caught immediately via a babel-parser syntax check on every touched file before calling anything done — worth keeping up as a habit, catches this class of mistake for free.
+
+## 11. Git / commit status (Aug 18)
+
+Branch: **`jay`**, up to date with `origin/jay`. (Aug 16's commit `c8b1033` did land since that session — the "recommend committing" note in §8 is resolved.)
+
+**Nothing from this session is committed yet.**
+- Modified: `src/components/common/Icon.js`, `src/components/common/LogListItem.js`, `src/navigation/AppNavigator.js`, `src/screens/manager/ManagerDashboardScreen.js`, `src/services/inventoryService.js`
+- New/untracked: `src/components/common/FilterSheet.js`, `src/components/common/QRScannerModal.js`, `src/components/common/StockBatchCard.js`, `src/constants/inventory.js`, `src/screens/manager/ManagerStockScreen.js`, `src/screens/manager/StockLogsScreen.js`, `src/utils/base64.js`, `src/utils/formatters.js`, `capstone_docs/sql/2026-08-18_branch_wide_stock_visibility.sql`
+
+The three stray 0-byte files from §3 are still there, untouched, now on their 5th session.
+
+## 12. Suggested first steps in a new session
+
+1. Do one fresh Receive Stock run and confirm the shipment photo actually displays in the Logs detail sheet — that's the real end-to-end verification of §9's base64 fix (don't reuse old test data; it's permanently corrupted).
+2. `git status` / `git diff` — review and commit this session's work.
+3. Delete the three stray 0-byte files (still hasn't happened across 5 sessions).
+4. Decide whether to invest in a real development build now (unblocks Save-to-Gallery, and will be needed regardless for QR-scan-to-receive and offline SQLite sync coming up) — still an open decision, deferred again this session.
+5. Write the direct-Supabase-vs-Express-API architecture decision into `AGENTS.md` (carried over since Aug 14, still not done).
+6. Decide the fate of `capstone_docs/proposal.txt` (commit as a reference copy, or gitignore it) — carried over since Aug 16.
+7. Clean up the dead code in `useActivation.js` (a harmless-but-untidy duplicate `return` — see Aug 16 §8).
+8. Sprint-2-proper work once the above is settled: wire the QR scanner's decoded value to actually look up and validate against `receiving_batches.qr_code` (currently just displays the raw scanned text), and start on Release Stock now that Receiving is solid end-to-end.

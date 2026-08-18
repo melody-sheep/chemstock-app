@@ -1,8 +1,8 @@
 // src/screens/manager/ManagerDashboardScreen.js
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Animated, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, Text, ScrollView, Animated, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -10,10 +10,13 @@ import StatCard from '../../components/common/StatCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
+import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { formatRelativeTime } from '../../utils/formatters';
 
 const SECONDARY_HEADER_HEIGHT = 100;
 
@@ -31,7 +34,7 @@ const QUICK_STATS = [
     accentColor: COLORS.accentGold,
     backgroundColor: '#FFFDF5',
     borderLeftColor: COLORS.accentGold,
-    value: '1,240',
+    value: '0',
     label: 'Total Items',
   },
   {
@@ -56,15 +59,13 @@ const MAIN_OPERATIONS = [
   { key: 'agentAccounts', icon: 'agentsGroup', iconColor: COLORS.iconAgentStroke, duotoneColor: COLORS.iconAgentFill, title: 'Manage Accounts', screen: 'ManageAccounts' },
 ];
 
-const RECENT_LOGS = [
-  { key: 'log1', icon: 'trayDown', iconColor: COLORS.secondary, text: 'Received 100x Liniment from Factory' },
-  { key: 'log2', icon: 'trayUp', iconColor: COLORS.success, text: 'Released 20x Product to Maria' },
-];
-
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [totalUnits, setTotalUnits] = useState(null);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
   // clamped to [0, header height], so the header slides in lockstep with the
@@ -84,12 +85,62 @@ export default function ManagerDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  useEffect(() => {
-    authService.getCurrentUser().then(setUser);
+  const loadDashboardData = useCallback(async () => {
+    const currentUser = await authService.getCurrentUser();
+    setUser(currentUser);
+
+    const branchIds = currentUser?.branchIds || [];
+    const [stockResult, logsResult] = await Promise.all([
+      inventoryService.getBranchStock(branchIds),
+      inventoryService.getReceivingLogs(branchIds, 3),
+    ]);
+
+    if (stockResult.success) {
+      setTotalUnits(stockResult.data.reduce((sum, row) => sum + row.quantity, 0));
+    }
+    setRecentLogs(logsResult.success ? logsResult.data : []);
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboardData();
+    }, [loadDashboardData])
+  );
 
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+
+  const displayedStats = QUICK_STATS.map((stat) =>
+    stat.key === 'totalItems'
+      ? { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() }
+      : stat
+  );
+
+  const recentLogsDisplay = recentLogs.map((log) => {
+    const items = log.branch_inventory || [];
+    const units = items.reduce((sum, item) => sum + item.quantity, 0);
+    return {
+      key: log.id,
+      icon: 'trayDown',
+      iconColor: COLORS.secondary,
+      text: `Received ${units} unit${units === 1 ? '' : 's'} (${items.length} product${items.length === 1 ? '' : 's'}) — ${formatRelativeTime(log.created_at)}`,
+      log,
+    };
+  });
+
+  const handleTabPress = (key) => {
+    setActiveTab(key);
+    if (key === 'stock') {
+      navigation.navigate('ManagerStock');
+    } else if (key !== 'dashboard') {
+      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+    }
+  };
+
+  const handleScanned = (data) => {
+    setIsScannerVisible(false);
+    Alert.alert('QR Scanned', `Code: ${data}\n\nMatching this against your received batches is coming soon.`);
+  };
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -104,6 +155,7 @@ export default function ManagerDashboardScreen() {
           showProfileIcon={true}
           title="Manager Dashboard"
           showDocumentIcon={true}
+          onDocumentPress={() => navigation.navigate('StockLogs')}
           showNotificationIcon={true}
           height={56}
           backgroundColor="#03045E"
@@ -161,19 +213,35 @@ export default function ManagerDashboardScreen() {
           >
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.statsRow}>
-            {QUICK_STATS.map((stat) => (
-              <StatCard
-                key={stat.key}
-                icon={stat.icon}
-                iconColor={stat.iconColor}
-                strokeWidth={stat.strokeWidth}
-                accentColor={stat.accentColor}
-                backgroundColor={stat.backgroundColor}
-                borderLeftColor={stat.borderLeftColor}
-                value={stat.value}
-                label={stat.label}
-              />
-            ))}
+            {displayedStats.map((stat) => {
+              const card = (
+                <StatCard
+                  icon={stat.icon}
+                  iconColor={stat.iconColor}
+                  strokeWidth={stat.strokeWidth}
+                  accentColor={stat.accentColor}
+                  backgroundColor={stat.backgroundColor}
+                  borderLeftColor={stat.borderLeftColor}
+                  value={stat.value}
+                  label={stat.label}
+                />
+              );
+              if (stat.key === 'totalItems') {
+                return (
+                  <TouchableOpacity
+                    key={stat.key}
+                    style={styles.statTouchable}
+                    onPress={() => navigation.navigate('ManagerStock')}
+                    activeOpacity={0.7}
+                    accessibilityLabel="View branch stock"
+                    accessibilityRole="button"
+                  >
+                    {card}
+                  </TouchableOpacity>
+                );
+              }
+              return <View key={stat.key} style={styles.statTouchable}>{card}</View>;
+            })}
           </View>
 
           <Text style={styles.sectionTitle}>Main Operation</Text>
@@ -193,20 +261,35 @@ export default function ManagerDashboardScreen() {
 
           <Text style={styles.sectionTitle}>Recent Logs</Text>
           <View style={styles.logsList}>
-            {RECENT_LOGS.map((log) => (
-              <LogListItem
-                key={log.key}
-                icon={log.icon}
-                iconColor={log.iconColor}
-                text={log.text}
-              />
-            ))}
+            {recentLogsDisplay.length > 0 ? (
+              recentLogsDisplay.map((log) => (
+                <LogListItem
+                  key={log.key}
+                  icon={log.icon}
+                  iconColor={log.iconColor}
+                  text={log.text}
+                  onPress={() => navigation.navigate('StockLogs', { initialLog: log.log })}
+                />
+              ))
+            ) : (
+              <Text style={styles.emptyLogsText}>No stock received yet.</Text>
+            )}
           </View>
           </ScrollView>
         </View>
 
-        <BottomNavBar activeTab={activeTab} onTabPress={setActiveTab} />
+        <BottomNavBar
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          onFabPress={() => setIsScannerVisible(true)}
+        />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </>
   );
 }
@@ -286,6 +369,9 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginBottom: SPACING.xl,
   },
+  statTouchable: {
+    flex: 1,
+  },
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -298,5 +384,11 @@ const styles = StyleSheet.create({
   },
   logsList: {
     gap: SPACING.sm,
+  },
+  emptyLogsText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
 });
