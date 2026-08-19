@@ -87,6 +87,10 @@ export default function ManagerStockScreen() {
     return daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
   };
 
+  // A batch fully released down to 0 now persists (never deleted — see
+  // 2026-08-21 migration, needed to keep receiving/release logs from losing
+  // their own history). A 0-qty row has nothing left to show as a batch
+  // card in either "healthy" or "almost out" — it belongs in Out of Stock.
   const healthyBatches = stock.filter(
     (row) =>
       row.quantity >= STOCK_HEALTHY_THRESHOLD &&
@@ -95,11 +99,12 @@ export default function ManagerStockScreen() {
   );
   const lowStockBatches = stock.filter(
     (row) =>
+      row.quantity > 0 &&
       row.quantity < STOCK_HEALTHY_THRESHOLD &&
       matchesQuery(row.product_name, row.product_code) &&
       matchesExpiryFilter(row)
   );
-  const stockedCodes = new Set(stock.map((row) => row.product_code));
+  const stockedCodes = new Set(stock.filter((row) => row.quantity > 0).map((row) => row.product_code));
   const outOfStockProducts = PRODUCT_CATALOG.filter(
     (product) => !stockedCodes.has(product.code) && matchesQuery(product.name, product.code)
   );

@@ -51,11 +51,60 @@ class AgentService extends BaseService {
                 throw new Error(error.message || 'Failed to load accounts');
             }
 
-            return { success: true, data: data || [] };
+            const accounts = data || [];
+
+            // Resolve every account's branch_ids to display names in one
+            // batched query instead of one lookup per row.
+            const allBranchIds = [...new Set(accounts.flatMap((a) => a.branch_ids || []))];
+            let branchNameById = {};
+
+            if (allBranchIds.length > 0) {
+                const { data: branches, error: branchError } = await supabase
+                    .from('branches')
+                    .select('id, name')
+                    .in('id', allBranchIds);
+
+                if (branchError) {
+                    console.error('❌ [AgentService] Error fetching branch names:', branchError);
+                } else {
+                    branchNameById = Object.fromEntries((branches || []).map((b) => [b.id, b.name]));
+                }
+            }
+
+            const enriched = accounts.map((account) => ({
+                ...account,
+                branchName: (account.branch_ids || [])
+                    .map((id) => branchNameById[id])
+                    .filter(Boolean)
+                    .join(', '),
+            }));
+
+            return { success: true, data: enriched };
 
         } catch (error) {
             this.log('error', 'getMyAgentAccounts failed', { error: error.message });
             return { success: false, message: error.message || 'Failed to load accounts', data: [] };
+        }
+    }
+
+    async deleteAgentAccount(agentId) {
+        debugLog('info', 'AgentService', 'Deleting agent account', { agentId });
+
+        try {
+            this.validateRequired(['agentId'], { agentId });
+
+            const { error } = await supabase.rpc('delete_agent_account', { p_agent_id: agentId });
+
+            if (error) {
+                console.error('❌ [AgentService] Error deleting agent account:', error);
+                throw new Error(error.message || 'Failed to remove account');
+            }
+
+            return { success: true };
+
+        } catch (error) {
+            this.log('error', 'deleteAgentAccount failed', { error: error.message });
+            return { success: false, message: error.message || 'Failed to remove account' };
         }
     }
 }

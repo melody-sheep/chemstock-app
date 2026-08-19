@@ -25,9 +25,10 @@ export default function ConfirmationDialog({
   description,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  height = 300,
 }) {
   return (
-    <CustomModal visible={visible} onClose={onCancel} height={300}>
+    <CustomModal visible={visible} onClose={onCancel} height={height}>
       <View style={styles.iconWrap}>
         <Icon name={icon} size={32} color={COLORS.error} />
       </View>
@@ -49,6 +50,7 @@ ConfirmationDialog.propTypes = {
   description: PropTypes.string.isRequired,
   confirmLabel: PropTypes.string,
   cancelLabel: PropTypes.string,
+  height: PropTypes.number,
 };
 
 const styles = StyleSheet.create({

@@ -138,10 +138,14 @@ class InventoryService extends BaseService {
     }
 
     try {
+      // received_quantity (not quantity) is what a log should show — it's
+      // an immutable snapshot from when the batch was received, whereas
+      // quantity is live current stock and drops as the batch gets
+      // released (down to 0, never deleted — see 2026-08-21 migration).
       const { data, error } = await supabase
         .from('receiving_batches')
         .select(
-          '*, gps_coordinates(latitude, longitude), media(storage_path, device_model, device_os), branch_inventory(product_code, product_name, batch_number, quantity, mfg_date, exp_date)'
+          '*, gps_coordinates(latitude, longitude), media(storage_path, device_model, device_os), branch_inventory(product_code, product_name, batch_number, received_quantity, mfg_date, exp_date)'
         )
         .in('branch_id', branchIds)
         .order('created_at', { ascending: false })
@@ -157,6 +161,65 @@ class InventoryService extends BaseService {
       this.log('error', 'getReceivingLogs failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to load receiving logs', data: [] };
     }
+  }
+
+  /**
+   * Release transactions (one row per completed Release Stock flow) for the
+   * given branch(es), each with its line items, GPS, and photo metadata
+   * embedded — same shape/pattern as getReceivingLogs.
+   */
+  async getReleaseLogs(branchIds, limit = 20) {
+    debugLog('info', 'InventoryService', 'Fetching release logs', { branchIds, limit });
+
+    if (!branchIds || branchIds.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(
+          '*, gps_coordinates(latitude, longitude), media(storage_path, device_model, device_os), transaction_details(product_code, product_name, batch_number, quantity, mfg_date, exp_date)'
+        )
+        .in('branch_id', branchIds)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('❌ [InventoryService] getReleaseLogs error:', error);
+        throw new Error(error.message || 'Failed to load release logs');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getReleaseLogs failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load release logs', data: [] };
+    }
+  }
+
+  /**
+   * Receiving + release logs merged into one chronological feed, each entry
+   * tagged with `logType` ('receiving' | 'release') so a shared UI can tell
+   * them apart. Fetches `limit` of each and returns the newest `limit`
+   * overall — simplest correct approach without a SQL-level UNION view.
+   */
+  async getActivityLogs(branchIds, limit = 20) {
+    const [receiving, release] = await Promise.all([
+      this.getReceivingLogs(branchIds, limit),
+      this.getReleaseLogs(branchIds, limit),
+    ]);
+
+    const tagged = [
+      ...(receiving.data || []).map((log) => ({ ...log, logType: 'receiving' })),
+      ...(release.data || []).map((log) => ({ ...log, logType: 'release' })),
+    ];
+
+    tagged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return {
+      success: receiving.success && release.success,
+      data: tagged.slice(0, limit),
+    };
   }
 
   /**
@@ -181,6 +244,100 @@ class InventoryService extends BaseService {
     } catch (error) {
       this.log('error', 'getShipmentPhotoUrl failed', { error: error.message });
       return null;
+    }
+  }
+
+  /**
+   * Looks up a single receiving_batches row by its QR code, embedding its
+   * still-live branch_inventory rows (whatever's left after any prior
+   * partial releases — this is a live query, not a snapshot). Used by both
+   * the Release Stock QR-scan review screen and Quick Register's
+   * post-registration hydration step.
+   *
+   * Callers must handle two distinct states: `data === null` (unrecognized
+   * QR, or it belongs to a branch this manager can't see) and a present row
+   * with an empty `branch_inventory` array (batch already fully released).
+   */
+  async getReceivingBatchByQrCode(qrCode, branchIds) {
+    debugLog('info', 'InventoryService', 'Looking up receiving batch by QR', { qrCode });
+
+    if (!branchIds || branchIds.length === 0) {
+      return { success: true, data: null };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('receiving_batches')
+        .select('id, branch_id, qr_code, branch_inventory(id, product_code, product_name, batch_number, quantity, mfg_date, exp_date)')
+        .eq('qr_code', qrCode)
+        .in('branch_id', branchIds)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ [InventoryService] getReceivingBatchByQrCode error:', error);
+        throw new Error(error.message || 'Failed to look up that QR code');
+      }
+
+      return { success: true, data: data || null };
+    } catch (error) {
+      this.log('error', 'getReceivingBatchByQrCode failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to look up that QR code', data: null };
+    }
+  }
+
+  /**
+   * Atomically releases stock to a recipient (Sales Rep/Collector) via the
+   * release_stock_batch RPC — deducts (or deletes, if fully depleted) the
+   * matching branch_inventory rows, writes a transactions/transaction_details
+   * ledger entry, and returns the release's own qr_code for the recipient
+   * to scan later.
+   */
+  async releaseStockBatch({
+    branchId,
+    recipientId,
+    movementType = 'direct',
+    latitude,
+    longitude,
+    deviceModel,
+    deviceOs,
+    storagePath,
+    items,
+  }) {
+    debugLog('info', 'InventoryService', 'Releasing stock batch', {
+      branchId,
+      recipientId,
+      itemCount: items?.length,
+    });
+
+    try {
+      this.validateRequired(['branchId', 'recipientId', 'storagePath'], { branchId, recipientId, storagePath });
+
+      const { data, error } = await supabase.rpc('release_stock_batch', {
+        p_branch_id: branchId,
+        p_recipient_id: recipientId,
+        p_movement_type: movementType,
+        p_latitude: latitude ?? null,
+        p_longitude: longitude ?? null,
+        p_storage_path: storagePath,
+        p_device_model: deviceModel ?? null,
+        p_device_os: deviceOs ?? null,
+        p_items: (items || []).map((item) => ({
+          branch_inventory_id: item.branchInventoryId,
+          product_code: item.productCode,
+          product_name: item.productName,
+          quantity: item.releaseQty,
+        })),
+      });
+
+      if (error) {
+        console.error('❌ [InventoryService] release_stock_batch RPC error:', error);
+        throw new Error(error.message || 'Failed to release stock');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'releaseStockBatch failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to release stock' };
     }
   }
 }

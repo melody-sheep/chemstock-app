@@ -31,6 +31,9 @@ import {
   NotePencil,
   Clock,
   Truck,
+  DotsThreeVertical,
+  Trash,
+  IdentificationCard,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -147,6 +150,9 @@ const PHOSPHOR_ICONS = {
   notePencil: NotePencil,
   clock: Clock,
   truck: Truck,
+  moreVertical: DotsThreeVertical,
+  trash: Trash,
+  idCard: IdentificationCard,
 };
 
 const ICON_NAMES = [
@@ -156,7 +162,7 @@ const ICON_NAMES = [
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter',
-  'notePencil', 'clock', 'truck',
+  'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'idCard',
   'boxPackage', 'peopleGroup',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

@@ -12,6 +12,11 @@ import AddNewBatchesScreen from '../screens/manager/AddNewBatchesScreen';
 import ReceiveStockPreviewScreen from '../screens/manager/ReceiveStockPreviewScreen';
 import ManagerStockScreen from '../screens/manager/ManagerStockScreen';
 import StockLogsScreen from '../screens/manager/StockLogsScreen';
+import ReleaseStockRecipientScreen from '../screens/manager/ReleaseStockRecipientScreen';
+import ReleaseStockMethodScreen from '../screens/manager/ReleaseStockMethodScreen';
+import ReleaseStockScanReviewScreen from '../screens/manager/ReleaseStockScanReviewScreen';
+import QuickRegisterReleaseScreen from '../screens/manager/QuickRegisterReleaseScreen';
+import ReleaseStockConfirmScreen from '../screens/manager/ReleaseStockConfirmScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
 import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
 import ReceiveStockSR from '../screens/salesrep/ReceiveStockSR';
@@ -34,6 +39,11 @@ export default function AppNavigator() {
         <Stack.Screen name="ReceiveStockPreview" component={ReceiveStockPreviewScreen} />
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} />
         <Stack.Screen name="StockLogs" component={StockLogsScreen} />
+        <Stack.Screen name="ReleaseStockRecipient" component={ReleaseStockRecipientScreen} />
+        <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} />
+        <Stack.Screen name="ReleaseStockScanReview" component={ReleaseStockScanReviewScreen} />
+        <Stack.Screen name="QuickRegisterRelease" component={QuickRegisterReleaseScreen} />
+        <Stack.Screen name="ReleaseStockConfirm" component={ReleaseStockConfirmScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} />
         <Stack.Screen name="ReceiveStockTypeSR" component={ReceiveStockTypeSR} />
         <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} />

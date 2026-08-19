@@ -7,59 +7,47 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
- * Stepper - Custom connected step indicator
- * - Line with dots on both ends (30px width for line + dots)
+ * Stepper - Custom connected step indicator, generalized to N steps (was
+ * hardcoded to 2 — ManagerActivationScreen only ever calls it with a bare
+ * `currentStep`, so widening `labels` to an array and deriving step count
+ * from its length is fully backward compatible with that usage).
+ * - Line with dots between each step
  * - Line color = GRAY (#C0C0C0), weight: 2px
  * - Active dot = PURE GREEN (no white dot)
  * - Inactive dot = HOLLOW GRAY
  * - Left aligned with SPACING.lg margin
  */
-export default function Stepper({ 
-  currentStep = 1, 
-  step1Label = 'Enter your activation key',
-  step2Label = 'Set up your account'
+export default function Stepper({
+  currentStep = 1,
+  labels = ['Enter your activation key', 'Set up your account'],
 }) {
-  const isStep1Active = currentStep === 1;
-  const isStep2Active = currentStep === 2;
+  const totalSteps = labels.length;
 
   return (
     <View style={styles.container}>
-      {/* Label - Left aligned, semibold, full width */}
       <Text style={styles.labelText}>
-        Step {currentStep} of 2: {currentStep === 1 ? step1Label : step2Label}
+        Step {currentStep} of {totalSteps}: {labels[currentStep - 1] || ''}
       </Text>
-      
-      {/* Step Indicators - Line with dots on both ends, 30px total width */}
-      <View style={styles.stepIndicators}>
-        {/* Step 1 Dot - PURE GREEN when active */}
-        <View style={[
-          styles.dot,
-          isStep1Active ? styles.dotActive : styles.dotInactive
-        ]} />
-        
-        {/* Connecting Line - 2px weight, GRAY */}
-        <View style={styles.line} />
-        
-        {/* Step 2 Dot - Hollow when inactive */}
-        <View style={[
-          styles.dot,
-          isStep2Active ? styles.dotActive : styles.dotInactive
-        ]} />
+
+      <View style={[styles.stepIndicators, { width: totalSteps * 20 }]}>
+        {labels.map((_, index) => {
+          const step = index + 1;
+          const isActive = step === currentStep;
+          return (
+            <React.Fragment key={step}>
+              {index > 0 && <View style={styles.line} />}
+              <View style={[styles.dot, isActive ? styles.dotActive : styles.dotInactive]} />
+            </React.Fragment>
+          );
+        })}
       </View>
     </View>
   );
 }
 
 Stepper.propTypes = {
-  currentStep: PropTypes.oneOf([1, 2]),
-  step1Label: PropTypes.string,
-  step2Label: PropTypes.string,
-};
-
-Stepper.defaultProps = {
-  currentStep: 1,
-  step1Label: 'Enter your activation key',
-  step2Label: 'Set up your account',
+  currentStep: PropTypes.number,
+  labels: PropTypes.arrayOf(PropTypes.string),
 };
 
 const styles = StyleSheet.create({
@@ -79,7 +67,6 @@ const styles = StyleSheet.create({
   stepIndicators: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 30, // 30px total width for line + dots
     height: 16,
   },
   dot: {

@@ -7,7 +7,9 @@ import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import FilterSheet from '../../components/common/FilterSheet';
+import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
+import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -38,14 +40,38 @@ const DATE_FILTER_OPTIONS = [
   },
 ];
 
+// Receiving (branch_inventory, "received_quantity") and release
+// (transaction_details, "quantity") logs have different embed shapes —
+// normalize both to the same {name, qty, mfgDate, expDate} so the rest of
+// this screen doesn't need to know which type it's rendering.
+function getLogItems(log) {
+  if (log.logType === 'release') {
+    return (log.transaction_details || []).map((item) => ({
+      key: item.batch_number,
+      name: item.product_name,
+      qty: item.quantity,
+      mfgDate: item.mfg_date,
+      expDate: item.exp_date,
+    }));
+  }
+  return (log.branch_inventory || []).map((item) => ({
+    key: item.batch_number,
+    name: item.product_name,
+    qty: item.received_quantity,
+    mfgDate: item.mfg_date,
+    expDate: item.exp_date,
+  }));
+}
+
 function summarizeItems(items) {
-  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalUnits = items.reduce((sum, item) => sum + item.qty, 0);
   return `${totalUnits} unit${totalUnits === 1 ? '' : 's'} · ${items.length} product${items.length === 1 ? '' : 's'}`;
 }
 
 export default function StockLogsScreen() {
   const route = useRoute();
   const [logs, setLogs] = useState([]);
+  const [recipientNameById, setRecipientNameById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
@@ -56,8 +82,14 @@ export default function StockLogsScreen() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     const manager = await authService.getCurrentUser();
-    const result = await inventoryService.getReceivingLogs(manager?.branchIds || [], LOGS_LIMIT);
-    setLogs(result.success ? result.data : []);
+    const [logsResult, agentsResult] = await Promise.all([
+      inventoryService.getActivityLogs(manager?.branchIds || [], LOGS_LIMIT),
+      agentService.getMyAgentAccounts(),
+    ]);
+    setLogs(logsResult.success ? logsResult.data : []);
+    if (agentsResult.success) {
+      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
+    }
     setIsLoading(false);
   }, []);
 
@@ -70,16 +102,12 @@ export default function StockLogsScreen() {
   const openDetail = async (log) => {
     setSelectedLog(log);
     setPhotoUrl(null);
-    console.log('🖼️ [StockLogsScreen] media on this log:', log.media);
 
     if (log.media?.storage_path) {
       setIsPhotoLoading(true);
       const url = await inventoryService.getShipmentPhotoUrl(log.media.storage_path);
-      console.log('🖼️ [StockLogsScreen] resolved signed URL:', url);
       setPhotoUrl(url);
       setIsPhotoLoading(false);
-    } else {
-      console.log('🖼️ [StockLogsScreen] no media/storage_path on this log — skipping photo fetch');
     }
   };
 
@@ -99,6 +127,11 @@ export default function StockLogsScreen() {
 
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
   const filteredLogs = logs.filter((log) => activeFilterOption.test(log));
+
+  const getTitle = (log) =>
+    log.logType === 'release'
+      ? `Stock Released${recipientNameById[log.received_by] ? ` — ${recipientNameById[log.received_by]}` : ''}`
+      : 'Stock Received';
 
   return (
     <>
@@ -136,7 +169,7 @@ export default function StockLogsScreen() {
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No receiving transactions yet.</Text>
+            <Text style={styles.emptyText}>No transactions yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
           <View style={styles.loadingWrap}>
@@ -146,19 +179,25 @@ export default function StockLogsScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log) => {
-              const items = log.branch_inventory || [];
+              const items = getLogItems(log);
+              const isRelease = log.logType === 'release';
               return (
                 <TouchableOpacity
-                  key={log.id}
+                  key={`${log.logType}-${log.id}`}
                   style={styles.logCard}
                   onPress={() => openDetail(log)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.logIconBadge}>
-                    <Icon name="trayDown" size={18} color={COLORS.primary} weight="duotone" />
+                  <View style={[styles.logIconBadge, isRelease && styles.logIconBadgeRelease]}>
+                    <Icon
+                      name={isRelease ? 'trayUp' : 'trayDown'}
+                      size={18}
+                      color={isRelease ? COLORS.success : COLORS.primary}
+                      weight="duotone"
+                    />
                   </View>
                   <View style={styles.logTextCol}>
-                    <Text style={styles.logTitle}>Stock Received</Text>
+                    <Text style={styles.logTitle}>{getTitle(log)}</Text>
                     <Text style={styles.logMeta}>{summarizeItems(items)}</Text>
                   </View>
                   <Text style={styles.logTime}>{formatRelativeTime(log.created_at)}</Text>
@@ -173,23 +212,20 @@ export default function StockLogsScreen() {
       <CustomModal visible={!!selectedLog} onClose={closeDetail} height={560}>
         {selectedLog && (
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.detailTitle}>Stock Received</Text>
+            <Text style={styles.detailTitle}>{getTitle(selectedLog)}</Text>
             <Text style={styles.detailSubtitle}>
               {new Date(selectedLog.created_at).toLocaleString()}
             </Text>
 
             <Text style={styles.detailSectionLabel}>Items</Text>
             <View style={styles.itemsCard}>
-              {(selectedLog.branch_inventory || []).map((item, index) => (
-                <View
-                  key={`${item.batch_number}-${index}`}
-                  style={[styles.itemRow, index === 0 && styles.itemRowFirst]}
-                >
-                  <Text style={styles.itemName}>{item.product_name}</Text>
+              {getLogItems(selectedLog).map((item, index) => (
+                <View key={`${item.key}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                  <Text style={styles.itemName}>{item.name}</Text>
                   <Text style={styles.itemMeta}>
-                    Qty: {item.quantity}
-                    {item.mfg_date ? `   Mfg: ${new Date(item.mfg_date).toLocaleDateString()}` : ''}
-                    {item.exp_date ? `   Exp: ${new Date(item.exp_date).toLocaleDateString()}` : ''}
+                    Qty: {item.qty}
+                    {item.mfgDate ? `   Mfg: ${new Date(item.mfgDate).toLocaleDateString()}` : ''}
+                    {item.expDate ? `   Exp: ${new Date(item.expDate).toLocaleDateString()}` : ''}
                   </Text>
                 </View>
               ))}
@@ -213,15 +249,18 @@ export default function StockLogsScreen() {
                   </Text>
                 </View>
               )}
-              <View style={styles.metaRow}>
-                <Icon name="qrCode" size={16} color={COLORS.primary} />
-                <Text style={styles.metaText}>{selectedLog.qr_code}</Text>
-              </View>
             </View>
+
+            <Text style={styles.detailSectionLabel}>
+              {selectedLog.logType === 'release' ? 'Release QR Code' : 'Shipment QR Code'}
+            </Text>
+            <SaveableQRCode value={selectedLog.qr_code} size={180} style={styles.qrCard} />
 
             {selectedLog.media?.storage_path && (
               <>
-                <Text style={styles.detailSectionLabel}>Shipment Proof</Text>
+                <Text style={styles.detailSectionLabel}>
+                  {selectedLog.logType === 'release' ? 'Release Proof' : 'Shipment Proof'}
+                </Text>
                 {isPhotoLoading ? (
                   <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
                 ) : photoUrl ? (
@@ -312,6 +351,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logIconBadgeRelease: {
+    backgroundColor: COLORS.success + '15',
   },
   logTextCol: { flex: 1 },
   logTitle: {
@@ -407,6 +449,9 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#272632',
+  },
+  qrCard: {
+    marginBottom: SPACING.md,
   },
   photo: {
     width: '100%',

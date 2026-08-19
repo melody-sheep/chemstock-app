@@ -1,21 +1,15 @@
 // src/screens/manager/ReceiveStockPreviewScreen.js
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
-// Both of these use the /legacy subpath: the new default APIs (File/Paths,
-// Asset.create()) need native modules Expo Go doesn't ship yet
-// ("...Next"), while /legacy is backed by the modules Expo Go has always
-// bundled, so this works without a custom dev client.
-import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library/legacy';
-import QRCode from 'react-native-qrcode-svg';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
@@ -34,8 +28,6 @@ export default function ReceiveStockPreviewScreen() {
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qrCode, setQrCode] = useState(null);
-  const [isSavingToGallery, setIsSavingToGallery] = useState(false);
-  const qrRef = useRef(null);
 
   useEffect(() => {
     authService
@@ -108,38 +100,6 @@ export default function ReceiveStockPreviewScreen() {
     navigation.navigate('ManagerDashboard');
   };
 
-  const handleSaveToGallery = () => {
-    if (!qrRef.current) return;
-    setIsSavingToGallery(true);
-
-    qrRef.current.toDataURL(async (dataURL) => {
-      try {
-        // Scoped to write-only + photo — the unscoped call requests
-        // photo+video+audio by default, and Expo Go's shared manifest
-        // doesn't declare audio access, which rejects the whole request.
-        const { status } = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
-        if (status !== 'granted') {
-          Alert.alert('Permission Needed', 'Allow photo access to save the QR code.');
-          return;
-        }
-
-        const base64 = dataURL.includes(',') ? dataURL.split(',')[1] : dataURL;
-        const fileUri = FileSystem.cacheDirectory + `chemstock-qr-${qrCode}.png`;
-        await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        await MediaLibrary.createAssetAsync(fileUri);
-        Alert.alert('Saved', 'QR code saved to your photos.');
-      } catch (error) {
-        console.error('❌ [ReceiveStockPreview] Save to gallery failed:', error);
-        Alert.alert('Failed to Save', 'Could not save the QR code to your photos.');
-      } finally {
-        setIsSavingToGallery(false);
-      }
-    });
-  };
-
   if (qrCode) {
     return (
       <>
@@ -158,18 +118,7 @@ export default function ReceiveStockPreviewScreen() {
             <Text style={styles.qrSubtitle}>
               {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
             </Text>
-            <View style={styles.qrCard}>
-              <QRCode value={qrCode} size={200} getRef={(c) => (qrRef.current = c)} />
-              <Text style={styles.qrCodeText}>{qrCode}</Text>
-            </View>
-            <Button
-              title={isSavingToGallery ? 'Saving…' : 'Save to Gallery'}
-              variant="outline"
-              onPress={handleSaveToGallery}
-              loading={isSavingToGallery}
-              disabled={isSavingToGallery}
-              style={styles.doneButton}
-            />
+            <SaveableQRCode value={qrCode} size={200} style={styles.qrCard} />
             <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
           </View>
         </View>
@@ -329,21 +278,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   qrCard: {
-    alignItems: 'center',
-    gap: SPACING.sm,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     marginBottom: SPACING.xl,
-  },
-  qrCodeText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
-    letterSpacing: 0.5,
   },
   doneButton: {
     width: '100%',

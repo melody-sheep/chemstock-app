@@ -12,6 +12,7 @@ import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
+import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -52,7 +53,7 @@ const QUICK_STATS = [
 
 const MAIN_OPERATIONS = [
   { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: 'ReceiveStock' },
-  { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: null },
+  { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: 'ReleaseStockRecipient' },
   { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: null },
   { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
   { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },
@@ -65,6 +66,7 @@ export default function ManagerDashboardScreen() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
+  const [recipientNameById, setRecipientNameById] = useState({});
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
@@ -90,15 +92,19 @@ export default function ManagerDashboardScreen() {
     setUser(currentUser);
 
     const branchIds = currentUser?.branchIds || [];
-    const [stockResult, logsResult] = await Promise.all([
+    const [stockResult, logsResult, agentsResult] = await Promise.all([
       inventoryService.getBranchStock(branchIds),
-      inventoryService.getReceivingLogs(branchIds, 3),
+      inventoryService.getActivityLogs(branchIds, 3),
+      agentService.getMyAgentAccounts(),
     ]);
 
     if (stockResult.success) {
       setTotalUnits(stockResult.data.reduce((sum, row) => sum + row.quantity, 0));
     }
     setRecentLogs(logsResult.success ? logsResult.data : []);
+    if (agentsResult.success) {
+      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
+    }
   }, []);
 
   useFocusEffect(
@@ -117,13 +123,16 @@ export default function ManagerDashboardScreen() {
   );
 
   const recentLogsDisplay = recentLogs.map((log) => {
-    const items = log.branch_inventory || [];
-    const units = items.reduce((sum, item) => sum + item.quantity, 0);
+    const isRelease = log.logType === 'release';
+    const items = isRelease ? log.transaction_details || [] : log.branch_inventory || [];
+    const units = items.reduce((sum, item) => sum + (isRelease ? item.quantity : item.received_quantity), 0);
+    const verb = isRelease ? 'Released' : 'Received';
+    const recipient = isRelease && recipientNameById[log.received_by] ? ` to ${recipientNameById[log.received_by]}` : '';
     return {
-      key: log.id,
-      icon: 'trayDown',
-      iconColor: COLORS.secondary,
-      text: `Received ${units} unit${units === 1 ? '' : 's'} (${items.length} product${items.length === 1 ? '' : 's'}) — ${formatRelativeTime(log.created_at)}`,
+      key: `${log.logType}-${log.id}`,
+      icon: isRelease ? 'trayUp' : 'trayDown',
+      iconColor: isRelease ? COLORS.success : COLORS.secondary,
+      text: `${verb} ${units} unit${units === 1 ? '' : 's'} (${items.length} product${items.length === 1 ? '' : 's'})${recipient} — ${formatRelativeTime(log.created_at)}`,
       log,
     };
   });

@@ -2,7 +2,7 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: August 18, 2026 (end of Manager Stocks screen + Transaction Logs + shipment photo corruption fix session)
+Last updated: August 21, 2026 (end of Release Stock feature session — see §13-§16)
 
 ---
 
@@ -41,7 +41,10 @@ Core idea: replace paper-based stock receiving/releasing/returns with QR scannin
 | Dashboard: dynamic Total Items stat, dynamic Recent Logs, QR scanner FAB | ✅ Done (Aug 18) | QR scan only decodes and displays the raw value so far — **not yet validated against `receiving_batches.qr_code`**, deliberately deferred |
 | Branch-wide (not just per-manager) stock/log visibility | ✅ Done (Aug 18), additive RLS | See §9 — a manager now sees a branch's full stock/history, not just what they personally received |
 | Architecture: direct Supabase calls vs. Express API layer | 🟨 Recommended (direct Supabase + RLS), still not formally recorded in `AGENTS.md` | Unchanged — still a to-do |
-| Everything else (transactions/release, geotagging beyond receiving, reconciliation, alerts, reports, offline sync, QR-scan-to-receive validation) | ⬜ Not started | Scoped for Sprints 3–5 |
+| Manage Accounts screen (role-filtered list, avatar cards, Remove Account w/ confirmation) | ✅ Done, confirmed working (Aug 19) | `src/screens/manager/ManageAccountsScreen.js` — see §13 |
+| Manager Release Stock (recipient picker → scan QR or Quick Register → confirm w/ photo/GPS → new QR) | ✅ Done, confirmed working (Aug 21, after bugfix) | 5 new screens under `src/screens/manager/` — see §14-§16 |
+| Sales Rep dashboard, Receive Stock / Request Stock screens (UI only) | 🟨 UI scaffold only, no backend wiring | Landed via commits `68c5756`/`d8e87b6`, outside this Claude session — no functions yet per Jay's own commit message |
+| Everything else (Collector-as-courier/delivery checkpoints, geotagging beyond receiving/release, reconciliation, alerts, reports, offline sync, QR-scan-to-receive validation, dedicated Release Logs) | ⬜ Not started | Scoped for later sprints |
 
 **Known repo hygiene item — still unresolved across 5 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
 
@@ -227,3 +230,85 @@ The three stray 0-byte files from §3 are still there, untouched, now on their 5
 6. Decide the fate of `capstone_docs/proposal.txt` (commit as a reference copy, or gitignore it) — carried over since Aug 16.
 7. Clean up the dead code in `useActivation.js` (a harmless-but-untidy duplicate `return` — see Aug 16 §8).
 8. Sprint-2-proper work once the above is settled: wire the QR scanner's decoded value to actually look up and validate against `receiving_batches.qr_code` (currently just displays the raw scanned text), and start on Release Stock now that Receiving is solid end-to-end.
+
+---
+
+## 13. What got built Aug 19 — QR-in-Logs, Manage Accounts redesign
+
+### Logs screen: per-transaction QR code + Save to Gallery
+Each entry in the Transaction Logs detail sheet now renders its `qr_code` (already stored on `receiving_batches` since §6b, just never displayed before) with a "Save to Gallery" affordance. Extracted into a new reusable component, **`src/components/common/SaveableQRCode.js`**, pulled out of `ReceiveStockPreviewScreen.js` (which used the exact same QR-render-plus-save pattern) rather than duplicating it — same "extract once needed twice" rule as `FilterSheet`. `ReceiveStockPreviewScreen.js` itself now just renders `<SaveableQRCode>`; no behavior change there. Save-to-Gallery still doesn't work under plain Expo Go (§7.4's platform limitation), documented as a known limitation on the component itself this time so it doesn't need rediscovering.
+
+### Manage Accounts screen redesign
+Per a mockup Jay shared, `ManageAccountsScreen.js` was rewritten:
+- Filtering switched from **branch** to **role** (Sales Rep / Collector), via the existing `FilterSheet` component.
+- Avatar-initials cards replacing the old plain list rows, with a colored role dot + label.
+- **Remove Account**: a "⋮" menu on each card opens `ConfirmationDialog` (icon `trash`) with an explicit warning before the delete actually fires — Jay's hard requirement, since this is a real destructive action (deletes the `user_profiles` row entirely). `ConfirmationDialog.js` gained an optional `height` prop (default 300, backward-compatible) to fit the longer warning copy. Guarded against double-tap via an `isRemoving` state check.
+- **New RPC** `delete_agent_account(p_agent_id)` — manager-only, scoped to `created_by = auth.uid()` (a manager can only delete agents they personally created), restricted to `sales_rep`/`collector` roles only (can't be pointed at a manager row). `get_my_agent_accounts()` was also changed to return `branch_ids` (needed by the later Release Stock recipient picker, see §14) — required dropping and recreating the function since `CREATE OR REPLACE` can't add output columns.
+- `agentService.js` gained `deleteAgentAccount(agentId)`; `getMyAgentAccounts()` now also resolves and returns `branchName` per agent (batched branches query).
+- SQL: `capstone_docs/sql/2026-08-19_agent_account_removal_and_branch_ids.sql`.
+
+**Bug hit + fixed**: `ERROR: 42723: function 'get_my_agent_accounts' already exists with same argument types` — `CREATE OR REPLACE` refuses to change a function's return columns. Jay's `DROP FUNCTION IF EXISTS` was in the same paste as the `CREATE`, and appears not to have actually executed first (likely a partial-statement-selection quirk in the Supabase SQL editor). Fixed by having Jay run the `DROP FUNCTION IF EXISTS public.get_my_agent_accounts();` line **by itself**, confirm it succeeded, then run the `CREATE FUNCTION` block as a separate step. **General lesson**: when a migration changes a function's signature/return shape (not just its body), always tell Jay to run the DROP as its own standalone execution before the CREATE — don't assume a single paste with both statements will apply in order.
+
+## 14. What got built Aug 20-21 — Manager Release Stock (the biggest feature yet)
+
+### The ask
+Per a 4-screenshot mockup: a Manager picks a recipient (Sales Rep or Collector, scoped to their own branches), then either scans an existing Receive-Stock QR code or uses "Quick Register (Urgent)" for stock that was never formally logged in, reviews/adjusts quantities, and confirms with a mandatory photo + GPS/device metadata — producing a **new** QR code representing the release, to be scanned later by the recipient (that receiving-side flow is explicitly out of scope for now). Hard requirements: real deduction from `branch_inventory`, the release must be logged, and the schema should follow the capstone proposal's `transaction`/`transaction_details` concept (adapted to this app's existing "no `_table` suffix" naming) without a major overhaul. Collector-as-courier/multi-hop delivery logic explicitly deferred — a Collector can still be picked as a *direct* recipient, same as a Sales Rep.
+
+Built via the full Plan Mode workflow (Explore agent to verify current-state assumptions, Plan agent for a critical design review) given the size and schema impact — the approved plan is saved locally at `~/.claude/plans/cosmic-honking-corbato.md` on this device only (same "not portable across devices" caveat as §8's note about the Aug 16 plan file — worth eventually folding the final schema into a repo-committed doc, see §16's hygiene note).
+
+### Database (`capstone_docs/sql/2026-08-20_release_stock.sql`)
+Two new tables, following the app's existing naming convention rather than the proposal's literal `_table` suffix:
+- **`transactions`** — one row per completed release: `branch_id`, `released_by`, `received_by`, `movement_type` (`'direct'` only for now), `qr_code` (unique, the *new* release QR), `gps_id`/`media_id` FKs, `sync_status`, `created_at`.
+- **`transaction_details`** — one row per line item released: `transaction_id`, `branch_inventory_id`, plus **denormalized** `product_code`/`product_name`/`batch_number`/`mfg_date`/`exp_date`/`quantity`. Denormalized deliberately (not just read live off `branch_inventory`) so a log line stays fully self-describing no matter what later happens to the source batch — same lesson the Aug 21 bugfix (§15) ended up reinforcing the hard way.
+- RLS: same dual-policy pattern (owner-scoped + additive branch-scoped) already established for every other inventory table, extended to `transactions`/`transaction_details`, plus matching additive policies on `gps_coordinates`/`media`/`storage.objects` joining through `transactions` instead of `receiving_batches`.
+- `release_stock_batch(...)` RPC — `SECURITY DEFINER`, manager-only, atomic: validates + row-locks every line item, generates the release `qr_code`, inserts `gps_coordinates`/`media`/`transactions`/`transaction_details`, then mutates `branch_inventory` last. (Original version deleted a `branch_inventory` row on full depletion — **this behavior was wrong and was replaced the next day, see §15.**)
+
+### Quick Register (Urgent) — chained, not a combined RPC
+Chosen over a single mega-RPC because the existing `receive_stock_batch` RPC's internals weren't something to safely duplicate/extend. `ReleaseStockConfirmScreen.js` chains, in order: (1) upload waybill photo + call the existing `receiveStockBatch()` RPC — literally the normal Receive Stock flow, reusing the GPS/device reading already captured on this screen; (2) `getReceivingBatchByQrCode()` (new) to hydrate the just-created `branch_inventory_id`s, so both the scan-path and Quick-Register-path converge onto the same `items` shape; (3) upload a *second*, distinct release-proof photo, then call `releaseStockBatch()`. If step 3 fails after step 1 succeeded, that's a recoverable state (stock legitimately received, just not yet released) — the screen surfaces an explicit "stock was registered — retry release" affordance rather than a generic error, since everything needed to retry is already in hand (`hasRegistered`/`pendingReleaseItems`/`receivingQrCode` state).
+
+### New/changed files
+- **`inventoryService.js`**: added `getReceivingBatchByQrCode(qrCode, branchIds)` (shared by the scan-review screen and Quick Register's hydration step — returns `null` for an unrecognized/out-of-scope QR, or a row with an empty `branch_inventory` array for an already-fully-released batch — callers must treat these as two distinct friendly states, not crashes) and `releaseStockBatch({...})`.
+- **New shared component `src/components/common/ProductPickerList.js`** — the search/suggestions/chips/qty-stepper block extracted out of `AddNewBatchesScreen.js`'s pattern for reuse in Quick Register. `AddNewBatchesScreen.js` itself was deliberately **not modified** — same "don't touch a working screen for one new caller's sake" call as `ManagerActivationScreen.js` earlier.
+- **`Stepper.js`** generalized from a hardcoded 2-step component to N-step (`labels` array prop replacing `step1Label`/`step2Label`) — verified backward-compatible since the only other caller (`ManagerActivationScreen.js`) never passed those props.
+- **Five new screens**, all `src/screens/manager/`: `ReleaseStockRecipientScreen.js` (role tabs + search + branch-scoped agent cards via `getMyAgentAccounts()`), `ReleaseStockMethodScreen.js` (owns the QR scanner inline; routes to scan-review or Quick Register), `ReleaseStockScanReviewScreen.js` (self-loads via QR lookup, bounded qty steppers), `QuickRegisterReleaseScreen.js` (red "Urgent Release" theme, own mandatory photo), `ReleaseStockConfirmScreen.js` (shared final screen, GPS/device capture, branches on quick-register vs. scan mode, renders `SaveableQRCode` on success).
+- `AppNavigator.js` — all five registered. `ManagerDashboardScreen.js` — the "Release Stock" tile's `screen: null` flipped to `screen: 'ReleaseStockRecipient'`.
+
+### Explicitly deferred
+Collector-as-courier/multi-hop delivery (`deliv_checkpoints`-style logic); a dedicated Release Logs screen (the `transactions` table itself already satisfies "must be logged" — folded into the merged activity feed instead, see §15); releasing stock accumulated across multiple older batches of the same product via one QR scan (each scan only ever pulls from the one `receiving_batches` batch whose QR was scanned — matches the proposal's own per-batch-QR design; Quick Register is the workaround for "several old batches" cases); `alert_log`/`SR_inventory` discrepancy-reconciliation tables.
+
+## 15. Bug found + fixed Aug 21 — release deleting rows broke both receiving logs AND hid release events entirely
+
+After testing the Quick Register release path, Jay reported two symptoms from one session: `function gen_random_bytes(integer) does not exist`, then (after that was fixed) releases succeeding but showing up in the Logs screen as **"Stock Received" with 0 items/0 units** instead of "Stock Released."
+
+**Bug 1 — `gen_random_bytes`**: same pgcrypto/`extensions`-schema gotcha as §4's `crypt()`/`gen_salt()` issue, hit for the third time now. `release_stock_batch`'s `SET search_path = public` was missing `extensions`. This was avoidable — the gotcha was already written up in this very doc (§4) before the RPC was even drafted. **Worth internalizing**: any new RPC that calls `gen_random_bytes`/`crypt`/`gen_salt` needs `extensions` on its search_path from the start, not as a fix-it-later.
+
+**Bug 2 — root cause, deeper**: `release_stock_batch`'s original design (§14) **deleted** a `branch_inventory` row once its quantity hit 0. Two things depended on that row staying alive:
+1. `StockLogsScreen`/`ManagerDashboardScreen` displayed a receiving transaction's item list by *live-querying* `branch_inventory` through the FK embed — not a snapshot. Once a batch was fully released, its rows vanished, and the **original receiving log** retroactively showed 0 items/0 units — a log is supposed to be an immutable record of what happened, not a live view of current state.
+2. Neither `StockLogsScreen` nor the dashboard's Recent Logs had ever been taught to query the new `transactions` table at all — so release events were invisible full stop, regardless of the deletion bug. That's why Jay saw "Stock Received" for what was actually a release: the merged log simply didn't know release events existed yet.
+
+**Fix** — `capstone_docs/sql/2026-08-21_fix_release_stock_data_loss.sql`:
+- Relaxed `branch_inventory`'s `CHECK` from `quantity > 0` to `quantity >= 0` — a fully-released batch is now a meaningful `quantity = 0` row, not something to delete.
+- Added `received_quantity integer NOT NULL` — an immutable snapshot set once at insert time via a new `BEFORE INSERT` trigger (`trg_set_received_quantity`/`set_received_quantity()`), so `receive_stock_batch`'s own source (which nobody has needed to touch) never had to change. Backfilled existing rows from their current `quantity`.
+- Rewrote `release_stock_batch` to always **UPDATE** `branch_inventory` (`quantity = quantity - released`), never DELETE.
+- Client-side: `getReceivingLogs()` now selects `received_quantity` (not live `quantity`) for its item display; added `getReleaseLogs()` (queries `transactions` with embedded `gps_coordinates`/`media`/`transaction_details`) and `getActivityLogs()` (merges receiving+release, tags each with `logType`, sorts newest-first) to `inventoryService.js`. `StockLogsScreen.js` and `ManagerDashboardScreen.js` both rewritten to consume `getActivityLogs()` instead of receiving-only data, with a `getLogItems(log)` normalizer branching on `logType` to read either `transaction_details` or `branch_inventory` depending on which kind of event it is. `ManagerStockScreen.js`'s bucketing and `ReleaseStockScanReviewScreen.js`'s item list both got a `.filter(row => row.quantity > 0)` added, since depleted batches now persist at `quantity = 0` instead of disappearing.
+
+**Known casualty**: the specific test batch from Jay's triggering run is unrecoverable (its `branch_inventory` row was already deleted by the old buggy RPC before the fix landed) — told Jay to just test fresh rather than expect that data to reappear.
+
+**Status at session end**: the fix SQL was written and its full text was displayed to Jay in chat, but **he had not yet confirmed running it or retesting** when the session ended. First thing to check next session.
+
+## 16. Git / commit status (Aug 21) + hygiene note
+
+Branch: **`jay`**. Commits `4ca30fc`→`68c5756`→`d8e87b6` landed since §11 (Sales Rep/Collector dashboard work + Receive/Request Stock UI scaffolding — happened outside this Claude session, no functions wired yet per Jay's own commit message).
+
+**Nothing from §13-§15's work is committed yet.** Modified: `ConfirmationDialog.js`, `Icon.js`, `Stepper.js`, `AppNavigator.js`, `ManageAccountsScreen.js`, `ManagerDashboardScreen.js`, `ManagerStockScreen.js`, `ReceiveStockPreviewScreen.js`, `StockLogsScreen.js`, `agentService.js`, `inventoryService.js`. New/untracked: `ProductPickerList.js`, `SaveableQRCode.js`, and all five Release Stock screens.
+
+**New hygiene item, worth fixing soon**: `.gitignore` has a blanket `*.sql` rule (line ~297, originally meant for "database backups"). This means **every file in `capstone_docs/sql/` — all four migrations from Aug 18, 19, 20, and 21 — has never actually been tracked by git**, despite living in the repo folder and looking committed. They only exist on whichever machine ran this session. If a teammate pulls `jay` on a different machine, none of this SQL comes with it. Fix: add a narrow exception (`!capstone_docs/sql/*.sql`) above the blanket rule, then commit the four existing files.
+
+## 17. Suggested first steps in a new session
+
+1. Confirm Jay ran `2026-08-21_fix_release_stock_data_loss.sql` and retest a fresh Quick Register release end-to-end — confirm both a "Stock Received" and a "Stock Released" entry appear in Logs/Dashboard with correct item/unit counts (§15, unconfirmed as of session end).
+2. Fix the `.gitignore` `*.sql` blanket rule (§16) before anything else gets lost the same way.
+3. `git status`/`git diff` — review and commit §13-§15's work once the above is verified.
+4. Test the QR-scan release path end-to-end (only Quick Register has been confirmed working so far) — pick a recipient, scan a real Receive Stock QR, adjust a quantity down, confirm, and check `branch_inventory` decremented correctly.
+5. Carry-overs, still open: the three stray 0-byte files (6+ sessions now), direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, deciding on a real dev build (unblocks Save-to-Gallery, needed for offline sync later).
+6. Once Release Stock is fully verified: wire up the Sales Rep/Collector side of receiving a release (scanning the *release* QR — the mirror image of what Release Stock produces), and start on Collector-as-courier/multi-hop delivery logic (explicitly deferred in §14).
