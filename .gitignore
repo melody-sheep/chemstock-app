@@ -372,4 +372,7 @@ lerna-debug.log
 # !app.json
 # !package.json
 # !README.md
-# !LICENSEexpo-export/
+# !LICENSE
+
+# Expo export build output
+expo-export/
