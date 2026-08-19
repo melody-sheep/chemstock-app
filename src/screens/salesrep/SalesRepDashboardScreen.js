@@ -50,8 +50,8 @@ const QUICK_STATS = [
 ];
 
 const MAIN_OPERATIONS = [
-  { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.srReceiveStroke, duotoneColor: COLORS.srReceiveFill, title: 'Receive Stock', screen: null },
-  { key: 'requestStock', icon: 'notePencil', iconColor: COLORS.srRequestStroke, duotoneColor: COLORS.srRequestFill, title: 'Request Stock', screen: null },
+  { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.srReceiveStroke, duotoneColor: COLORS.srReceiveFill, title: 'Receive Stock', screen: 'ReceiveStockTypeSR' },
+  { key: 'requestStock', icon: 'notePencil', iconColor: COLORS.srRequestStroke, duotoneColor: COLORS.srRequestFill, title: 'Request Stock', screen: 'RequestStockSR' },
   { key: 'submitReport', icon: 'document', iconColor: COLORS.srReportStroke, duotoneColor: COLORS.srReportFill, title: 'Submit Report', screen: null },
   { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
   { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },

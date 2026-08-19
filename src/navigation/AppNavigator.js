@@ -13,6 +13,9 @@ import ReceiveStockPreviewScreen from '../screens/manager/ReceiveStockPreviewScr
 import ManagerStockScreen from '../screens/manager/ManagerStockScreen';
 import StockLogsScreen from '../screens/manager/StockLogsScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
+import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
+import ReceiveStockSR from '../screens/salesrep/ReceiveStockSR';
+import RequestStockSR from '../screens/salesrep/RequestStockSR';
 import CollectorDashboardScreen from '../screens/collector/CollectorDashboardScreen';
 
 const Stack = createNativeStackNavigator();
@@ -32,6 +35,9 @@ export default function AppNavigator() {
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} />
         <Stack.Screen name="StockLogs" component={StockLogsScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} />
+        <Stack.Screen name="ReceiveStockTypeSR" component={ReceiveStockTypeSR} />
+        <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} />
+        <Stack.Screen name="RequestStockSR" component={RequestStockSR} />
         <Stack.Screen name="CollectorDashboard" component={CollectorDashboardScreen} />
       </Stack.Navigator>
     </NavigationContainer>
