@@ -52,10 +52,10 @@ const QUICK_STATS = [
 const MAIN_OPERATIONS = [
   { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.srReceiveStroke, duotoneColor: COLORS.srReceiveFill, title: 'Receive Stock', screen: 'ReceiveStockTypeSR' },
   { key: 'requestStock', icon: 'notePencil', iconColor: COLORS.srRequestStroke, duotoneColor: COLORS.srRequestFill, title: 'Request Stock', screen: 'RequestStockSR' },
-  { key: 'submitReport', icon: 'document', iconColor: COLORS.srReportStroke, duotoneColor: COLORS.srReportFill, title: 'Submit Report', screen: null },
-  { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
+  { key: 'submitReport', icon: 'document', iconColor: COLORS.srReportStroke, duotoneColor: COLORS.srReportFill, title: 'Submit Report', screen: 'SubmitReportSR' },
+  { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: 'AlertsDiscrepanciesSR' },
   { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },
-  { key: 'returnStocks', icon: 'returnBox', iconColor: COLORS.srReturnStroke, duotoneColor: COLORS.srReturnFill, title: 'Return Stocks', screen: null },
+  { key: 'returnStocks', icon: 'returnBox', iconColor: COLORS.srReturnStroke, duotoneColor: COLORS.srReturnFill, title: 'Return Stocks', screen: 'ReturnStocksSR' },
 ];
 
 export default function SalesRepDashboardScreen() {
@@ -87,7 +87,13 @@ export default function SalesRepDashboardScreen() {
 
   const handleTabPress = (key) => {
     setActiveTab(key);
-    if (key !== 'dashboard') {
+    if (key === 'stock') {
+      navigation.navigate('SalesRepStock');
+    } else if (key === 'reports') {
+      navigation.navigate('SalesRepReports');
+    } else if (key === 'settings') {
+      navigation.navigate('SalesRepSettings');
+    } else if (key !== 'dashboard') {
       Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
     }
   };
