@@ -18,16 +18,16 @@ const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'
 export default function ReleaseStockMethodScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { recipient, branchId } = route.params;
+  const { recipient, targetRecipient, branchId, movementType } = route.params;
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   const handleScanned = (qrCode) => {
     setIsScannerVisible(false);
-    navigation.navigate('ReleaseStockScanReview', { recipient, branchId, qrCode });
+    navigation.navigate('ReleaseStockScanReview', { recipient, targetRecipient, branchId, movementType, qrCode });
   };
 
   const handleQuickRegister = () => {
-    navigation.navigate('QuickRegisterRelease', { recipient, branchId });
+    navigation.navigate('QuickRegisterRelease', { recipient, targetRecipient, branchId, movementType });
   };
 
   return (

@@ -38,6 +38,7 @@ export default function ReleaseStockRecipientScreen() {
   const [activeRole, setActiveRole] = useState(ROLES.SALES_REP);
   const [searchText, setSearchText] = useState('');
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [selectedTargetRep, setSelectedTargetRep] = useState(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -59,6 +60,8 @@ export default function ReleaseStockRecipientScreen() {
   const managerBranchIds = manager?.branchIds || [];
   const query = searchText.trim().toLowerCase();
 
+  const isCollectorRole = activeRole === ROLES.COLLECTOR;
+
   const visibleAgents = agents.filter((agent) => {
     if (agent.role !== activeRole) return false;
     const sharesBranch = (agent.branch_ids || []).some((id) => managerBranchIds.includes(id));
@@ -67,21 +70,38 @@ export default function ReleaseStockRecipientScreen() {
     return agent.full_name?.toLowerCase().includes(query) || agent.username?.toLowerCase().includes(query);
   });
 
+  // A Collector is a courier, not the final recipient — the proposal's own
+  // remote-release flow (Figure 27) has the manager pick the collector AND
+  // the target Sales Rep the collector is delivering to, in the same step.
+  // Independent of the active role tab/search box above, since it's always
+  // pulled from the Sales Rep pool.
+  const targetReps = agents.filter((agent) => {
+    if (agent.role !== ROLES.SALES_REP) return false;
+    return (agent.branch_ids || []).some((id) => managerBranchIds.includes(id));
+  });
+
   const handleSelectRole = (role) => {
     setActiveRole(role);
     setSelectedAgent(null);
+    setSelectedTargetRep(null);
   };
 
+  const toRecipientParam = (agent) => ({
+    id: agent.id,
+    fullName: agent.full_name,
+    username: agent.username,
+    role: agent.role,
+    branchName: agent.branchName,
+  });
+
+  const canProceed = isCollectorRole ? !!selectedAgent && !!selectedTargetRep : !!selectedAgent;
+
   const handleNext = () => {
-    if (!selectedAgent) return;
+    if (!canProceed) return;
     navigation.navigate('ReleaseStockMethod', {
-      recipient: {
-        id: selectedAgent.id,
-        fullName: selectedAgent.full_name,
-        username: selectedAgent.username,
-        role: selectedAgent.role,
-        branchName: selectedAgent.branchName,
-      },
+      recipient: toRecipientParam(selectedAgent),
+      targetRecipient: isCollectorRole ? toRecipientParam(selectedTargetRep) : null,
+      movementType: isCollectorRole ? 'collector' : 'direct',
       branchId: managerBranchIds[0],
     });
   };
@@ -181,6 +201,40 @@ export default function ReleaseStockRecipientScreen() {
             </ScrollView>
           )}
 
+          {isCollectorRole && selectedAgent && (
+            <>
+              <Text style={styles.targetRepLabel}>Deliver to (Sales Rep)</Text>
+              {targetReps.length === 0 ? (
+                <Text style={styles.emptyText}>No sales reps found for your branch.</Text>
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.agentRow}>
+                  {targetReps.map((agent) => {
+                    const isSelected = selectedTargetRep?.id === agent.id;
+                    return (
+                      <TouchableOpacity
+                        key={agent.id}
+                        style={[styles.agentCard, isSelected && styles.agentCardSelected]}
+                        onPress={() => setSelectedTargetRep(agent)}
+                        activeOpacity={0.7}
+                      >
+                        {isSelected && (
+                          <View style={styles.agentCheckBadge}>
+                            <Icon name="checkmark" size={10} color="#FFFFFF" />
+                          </View>
+                        )}
+                        <View style={styles.agentAvatar}>
+                          <Text style={styles.agentAvatarText}>{getInitials(agent.full_name)}</Text>
+                        </View>
+                        <Text style={styles.agentRoleLabel}>Sales Rep</Text>
+                        <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </>
+          )}
+
           <View style={{ height: 24 }} />
         </ScrollView>
 
@@ -190,7 +244,7 @@ export default function ReleaseStockRecipientScreen() {
             icon="arrowRight"
             iconPosition="right"
             onPress={handleNext}
-            disabled={!selectedAgent}
+            disabled={!canProceed}
             variant="black"
             height={52}
           />
@@ -270,6 +324,13 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
+  },
+  targetRepLabel: {
+    marginTop: SPACING.md,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
   },
   agentRow: { gap: SPACING.sm, paddingTop: SPACING.md, paddingRight: SPACING.sm },
   agentCard: {

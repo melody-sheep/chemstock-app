@@ -8,10 +8,13 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
 import ActionCard from '../../components/common/ActionCard';
+import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
+import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
+import { formatRelativeTime } from '../../utils/formatters';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -63,6 +66,8 @@ export default function SalesRepDashboardScreen() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [totalUnits, setTotalUnits] = useState(null);
+  const [recentLogs, setRecentLogs] = useState([]);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
@@ -76,14 +81,46 @@ export default function SalesRepDashboardScreen() {
     extrapolate: 'clamp',
   });
 
+  const loadDashboardData = useCallback(async () => {
+    const currentUser = await authService.getCurrentUser();
+    setUser(currentUser);
+
+    const [inventoryResult, logsResult] = await Promise.all([
+      inventoryService.getSrInventory(currentUser?.id),
+      inventoryService.getSrActivityLogs(currentUser?.id, 3),
+    ]);
+
+    if (inventoryResult.success) {
+      setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.quantity, 0));
+    }
+    setRecentLogs(logsResult.success ? logsResult.data : []);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      authService.getCurrentUser().then(setUser);
-    }, [])
+      loadDashboardData();
+    }, [loadDashboardData])
   );
 
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+
+  const displayedStats = QUICK_STATS.map((stat) =>
+    stat.key === 'totalItems'
+      ? { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() }
+      : stat
+  );
+
+  const recentLogsDisplay = recentLogs.map((log) => {
+    const units = (log.items || []).reduce((sum, item) => sum + item.quantity, 0);
+    return {
+      key: log.acceptanceId,
+      icon: 'trayDown',
+      iconColor: COLORS.secondary,
+      text: `Accepted ${units} unit${units === 1 ? '' : 's'} (${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'}) — ${formatRelativeTime(log.createdAt)}`,
+      log,
+    };
+  });
 
   const handleTabPress = (key) => {
     setActiveTab(key);
@@ -116,6 +153,7 @@ export default function SalesRepDashboardScreen() {
           showProfileIcon={true}
           title="Sales Rep Dashboard"
           showDocumentIcon={true}
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
           showNotificationIcon={true}
           height={56}
           backgroundColor="#03045E"
@@ -174,7 +212,7 @@ export default function SalesRepDashboardScreen() {
           >
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           <View style={styles.statsRow}>
-            {QUICK_STATS.map((stat) => (
+            {displayedStats.map((stat) => (
               <View key={stat.key} style={styles.statTouchable}>
                 <StatCard
                   icon={stat.icon}
@@ -206,7 +244,19 @@ export default function SalesRepDashboardScreen() {
 
           <Text style={styles.sectionTitle}>Recent Logs</Text>
           <View style={styles.logsList}>
-            <Text style={styles.emptyLogsText}>No recent activity yet.</Text>
+            {recentLogsDisplay.length > 0 ? (
+              recentLogsDisplay.map((log) => (
+                <LogListItem
+                  key={log.key}
+                  icon={log.icon}
+                  iconColor={log.iconColor}
+                  text={log.text}
+                  onPress={() => navigation.navigate('SalesRepLogs', { initialLog: log.log })}
+                />
+              ))
+            ) : (
+              <Text style={styles.emptyLogsText}>No recent activity yet.</Text>
+            )}
           </View>
           </ScrollView>
         </View>

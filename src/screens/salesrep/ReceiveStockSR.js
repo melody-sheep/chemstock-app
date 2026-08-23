@@ -1,42 +1,150 @@
 // src/screens/salesrep/ReceiveStockSR.js
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import * as Location from 'expo-location';
+import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
-import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import Button from '../../components/common/Button';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import authService from '../../services/authService';
+import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
-import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-const scannedItems = [
-  { id: 'PE-2041', name: 'Paracetamol 500mg', qty: '20 boxes', status: 'Verified' },
-  { id: 'AM-1098', name: 'Amoxicillin 250mg', qty: '12 boxes', status: 'Pending' },
-  { id: 'OR-7882', name: 'Oral Rehydration Pack', qty: '8 sachets', status: 'Verified' },
-];
+// Passed from ReceiveStockTypeSR — cosmetic only pre-scan (what the user
+// *expects* to receive). Once a QR is scanned, the resolved
+// batch.movementType from the server is what actually decides the source
+// card shown below, not this value.
+const HANDOFF_LABELS = {
+  manager: 'Direct From Manager',
+  rider: 'Via Collector Delivery',
+};
 
 export default function ReceiveStockSR() {
   const navigation = useNavigation();
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const route = useRoute();
+  const { handoffType } = route.params || {};
+
+  const [agent, setAgent] = useState(null);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState(null);
+  const [batch, setBatch] = useState(null);
+
+  const [coords, setCoords] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAccepted, setIsAccepted] = useState(false);
+
+  useEffect(() => {
+    authService.getCurrentUser().then(setAgent);
+  }, []);
+
+  const deviceLabel = [Device.modelName, Device.osName, Device.osVersion].filter(Boolean).join(' - ');
 
   const handleBack = () => navigation.goBack();
 
-  const handleScanQR = () => {
-    Alert.alert('Scan QR', 'This will activate the device QR scanner for the shipment.');
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    setIsLookingUp(true);
+    setLookupError(null);
+
+    const currentAgent = agent || (await authService.getCurrentUser());
+    const result = await inventoryService.getTransactionByQrCodeForAgent(qrCode, currentAgent?.id);
+    setIsLookingUp(false);
+
+    if (!result.success) {
+      setLookupError(result.message || 'Transaction not found or not assigned to you.');
+      return;
+    }
+    if (result.data.alreadyAccepted) {
+      setLookupError('This batch has already been accepted.');
+      return;
+    }
+
+    setBatch(result.data);
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Location permission denied');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({});
+      setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+    } catch (error) {
+      console.error('❌ [ReceiveStockSR] Location error:', error);
+      setLocationError('Unable to determine location');
+    }
   };
 
-  const handleCapturePhoto = () => {
-    Alert.alert('Photo Proof', 'This will open the camera for a mandatory transfer photo.');
+  const handleRetry = () => {
+    setLookupError(null);
+    setBatch(null);
+    setIsScannerVisible(true);
   };
 
-  const handleConfirm = () => {
-    setShowConfirmDialog(true);
+  const totalUnits = (batch?.items || []).reduce((sum, item) => sum + item.quantity, 0);
+  const isCollectorSource = batch?.movementType === 'collector';
+  const sourceName = isCollectorSource ? batch?.receivedByName : batch?.releasedByName;
+  const sourceRole = isCollectorSource ? 'Collector' : 'Branch Manager';
+
+  const handleAccept = async () => {
+    if (!agent || !photoUri || !batch || isSubmitting) return;
+    setIsSubmitting(true);
+
+    try {
+      const storagePath = await inventoryService.uploadStockAcceptancePhoto(photoUri, agent.id);
+      const result = await inventoryService.acceptStockRelease({
+        qrCode: batch.qrCode,
+        agentId: agent.id,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+        deviceModel: Device.modelName,
+        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+        storagePath,
+      });
+
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      setIsAccepted(true);
+    } catch (error) {
+      Alert.alert('Failed to Accept Stock', error.message || 'Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDialogConfirm = () => {
-    setShowConfirmDialog(false);
-    Alert.alert('Receipt Confirmed', 'The shipment has been recorded and synced for verification.');
-  };
+  const handleDone = () => navigation.navigate('SalesRepDashboard');
+
+  if (isAccepted) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <View style={styles.screen}>
+          <View style={styles.topBar}>
+            <Text style={styles.topBarTitle}>Stock Accepted</Text>
+          </View>
+          <View style={styles.successWrap}>
+            <Icon name="checkCircle" size={48} color={COLORS.success} weight="fill" />
+            <Text style={styles.successTitle}>Stock Accepted Successfully</Text>
+            <Text style={styles.successSubtitle}>
+              {batch?.items?.length || 0} item{(batch?.items?.length || 0) === 1 ? '' : 's'}, {totalUnits} units added
+              to your stock
+            </Text>
+            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
+          </View>
+        </View>
+      </>
+    );
+  }
 
   return (
     <>
@@ -56,115 +164,162 @@ export default function ReceiveStockSR() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.sectionHeaderPanel}>
-            <View style={styles.labelRow}>
-              <Text style={styles.sectionLabel}>Shipment Overview</Text>
-            </View>
-
-            <View style={styles.infoColumn}>
-              <View style={styles.infoRowRounded}>
-                <Text style={styles.infoLabel}>Batch ID</Text>
-                <Text style={styles.infoValue}>SR-2309</Text>
+          {!batch && (
+            <>
+              <View style={styles.sectionHeaderPanel}>
+                <Text style={styles.sectionLabel}>Scanning Incoming Batch</Text>
+                <Text style={styles.sectionSubLabel}>
+                  {HANDOFF_LABELS[handoffType] || 'Receive Stock'}
+                </Text>
               </View>
-              <View style={styles.infoRowRounded}>
-                <Text style={styles.infoLabel}>From</Text>
-                <Text style={styles.infoValue}>Branch Danao</Text>
-              </View>
-              <View style={styles.infoRowRounded}>
-                <Text style={styles.infoLabel}>ETA</Text>
-                <Text style={styles.infoValue}>08:45 AM</Text>
-              </View>
-            </View>
-          </View>
 
-          <Pressable style={styles.scanButton} onPress={handleScanQR}>
-            <View style={styles.scanIconWrap}>
-              <Icon name="qrCode" size={26} color="#03045E" />
-            </View>
-            <View style={styles.scanTextWrap}>
-              <Text style={styles.scanTitle}>Scan Shipment QR</Text>
-              <Text style={styles.scanSubtitle}>Use the device scanner to validate the assigned stock batch.</Text>
-            </View>
-            <Icon name="arrowRight" size={18} color="#555353" />
-          </Pressable>
-
-          <View style={styles.titleRow}>
-            <Text style={styles.listTitle}>Current Scanned Items</Text>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{scannedItems.length}</Text>
-            </View>
-          </View>
-
-          <View style={styles.listCard}>
-            {scannedItems.map((item, index) => (
-              <View
-                key={item.id}
-                style={[styles.listItemRow, index === scannedItems.length - 1 && styles.lastListItem]}
-              >
-                <View style={styles.itemLeft}>
-                  <View style={styles.itemIconWrap}>
-                    <Icon name="package" size={18} color="#03045E" />
-                  </View>
-                  <View>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemMeta}>{item.qty}</Text>
-                  </View>
+              <Pressable style={styles.scanButton} onPress={() => setIsScannerVisible(true)} disabled={isLookingUp}>
+                <View style={styles.scanIconWrap}>
+                  <Icon name="qrCode" size={26} color="#03045E" />
                 </View>
+                <View style={styles.scanTextWrap}>
+                  <Text style={styles.scanTitle}>{isLookingUp ? 'Looking up batch…' : 'Scan Shipment QR'}</Text>
+                  <Text style={styles.scanSubtitle}>Scan the QR code the manager generated on release.</Text>
+                </View>
+                <Icon name="arrowRight" size={18} color="#555353" />
+              </Pressable>
 
-                <View style={[styles.stateCapsule, item.status === 'Verified' ? styles.verified : styles.pending]}>
-                  <Text style={[styles.stateText, item.status === 'Verified' ? styles.verifiedText : styles.pendingText]}>{item.status}</Text>
+              {lookupError && (
+                <View style={styles.errorPanel}>
+                  <Icon name="warningTriangle" size={22} color={COLORS.error} />
+                  <Text style={styles.errorText}>{lookupError}</Text>
+                  <Button title="Scan Again" variant="outline" onPress={handleRetry} style={styles.retryButton} />
+                </View>
+              )}
+            </>
+          )}
+
+          {batch && (
+            <>
+              <Text style={styles.listTitle}>{isCollectorSource ? 'Collector' : 'Manager'}</Text>
+              <View style={[styles.sourceBanner, isCollectorSource ? styles.sourceBannerCollector : styles.sourceBannerDirect]}>
+                <Text style={styles.sourceBannerText}>
+                  Current Source: {isCollectorSource ? 'Via Collector Delivery' : 'Direct From Manager'}
+                </Text>
+              </View>
+              <View style={styles.sourceCard}>
+                <View style={styles.sourceAvatar}>
+                  <Icon name="person" size={22} color="#94a3b8" />
+                </View>
+                <View style={styles.sourceTextWrap}>
+                  <Text style={styles.sourceName}>{sourceName || 'Unknown'}</Text>
+                  <Text style={styles.sourceRole}>{sourceRole}</Text>
                 </View>
               </View>
-            ))}
-          </View>
 
-          <Pressable style={styles.photoCard} onPress={handleCapturePhoto}>
-            <View style={styles.photoHeaderRow}>
+              <View style={styles.titleRow}>
+                <Text style={styles.listTitle}>Items To Be Handover</Text>
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{batch.items.length}</Text>
+                </View>
+              </View>
+
+              <View style={styles.listCard}>
+                {batch.items.map((item, index) => (
+                  <View
+                    key={`${item.batchNumber}-${index}`}
+                    style={[styles.listItemRow, index === batch.items.length - 1 && styles.lastListItem]}
+                  >
+                    <View style={styles.itemLeft}>
+                      <View style={styles.itemIconWrap}>
+                        <Icon name="package" size={18} color="#03045E" />
+                      </View>
+                      <View>
+                        <Text style={styles.itemName}>{item.productName}</Text>
+                        <Text style={styles.itemMeta}>
+                          Qty: {item.quantity}{item.batchNumber ? `   BN: ${item.batchNumber}` : ''}
+                        </Text>
+                        {(item.mfgDate || item.expDate) && (
+                          <Text style={styles.itemMeta}>
+                            {item.mfgDate ? `Mfg: ${new Date(item.mfgDate).toLocaleDateString()}` : ''}
+                            {item.mfgDate && item.expDate ? '   ' : ''}
+                            {item.expDate ? `Exp: ${new Date(item.expDate).toLocaleDateString()}` : ''}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
               <Text style={styles.listTitle}>Photo Proof</Text>
-              <View style={styles.requiredPill}>
-                <Text style={styles.requiredText}>Required</Text>
+              {photoUri ? (
+                <Pressable style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)}>
+                  <Image source={{ uri: photoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
+                  <View style={styles.photoPreviewInfo}>
+                    <Text style={styles.itemName}>Photo captured</Text>
+                    <Text style={styles.itemMeta}>Tap to retake</Text>
+                  </View>
+                  <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
+                </Pressable>
+              ) : (
+                <Pressable style={styles.photoCard} onPress={() => setIsCameraVisible(true)}>
+                  <View style={styles.photoHeaderRow}>
+                    <View style={styles.requiredPill}>
+                      <Text style={styles.requiredText}>Required</Text>
+                    </View>
+                  </View>
+                  <View style={styles.photoPlaceholder}>
+                    <Icon name="camera" size={36} color="#03045E" />
+                    <Text style={styles.photoText}>Tap to capture proof of receipt</Text>
+                  </View>
+                </Pressable>
+              )}
+
+              <View style={styles.locationCard}>
+                <View style={styles.locationRow}>
+                  <View style={styles.locationLeft}>
+                    <Icon name="location" size={18} color="#F04D59" />
+                    <Text style={styles.detailLabel}>GPS</Text>
+                  </View>
+                  <Text style={styles.detailValue}>
+                    {coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : locationError || 'Locating…'}
+                  </Text>
+                </View>
+                <View style={styles.locationRow}>
+                  <View style={styles.locationLeft}>
+                    <Icon name="building" size={18} color={COLORS.primary} />
+                    <Text style={styles.detailLabel}>Branch</Text>
+                  </View>
+                  <Text style={styles.detailValue}>{batch.branchName}</Text>
+                </View>
+                <View style={styles.locationRow}>
+                  <View style={styles.locationLeft}>
+                    <Icon name="package" size={18} color={COLORS.textSecondary} />
+                    <Text style={styles.detailLabel}>Device</Text>
+                  </View>
+                  <Text style={styles.detailValue}>{deviceLabel || 'Unknown device'}</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.photoPlaceholder}>
-              <Icon name="camera" size={36} color="#03045E" />
-              <Text style={styles.photoText}>Tap to capture proof of transfer</Text>
-            </View>
-          </Pressable>
-
-          <View style={styles.locationCard}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="location" size={18} color="#F04D59" />
-                <Text style={styles.detailLabel}>GPS Check</Text>
-              </View>
-              <Text style={styles.detailValue}>14.3456° N, 121.0123° E</Text>
-            </View>
-
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="clock" size={18} color="#00B4D8" />
-                <Text style={styles.detailLabel}>Time</Text>
-              </View>
-              <Text style={styles.detailValue}>08:41:12 AM</Text>
-            </View>
-          </View>
-
-          <Pressable style={styles.primaryButton} onPress={handleConfirm}>
-            <Text style={styles.primaryButtonText}>Confirm & Register Receipt</Text>
-          </Pressable>
+              <Pressable
+                style={[styles.primaryButton, (!photoUri || isSubmitting) && styles.primaryButtonDisabled]}
+                onPress={handleAccept}
+                disabled={!photoUri || isSubmitting}
+              >
+                <Text style={styles.primaryButtonText}>{isSubmitting ? 'Accepting…' : 'Accept Stock'}</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
-
-        <ConfirmationDialog
-          visible={showConfirmDialog}
-          onCancel={() => setShowConfirmDialog(false)}
-          onConfirm={handleDialogConfirm}
-          icon="lock"
-          title="Notice"
-          description="You’re about to finalize this shipment receipt and save the delivery proof."
-          confirmLabel="Confirm Receipt"
-        />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
+
+      <CameraCaptureModal
+        visible={isCameraVisible}
+        onClose={() => setIsCameraVisible(false)}
+        onCapture={setPhotoUri}
+      />
     </>
   );
 }
@@ -175,14 +330,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   topBar: {
-    height: 42,
+    height: 56,
     backgroundColor: '#03045E',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
-    borderBottomWidth: 2,
-    borderBottomColor: '#03045E',
   },
   backButton: {
     width: 32,
@@ -224,23 +377,16 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 32,
+    gap: 12,
   },
   sectionHeaderPanel: {
     backgroundColor: '#F7FEFF',
     borderWidth: 0.5,
     borderColor: '#4CF294',
-    borderRadius: 0,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginTop: 0,
-    marginBottom: 16,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   sectionLabel: {
     fontSize: 18,
@@ -248,31 +394,11 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
-  infoColumn: {
-    marginTop: 10,
-    gap: 8,
-  },
-  infoRowRounded: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#EDEFF3',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoLabel: {
+  sectionSubLabel: {
+    marginTop: 2,
     fontSize: 12,
     color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-  infoValue: {
-    fontSize: 13,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   scanButton: {
     backgroundColor: '#FFFFFF',
@@ -283,7 +409,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 14,
-    marginBottom: 18,
   },
   scanIconWrap: {
     width: 44,
@@ -309,11 +434,69 @@ const styles = StyleSheet.create({
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
+  errorPanel: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.error + '40',
+    backgroundColor: COLORS.error + '0D',
+  },
+  errorText: {
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: COLORS.error,
+    textAlign: 'center',
+  },
+  retryButton: { marginTop: 4, width: '100%' },
+  sourceBanner: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  sourceBannerCollector: { backgroundColor: '#FF7800' },
+  sourceBannerDirect: { backgroundColor: '#03045E' },
+  sourceBannerText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  sourceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
+    padding: 12,
+  },
+  sourceAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F3F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceTextWrap: { flex: 1 },
+  sourceName: {
+    fontSize: 14,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  sourceRole: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
   },
   listTitle: {
     color: '#272632',
@@ -343,7 +526,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    marginBottom: 18,
   },
   listItemRow: {
     flexDirection: 'row',
@@ -382,28 +564,6 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
-  stateCapsule: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  verified: {
-    backgroundColor: '#EAFBF2',
-  },
-  pending: {
-    backgroundColor: '#FFF5E7',
-  },
-  stateText: {
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-  verifiedText: {
-    color: '#1E7A3A',
-  },
-  pendingText: {
-    color: '#B26400',
-  },
   photoCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -411,12 +571,10 @@ const styles = StyleSheet.create({
     borderColor: '#EAEFF5',
     paddingHorizontal: 14,
     paddingVertical: 12,
-    marginBottom: 18,
   },
   photoHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     marginBottom: 10,
   },
   requiredPill: {
@@ -447,6 +605,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.success,
+    borderRadius: 14,
+    padding: 10,
+    backgroundColor: COLORS.success + '10',
+  },
+  photoPreviewThumb: { width: 44, height: 44, borderRadius: 8 },
+  photoPreviewInfo: { flex: 1 },
   locationCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -454,7 +624,6 @@ const styles = StyleSheet.create({
     borderColor: '#EAEFF5',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    marginBottom: 18,
   },
   locationRow: {
     flexDirection: 'row',
@@ -479,6 +648,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'right',
   },
   primaryButton: {
     backgroundColor: '#03045E',
@@ -486,7 +657,9 @@ const styles = StyleSheet.create({
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.5,
   },
   primaryButtonText: {
     color: '#FFFFFF',
@@ -494,4 +667,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
+  successWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 10,
+  },
+  successTitle: {
+    fontSize: 18,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#272632',
+    textAlign: 'center',
+  },
+  successSubtitle: {
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: '#555353',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  doneButton: { width: '100%' },
 });

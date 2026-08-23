@@ -1,64 +1,43 @@
 // src/screens/salesrep/SalesRepStockScreen.js
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import authService from '../../services/authService';
+import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 
-const AGENT = {
-  name: 'Jay Sultan',
-  role: 'Sales Representative',
-  branch: 'Iponan Cdo Sales Rep',
-  pendingItems: 1,
-  missingItems: 1,
-};
-
-const HEALTHY_STOCK = [
-  {
-    id: 'LIN-24-123',
-    name: 'Liniment X',
-    type: 'Type: Lorem ipsum.',
-    idCode: 'BTN-LIN-24-123',
-    mfg: '05/20/2026',
-    exp: '08/20/2026',
-    urgent: true,
-    qty: 10,
-    nearExpiry: true,
-  },
-  {
-    id: 'LIN-24-124',
-    name: 'Liniment Y',
-    type: 'Type: Lorem ipsum.',
-    idCode: 'BTN-LIN-24-124',
-    mfg: '05/20/2026',
-    exp: '08/20/2030',
-    urgent: false,
-    qty: 12,
-    nearExpiry: false,
-  },
-];
-
-const LOW_STOCK = [
-  {
-    id: 'MNT-OIL-X',
-    name: 'MNT-OIL-X',
-    type: 'Type: Lorem ipsum.',
-    idCode: 'BTN-LIN-24-123',
-    mfg: '05/20/2026',
-    exp: '08/20/2026',
-    urgent: false,
-    qty: 2,
-    nearExpiry: false,
-  },
-];
+function isNearExpiry(expDate) {
+  if (!expDate) return false;
+  return (new Date(expDate).getTime() - Date.now()) / 86400000 <= NEAR_EXPIRY_DAYS;
+}
 
 export default function SalesRepStockScreen() {
   const navigation = useNavigation();
   const [searchText, setSearchText] = useState('');
+  const [agent, setAgent] = useState(null);
+  const [stock, setStock] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadStock = useCallback(async () => {
+    setIsLoading(true);
+    const currentAgent = await authService.getCurrentUser();
+    setAgent(currentAgent);
+    const result = await inventoryService.getSrInventory(currentAgent?.id);
+    setStock(result.success ? result.data : []);
+    setIsLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStock();
+    }, [loadStock])
+  );
 
   const handleBack = () => navigation.goBack();
 
@@ -72,9 +51,14 @@ export default function SalesRepStockScreen() {
     }
   };
 
-  const handleViewSummary = () => {
-    Alert.alert('Handheld Stock', 'This will show the full breakdown of pending and missing items.');
-  };
+  const query = searchText.trim().toLowerCase();
+  const visibleStock = stock.filter((row) => {
+    if (!query) return true;
+    return row.product_name?.toLowerCase().includes(query) || row.product_code?.toLowerCase().includes(query);
+  });
+  const healthyStock = visibleStock.filter((row) => row.quantity >= STOCK_HEALTHY_THRESHOLD);
+  const lowStock = visibleStock.filter((row) => row.quantity < STOCK_HEALTHY_THRESHOLD);
+  const totalUnits = stock.reduce((sum, row) => sum + row.quantity, 0);
 
   const renderProductCard = (item) => (
     <View key={item.id} style={styles.productCard}>
@@ -83,26 +67,28 @@ export default function SalesRepStockScreen() {
           <Icon name="package" size={22} color="#94a3b8" />
         </View>
         <View style={styles.qtyBadge}>
-          <Text style={styles.qtyBadgeText}>{item.qty} pcs</Text>
+          <Text style={styles.qtyBadgeText}>{item.quantity} pcs</Text>
         </View>
       </View>
 
-      <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.productMeta} numberOfLines={1}>{item.type}</Text>
-      <Text style={styles.productMeta} numberOfLines={1}>ID : {item.idCode}</Text>
+      <Text style={styles.productName} numberOfLines={1}>{item.product_name}</Text>
+      {item.batch_number && <Text style={styles.productMeta} numberOfLines={1}>BN: {item.batch_number}</Text>}
+      <Text style={styles.productMeta} numberOfLines={1}>Code: {item.product_code}</Text>
 
-      <View style={styles.dateRow}>
-        <Icon name="calendar" size={12} color="#03045E" />
-        <Text style={styles.dateText}>Mfg: {item.mfg}</Text>
-      </View>
-      <View style={styles.dateRow}>
-        <Icon name="calendar" size={12} color="#F04D59" />
-        <Text style={styles.dateText}>
-          Exp: {item.exp}{item.urgent && <Text style={styles.urgentText}> (Urgent!)</Text>}
-        </Text>
-      </View>
+      {item.mfg_date && (
+        <View style={styles.dateRow}>
+          <Icon name="calendar" size={12} color="#03045E" />
+          <Text style={styles.dateText}>Mfg: {new Date(item.mfg_date).toLocaleDateString()}</Text>
+        </View>
+      )}
+      {item.exp_date && (
+        <View style={styles.dateRow}>
+          <Icon name="calendar" size={12} color="#F04D59" />
+          <Text style={styles.dateText}>Exp: {new Date(item.exp_date).toLocaleDateString()}</Text>
+        </View>
+      )}
 
-      {item.nearExpiry ? (
+      {isNearExpiry(item.exp_date) ? (
         <View style={styles.nearExpiryTag}>
           <Icon name="warningTriangle" size={9} color="#B26400" />
           <Text style={styles.nearExpiryText}>Near Expiry Batch</Text>
@@ -146,7 +132,7 @@ export default function SalesRepStockScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.agentCard}>
             <View style={styles.agentHeaderRow}>
-              <Text style={styles.agentHeaderText}>Branch: {AGENT.branch}</Text>
+              <Text style={styles.agentHeaderText}>Branch: {agent?.branchName || '—'}</Text>
             </View>
 
             <View style={styles.agentBodyRow}>
@@ -154,24 +140,18 @@ export default function SalesRepStockScreen() {
                 <Icon name="person" size={28} color="#94a3b8" />
               </View>
               <View style={styles.agentInfo}>
-                <Text style={styles.agentName}>{AGENT.name}</Text>
-                <Text style={styles.agentRole}>{AGENT.role}</Text>
+                <Text style={styles.agentName}>{agent?.full_name || agent?.username || ''}</Text>
+                <Text style={styles.agentRole}>
+                  {agent?.role === 'collector' ? 'Collector' : 'Sales Representative'}
+                </Text>
               </View>
               <Icon name="boxPackage" size={40} color="#03045E" />
             </View>
 
             <View style={styles.agentFooterRow}>
-              <View style={styles.pendingTag}>
-                <Icon name="document" size={12} color="#B26400" />
-                <Text style={styles.pendingTagText}>{AGENT.pendingItems} Pending Item</Text>
-              </View>
-              <View style={styles.missingTag}>
-                <Icon name="warningTriangle" size={12} color="#B91C1C" />
-                <Text style={styles.missingTagText}>{AGENT.missingItems} Missing Item</Text>
-              </View>
-              <Pressable style={styles.viewButton} onPress={handleViewSummary}>
-                <Text style={styles.viewButtonText}>View</Text>
-              </Pressable>
+              <Text style={styles.summaryText}>
+                {stock.length} batch{stock.length === 1 ? '' : 'es'}, {totalUnits} unit{totalUnits === 1 ? '' : 's'} on hand
+              </Text>
             </View>
           </View>
 
@@ -184,21 +164,42 @@ export default function SalesRepStockScreen() {
             </View>
           </View>
 
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>
-            <View style={[styles.statusDotSmall, { backgroundColor: '#22C55E' }]} />
-          </View>
-          <View style={styles.cardGrid}>
-            {HEALTHY_STOCK.map(renderProductCard)}
-          </View>
+          {isLoading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : stock.length === 0 ? (
+            <View style={styles.loadingWrap}>
+              <Icon name="boxPackage" size={32} color={COLORS.textSecondary} />
+              <Text style={styles.emptyStateText}>No stock yet — accept a release to see it here.</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>
+                <View style={[styles.statusDotSmall, { backgroundColor: '#22C55E' }]} />
+              </View>
+              <View style={styles.cardGrid}>
+                {healthyStock.length === 0 ? (
+                  <Text style={styles.emptyStateText}>None right now.</Text>
+                ) : (
+                  healthyStock.map(renderProductCard)
+                )}
+              </View>
 
-          <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
-            <Text style={styles.sectionTitle}>Almost Out of Stock</Text>
-            <View style={[styles.statusDotSmall, { backgroundColor: '#FF7800' }]} />
-          </View>
-          <View style={styles.cardGrid}>
-            {LOW_STOCK.map(renderProductCard)}
-          </View>
+              <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
+                <Text style={styles.sectionTitle}>Almost Out of Stock</Text>
+                <View style={[styles.statusDotSmall, { backgroundColor: '#FF7800' }]} />
+              </View>
+              <View style={styles.cardGrid}>
+                {lowStock.length === 0 ? (
+                  <Text style={styles.emptyStateText}>None right now.</Text>
+                ) : (
+                  lowStock.map(renderProductCard)
+                )}
+              </View>
+            </>
+          )}
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -336,58 +337,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   agentFooterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
-    flexWrap: 'wrap',
   },
-  pendingTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF1D6',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  pendingTagText: {
-    fontSize: 10,
-    color: '#B26400',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  missingTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FBDCDC',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  missingTagText: {
-    fontSize: 10,
-    color: '#B91C1C',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  viewButton: {
-    flex: 1,
-    minWidth: 70,
-    backgroundColor: '#03045E',
-    borderRadius: 8,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  viewButtonText: {
-    color: '#FFFFFF',
+  summaryText: {
     fontSize: 12,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  loadingWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyStateText: {
+    fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   searchRow: {
     flexDirection: 'row',
@@ -489,11 +458,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-  },
-  urgentText: {
-    color: '#F04D59',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
   },
   nearExpiryTag: {
     marginTop: 8,

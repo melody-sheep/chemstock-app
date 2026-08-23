@@ -295,6 +295,7 @@ admin-cli/.cache/
 # Database backups (DON'T DELETE! - But should be excluded from git)
 supabase_schema_structure(DONT_DELETE).txt
 *.sql
+!capstone_docs/sql/*.sql
 *.sqlite
 *.db
 *.db-shm

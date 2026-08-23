@@ -19,7 +19,7 @@ const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'
 export default function ReleaseStockScanReviewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { recipient, branchId, qrCode } = route.params;
+  const { recipient, targetRecipient, branchId, movementType, qrCode } = route.params;
 
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -72,12 +72,8 @@ export default function ReleaseStockScanReviewScreen() {
 
   const handleNext = () => {
     if (releaseItems.length === 0) return;
-    navigation.navigate('ReleaseStockConfirm', {
-      recipient,
-      branchId,
-      movementType: 'direct',
-      items: releaseItems,
-    });
+    const params = { recipient, targetRecipient, branchId, movementType, items: releaseItems };
+    navigation.navigate(movementType === 'collector' ? 'ReleaseStockDelivery' : 'ReleaseStockConfirm', params);
   };
 
   return (
