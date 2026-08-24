@@ -552,6 +552,37 @@ class InventoryService extends BaseService {
       return { success: false, message: error.message || 'Failed to load activity logs', data: [] };
     }
   }
+
+  /**
+   * Collector-mediated deliveries where this Sales Rep is the ultimate
+   * target_recipient — the agent-facing mirror of getDeliveries() above,
+   * scoped to one recipient instead of a branch since agents can't use the
+   * manager side's RLS-gated PostgREST embed.
+   */
+  async getMyDeliveries(agentId, limit = 50) {
+    debugLog('info', 'InventoryService', 'Fetching my deliveries', { agentId, limit });
+
+    if (!agentId) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_my_deliveries', {
+        p_agent_id: agentId,
+        p_limit: limit,
+      });
+
+      if (error) {
+        console.error('❌ [InventoryService] get_my_deliveries RPC error:', error);
+        throw new Error(error.message || 'Failed to load deliveries');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getMyDeliveries failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load deliveries', data: [] };
+    }
+  }
 }
 
 const inventoryService = new InventoryService();

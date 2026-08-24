@@ -29,7 +29,7 @@ function formatAddress(place) {
 export default function ReleaseStockDeliveryScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { recipient, targetRecipient, branchId, movementType, mode, items, registerItems, registerPhotoUri } =
+  const { recipient, targetRecipient, branchId, movementType, mode, items, registerItems, registerPhotoUri, requestId } =
     route.params;
 
   const [originCoords, setOriginCoords] = useState(null);
@@ -96,6 +96,7 @@ export default function ReleaseStockDeliveryScreen() {
       originCoords,
       destinationCoords,
       deliveryPhotoUri,
+      requestId,
     });
   };
 

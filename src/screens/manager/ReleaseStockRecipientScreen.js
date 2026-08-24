@@ -1,8 +1,8 @@
 // src/screens/manager/ReleaseStockRecipientScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
@@ -32,6 +32,13 @@ function getInitials(fullName) {
 
 export default function ReleaseStockRecipientScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  // Set when this screen was reached via "Prepare" on a Sales Rep's stock
+  // request (AgentStockRequestScreen) — pre-fills the requester as recipient
+  // and skips the manual scan/quick-register choice entirely, since the
+  // request already specifies exact products/quantities. Absent for the
+  // normal manual Release Stock flow, which behaves exactly as before.
+  const prefillRequest = route.params?.prefillRequest;
   const [manager, setManager] = useState(null);
   const [agents, setAgents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,10 +87,32 @@ export default function ReleaseStockRecipientScreen() {
     return (agent.branch_ids || []).some((id) => managerBranchIds.includes(id));
   });
 
+  const prefillAgent = prefillRequest
+    ? agents.find((a) => a.id === prefillRequest.requestedBy.id) || null
+    : null;
+
+  // Runs once the agent list has loaded — pre-selects the requesting rep in
+  // whatever slot matches the currently-active role tab (defaults to Sales
+  // Rep, matching the requester's own role).
+  useEffect(() => {
+    if (!prefillRequest || !prefillAgent) return;
+    if (activeRole === ROLES.SALES_REP && !selectedAgent) {
+      setSelectedAgent(prefillAgent);
+    } else if (activeRole === ROLES.COLLECTOR && !selectedTargetRep) {
+      setSelectedTargetRep(prefillAgent);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillAgent, activeRole]);
+
   const handleSelectRole = (role) => {
     setActiveRole(role);
-    setSelectedAgent(null);
-    setSelectedTargetRep(null);
+    if (role === ROLES.SALES_REP) {
+      setSelectedAgent(prefillRequest ? prefillAgent : null);
+      setSelectedTargetRep(null);
+    } else {
+      setSelectedAgent(null);
+      setSelectedTargetRep(prefillRequest ? prefillAgent : null);
+    }
   };
 
   const toRecipientParam = (agent) => ({
@@ -98,12 +127,22 @@ export default function ReleaseStockRecipientScreen() {
 
   const handleNext = () => {
     if (!canProceed) return;
-    navigation.navigate('ReleaseStockMethod', {
+    const params = {
       recipient: toRecipientParam(selectedAgent),
       targetRecipient: isCollectorRole ? toRecipientParam(selectedTargetRep) : null,
       movementType: isCollectorRole ? 'collector' : 'direct',
       branchId: managerBranchIds[0],
-    });
+    };
+
+    if (prefillRequest) {
+      navigation.navigate('ReleaseStockRequestReview', {
+        ...params,
+        requestId: prefillRequest.requestId,
+        requestedItems: prefillRequest.items,
+      });
+    } else {
+      navigation.navigate('ReleaseStockMethod', params);
+    }
   };
 
   return (
@@ -133,6 +172,15 @@ export default function ReleaseStockRecipientScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Stepper currentStep={1} labels={STEP_LABELS} />
+
+          {prefillRequest && (
+            <View style={styles.prefillBanner}>
+              <Icon name="checkCircle" size={16} color={COLORS.primary} weight="fill" />
+              <Text style={styles.prefillBannerText}>
+                Fulfilling stock request from {prefillRequest.requestedBy.fullName}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.roleRow}>
             {ROLE_TABS.map((tab) => {
@@ -316,6 +364,22 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
+  },
+  prefillBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary + '12',
+    marginTop: SPACING.sm,
+  },
+  prefillBannerText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.primary,
   },
   loadingWrap: { paddingVertical: SPACING.xl, alignItems: 'center' },
   emptyText: {

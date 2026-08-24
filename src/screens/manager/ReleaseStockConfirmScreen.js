@@ -13,6 +13,7 @@ import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -32,6 +33,7 @@ export default function ReleaseStockConfirmScreen() {
     originCoords,
     destinationCoords,
     deliveryPhotoUri,
+    requestId,
   } = route.params;
   const isQuickRegister = mode === 'quickRegister';
   // Collector releases arrive here from ReleaseStockDeliveryScreen, which
@@ -152,6 +154,16 @@ export default function ReleaseStockConfirmScreen() {
 
       if (!releaseResult.success) {
         throw new Error(releaseResult.message);
+      }
+
+      // The release itself is already the source of truth — if this
+      // traceability follow-up fails, log it but still show success below
+      // rather than stranding a completed release behind a linking error.
+      if (requestId) {
+        const linkResult = await requestService.linkRequestFulfillment(requestId, releaseResult.data.transactionId);
+        if (!linkResult.success) {
+          console.error('❌ [ReleaseStockConfirm] Failed to link request fulfillment:', linkResult.message);
+        }
       }
 
       setQrCode(releaseResult.data.qrCode);

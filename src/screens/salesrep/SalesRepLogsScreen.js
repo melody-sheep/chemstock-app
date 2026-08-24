@@ -10,6 +10,7 @@ import FilterSheet from '../../components/common/FilterSheet';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -42,6 +43,16 @@ function summarizeItems(items) {
   return `${totalUnits} unit${totalUnits === 1 ? '' : 's'} · ${items.length} product${items.length === 1 ? '' : 's'}`;
 }
 
+const REQUEST_STATUS_META = {
+  pending: { icon: 'clock', iconColor: COLORS.accentGold, label: 'Pending' },
+  accepted: { icon: 'checkCircle', iconColor: COLORS.success, label: 'Accepted' },
+  declined: { icon: 'xCircle', iconColor: COLORS.error, label: 'Declined' },
+};
+
+function getLogKey(log) {
+  return log.logType === 'request' ? `request-${log.requestId}` : `acceptance-${log.acceptanceId}`;
+}
+
 export default function SalesRepLogsScreen() {
   const route = useRoute();
   const [logs, setLogs] = useState([]);
@@ -55,8 +66,17 @@ export default function SalesRepLogsScreen() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     const agent = await authService.getCurrentUser();
-    const result = await inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT);
-    setLogs(result.success ? result.data : []);
+    const [logsResult, requestsResult] = await Promise.all([
+      inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT),
+      requestService.getMyStockRequests(agent?.id, LOGS_LIMIT),
+    ]);
+
+    const merged = [
+      ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
+      ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
+    ];
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setLogs(merged);
     setIsLoading(false);
   }, []);
 
@@ -89,13 +109,18 @@ export default function SalesRepLogsScreen() {
     if (route.params?.initialLog) {
       openDetail(route.params.initialLog);
     }
-  }, [route.params?.initialLog?.acceptanceId]);
+  }, [route.params?.initialLog && getLogKey(route.params.initialLog)]);
 
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
   const filteredLogs = logs.filter((log) => activeFilterOption.test(log));
 
-  const getTitle = (log) =>
-    log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
+  const getTitle = (log) => {
+    if (log.logType === 'request') {
+      const meta = REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending;
+      return `Stock Request — ${meta.label}`;
+    }
+    return log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
+  };
 
   return (
     <>
@@ -133,7 +158,7 @@ export default function SalesRepLogsScreen() {
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No stock accepted yet.</Text>
+            <Text style={styles.emptyText}>No activity yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
           <View style={styles.loadingWrap}>
@@ -144,13 +169,18 @@ export default function SalesRepLogsScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log) => (
               <TouchableOpacity
-                key={log.acceptanceId}
+                key={getLogKey(log)}
                 style={styles.logCard}
                 onPress={() => openDetail(log)}
                 activeOpacity={0.7}
               >
                 <View style={styles.logIconBadge}>
-                  <Icon name="trayDown" size={18} color={COLORS.primary} weight="duotone" />
+                  <Icon
+                    name={log.logType === 'request' ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon : 'trayDown'}
+                    size={18}
+                    color={log.logType === 'request' ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor : COLORS.primary}
+                    weight="duotone"
+                  />
                 </View>
                 <View style={styles.logTextCol}>
                   <Text style={styles.logTitle}>{getTitle(log)}</Text>
@@ -172,10 +202,17 @@ export default function SalesRepLogsScreen() {
               {new Date(selectedLog.createdAt).toLocaleString()}
             </Text>
 
+            {selectedLog.logType === 'request' && selectedLog.status === 'declined' && selectedLog.declineReason && (
+              <View style={styles.declineBanner}>
+                <Icon name="warningTriangle" size={16} color={COLORS.error} />
+                <Text style={styles.declineText}>{selectedLog.declineReason}</Text>
+              </View>
+            )}
+
             <Text style={styles.detailSectionLabel}>Items</Text>
             <View style={styles.itemsCard}>
               {(selectedLog.items || []).map((item, index) => (
-                <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                <View key={`${item.productCode}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
                   <Text style={styles.itemName}>{item.productName}</Text>
                   <Text style={styles.itemMeta}>
                     Qty: {item.quantity}
@@ -188,40 +225,50 @@ export default function SalesRepLogsScreen() {
 
             <Text style={styles.detailSectionLabel}>Details</Text>
             <View style={styles.metaCard}>
-              {selectedLog.gps && (
+              {(selectedLog.logType === 'request' ? selectedLog.latitude != null : selectedLog.gps) && (
                 <View style={styles.metaRow}>
                   <Icon name="location" size={16} color={COLORS.error} />
                   <Text style={styles.metaText}>
-                    {selectedLog.gps.latitude.toFixed(5)}, {selectedLog.gps.longitude.toFixed(5)}
+                    {selectedLog.logType === 'request'
+                      ? `${selectedLog.latitude.toFixed(5)}, ${selectedLog.longitude.toFixed(5)}`
+                      : `${selectedLog.gps.latitude.toFixed(5)}, ${selectedLog.gps.longitude.toFixed(5)}`}
                   </Text>
                 </View>
               )}
-              <View style={styles.metaRow}>
-                <Icon name="building" size={16} color={COLORS.primary} />
-                <Text style={styles.metaText}>{selectedLog.branchName}</Text>
-              </View>
-              {selectedLog.media?.deviceModel && (
+              {selectedLog.branchName && (
+                <View style={styles.metaRow}>
+                  <Icon name="building" size={16} color={COLORS.primary} />
+                  <Text style={styles.metaText}>{selectedLog.branchName}</Text>
+                </View>
+              )}
+              {(selectedLog.logType === 'request' ? selectedLog.deviceModel : selectedLog.media?.deviceModel) && (
                 <View style={styles.metaRow}>
                   <Icon name="package" size={16} color={COLORS.textSecondary} />
                   <Text style={styles.metaText}>
-                    {[selectedLog.media.deviceModel, selectedLog.media.deviceOs].filter(Boolean).join(' - ')}
+                    {selectedLog.logType === 'request'
+                      ? [selectedLog.deviceModel, selectedLog.deviceOs].filter(Boolean).join(' - ')
+                      : [selectedLog.media.deviceModel, selectedLog.media.deviceOs].filter(Boolean).join(' - ')}
                   </Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.detailSectionLabel}>Release QR Code</Text>
-            <SaveableQRCode value={selectedLog.qrCode} size={180} style={styles.qrCard} />
-
-            {selectedLog.media?.storagePath && (
+            {selectedLog.logType !== 'request' && (
               <>
-                <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
-                {isPhotoLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
-                ) : photoUrl ? (
-                  <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.emptyText}>Photo unavailable.</Text>
+                <Text style={styles.detailSectionLabel}>Release QR Code</Text>
+                <SaveableQRCode value={selectedLog.qrCode} size={180} style={styles.qrCard} />
+
+                {selectedLog.media?.storagePath && (
+                  <>
+                    <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
+                    {isPhotoLoading ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
+                    ) : photoUrl ? (
+                      <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.emptyText}>Photo unavailable.</Text>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -339,6 +386,24 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
+  },
+  declineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.error + '30',
+    backgroundColor: COLORS.error + '0D',
+    marginBottom: SPACING.md,
+  },
+  declineText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.error,
   },
   detailSectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,

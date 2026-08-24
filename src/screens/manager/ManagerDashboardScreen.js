@@ -14,6 +14,7 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -67,6 +68,7 @@ export default function ManagerDashboardScreen() {
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
+  const [pendingRequestCount, setPendingRequestCount] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
@@ -92,10 +94,11 @@ export default function ManagerDashboardScreen() {
     setUser(currentUser);
 
     const branchIds = currentUser?.branchIds || [];
-    const [stockResult, logsResult, agentsResult] = await Promise.all([
+    const [stockResult, logsResult, agentsResult, requestsResult] = await Promise.all([
       inventoryService.getBranchStock(branchIds),
       inventoryService.getActivityLogs(branchIds, 3),
       agentService.getMyAgentAccounts(),
+      requestService.getBranchStockRequests(50),
     ]);
 
     if (stockResult.success) {
@@ -104,6 +107,9 @@ export default function ManagerDashboardScreen() {
     setRecentLogs(logsResult.success ? logsResult.data : []);
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
+    }
+    if (requestsResult.success) {
+      setPendingRequestCount(requestsResult.data.filter((r) => r.status === 'pending').length);
     }
   }, []);
 
@@ -116,11 +122,15 @@ export default function ManagerDashboardScreen() {
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
 
-  const displayedStats = QUICK_STATS.map((stat) =>
-    stat.key === 'totalItems'
-      ? { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() }
-      : stat
-  );
+  const displayedStats = QUICK_STATS.map((stat) => {
+    if (stat.key === 'totalItems') {
+      return { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() };
+    }
+    if (stat.key === 'pendingRequest') {
+      return { ...stat, value: pendingRequestCount === null ? '—' : String(pendingRequestCount) };
+    }
+    return stat;
+  });
 
   const recentLogsDisplay = recentLogs.map((log) => {
     const isRelease = log.logType === 'release';
@@ -243,6 +253,20 @@ export default function ManagerDashboardScreen() {
                     onPress={() => navigation.navigate('ManagerStock')}
                     activeOpacity={0.7}
                     accessibilityLabel="View branch stock"
+                    accessibilityRole="button"
+                  >
+                    {card}
+                  </TouchableOpacity>
+                );
+              }
+              if (stat.key === 'pendingRequest') {
+                return (
+                  <TouchableOpacity
+                    key={stat.key}
+                    style={styles.statTouchable}
+                    onPress={() => navigation.navigate('AgentStockRequest')}
+                    activeOpacity={0.7}
+                    accessibilityLabel="View stock requests"
                     accessibilityRole="button"
                   >
                     {card}

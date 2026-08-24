@@ -13,6 +13,7 @@ import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
 import { SPACING } from '../../styles/spacing';
@@ -57,7 +58,7 @@ const MAIN_OPERATIONS = [
   { key: 'requestStock', icon: 'notePencil', iconColor: COLORS.srRequestStroke, duotoneColor: COLORS.srRequestFill, title: 'Request Stock', screen: 'RequestStockSR' },
   { key: 'submitReport', icon: 'document', iconColor: COLORS.srReportStroke, duotoneColor: COLORS.srReportFill, title: 'Submit Report', screen: 'SubmitReportSR' },
   { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: 'AlertsDiscrepanciesSR' },
-  { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },
+  { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: 'SalesRepTrackDeliveries' },
   { key: 'returnStocks', icon: 'returnBox', iconColor: COLORS.srReturnStroke, duotoneColor: COLORS.srReturnFill, title: 'Return Stocks', screen: 'ReturnStocksSR' },
 ];
 
@@ -68,6 +69,7 @@ export default function SalesRepDashboardScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
+  const [pendingRequestCount, setPendingRequestCount] = useState(null);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
@@ -85,15 +87,28 @@ export default function SalesRepDashboardScreen() {
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
 
-    const [inventoryResult, logsResult] = await Promise.all([
+    const [inventoryResult, logsResult, requestsResult] = await Promise.all([
       inventoryService.getSrInventory(currentUser?.id),
       inventoryService.getSrActivityLogs(currentUser?.id, 3),
+      requestService.getMyStockRequests(currentUser?.id, 5),
     ]);
 
     if (inventoryResult.success) {
       setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.quantity, 0));
     }
-    setRecentLogs(logsResult.success ? logsResult.data : []);
+
+    const requests = requestsResult.success ? requestsResult.data : [];
+    setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);
+
+    // Merge accepted-stock logs with request status changes into one
+    // chronological feed, top 3 — same pattern getActivityLogs already uses
+    // to merge receiving+release on the Manager side.
+    const merged = [
+      ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
+      ...requests.map((req) => ({ ...req, logType: 'request' })),
+    ];
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setRecentLogs(merged.slice(0, 3));
   }, []);
 
   useFocusEffect(
@@ -105,16 +120,37 @@ export default function SalesRepDashboardScreen() {
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
 
-  const displayedStats = QUICK_STATS.map((stat) =>
-    stat.key === 'totalItems'
-      ? { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() }
-      : stat
-  );
+  const displayedStats = QUICK_STATS.map((stat) => {
+    if (stat.key === 'totalItems') {
+      return { ...stat, value: totalUnits === null ? '—' : totalUnits.toLocaleString() };
+    }
+    if (stat.key === 'pendingStock') {
+      return { ...stat, value: pendingRequestCount === null ? '—' : String(pendingRequestCount) };
+    }
+    return stat;
+  });
+
+  const REQUEST_STATUS_META = {
+    pending: { icon: 'clock', iconColor: COLORS.accentGold, verb: 'Requested' },
+    accepted: { icon: 'checkCircle', iconColor: COLORS.success, verb: 'Accepted' },
+    declined: { icon: 'xCircle', iconColor: COLORS.error, verb: 'Declined' },
+  };
 
   const recentLogsDisplay = recentLogs.map((log) => {
+    if (log.logType === 'request') {
+      const meta = REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending;
+      const units = (log.items || []).reduce((sum, item) => sum + item.quantity, 0);
+      return {
+        key: `request-${log.requestId}`,
+        icon: meta.icon,
+        iconColor: meta.iconColor,
+        text: `${meta.verb} stock request: ${units} unit${units === 1 ? '' : 's'} (${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'}) — ${formatRelativeTime(log.createdAt)}`,
+        log,
+      };
+    }
     const units = (log.items || []).reduce((sum, item) => sum + item.quantity, 0);
     return {
-      key: log.acceptanceId,
+      key: `acceptance-${log.acceptanceId}`,
       icon: 'trayDown',
       iconColor: COLORS.secondary,
       text: `Accepted ${units} unit${units === 1 ? '' : 's'} (${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'}) — ${formatRelativeTime(log.createdAt)}`,
