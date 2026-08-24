@@ -97,7 +97,7 @@ export default function ReceiveStockPreviewScreen() {
   };
 
   const handleDone = () => {
-    navigation.navigate('ManagerDashboard');
+    navigation.navigate('ManagerDashboard', undefined, { pop: true });
   };
 
   if (qrCode) {

@@ -1,5 +1,5 @@
 // src/components/common/CameraCaptureModal.js
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
@@ -15,11 +15,20 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * anywhere in this UI). Reusable across any flow that needs mandatory
  * photo evidence (shipment receiving now; release/delivery proof later).
  */
-export default function CameraCaptureModal({ visible, onClose, onCapture }) {
+export default function CameraCaptureModal({ visible, onClose, onCapture, initialUri = null }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
-  const [previewUri, setPreviewUri] = useState(null);
+  const [previewUri, setPreviewUri] = useState(initialUri);
   const cameraRef = useRef(null);
+
+  // Re-sync to the caller's existing photo each time the modal opens, so
+  // "view" (initialUri set) lands on the review screen while "retake" /
+  // "take photo" (initialUri null) lands on the live camera.
+  useEffect(() => {
+    if (visible) {
+      setPreviewUri(initialUri || null);
+    }
+  }, [visible, initialUri]);
 
   const handleClose = () => {
     setPreviewUri(null);
@@ -101,6 +110,7 @@ CameraCaptureModal.propTypes = {
   visible: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onCapture: PropTypes.func.isRequired,
+  initialUri: PropTypes.string,
 };
 
 const styles = StyleSheet.create({

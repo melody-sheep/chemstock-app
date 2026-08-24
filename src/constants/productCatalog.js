@@ -4,31 +4,47 @@
 // stands in for a product master list. `name` defaults to `code` since no
 // full display names exist yet; `image` is null until real product photos
 // are supplied — both are single-line edits per entry when that happens.
-export const PRODUCT_CATALOG = [
-  { code: 'PWBS', name: 'PWBS', image: null },
-  { code: 'FHVCO', name: 'FHVCO', image: null },
-  { code: 'WLG', name: 'WLG', image: null },
-  { code: 'GSSL', name: 'GSSL', image: null },
-  { code: 'PGL', name: 'PGL', image: null },
-  { code: 'DS', name: 'DS', image: null },
-  { code: 'AMB', name: 'AMB', image: null },
-  { code: 'AOL', name: 'AOL', image: null },
-  { code: '7HWO', name: '7HWO', image: null },
-  { code: 'TWNC', name: 'TWNC', image: null },
-  { code: 'NC-s', name: 'NC-s', image: null },
-  { code: '7HDT', name: '7HDT', image: null },
-  { code: 'VNCM', name: 'VNCM', image: null },
-  { code: '3VNMG', name: '3VNMG', image: null },
-  { code: 'AIR2', name: 'AIR2', image: null },
-  { code: 'BSCS', name: 'BSCS', image: null },
-  { code: 'RSCS', name: 'RSCS', image: null },
-  { code: 'PCB', name: 'PCB', image: null },
-  { code: 'GSP', name: 'GSP', image: null },
-  { code: 'TBC', name: 'TBC', image: null },
-  { code: 'TBC-s', name: 'TBC-s', image: null },
-  { code: 'MBG', name: 'MBG', image: null },
-  { code: 'AMG', name: 'AMG', image: null },
-  { code: 'HPDL', name: 'HPDL', image: null },
+const CATALOG_ENTRIES = [
+  { code: 'PWBS', name: 'PWBS' },
+  { code: 'FHVCO', name: 'FHVCO' },
+  { code: 'WLG', name: 'WLG' },
+  { code: 'GSSL', name: 'GSSL' },
+  { code: 'PGL', name: 'PGL' },
+  { code: 'DS', name: 'DS' },
+  { code: 'AMB', name: 'AMB' },
+  { code: 'AOL', name: 'AOL' },
+  { code: '7HWO', name: '7HWO' },
+  { code: 'TWNC', name: 'TWNC' },
+  { code: 'NC-s', name: 'NC-s' },
+  { code: '7HDT', name: '7HDT' },
+  { code: 'VNCM', name: 'VNCM' },
+  { code: '3VNMG', name: '3VNMG' },
+  { code: 'AIR2', name: 'AIR2' },
+  { code: 'BSCS', name: 'BSCS' },
+  { code: 'RSCS', name: 'RSCS' },
+  { code: 'PCB', name: 'PCB' },
+  { code: 'GSP', name: 'GSP' },
+  { code: 'TBC', name: 'TBC' },
+  { code: 'TBC-s', name: 'TBC-s' },
+  { code: 'MBG', name: 'MBG' },
+  { code: 'AMG', name: 'AMG' },
+  { code: 'HPDL', name: 'HPDL' },
 ];
+
+// No per-product photography exists yet, so every card would otherwise show
+// the exact same placeholder graphic. Cycling a tint behind that placeholder
+// gives each catalog product a distinct look on the browse grid until real
+// photos replace it — swap in a real `image` per entry when that happens,
+// `tint` is simply ignored once `image` is set to a real photo.
+const PLACEHOLDER_TINTS = [
+  '#F9D6D6', '#D6E9FB', '#D3F5DE', '#FBEACB',
+  '#E3D6FB', '#CFF3EF', '#FBD6EC', '#DDF5CB',
+];
+
+export const PRODUCT_CATALOG = CATALOG_ENTRIES.map((entry, index) => ({
+  ...entry,
+  image: null,
+  tint: PLACEHOLDER_TINTS[index % PLACEHOLDER_TINTS.length],
+}));
 
 export default PRODUCT_CATALOG;

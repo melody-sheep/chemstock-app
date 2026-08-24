@@ -64,7 +64,7 @@ export default function ManagerStockScreen() {
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
-      navigation.navigate('ManagerDashboard');
+      navigation.navigate('ManagerDashboard', undefined, { pop: true });
     } else if (key === 'stock') {
       // already here
     } else {

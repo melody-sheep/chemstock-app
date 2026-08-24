@@ -167,23 +167,6 @@ Button.propTypes = {
   hasShadow: PropTypes.bool,
 };
 
-// Default props
-Button.defaultProps = {
-  loading: false,
-  disabled: false,
-  width: screenWidth - SPACING.lg * 2,
-  height: 56,
-  variant: 'primary',
-  fontSize: 18,
-  fontFamily: TYPOGRAPHY.fontFamily?.medium || 'System',
-  borderRadius: 12,
-  icon: null,
-  iconPosition: 'left',
-  iconWeight: 'regular',
-  iconSize: 20,
-  hasShadow: true,
-};
-
 const styles = StyleSheet.create({
   button: {
     justifyContent: 'center',

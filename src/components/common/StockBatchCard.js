@@ -23,6 +23,8 @@ export default function StockBatchCard({
   batchNumber = null,
   expDate = null,
   outOfStock = false,
+  thumbTint = null,
+  wireframe = false,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
@@ -36,18 +38,25 @@ export default function StockBatchCard({
     } else {
       expiryBadge = { label: 'Safe Batch on Shelf', color: COLORS.success, bg: COLORS.success + '18' };
     }
+    if (wireframe) {
+      expiryBadge = { ...expiryBadge, color: '#757575', bg: '#F1F5F9' };
+    }
   }
 
+  // Out-of-stock muting/labeling only applies in the wireframe "All Products"
+  // grid, where stock status is the point. The colorful "Frequently Added"
+  // row (wireframe=false) is a quick-pick shortcut, not a stock indicator,
+  // so it stays fully visible either way — no faded icon, no "Out of Stock" text.
+  const isWireframeOutOfStock = outOfStock && wireframe;
+
   return (
-    <View style={[styles.card, outOfStock && styles.cardMuted]}>
-      <View style={styles.thumbWrap}>
-        <View style={[styles.thumbIconBg, outOfStock && styles.thumbIconBgMuted]}>
-          <Icon
-            name="boxPackage"
-            size={36}
-            style={outOfStock ? styles.iconMuted : undefined}
-          />
-        </View>
+    <View style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}>
+      <View style={[styles.thumbWrap, thumbTint && !wireframe && { backgroundColor: thumbTint }]}>
+        {!wireframe && (
+          <View style={styles.thumbIconBg}>
+            <Icon name="boxPackage" size={36} />
+          </View>
+        )}
 
         {expiryBadge && (
           <View style={[styles.badge, styles.badgeTopLeft, { backgroundColor: expiryBadge.bg }]}>
@@ -57,13 +66,14 @@ export default function StockBatchCard({
           </View>
         )}
 
-        {outOfStock ? (
-          <View style={[styles.badge, styles.badgeTopLeft, styles.outOfStockBadge]}>
-            <Text style={[styles.badgeText, styles.outOfStockBadgeText]}>Out of Stock</Text>
+        {isWireframeOutOfStock && (
+          <View style={[styles.badge, styles.badgeTopLeft, styles.wireframeBadge]}>
+            <Text style={[styles.badgeText, styles.wireframeBadgeText]}>Out of Stock</Text>
           </View>
-        ) : (
-          <View style={[styles.badge, styles.badgeTopRight, styles.qtyBadge]}>
-            <Text style={styles.qtyBadgeText}>{quantity} pcs</Text>
+        )}
+        {!outOfStock && (
+          <View style={[styles.badge, styles.badgeTopRight, wireframe ? styles.wireframeBadge : styles.qtyBadge]}>
+            <Text style={[styles.qtyBadgeText, wireframe && styles.wireframeBadgeText]}>{quantity} pcs</Text>
           </View>
         )}
       </View>
@@ -93,13 +103,15 @@ StockBatchCard.propTypes = {
   batchNumber: PropTypes.string,
   expDate: PropTypes.string,
   outOfStock: PropTypes.bool,
+  thumbTint: PropTypes.string,
+  wireframe: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
@@ -107,6 +119,13 @@ const styles = StyleSheet.create({
   },
   cardMuted: {
     opacity: 0.6,
+  },
+  wireframeCard: {
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+    borderColor: '#B0B0B0',
   },
   thumbWrap: {
     width: '100%',
@@ -122,12 +141,6 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  thumbIconBgMuted: {
-    opacity: 0.5,
-  },
-  iconMuted: {
-    opacity: 0.5,
   },
   badge: {
     position: 'absolute',
@@ -166,6 +179,12 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.error,
+  },
+  wireframeBadge: {
+    backgroundColor: '#F1F5F9',
+  },
+  wireframeBadgeText: {
+    color: '#757575',
   },
   productName: {
     fontSize: TYPOGRAPHY.fontSize.sm,

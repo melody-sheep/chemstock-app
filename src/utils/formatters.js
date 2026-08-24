@@ -38,3 +38,14 @@ export function daysUntil(dateString) {
 
   return Math.round((target.getTime() - now.getTime()) / 86400000);
 }
+
+/**
+ * MM/DD/YYYY display for a stored ISO date string (YYYY-MM-DD), or null when
+ * unset/unparsable so callers can show their own "Set date" placeholder.
+ */
+export function formatDisplayDate(isoValue) {
+  if (!isoValue) return null;
+  const parsed = new Date(isoValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
