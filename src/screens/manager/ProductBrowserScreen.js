@@ -106,9 +106,9 @@ export default function ProductBrowserScreen() {
     .map((code) => PRODUCT_CATALOG.find((p) => p.code === code))
     .filter((p) => p && !alreadySelectedCodes.includes(p.code) && matchesQuery(p));
 
-  // "Frequently Added" stays full-color (tint + icon) as a visually distinct
-  // shortcut row; the exhaustive "All Products" grid below stays wireframe
-  // so it reads as a plain browsable list rather than competing for attention.
+  // "Frequently Added" and the exhaustive "All Products" grid below share
+  // the same plain outlined card treatment — only "wireframe" (flat border,
+  // muted badges) distinguishes the browsable grid from the quick-pick row.
   const renderCard = (product, { wireframe = true } = {}) => {
     const agg = stockByProduct[product.code];
     return (
@@ -119,16 +119,10 @@ export default function ProductBrowserScreen() {
             quantity={agg.totalQty}
             batchNumber={agg.earliestRow.batch_number}
             expDate={agg.earliestRow.exp_date}
-            thumbTint={wireframe ? null : product.tint}
             wireframe={wireframe}
           />
         ) : (
-          <StockBatchCard
-            productName={product.name}
-            outOfStock
-            thumbTint={wireframe ? null : product.tint}
-            wireframe={wireframe}
-          />
+          <StockBatchCard productName={product.name} outOfStock wireframe={wireframe} />
         )}
       </TouchableOpacity>
     );

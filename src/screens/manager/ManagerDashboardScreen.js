@@ -11,6 +11,8 @@ import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
+import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
@@ -68,6 +70,7 @@ export default function ManagerDashboardScreen() {
   const [recentLogs, setRecentLogs] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
   // clamped to [0, header height], so the header slides in lockstep with the
@@ -88,6 +91,8 @@ export default function ManagerDashboardScreen() {
   });
 
   const loadDashboardData = useCallback(async () => {
+    setIsLoading(true);
+
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
 
@@ -105,6 +110,8 @@ export default function ManagerDashboardScreen() {
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
     }
+
+    setIsLoading(false);
   }, []);
 
   useFocusEffect(
@@ -185,9 +192,13 @@ export default function ManagerDashboardScreen() {
               illustrationWidth={HEADER_ILLUSTRATION_WIDTH}
             >
               <View style={styles.secondaryContent}>
-                <Text style={styles.welcomeText} numberOfLines={1}>
-                  Welcome, <Text style={styles.welcomeName}>{managerName}</Text>!
-                </Text>
+                {isLoading ? (
+                  <SkeletonBlock width={180} height={25} borderRadius={4} />
+                ) : (
+                  <Text style={styles.welcomeText} numberOfLines={1}>
+                    Welcome, <Text style={styles.welcomeName}>{managerName}</Text>!
+                  </Text>
+                )}
 
                 <View style={styles.statusRow}>
                   <Text style={styles.statusText}>Status</Text>
@@ -206,7 +217,11 @@ export default function ManagerDashboardScreen() {
                       duotoneColor="#FCB8B8"
                       duotoneOpacity={1}
                     />
-                    <Text style={styles.statusText}>{branchName}</Text>
+                    {isLoading ? (
+                      <SkeletonBlock width={90} height={14} borderRadius={4} />
+                    ) : (
+                      <Text style={styles.statusText}>{branchName}</Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -221,6 +236,12 @@ export default function ManagerDashboardScreen() {
             scrollEventThrottle={16}
           >
           <Text style={styles.sectionTitle}>Quick Stats</Text>
+          {isLoading ? (
+            <View style={styles.statsRow}>
+              <SkeletonBlock width="48%" height={84} borderRadius={12} />
+              <SkeletonBlock width="48%" height={84} borderRadius={12} />
+            </View>
+          ) : (
           <View style={styles.statsRow}>
             {displayedStats.map((stat) => {
               const card = (
@@ -252,6 +273,7 @@ export default function ManagerDashboardScreen() {
               return <View key={stat.key} style={styles.statTouchable}>{card}</View>;
             })}
           </View>
+          )}
 
           <Text style={styles.sectionTitle}>Main Operation</Text>
           <View style={styles.operationsGrid}>
@@ -270,7 +292,9 @@ export default function ManagerDashboardScreen() {
 
           <Text style={styles.sectionTitle}>Recent Logs</Text>
           <View style={styles.logsList}>
-            {recentLogsDisplay.length > 0 ? (
+            {isLoading ? (
+              <SkeletonList count={3} lines={1} thumbSize={36} />
+            ) : recentLogsDisplay.length > 0 ? (
               recentLogsDisplay.map((log) => (
                 <LogListItem
                   key={log.key}

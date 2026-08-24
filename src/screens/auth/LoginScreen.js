@@ -1,5 +1,5 @@
 // src/screens/auth/LoginScreen.js
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,6 +18,8 @@ import AnimatedTextDot from '../../components/common/AnimatedTextDot';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import Modal from '../../components/common/Modal';
+import WarningSection from '../../components/common/WarningSection';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -38,7 +40,8 @@ const ANIMATION_DATA = [
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { isKeyboardVisible, keyboardHeight } = useKeyboard();
-  
+  const [isActivationWarningVisible, setIsActivationWarningVisible] = useState(false);
+
   const {
     username,
     password,
@@ -84,9 +87,18 @@ export default function LoginScreen() {
     }
   };
 
-  const handleManagerActivation = () => {
+  const handleManagerActivationPress = () => {
+    setIsActivationWarningVisible(true);
+  };
+
+  const handleConfirmManagerActivation = () => {
+    setIsActivationWarningVisible(false);
     // For new manager registration (no user yet)
     navigation.navigate('ManagerActivation');
+  };
+
+  const handleCancelManagerActivation = () => {
+    setIsActivationWarningVisible(false);
   };
 
   const handleUsernameSubmit = () => {
@@ -183,18 +195,11 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <View style={styles.alertRow} pointerEvents="none">
-              <Icon name="warningTriangle" size={13} color={COLORS.error} />
-              <Text style={styles.alertText}>
-                Access is restricted to authorized personnel only.
-              </Text>
-            </View>
-
             <View style={styles.footerSection}>
               <View style={styles.footerDivider} />
               <TouchableOpacity
                 style={styles.managerActivationButton}
-                onPress={handleManagerActivation}
+                onPress={handleManagerActivationPress}
                 activeOpacity={0.7}
               >
                 <Icon name="key" size={14} color={COLORS.primary} />
@@ -204,6 +209,26 @@ export default function LoginScreen() {
           </View>
         </View>
       </TouchableWithoutFeedback>
+
+      <Modal visible={isActivationWarningVisible} onClose={handleCancelManagerActivation} height={360}>
+        <WarningSection
+          title="Restricted Access"
+          description="Manager Activation is restricted to authorized personnel only. Continue only if you have a valid activation code from your organization."
+        />
+        <Button
+          title="Continue to Manager Activation"
+          onPress={handleConfirmManagerActivation}
+          variant="black"
+          style={styles.activationModalButton}
+        />
+        <TouchableOpacity
+          onPress={handleCancelManagerActivation}
+          style={styles.activationModalCancel}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.activationModalCancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </Modal>
     </>
   );
 }
@@ -279,26 +304,6 @@ const styles = StyleSheet.create({
     color: '#757575',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
-  alertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    gap: SPACING.xs,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-    paddingVertical: 6,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: 20,
-    backgroundColor: COLORS.error + '10',
-  },
-  alertText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.error,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    textAlign: 'center',
-  },
   footerSection: {
     marginTop: SPACING.md,
     alignItems: 'center',
@@ -306,7 +311,7 @@ const styles = StyleSheet.create({
   footerDivider: {
     height: 1,
     alignSelf: 'stretch',
-    backgroundColor: COLORS.border,
+    backgroundColor: '#E5E5E5',
     marginBottom: SPACING.md,
   },
   managerActivationButton: {
@@ -316,12 +321,26 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: SPACING.md,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.primaryLight,
   },
   managerActivationText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+  },
+  activationModalButton: {
+    width: '100%',
+    marginTop: SPACING.md,
+  },
+  activationModalCancel: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.xs,
+  },
+  activationModalCancelText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },

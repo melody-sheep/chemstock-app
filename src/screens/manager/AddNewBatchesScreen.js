@@ -6,11 +6,11 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
-import Icon from '../../components/common/Icon';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import SearchDropdownField from '../../components/common/SearchDropdownField';
 import SelectedProductsRow from '../../components/common/SelectedProductsRow';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
+import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -77,11 +77,9 @@ export default function AddNewBatchesScreen() {
     setItems((prev) => prev.filter((item) => item.code !== code));
   };
 
-  const handleAdjustQty = (code, delta) => {
+  const handleSetQty = (code, qty) => {
     setItems((prev) =>
-      prev.map((item) =>
-        item.code === code ? { ...item, registeredQty: Math.max(1, item.registeredQty + delta) } : item
-      )
+      prev.map((item) => (item.code === code ? { ...item, registeredQty: Math.max(1, qty) } : item))
     );
   };
 
@@ -106,11 +104,16 @@ export default function AddNewBatchesScreen() {
   };
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
-  const isFormComplete = items.length > 0 && !!photoUri;
+  const hasIncompleteDates = items.some((item) => !item.mfgDate || !item.expDate);
+  const isFormComplete = items.length > 0 && !!photoUri && !hasIncompleteDates;
 
   const handleSaveToPreview = () => {
     if (items.length === 0) {
       Alert.alert('No Products Selected', 'Search and add at least one product before saving.');
+      return;
+    }
+    if (hasIncompleteDates) {
+      Alert.alert('Set Item Dates', 'Every item needs both a Mfg and Exp date before saving.');
       return;
     }
     if (!photoUri) {
@@ -165,44 +168,19 @@ export default function AddNewBatchesScreen() {
 
           <SelectedProductsRow items={items} onRemove={handleRemoveProduct} />
 
-          <RegisteredItemsList items={items} onAdjustQty={handleAdjustQty} onDateChange={handleDateChange} />
+          <RegisteredItemsList
+            items={items}
+            onSetQty={handleSetQty}
+            onDateChange={handleDateChange}
+            onRemove={handleRemoveProduct}
+          />
 
           <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
-          <View style={styles.photoRow}>
-            <TouchableOpacity
-              style={styles.photoRowMain}
-              onPress={handleOpenCamera}
-              activeOpacity={0.7}
-              accessibilityLabel={photoUri ? 'Retake waybill/invoice photo' : 'Take photo of waybill/invoice'}
-              accessibilityRole="button"
-            >
-              <View style={styles.photoIconBox}>
-                <Icon name="camera" size={22} color={COLORS.primary} />
-              </View>
-              <Icon
-                name={photoUri ? 'checkCircle' : 'xCircle'}
-                size={26}
-                color={photoUri ? COLORS.success : COLORS.error}
-                weight="fill"
-              />
-              <Text style={styles.photoText}>
-                Take Photo of{'\n'}Waybill/Invoice <Text style={styles.requiredAsterisk}>*</Text>
-              </Text>
-            </TouchableOpacity>
-
-            {photoUri && (
-              <TouchableOpacity
-                style={styles.viewPhotoBox}
-                onPress={handleViewPhoto}
-                activeOpacity={0.7}
-                accessibilityLabel="View captured photo"
-                accessibilityRole="button"
-              >
-                <Icon name="document" size={20} color={COLORS.textSecondary} />
-                <Text style={styles.viewPhotoText}>view</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <ShipmentProofRow
+            photoUri={photoUri}
+            onOpenCamera={handleOpenCamera}
+            onViewPhoto={photoUri ? handleViewPhoto : undefined}
+          />
 
           <Text style={styles.summaryText}>
             📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
@@ -270,58 +248,6 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: '#272632',
-  },
-  photoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  photoRowMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    padding: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-  },
-  photoIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
-  },
-  viewPhotoBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  viewPhotoText: {
-    marginTop: 2,
-    fontSize: 10,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
-  },
-  requiredAsterisk: {
-    color: COLORS.error,
   },
   summaryText: {
     textAlign: 'center',

@@ -27,14 +27,14 @@ const { width: screenWidth } = Dimensions.get('window');
  * @param {boolean} props.loading - Shows activity indicator when true
  * @param {boolean} props.disabled - Disables button interaction
  * @param {number} props.width - Button width (defaults to screen width minus the standard SPACING.lg screen padding on both sides)
- * @param {number} props.height - Button height (default: 56)
+ * @param {number} props.height - Button height (default: 48)
  * @param {'primary'|'black'} props.variant - Color variant (default: 'primary')
  * @param {number} props.fontSize - Text size (default: 18)
  * @param {string} props.fontFamily - Font family (default: 'System')
  * @param {number} props.borderRadius - Border radius (default: 12)
  * @param {Object} props.style - Additional styles for button container
  * @param {Object} props.textStyle - Additional styles for button text
- * @param {boolean} props.hasShadow - Enable/disable shadow (default: true)
+ * @param {boolean} props.hasShadow - Enable/disable shadow (default: false)
  */
 export default function Button({
   title,
@@ -42,7 +42,7 @@ export default function Button({
   loading = false,
   disabled = false,
   width = screenWidth - SPACING.lg * 2,
-  height = 56,
+  height = 48,
   variant = 'primary',
   fontSize = 18,
   fontFamily = TYPOGRAPHY.fontFamily?.medium || 'System',
@@ -53,7 +53,7 @@ export default function Button({
   iconSize = 20,
   style,
   textStyle,
-  hasShadow = true,
+  hasShadow = false,
 }) {
   // Get colors based on variant with error handling
   const getBackgroundColor = () => {

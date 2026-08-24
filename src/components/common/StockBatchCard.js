@@ -15,7 +15,10 @@ const CARD_WIDTH = 152;
 /**
  * StockBatchCard - one card per received batch (in-stock) or catalog
  * product with no batches yet (out-of-stock), used on the Manager Stocks
- * screen's horizontal-scroll rows.
+ * screen's horizontal-scroll rows. Every card shows the same plain
+ * outlined thumbnail + icon treatment regardless of section — no tinted
+ * backgrounds, no "Out of Stock" text label, so it reads the same whether
+ * it's a "Frequently Added" shortcut or a plain "All Products" entry.
  */
 export default function StockBatchCard({
   productName,
@@ -23,7 +26,6 @@ export default function StockBatchCard({
   batchNumber = null,
   expDate = null,
   outOfStock = false,
-  thumbTint = null,
   wireframe = false,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
@@ -43,20 +45,17 @@ export default function StockBatchCard({
     }
   }
 
-  // Out-of-stock muting/labeling only applies in the wireframe "All Products"
-  // grid, where stock status is the point. The colorful "Frequently Added"
-  // row (wireframe=false) is a quick-pick shortcut, not a stock indicator,
-  // so it stays fully visible either way — no faded icon, no "Out of Stock" text.
+  // Out-of-stock cards are muted (dimmed) in the wireframe "All Products"
+  // grid, where stock status is the point — but silently, via opacity only.
+  // No "Out of Stock" text label anywhere; the icon alone is enough.
   const isWireframeOutOfStock = outOfStock && wireframe;
 
   return (
     <View style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}>
-      <View style={[styles.thumbWrap, thumbTint && !wireframe && { backgroundColor: thumbTint }]}>
-        {!wireframe && (
-          <View style={styles.thumbIconBg}>
-            <Icon name="boxPackage" size={36} />
-          </View>
-        )}
+      <View style={styles.thumbWrap}>
+        <View style={styles.thumbIconBg}>
+          <Icon name="boxPackage" size={36} />
+        </View>
 
         {expiryBadge && (
           <View style={[styles.badge, styles.badgeTopLeft, { backgroundColor: expiryBadge.bg }]}>
@@ -66,11 +65,6 @@ export default function StockBatchCard({
           </View>
         )}
 
-        {isWireframeOutOfStock && (
-          <View style={[styles.badge, styles.badgeTopLeft, styles.wireframeBadge]}>
-            <Text style={[styles.badgeText, styles.wireframeBadgeText]}>Out of Stock</Text>
-          </View>
-        )}
         {!outOfStock && (
           <View style={[styles.badge, styles.badgeTopRight, wireframe ? styles.wireframeBadge : styles.qtyBadge]}>
             <Text style={[styles.qtyBadgeText, wireframe && styles.wireframeBadgeText]}>{quantity} pcs</Text>
@@ -103,7 +97,6 @@ StockBatchCard.propTypes = {
   batchNumber: PropTypes.string,
   expDate: PropTypes.string,
   outOfStock: PropTypes.bool,
-  thumbTint: PropTypes.string,
   wireframe: PropTypes.bool,
 };
 
@@ -131,7 +124,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 72,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.xs,
@@ -170,15 +165,6 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.success,
-  },
-  outOfStockBadge: {
-    backgroundColor: COLORS.error + '18',
-  },
-  outOfStockBadgeText: {
-    fontSize: 9,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.error,
   },
   wireframeBadge: {
     backgroundColor: '#F1F5F9',

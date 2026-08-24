@@ -7,6 +7,11 @@ import { useState } from 'react';
  * open/change/value logic that AddNewBatchesScreen and ProductPickerList
  * both needed identically, so it isn't duplicated per screen.
  *
+ * Also enforces Exp >= Mfg by constraining the *calendar itself*
+ * (minimumDate/maximumDate) rather than validating after the fact — the
+ * invalid range is simply never selectable, whichever date the manager sets
+ * first.
+ *
  * @param {Array<{code: string} & Record<string, any>>} items
  * @param {(code: string, field: string, value: string) => void} onDateChange
  */
@@ -26,10 +31,16 @@ export function useItemDatePicker(items, onDateChange) {
   };
 
   const targetItem = items.find((item) => item.code === target?.code);
-  const value =
-    targetItem && target && targetItem[target.field] ? new Date(targetItem[target.field]) : new Date();
+  const field = target?.field;
 
-  return { target, open, handleChange, value };
+  const minimumDate = field === 'expDate' && targetItem?.mfgDate ? new Date(targetItem.mfgDate) : undefined;
+  const maximumDate = field === 'mfgDate' && targetItem?.expDate ? new Date(targetItem.expDate) : undefined;
+
+  let value = targetItem && field && targetItem[field] ? new Date(targetItem[field]) : new Date();
+  if (minimumDate && value < minimumDate) value = minimumDate;
+  if (maximumDate && value > maximumDate) value = maximumDate;
+
+  return { target, open, handleChange, value, minimumDate, maximumDate };
 }
 
 export default useItemDatePicker;

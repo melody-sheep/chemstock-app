@@ -31,7 +31,6 @@ export default function SelectedProductsRow({ items, onRemove, title = 'Selected
               index={index}
               name={item.name}
               image={item.image}
-              tint={item.tint}
               onRemove={() => onRemove(item.code)}
             />
           ))}

@@ -11,6 +11,8 @@ import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
+import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
@@ -68,6 +70,7 @@ export default function SalesRepDashboardScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
@@ -82,6 +85,8 @@ export default function SalesRepDashboardScreen() {
   });
 
   const loadDashboardData = useCallback(async () => {
+    setIsLoading(true);
+
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
 
@@ -94,6 +99,8 @@ export default function SalesRepDashboardScreen() {
       setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.quantity, 0));
     }
     setRecentLogs(logsResult.success ? logsResult.data : []);
+
+    setIsLoading(false);
   }, []);
 
   useFocusEffect(
@@ -175,9 +182,13 @@ export default function SalesRepDashboardScreen() {
               illustrationMarginRight={HEADER_ILLUSTRATION_MARGIN_RIGHT}
             >
               <View style={styles.secondaryContent}>
-                <Text style={styles.welcomeText} numberOfLines={1}>
-                  Welcome, <Text style={styles.welcomeName}>{repName}</Text>!
-                </Text>
+                {isLoading ? (
+                  <SkeletonBlock width={180} height={25} borderRadius={4} />
+                ) : (
+                  <Text style={styles.welcomeText} numberOfLines={1}>
+                    Welcome, <Text style={styles.welcomeName}>{repName}</Text>!
+                  </Text>
+                )}
 
                 <View style={styles.statusRow}>
                   <Text style={styles.statusText}>Status</Text>
@@ -196,7 +207,11 @@ export default function SalesRepDashboardScreen() {
                       duotoneColor="#FCB8B8"
                       duotoneOpacity={1}
                     />
-                    <Text style={styles.statusText}>{branchName}</Text>
+                    {isLoading ? (
+                      <SkeletonBlock width={90} height={14} borderRadius={4} />
+                    ) : (
+                      <Text style={styles.statusText}>{branchName}</Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -211,21 +226,28 @@ export default function SalesRepDashboardScreen() {
             scrollEventThrottle={16}
           >
           <Text style={styles.sectionTitle}>Quick Stats</Text>
-          <View style={styles.statsRow}>
-            {displayedStats.map((stat) => (
-              <View key={stat.key} style={styles.statTouchable}>
-                <StatCard
-                  icon={stat.icon}
-                  iconColor={stat.iconColor}
-                  accentColor={stat.accentColor}
-                  backgroundColor={stat.backgroundColor}
-                  borderLeftColor={stat.borderLeftColor}
-                  value={stat.value}
-                  label={stat.label}
-                />
-              </View>
-            ))}
-          </View>
+          {isLoading ? (
+            <View style={styles.statsRow}>
+              <SkeletonBlock width="48%" height={84} borderRadius={12} />
+              <SkeletonBlock width="48%" height={84} borderRadius={12} />
+            </View>
+          ) : (
+            <View style={styles.statsRow}>
+              {displayedStats.map((stat) => (
+                <View key={stat.key} style={styles.statTouchable}>
+                  <StatCard
+                    icon={stat.icon}
+                    iconColor={stat.iconColor}
+                    accentColor={stat.accentColor}
+                    backgroundColor={stat.backgroundColor}
+                    borderLeftColor={stat.borderLeftColor}
+                    value={stat.value}
+                    label={stat.label}
+                  />
+                </View>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.sectionTitle}>Main Operations</Text>
           <View style={styles.operationsGrid}>
@@ -244,7 +266,9 @@ export default function SalesRepDashboardScreen() {
 
           <Text style={styles.sectionTitle}>Recent Logs</Text>
           <View style={styles.logsList}>
-            {recentLogsDisplay.length > 0 ? (
+            {isLoading ? (
+              <SkeletonList count={3} lines={1} thumbSize={36} />
+            ) : recentLogsDisplay.length > 0 ? (
               recentLogsDisplay.map((log) => (
                 <LogListItem
                   key={log.key}

@@ -33,7 +33,9 @@ import {
   Truck,
   DotsThreeVertical,
   Trash,
+  TrashSimple,
   IdentificationCard,
+  ArrowsOut,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -169,7 +171,9 @@ const PHOSPHOR_ICONS = {
   truck: Truck,
   moreVertical: DotsThreeVertical,
   trash: Trash,
+  trashSimple: TrashSimple,
   idCard: IdentificationCard,
+  expand: ArrowsOut,
 };
 
 const ICON_NAMES = [
@@ -179,7 +183,7 @@ const ICON_NAMES = [
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter',
-  'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'idCard',
+  'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
   'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

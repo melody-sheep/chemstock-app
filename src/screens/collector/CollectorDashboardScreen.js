@@ -9,6 +9,7 @@ import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
 import ActionCard from '../../components/common/ActionCard';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -55,6 +56,7 @@ const MAIN_OPERATIONS = [
 
 export default function CollectorDashboardScreen() {
   const [user, setUser] = useState(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Same FB/IG-style collapsing header as the other dashboards — see
@@ -71,7 +73,11 @@ export default function CollectorDashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      authService.getCurrentUser().then(setUser);
+      setIsLoadingUser(true);
+      authService.getCurrentUser().then((currentUser) => {
+        setUser(currentUser);
+        setIsLoadingUser(false);
+      });
     }, [])
   );
 
@@ -122,9 +128,13 @@ export default function CollectorDashboardScreen() {
               illustrationWidth={HEADER_ILLUSTRATION_WIDTH}
             >
               <View style={styles.secondaryContent}>
-                <Text style={styles.welcomeText} numberOfLines={1}>
-                  Welcome, <Text style={styles.welcomeName}>{collectorName}</Text>!
-                </Text>
+                {isLoadingUser ? (
+                  <SkeletonBlock width={180} height={25} borderRadius={4} />
+                ) : (
+                  <Text style={styles.welcomeText} numberOfLines={1}>
+                    Welcome, <Text style={styles.welcomeName}>{collectorName}</Text>!
+                  </Text>
+                )}
 
                 <View style={styles.statusRow}>
                   <Text style={styles.statusText}>Status</Text>
@@ -143,7 +153,11 @@ export default function CollectorDashboardScreen() {
                       duotoneColor="#FCB8B8"
                       duotoneOpacity={1}
                     />
-                    <Text style={styles.statusText}>{branchName}</Text>
+                    {isLoadingUser ? (
+                      <SkeletonBlock width={90} height={14} borderRadius={4} />
+                    ) : (
+                      <Text style={styles.statusText}>{branchName}</Text>
+                    )}
                   </View>
                 </View>
               </View>

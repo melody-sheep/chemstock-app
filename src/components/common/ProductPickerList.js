@@ -51,11 +51,9 @@ export default function ProductPickerList({
     onItemsChange(items.filter((item) => item.code !== code));
   };
 
-  const handleAdjustQty = (code, delta) => {
+  const handleSetQty = (code, qty) => {
     onItemsChange(
-      items.map((item) =>
-        item.code === code ? { ...item, registeredQty: Math.max(1, item.registeredQty + delta) } : item
-      )
+      items.map((item) => (item.code === code ? { ...item, registeredQty: Math.max(1, qty) } : item))
     );
   };
 
@@ -95,8 +93,9 @@ export default function ProductPickerList({
 
       <RegisteredItemsList
         items={items}
-        onAdjustQty={handleAdjustQty}
+        onSetQty={handleSetQty}
         onDateChange={handleDateChange}
+        onRemove={handleRemoveProduct}
         sectionTitle={queueTitle}
         cardHeaderTitle={queueCardHeader}
       />
