@@ -54,9 +54,9 @@ const QUICK_STATS = [
 const MAIN_OPERATIONS = [
   { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: 'ReceiveStock' },
   { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: 'ReleaseStockRecipient' },
-  { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: null },
-  { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: null },
-  { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: null },
+  { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: 'ManageReturns' },
+  { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: 'ManagerAlerts' },
+  { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: 'TrackDeliveries' },
   { key: 'agentAccounts', icon: 'agentsGroup', iconColor: COLORS.iconAgentStroke, duotoneColor: COLORS.iconAgentFill, title: 'Manage Accounts', screen: 'ManageAccounts' },
 ];
 

@@ -176,10 +176,15 @@ class InventoryService extends BaseService {
     }
 
     try {
+      // transactions now has two FKs into gps_coordinates (gps_id = origin,
+      // destination_gps_id = the Collector-path "Deliver to" point), so an
+      // unqualified `gps_coordinates(...)` embed is ambiguous and PostgREST
+      // rejects it (PGRST201) — for every row, not just collector ones. The
+      // `!gps_id`/`!destination_gps_id` hints tell it which FK to use.
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          '*, gps_coordinates(latitude, longitude), media(storage_path, device_model, device_os), transaction_details(product_code, product_name, batch_number, quantity, mfg_date, exp_date)'
+          '*, origin_gps:gps_coordinates!gps_id(latitude, longitude), destination_gps:gps_coordinates!destination_gps_id(latitude, longitude), media(storage_path, device_model, device_os), transaction_details(product_code, product_name, batch_number, quantity, mfg_date, exp_date)'
         )
         .in('branch_id', branchIds)
         .order('created_at', { ascending: false })
@@ -287,10 +292,15 @@ class InventoryService extends BaseService {
 
   /**
    * Atomically releases stock to a recipient (Sales Rep/Collector) via the
-   * release_stock_batch RPC — deducts (or deletes, if fully depleted) the
-   * matching branch_inventory rows, writes a transactions/transaction_details
-   * ledger entry, and returns the release's own qr_code for the recipient
-   * to scan later.
+   * release_stock_batch RPC — decrements the matching branch_inventory rows
+   * (down to 0, never deleted — see 2026-08-21 migration), writes a
+   * transactions/transaction_details ledger entry, and returns the release's
+   * own qr_code for the recipient to scan later.
+   *
+   * For a Collector ('collector') movementType, also pass targetRecipientId
+   * (the ultimate Sales Rep the collector is delivering to) and
+   * destinationLatitude/destinationLongitude (the pinned "Deliver to" point)
+   * — all three are optional/null for a direct Sales Rep release.
    */
   async releaseStockBatch({
     branchId,
@@ -302,6 +312,9 @@ class InventoryService extends BaseService {
     deviceOs,
     storagePath,
     items,
+    targetRecipientId,
+    destinationLatitude,
+    destinationLongitude,
   }) {
     debugLog('info', 'InventoryService', 'Releasing stock batch', {
       branchId,
@@ -327,6 +340,9 @@ class InventoryService extends BaseService {
           product_name: item.productName,
           quantity: item.releaseQty,
         })),
+        p_target_recipient_id: targetRecipientId ?? null,
+        p_destination_latitude: destinationLatitude ?? null,
+        p_destination_longitude: destinationLongitude ?? null,
       });
 
       if (error) {
@@ -338,6 +354,202 @@ class InventoryService extends BaseService {
     } catch (error) {
       this.log('error', 'releaseStockBatch failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to release stock' };
+    }
+  }
+
+  /**
+   * Collector-mediated releases only (movement_type = 'collector'), each
+   * with its recipients' ids (resolved to names by the caller via
+   * agentService.getMyAgentAccounts, same pattern as getActivityLogs),
+   * both GPS points, items, and delivery_status. delivery_checkpoints is
+   * embedded too — empty today since nothing writes to it yet (no
+   * Collector-side "update my location" button exists), but the shape is
+   * ready for whenever that lands.
+   */
+  async getDeliveries(branchIds, limit = 50) {
+    debugLog('info', 'InventoryService', 'Fetching deliveries', { branchIds, limit });
+
+    if (!branchIds || branchIds.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select(
+          '*, origin_gps:gps_coordinates!gps_id(latitude, longitude), destination_gps:gps_coordinates!destination_gps_id(latitude, longitude), transaction_details(product_code, product_name, batch_number, quantity), delivery_checkpoints(latitude, longitude, created_at)'
+        )
+        .eq('movement_type', 'collector')
+        .in('branch_id', branchIds)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('❌ [InventoryService] getDeliveries error:', error);
+        throw new Error(error.message || 'Failed to load deliveries');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getDeliveries failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load deliveries', data: [] };
+    }
+  }
+
+  /**
+   * Uploads a Sales Rep/Collector's stock-acceptance proof photo. Agents
+   * are always `anon` (no Supabase Auth session — see agentService), so the
+   * per-manager-folder upload policy on this same bucket can never match
+   * them; a distinct `sr-acceptances/` path prefix has its own anon-facing
+   * INSERT policy instead (2026-08-23_sr_receive_stock.sql).
+   * @returns {Promise<string>} the storage path (not a public URL)
+   */
+  async uploadStockAcceptancePhoto(uri, agentId) {
+    debugLog('info', 'InventoryService', 'Uploading stock acceptance photo', { agentId });
+
+    try {
+      this.validateRequired(['uri', 'agentId'], { uri, agentId });
+
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = base64ToUint8Array(base64);
+      const path = `sr-acceptances/${agentId}/${Date.now()}.jpg`;
+
+      const { error } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .upload(path, bytes, { contentType: 'image/jpeg' });
+
+      if (error) {
+        console.error('❌ [InventoryService] Stock acceptance photo upload failed:', error);
+        throw new Error(error.message || 'Failed to upload photo');
+      }
+
+      return path;
+    } catch (error) {
+      this.log('error', 'uploadStockAcceptancePhoto failed', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Looks up a release transaction by its QR code, agent-side. Sales Reps/
+   * Collectors have no Supabase Auth session (auth.uid() is always null for
+   * them), so this can't be a plain RLS-gated `.from().select()` like the
+   * manager-side equivalents — it goes through a SECURITY DEFINER RPC that
+   * takes the agent's id explicitly and re-validates it server-side.
+   */
+  async getTransactionByQrCodeForAgent(qrCode, agentId) {
+    debugLog('info', 'InventoryService', 'Looking up transaction by QR for agent', { agentId });
+
+    try {
+      this.validateRequired(['qrCode', 'agentId'], { qrCode, agentId });
+
+      const { data, error } = await supabase.rpc('get_transaction_by_qr_code_for_agent', {
+        p_qr_code: qrCode,
+        p_agent_id: agentId,
+      });
+
+      if (error) {
+        console.error('❌ [InventoryService] get_transaction_by_qr_code_for_agent RPC error:', error);
+        throw new Error(error.message || 'Transaction not found or not assigned to you');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'getTransactionByQrCodeForAgent failed', { error: error.message });
+      return { success: false, message: error.message || 'Transaction not found or not assigned to you' };
+    }
+  }
+
+  /**
+   * Confirms a Sales Rep/Collector's receipt of a release transaction —
+   * atomically records their own GPS+photo proof and credits the matching
+   * line items into their personal sr_inventory ledger. Blocked server-side
+   * from running twice against the same transaction.
+   */
+  async acceptStockRelease({ qrCode, agentId, latitude, longitude, deviceModel, deviceOs, storagePath }) {
+    debugLog('info', 'InventoryService', 'Accepting stock release', { agentId, qrCode });
+
+    try {
+      this.validateRequired(['qrCode', 'agentId', 'storagePath'], { qrCode, agentId, storagePath });
+
+      const { data, error } = await supabase.rpc('accept_stock_release', {
+        p_qr_code: qrCode,
+        p_agent_id: agentId,
+        p_latitude: latitude ?? null,
+        p_longitude: longitude ?? null,
+        p_storage_path: storagePath,
+        p_device_model: deviceModel ?? null,
+        p_device_os: deviceOs ?? null,
+      });
+
+      if (error) {
+        console.error('❌ [InventoryService] accept_stock_release RPC error:', error);
+        throw new Error(error.message || 'Failed to accept stock');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'acceptStockRelease failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to accept stock' };
+    }
+  }
+
+  /**
+   * A Sales Rep/Collector's own personal stock ledger (built from accepted
+   * releases, not the branch warehouse) — agent-facing RPC, same auth.uid()
+   * caveat as getTransactionByQrCodeForAgent above.
+   */
+  async getSrInventory(agentId) {
+    debugLog('info', 'InventoryService', 'Fetching SR inventory', { agentId });
+
+    if (!agentId) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_sr_inventory', { p_agent_id: agentId });
+
+      if (error) {
+        console.error('❌ [InventoryService] get_sr_inventory RPC error:', error);
+        throw new Error(error.message || 'Failed to load your stock');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getSrInventory failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load your stock', data: [] };
+    }
+  }
+
+  /**
+   * A Sales Rep/Collector's own accepted-stock history — the agent-facing
+   * equivalent of getActivityLogs, built entirely inside the RPC (no
+   * PostgREST embed available to an anon caller).
+   */
+  async getSrActivityLogs(agentId, limit = 20) {
+    debugLog('info', 'InventoryService', 'Fetching SR activity logs', { agentId, limit });
+
+    if (!agentId) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_sr_activity_logs', {
+        p_agent_id: agentId,
+        p_limit: limit,
+      });
+
+      if (error) {
+        console.error('❌ [InventoryService] get_sr_activity_logs RPC error:', error);
+        throw new Error(error.message || 'Failed to load activity logs');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getSrActivityLogs failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load activity logs', data: [] };
     }
   }
 }

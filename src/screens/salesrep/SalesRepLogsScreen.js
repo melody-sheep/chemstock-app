@@ -1,4 +1,4 @@
-// src/screens/manager/StockLogsScreen.js
+// src/screens/salesrep/SalesRepLogsScreen.js
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -9,7 +9,6 @@ import Icon from '../../components/common/Icon';
 import FilterSheet from '../../components/common/FilterSheet';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
-import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -18,71 +17,34 @@ import { formatRelativeTime } from '../../utils/formatters';
 
 const LOGS_LIMIT = 50;
 
-// "Today" compares calendar day; "This Week"/"This Month" are rolling
-// windows (last 7 / 30 days) rather than calendar boundaries — simpler to
-// reason about and avoids a Sunday-vs-Monday week-start debate.
+// Same rolling-window filter shape as the Manager's StockLogsScreen.
 const DATE_FILTER_OPTIONS = [
   { key: 'all', label: 'All Time', test: () => true },
   {
     key: 'today',
     label: 'Today',
-    test: (log) => new Date(log.created_at).toDateString() === new Date().toDateString(),
+    test: (log) => new Date(log.createdAt).toDateString() === new Date().toDateString(),
   },
   {
     key: 'week',
     label: 'This Week',
-    test: (log) => (Date.now() - new Date(log.created_at).getTime()) / 86400000 <= 7,
+    test: (log) => (Date.now() - new Date(log.createdAt).getTime()) / 86400000 <= 7,
   },
   {
     key: 'month',
     label: 'This Month',
-    test: (log) => (Date.now() - new Date(log.created_at).getTime()) / 86400000 <= 30,
+    test: (log) => (Date.now() - new Date(log.createdAt).getTime()) / 86400000 <= 30,
   },
 ];
 
-// Receiving (branch_inventory, "received_quantity") and release
-// (transaction_details, "quantity") logs have different embed shapes —
-// normalize both to the same {name, qty, mfgDate, expDate} so the rest of
-// this screen doesn't need to know which type it's rendering.
-function getLogItems(log) {
-  if (log.logType === 'release') {
-    return (log.transaction_details || []).map((item) => ({
-      key: item.batch_number,
-      name: item.product_name,
-      qty: item.quantity,
-      mfgDate: item.mfg_date,
-      expDate: item.exp_date,
-    }));
-  }
-  return (log.branch_inventory || []).map((item) => ({
-    key: item.batch_number,
-    name: item.product_name,
-    qty: item.received_quantity,
-    mfgDate: item.mfg_date,
-    expDate: item.exp_date,
-  }));
-}
-
-// Receiving logs still embed a single `gps_coordinates`. Release logs now
-// embed `origin_gps`/`destination_gps` (transactions has two FKs into
-// gps_coordinates as of the Collector-delivery migration, so the query needs
-// named embeds — see inventoryService.getReleaseLogs). This only surfaces
-// the origin point here, matching what this detail sheet already showed
-// before that migration; the destination point isn't displayed in this log
-// view yet.
-function getLogGps(log) {
-  return log.logType === 'release' ? log.origin_gps : log.gps_coordinates;
-}
-
 function summarizeItems(items) {
-  const totalUnits = items.reduce((sum, item) => sum + item.qty, 0);
+  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
   return `${totalUnits} unit${totalUnits === 1 ? '' : 's'} · ${items.length} product${items.length === 1 ? '' : 's'}`;
 }
 
-export default function StockLogsScreen() {
+export default function SalesRepLogsScreen() {
   const route = useRoute();
   const [logs, setLogs] = useState([]);
-  const [recipientNameById, setRecipientNameById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
@@ -92,15 +54,9 @@ export default function StockLogsScreen() {
 
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
-    const manager = await authService.getCurrentUser();
-    const [logsResult, agentsResult] = await Promise.all([
-      inventoryService.getActivityLogs(manager?.branchIds || [], LOGS_LIMIT),
-      agentService.getMyAgentAccounts(),
-    ]);
-    setLogs(logsResult.success ? logsResult.data : []);
-    if (agentsResult.success) {
-      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
-    }
+    const agent = await authService.getCurrentUser();
+    const result = await inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT);
+    setLogs(result.success ? result.data : []);
     setIsLoading(false);
   }, []);
 
@@ -114,9 +70,9 @@ export default function StockLogsScreen() {
     setSelectedLog(log);
     setPhotoUrl(null);
 
-    if (log.media?.storage_path) {
+    if (log.media?.storagePath) {
       setIsPhotoLoading(true);
-      const url = await inventoryService.getShipmentPhotoUrl(log.media.storage_path);
+      const url = await inventoryService.getShipmentPhotoUrl(log.media.storagePath);
       setPhotoUrl(url);
       setIsPhotoLoading(false);
     }
@@ -127,22 +83,19 @@ export default function StockLogsScreen() {
     setPhotoUrl(null);
   };
 
-  // Jumped here from a tap on a Recent Logs row (Dashboard) — the row
-  // already had the full log object from its own fetch, so open straight
-  // to the detail sheet instead of waiting for this screen's own list load.
+  // Jumped here from a tap on a Recent Logs row (Dashboard) — same pattern
+  // as the Manager dashboard's jump into StockLogsScreen.
   useEffect(() => {
     if (route.params?.initialLog) {
       openDetail(route.params.initialLog);
     }
-  }, [route.params?.initialLog?.id]);
+  }, [route.params?.initialLog?.acceptanceId]);
 
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
   const filteredLogs = logs.filter((log) => activeFilterOption.test(log));
 
   const getTitle = (log) =>
-    log.logType === 'release'
-      ? `Stock Released${recipientNameById[log.received_by] ? ` — ${recipientNameById[log.received_by]}` : ''}`
-      : 'Stock Received';
+    log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
 
   return (
     <>
@@ -150,7 +103,7 @@ export default function StockLogsScreen() {
       <View style={styles.container}>
         <Header
           showBackButton
-          backButtonText="Manager Dashboard"
+          backButtonText="Sales Rep Dashboard"
           title="Transaction Logs"
           height={56}
           backgroundColor="#03045E"
@@ -180,7 +133,7 @@ export default function StockLogsScreen() {
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No transactions yet.</Text>
+            <Text style={styles.emptyText}>No stock accepted yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
           <View style={styles.loadingWrap}>
@@ -189,32 +142,23 @@ export default function StockLogsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {filteredLogs.map((log) => {
-              const items = getLogItems(log);
-              const isRelease = log.logType === 'release';
-              return (
-                <TouchableOpacity
-                  key={`${log.logType}-${log.id}`}
-                  style={styles.logCard}
-                  onPress={() => openDetail(log)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.logIconBadge, isRelease && styles.logIconBadgeRelease]}>
-                    <Icon
-                      name={isRelease ? 'trayUp' : 'trayDown'}
-                      size={18}
-                      color={isRelease ? COLORS.success : COLORS.primary}
-                      weight="duotone"
-                    />
-                  </View>
-                  <View style={styles.logTextCol}>
-                    <Text style={styles.logTitle}>{getTitle(log)}</Text>
-                    <Text style={styles.logMeta}>{summarizeItems(items)}</Text>
-                  </View>
-                  <Text style={styles.logTime}>{formatRelativeTime(log.created_at)}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {filteredLogs.map((log) => (
+              <TouchableOpacity
+                key={log.acceptanceId}
+                style={styles.logCard}
+                onPress={() => openDetail(log)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.logIconBadge}>
+                  <Icon name="trayDown" size={18} color={COLORS.primary} weight="duotone" />
+                </View>
+                <View style={styles.logTextCol}>
+                  <Text style={styles.logTitle}>{getTitle(log)}</Text>
+                  <Text style={styles.logMeta}>{summarizeItems(log.items || [])}</Text>
+                </View>
+                <Text style={styles.logTime}>{formatRelativeTime(log.createdAt)}</Text>
+              </TouchableOpacity>
+            ))}
             <View style={{ height: 24 }} />
           </ScrollView>
         )}
@@ -225,16 +169,16 @@ export default function StockLogsScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.detailTitle}>{getTitle(selectedLog)}</Text>
             <Text style={styles.detailSubtitle}>
-              {new Date(selectedLog.created_at).toLocaleString()}
+              {new Date(selectedLog.createdAt).toLocaleString()}
             </Text>
 
             <Text style={styles.detailSectionLabel}>Items</Text>
             <View style={styles.itemsCard}>
-              {getLogItems(selectedLog).map((item, index) => (
-                <View key={`${item.key}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                  <Text style={styles.itemName}>{item.name}</Text>
+              {(selectedLog.items || []).map((item, index) => (
+                <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                  <Text style={styles.itemName}>{item.productName}</Text>
                   <Text style={styles.itemMeta}>
-                    Qty: {item.qty}
+                    Qty: {item.quantity}
                     {item.mfgDate ? `   Mfg: ${new Date(item.mfgDate).toLocaleDateString()}` : ''}
                     {item.expDate ? `   Exp: ${new Date(item.expDate).toLocaleDateString()}` : ''}
                   </Text>
@@ -244,45 +188,38 @@ export default function StockLogsScreen() {
 
             <Text style={styles.detailSectionLabel}>Details</Text>
             <View style={styles.metaCard}>
-              {getLogGps(selectedLog) && (
+              {selectedLog.gps && (
                 <View style={styles.metaRow}>
                   <Icon name="location" size={16} color={COLORS.error} />
                   <Text style={styles.metaText}>
-                    {getLogGps(selectedLog).latitude.toFixed(5)}, {getLogGps(selectedLog).longitude.toFixed(5)}
+                    {selectedLog.gps.latitude.toFixed(5)}, {selectedLog.gps.longitude.toFixed(5)}
                   </Text>
                 </View>
               )}
-              {selectedLog.media?.device_model && (
+              <View style={styles.metaRow}>
+                <Icon name="building" size={16} color={COLORS.primary} />
+                <Text style={styles.metaText}>{selectedLog.branchName}</Text>
+              </View>
+              {selectedLog.media?.deviceModel && (
                 <View style={styles.metaRow}>
                   <Icon name="package" size={16} color={COLORS.textSecondary} />
                   <Text style={styles.metaText}>
-                    {[selectedLog.media.device_model, selectedLog.media.device_os].filter(Boolean).join(' - ')}
+                    {[selectedLog.media.deviceModel, selectedLog.media.deviceOs].filter(Boolean).join(' - ')}
                   </Text>
                 </View>
               )}
             </View>
 
-            <Text style={styles.detailSectionLabel}>
-              {selectedLog.logType === 'release' ? 'Release QR Code' : 'Shipment QR Code'}
-            </Text>
-            <SaveableQRCode value={selectedLog.qr_code} size={180} style={styles.qrCard} />
+            <Text style={styles.detailSectionLabel}>Release QR Code</Text>
+            <SaveableQRCode value={selectedLog.qrCode} size={180} style={styles.qrCard} />
 
-            {selectedLog.media?.storage_path && (
+            {selectedLog.media?.storagePath && (
               <>
-                <Text style={styles.detailSectionLabel}>
-                  {selectedLog.logType === 'release' ? 'Release Proof' : 'Shipment Proof'}
-                </Text>
+                <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
                 {isPhotoLoading ? (
                   <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
                 ) : photoUrl ? (
-                  <Image
-                    source={{ uri: photoUrl }}
-                    style={styles.photo}
-                    resizeMode="cover"
-                    onError={(e) =>
-                      console.error('❌ [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
-                    }
-                  />
+                  <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
                 ) : (
                   <Text style={styles.emptyText}>Photo unavailable.</Text>
                 )}
@@ -362,9 +299,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logIconBadgeRelease: {
-    backgroundColor: COLORS.success + '15',
   },
   logTextCol: { flex: 1 },
   logTitle: {

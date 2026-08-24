@@ -37,6 +37,7 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2",
+    "react-native-webview": "13.16.1",
     "xmlbuilder": "^15.1.1"
   },
   "private": true

@@ -19,7 +19,7 @@ const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'
 export default function QuickRegisterReleaseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { recipient, branchId } = route.params;
+  const { recipient, targetRecipient, branchId, movementType } = route.params;
 
   const [items, setItems] = useState([]);
   const [photoUri, setPhotoUri] = useState(null);
@@ -36,14 +36,16 @@ export default function QuickRegisterReleaseScreen() {
       Alert.alert('Photo Required', 'Take a photo of the waybill/invoice before continuing.');
       return;
     }
-    navigation.navigate('ReleaseStockConfirm', {
+    const params = {
       recipient,
+      targetRecipient,
       branchId,
-      movementType: 'direct',
+      movementType,
       mode: 'quickRegister',
       registerItems: items,
       registerPhotoUri: photoUri,
-    });
+    };
+    navigation.navigate(movementType === 'collector' ? 'ReleaseStockDelivery' : 'ReleaseStockConfirm', params);
   };
 
   return (
