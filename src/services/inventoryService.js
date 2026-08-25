@@ -377,7 +377,7 @@ class InventoryService extends BaseService {
       const { data, error } = await supabase
         .from('transactions')
         .select(
-          '*, origin_gps:gps_coordinates!gps_id(latitude, longitude), destination_gps:gps_coordinates!destination_gps_id(latitude, longitude), transaction_details(product_code, product_name, batch_number, quantity), delivery_checkpoints(latitude, longitude, created_at)'
+          '*, origin_gps:gps_coordinates!gps_id(latitude, longitude), destination_gps:gps_coordinates!destination_gps_id(latitude, longitude), transaction_details(product_code, product_name, batch_number, quantity), delivery_checkpoints(latitude, longitude, label, created_at)'
         )
         .eq('movement_type', 'collector')
         .in('branch_id', branchIds)

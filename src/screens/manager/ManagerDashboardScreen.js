@@ -99,17 +99,32 @@ export default function ManagerDashboardScreen() {
     setUser(currentUser);
 
     const branchIds = currentUser?.branchIds || [];
-    const [stockResult, logsResult, agentsResult, requestsResult] = await Promise.all([
+    const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult] = await Promise.all([
       inventoryService.getBranchStock(branchIds),
       inventoryService.getActivityLogs(branchIds, 3),
       agentService.getMyAgentAccounts(),
       requestService.getBranchStockRequests(50),
+      inventoryService.getDeliveries(branchIds, 10),
     ]);
 
     if (stockResult.success) {
       setTotalUnits(stockResult.data.reduce((sum, row) => sum + row.quantity, 0));
     }
-    setRecentLogs(logsResult.success ? logsResult.data : []);
+
+    // Fold completed deliveries in as their own log type, same pattern as
+    // getActivityLogs' own receiving+release merge — re-sort by the real
+    // event time (delivered_at, not the release's created_at) and re-slice
+    // to the top 3 shown on the dashboard.
+    const deliveredLogs = (deliveriesResult.success ? deliveriesResult.data : [])
+      .filter((d) => d.delivery_status === 'delivered')
+      .map((d) => ({ ...d, logType: 'delivery' }));
+    const mergedLogs = [...(logsResult.success ? logsResult.data : []), ...deliveredLogs].sort((a, b) => {
+      const aTime = new Date(a.logType === 'delivery' ? a.delivered_at : a.created_at).getTime();
+      const bTime = new Date(b.logType === 'delivery' ? b.delivered_at : b.created_at).getTime();
+      return bTime - aTime;
+    });
+    setRecentLogs(mergedLogs.slice(0, 3));
+
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
     }
@@ -140,6 +155,16 @@ export default function ManagerDashboardScreen() {
   });
 
   const recentLogsDisplay = recentLogs.map((log) => {
+    if (log.logType === 'delivery') {
+      const targetName = recipientNameById[log.target_recipient_id] || 'Sales Rep';
+      return {
+        key: `delivery-${log.id}`,
+        icon: 'checkCircle',
+        iconColor: COLORS.success,
+        text: `Delivery to ${targetName} completed — ${formatRelativeTime(log.delivered_at)}`,
+        log,
+      };
+    }
     const isRelease = log.logType === 'release';
     const items = isRelease ? log.transaction_details || [] : log.branch_inventory || [];
     const units = items.reduce((sum, item) => sum + (isRelease ? item.quantity : item.received_quantity), 0);
@@ -325,7 +350,11 @@ export default function ManagerDashboardScreen() {
                   icon={log.icon}
                   iconColor={log.iconColor}
                   text={log.text}
-                  onPress={() => navigation.navigate('StockLogs', { initialLog: log.log })}
+                  onPress={() =>
+                    log.log.logType === 'delivery'
+                      ? navigation.navigate('TrackDeliveries')
+                      : navigation.navigate('StockLogs', { initialLog: log.log })
+                  }
                 />
               ))
             ) : (

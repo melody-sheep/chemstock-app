@@ -40,12 +40,12 @@ const DATE_FILTER_OPTIONS = [
   },
 ];
 
-// Receiving (branch_inventory, "received_quantity") and release
+// Receiving (branch_inventory, "received_quantity") and release/delivery
 // (transaction_details, "quantity") logs have different embed shapes —
-// normalize both to the same {name, qty, mfgDate, expDate} so the rest of
+// normalize all to the same {name, qty, mfgDate, expDate} so the rest of
 // this screen doesn't need to know which type it's rendering.
 function getLogItems(log) {
-  if (log.logType === 'release') {
+  if (log.logType === 'release' || log.logType === 'delivery') {
     return (log.transaction_details || []).map((item) => ({
       key: item.batch_number,
       name: item.product_name,
@@ -63,14 +63,15 @@ function getLogItems(log) {
   }));
 }
 
-// Receiving logs still embed a single `gps_coordinates`. Release logs now
-// embed `origin_gps`/`destination_gps` (transactions has two FKs into
+// Receiving logs still embed a single `gps_coordinates`. Release logs embed
+// `origin_gps`/`destination_gps` (transactions has two FKs into
 // gps_coordinates as of the Collector-delivery migration, so the query needs
-// named embeds — see inventoryService.getReleaseLogs). This only surfaces
-// the origin point here, matching what this detail sheet already showed
-// before that migration; the destination point isn't displayed in this log
-// view yet.
+// named embeds — see inventoryService.getReleaseLogs) — this surfaces the
+// origin point, matching what this detail sheet showed before that
+// migration. A delivery-completed entry surfaces the destination instead,
+// since that's the point relevant to "where did this actually end up."
 function getLogGps(log) {
+  if (log.logType === 'delivery') return log.destination_gps;
   return log.logType === 'release' ? log.origin_gps : log.gps_coordinates;
 }
 
@@ -93,11 +94,27 @@ export default function StockLogsScreen() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     const manager = await authService.getCurrentUser();
-    const [logsResult, agentsResult] = await Promise.all([
-      inventoryService.getActivityLogs(manager?.branchIds || [], LOGS_LIMIT),
+    const branchIds = manager?.branchIds || [];
+    const [logsResult, agentsResult, deliveriesResult] = await Promise.all([
+      inventoryService.getActivityLogs(branchIds, LOGS_LIMIT),
       agentService.getMyAgentAccounts(),
+      inventoryService.getDeliveries(branchIds, LOGS_LIMIT),
     ]);
-    setLogs(logsResult.success ? logsResult.data : []);
+
+    // Delivery-completed entries, tagged with their own logType and
+    // stamped with delivered_at as their `created_at` so every existing
+    // date-filter/sort/relative-time helper on this screen (all keyed on
+    // `log.created_at`) works unmodified — the underlying release's own
+    // created_at is still shown separately via its own 'release' log row.
+    const deliveredLogs = (deliveriesResult.success ? deliveriesResult.data : [])
+      .filter((d) => d.delivery_status === 'delivered')
+      .map((d) => ({ ...d, logType: 'delivery', created_at: d.delivered_at }));
+
+    const merged = [...(logsResult.success ? logsResult.data : []), ...deliveredLogs].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    setLogs(merged);
+
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
     }
@@ -139,10 +156,15 @@ export default function StockLogsScreen() {
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
   const filteredLogs = logs.filter((log) => activeFilterOption.test(log));
 
-  const getTitle = (log) =>
-    log.logType === 'release'
+  const getTitle = (log) => {
+    if (log.logType === 'delivery') {
+      const targetName = recipientNameById[log.target_recipient_id] || 'Sales Rep';
+      return `Delivery Completed — ${targetName}`;
+    }
+    return log.logType === 'release'
       ? `Stock Released${recipientNameById[log.received_by] ? ` — ${recipientNameById[log.received_by]}` : ''}`
       : 'Stock Received';
+  };
 
   return (
     <>
@@ -192,6 +214,7 @@ export default function StockLogsScreen() {
             {filteredLogs.map((log) => {
               const items = getLogItems(log);
               const isRelease = log.logType === 'release';
+              const isDelivery = log.logType === 'delivery';
               return (
                 <TouchableOpacity
                   key={`${log.logType}-${log.id}`}
@@ -199,11 +222,11 @@ export default function StockLogsScreen() {
                   onPress={() => openDetail(log)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.logIconBadge, isRelease && styles.logIconBadgeRelease]}>
+                  <View style={[styles.logIconBadge, (isRelease || isDelivery) && styles.logIconBadgeRelease]}>
                     <Icon
-                      name={isRelease ? 'trayUp' : 'trayDown'}
+                      name={isDelivery ? 'checkCircle' : isRelease ? 'trayUp' : 'trayDown'}
                       size={18}
-                      color={isRelease ? COLORS.success : COLORS.primary}
+                      color={isRelease || isDelivery ? COLORS.success : COLORS.primary}
                       weight="duotone"
                     />
                   </View>
@@ -262,29 +285,33 @@ export default function StockLogsScreen() {
               )}
             </View>
 
-            <Text style={styles.detailSectionLabel}>
-              {selectedLog.logType === 'release' ? 'Release QR Code' : 'Shipment QR Code'}
-            </Text>
-            <SaveableQRCode value={selectedLog.qr_code} size={180} style={styles.qrCard} />
-
-            {selectedLog.media?.storage_path && (
+            {selectedLog.logType !== 'delivery' && (
               <>
                 <Text style={styles.detailSectionLabel}>
-                  {selectedLog.logType === 'release' ? 'Release Proof' : 'Shipment Proof'}
+                  {selectedLog.logType === 'release' ? 'Release QR Code' : 'Shipment QR Code'}
                 </Text>
-                {isPhotoLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
-                ) : photoUrl ? (
-                  <Image
-                    source={{ uri: photoUrl }}
-                    style={styles.photo}
-                    resizeMode="cover"
-                    onError={(e) =>
-                      console.error('❌ [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
-                    }
-                  />
-                ) : (
-                  <Text style={styles.emptyText}>Photo unavailable.</Text>
+                <SaveableQRCode value={selectedLog.qr_code} size={180} style={styles.qrCard} />
+
+                {selectedLog.media?.storage_path && (
+                  <>
+                    <Text style={styles.detailSectionLabel}>
+                      {selectedLog.logType === 'release' ? 'Release Proof' : 'Shipment Proof'}
+                    </Text>
+                    {isPhotoLoading ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
+                    ) : photoUrl ? (
+                      <Image
+                        source={{ uri: photoUrl }}
+                        style={styles.photo}
+                        resizeMode="cover"
+                        onError={(e) =>
+                          console.error('❌ [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
+                        }
+                      />
+                    ) : (
+                      <Text style={styles.emptyText}>Photo unavailable.</Text>
+                    )}
+                  </>
                 )}
               </>
             )}

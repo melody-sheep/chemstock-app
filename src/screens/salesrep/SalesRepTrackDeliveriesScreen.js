@@ -7,6 +7,7 @@ import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
+import DeliveryTimeline from '../../components/common/DeliveryTimeline';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
@@ -14,11 +15,33 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
 
-// Same "no collector write path exists yet" caveat as the Manager's
-// TrackDeliveriesScreen — delivery_status only ever flips to 'delivered'
-// once the Collector side has its own "mark delivered" action.
+const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
+
 function getStatusLabel(delivery) {
-  return delivery.deliveryStatus === 'delivered' ? 'Delivered' : 'Not Delivered';
+  return STATUS_LABELS[delivery.deliveryStatus] || STATUS_LABELS.not_delivered;
+}
+
+// Referenced lazily (called at render time, after `styles` below has been
+// assigned) — safe despite appearing above the StyleSheet.create() call.
+function getStatusPillStyle(status) {
+  if (status === 'delivered') return styles.statusPillDelivered;
+  if (status === 'in_transit') return styles.statusPillInTransit;
+  return styles.statusPillPending;
+}
+function getStatusPillTextStyle(status) {
+  if (status === 'delivered') return styles.statusPillTextDelivered;
+  if (status === 'in_transit') return styles.statusPillTextInTransit;
+  return styles.statusPillTextPending;
+}
+
+// "Current Location" breadcrumb — the release moment (when the Collector's
+// involvement began) plus every checkpoint they've since logged, oldest
+// first. `checkpoints` comes from get_my_deliveries already ascending.
+function getTimelineEntries(delivery) {
+  return [
+    { key: 'origin', label: 'Picked up by Collector', createdAt: delivery.createdAt },
+    ...(delivery.checkpoints || []).map((cp, index) => ({ key: `cp-${index}`, label: cp.label, createdAt: cp.createdAt })),
+  ];
 }
 
 export default function SalesRepTrackDeliveriesScreen() {
@@ -87,8 +110,8 @@ export default function SalesRepTrackDeliveriesScreen() {
                     </Text>
                     <Text style={styles.deliveryMeta}>{formatRelativeTime(delivery.createdAt)}</Text>
                   </View>
-                  <View style={[styles.statusPill, isDelivered ? styles.statusPillDelivered : styles.statusPillPending]}>
-                    <Text style={[styles.statusPillText, isDelivered ? styles.statusPillTextDelivered : styles.statusPillTextPending]}>
+                  <View style={[styles.statusPill, getStatusPillStyle(delivery.deliveryStatus)]}>
+                    <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.deliveryStatus)]}>
                       {getStatusLabel(delivery)}
                     </Text>
                   </View>
@@ -105,20 +128,8 @@ export default function SalesRepTrackDeliveriesScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.detailHeaderRow}>
               <Text style={styles.detailTitle}>Delivery Details</Text>
-              <View
-                style={[
-                  styles.statusPill,
-                  selectedDelivery.deliveryStatus === 'delivered' ? styles.statusPillDelivered : styles.statusPillPending,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    selectedDelivery.deliveryStatus === 'delivered'
-                      ? styles.statusPillTextDelivered
-                      : styles.statusPillTextPending,
-                  ]}
-                >
+              <View style={[styles.statusPill, getStatusPillStyle(selectedDelivery.deliveryStatus)]}>
+                <Text style={[styles.statusPillText, getStatusPillTextStyle(selectedDelivery.deliveryStatus)]}>
                   {getStatusLabel(selectedDelivery)}
                 </Text>
               </View>
@@ -151,15 +162,8 @@ export default function SalesRepTrackDeliveriesScreen() {
               height={180}
               style={styles.map}
             />
-            {selectedDelivery.lastCheckpoint ? (
-              <Text style={styles.checkpointText}>
-                Last location update: {formatRelativeTime(selectedDelivery.lastCheckpoint.createdAt)}
-              </Text>
-            ) : (
-              <Text style={styles.checkpointText}>
-                No location updates from the Collector yet.
-              </Text>
-            )}
+            <Text style={styles.detailSectionLabel}>Current Location</Text>
+            <DeliveryTimeline entries={getTimelineEntries(selectedDelivery)} />
 
             <View style={{ height: 24 }} />
           </ScrollView>
@@ -227,6 +231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusPillPending: { backgroundColor: '#FFF1D6' },
+  statusPillInTransit: { backgroundColor: '#E3F2FF' },
   statusPillDelivered: { backgroundColor: '#EAFBF2' },
   statusPillText: {
     fontSize: 10,
@@ -234,6 +239,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   statusPillTextPending: { color: '#B26400' },
+  statusPillTextInTransit: { color: COLORS.primary },
   statusPillTextDelivered: { color: '#1E7A3A' },
   detailHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   detailTitle: {
@@ -303,12 +309,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   map: { marginBottom: SPACING.xs },
-  checkpointText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    fontStyle: 'italic',
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
 });

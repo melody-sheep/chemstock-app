@@ -7,6 +7,7 @@ import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
+import DeliveryTimeline from '../../components/common/DeliveryTimeline';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
@@ -15,13 +16,23 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
 
-// delivery_status only ever flips to 'delivered' once the Collector side has
-// its own "mark delivered" action — not built yet, so every delivery here
-// starts (and today, stays) 'not_delivered'. This screen is still worth
-// building now: it's the real view once that write path lands, and the
-// status/last-checkpoint plumbing is correct today even with empty data.
+const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
+
 function getStatusLabel(delivery) {
-  return delivery.delivery_status === 'delivered' ? 'Delivered' : 'Not Delivered';
+  return STATUS_LABELS[delivery.delivery_status] || STATUS_LABELS.not_delivered;
+}
+
+// Referenced lazily (called at render time, after `styles` below has been
+// assigned) — safe despite appearing above the StyleSheet.create() call.
+function getStatusPillStyle(status) {
+  if (status === 'delivered') return styles.statusPillDelivered;
+  if (status === 'in_transit') return styles.statusPillInTransit;
+  return styles.statusPillPending;
+}
+function getStatusPillTextStyle(status) {
+  if (status === 'delivered') return styles.statusPillTextDelivered;
+  if (status === 'in_transit') return styles.statusPillTextInTransit;
+  return styles.statusPillTextPending;
 }
 
 function getLastCheckpoint(delivery) {
@@ -30,6 +41,20 @@ function getLastCheckpoint(delivery) {
   return checkpoints.reduce((latest, cp) =>
     new Date(cp.created_at) > new Date(latest.created_at) ? cp : latest
   );
+}
+
+// "Current Location" breadcrumb — the release moment (when the Collector's
+// involvement began) plus every checkpoint they've since logged, oldest
+// first. delivery_checkpoints comes back from the raw PostgREST embed in
+// no guaranteed order, so it's sorted here.
+function getTimelineEntries(delivery) {
+  const checkpoints = [...(delivery.delivery_checkpoints || [])].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  return [
+    { key: 'origin', label: 'Picked up by Collector', createdAt: delivery.created_at },
+    ...checkpoints.map((cp, index) => ({ key: `cp-${index}`, label: cp.label, createdAt: cp.created_at })),
+  ];
 }
 
 export default function TrackDeliveriesScreen() {
@@ -107,8 +132,8 @@ export default function TrackDeliveriesScreen() {
                     </Text>
                     <Text style={styles.deliveryMeta}>{formatRelativeTime(delivery.created_at)}</Text>
                   </View>
-                  <View style={[styles.statusPill, isDelivered ? styles.statusPillDelivered : styles.statusPillPending]}>
-                    <Text style={[styles.statusPillText, isDelivered ? styles.statusPillTextDelivered : styles.statusPillTextPending]}>
+                  <View style={[styles.statusPill, getStatusPillStyle(delivery.delivery_status)]}>
+                    <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.delivery_status)]}>
                       {getStatusLabel(delivery)}
                     </Text>
                   </View>
@@ -125,20 +150,8 @@ export default function TrackDeliveriesScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.detailHeaderRow}>
               <Text style={styles.detailTitle}>Delivery Details</Text>
-              <View
-                style={[
-                  styles.statusPill,
-                  selectedDelivery.delivery_status === 'delivered' ? styles.statusPillDelivered : styles.statusPillPending,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    selectedDelivery.delivery_status === 'delivered'
-                      ? styles.statusPillTextDelivered
-                      : styles.statusPillTextPending,
-                  ]}
-                >
+              <View style={[styles.statusPill, getStatusPillStyle(selectedDelivery.delivery_status)]}>
+                <Text style={[styles.statusPillText, getStatusPillTextStyle(selectedDelivery.delivery_status)]}>
                   {getStatusLabel(selectedDelivery)}
                 </Text>
               </View>
@@ -179,15 +192,8 @@ export default function TrackDeliveriesScreen() {
               height={180}
               style={styles.map}
             />
-            {getLastCheckpoint(selectedDelivery) ? (
-              <Text style={styles.checkpointText}>
-                Last location update: {formatRelativeTime(getLastCheckpoint(selectedDelivery).created_at)}
-              </Text>
-            ) : (
-              <Text style={styles.checkpointText}>
-                No location updates from the Collector yet.
-              </Text>
-            )}
+            <Text style={styles.detailSectionLabel}>Current Location</Text>
+            <DeliveryTimeline entries={getTimelineEntries(selectedDelivery)} />
 
             <View style={{ height: 24 }} />
           </ScrollView>
@@ -255,6 +261,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusPillPending: { backgroundColor: '#FFF1D6' },
+  statusPillInTransit: { backgroundColor: '#E3F2FF' },
   statusPillDelivered: { backgroundColor: '#EAFBF2' },
   statusPillText: {
     fontSize: 10,
@@ -262,6 +269,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   statusPillTextPending: { color: '#B26400' },
+  statusPillTextInTransit: { color: COLORS.primary },
   statusPillTextDelivered: { color: '#1E7A3A' },
   detailHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   detailTitle: {
@@ -331,12 +339,4 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   map: { marginBottom: SPACING.xs },
-  checkpointText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    fontStyle: 'italic',
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
 });

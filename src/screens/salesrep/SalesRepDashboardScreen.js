@@ -1,6 +1,6 @@
 // src/screens/salesrep/SalesRepDashboardScreen.js
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Animated, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -92,10 +92,11 @@ export default function SalesRepDashboardScreen() {
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
 
-    const [inventoryResult, logsResult, requestsResult] = await Promise.all([
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult] = await Promise.all([
       inventoryService.getSrInventory(currentUser?.id),
       inventoryService.getSrActivityLogs(currentUser?.id, 3),
       requestService.getMyStockRequests(currentUser?.id, 5),
+      inventoryService.getMyDeliveries(currentUser?.id, 10),
     ]);
 
     if (inventoryResult.success) {
@@ -104,12 +105,18 @@ export default function SalesRepDashboardScreen() {
     const requests = requestsResult.success ? requestsResult.data : [];
     setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);
 
-    // Merge accepted-stock logs with request status changes into one
-    // chronological feed, top 3 — same pattern getActivityLogs already uses
-    // to merge receiving+release on the Manager side.
+    const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
+      (d) => d.deliveryStatus === 'delivered'
+    );
+
+    // Merge accepted-stock logs with request status changes and completed
+    // incoming deliveries into one chronological feed, top 3 — same pattern
+    // getActivityLogs already uses to merge receiving+release on the
+    // Manager side.
     const merged = [
       ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
       ...requests.map((req) => ({ ...req, logType: 'request' })),
+      ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
     ];
     merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setRecentLogs(merged.slice(0, 3));
@@ -143,6 +150,15 @@ export default function SalesRepDashboardScreen() {
   };
 
   const recentLogsDisplay = recentLogs.map((log) => {
+    if (log.logType === 'delivery') {
+      return {
+        key: `delivery-${log.transactionId}`,
+        icon: 'checkCircle',
+        iconColor: COLORS.success,
+        text: `Delivery from ${log.collectorName || 'Collector'} arrived — ${formatRelativeTime(log.createdAt)}`,
+        log,
+      };
+    }
     if (log.logType === 'request') {
       const meta = REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending;
       const units = (log.items || []).reduce((sum, item) => sum + item.quantity, 0);
@@ -268,8 +284,8 @@ export default function SalesRepDashboardScreen() {
             </View>
           ) : (
             <View style={styles.statsRow}>
-              {displayedStats.map((stat) => (
-                <View key={stat.key} style={styles.statTouchable}>
+              {displayedStats.map((stat) => {
+                const card = (
                   <StatCard
                     icon={stat.icon}
                     iconColor={stat.iconColor}
@@ -279,8 +295,37 @@ export default function SalesRepDashboardScreen() {
                     value={stat.value}
                     label={stat.label}
                   />
-                </View>
-              ))}
+                );
+                if (stat.key === 'totalItems') {
+                  return (
+                    <TouchableOpacity
+                      key={stat.key}
+                      style={styles.statTouchable}
+                      onPress={() => navigation.navigate('SalesRepStock')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="View my stock"
+                      accessibilityRole="button"
+                    >
+                      {card}
+                    </TouchableOpacity>
+                  );
+                }
+                if (stat.key === 'pendingStock') {
+                  return (
+                    <TouchableOpacity
+                      key={stat.key}
+                      style={styles.statTouchable}
+                      onPress={() => navigation.navigate('SalesRepStockRequests')}
+                      activeOpacity={0.7}
+                      accessibilityLabel="View my stock requests"
+                      accessibilityRole="button"
+                    >
+                      {card}
+                    </TouchableOpacity>
+                  );
+                }
+                return <View key={stat.key} style={styles.statTouchable}>{card}</View>;
+              })}
             </View>
           )}
 
@@ -310,7 +355,11 @@ export default function SalesRepDashboardScreen() {
                   icon={log.icon}
                   iconColor={log.iconColor}
                   text={log.text}
-                  onPress={() => navigation.navigate('SalesRepLogs', { initialLog: log.log })}
+                  onPress={() =>
+                    log.log.logType === 'delivery'
+                      ? navigation.navigate('SalesRepTrackDeliveries')
+                      : navigation.navigate('SalesRepLogs', { initialLog: log.log })
+                  }
                 />
               ))
             ) : (

@@ -34,11 +34,17 @@ import SubmitReportSR from '../screens/salesrep/SubmitReportSR';
 import AlertsDiscrepanciesSR from '../screens/salesrep/AlertsDiscrepanciesSR';
 import ReturnStocksSR from '../screens/salesrep/ReturnStocksSR';
 import SalesRepStockScreen from '../screens/salesrep/SalesRepStockScreen';
+import SalesRepStockRequestsScreen from '../screens/salesrep/SalesRepStockRequestsScreen';
 import SalesRepLogsScreen from '../screens/salesrep/SalesRepLogsScreen';
 import SalesRepTrackDeliveriesScreen from '../screens/salesrep/SalesRepTrackDeliveriesScreen';
 import SalesRepReportsScreen from '../screens/salesrep/SalesRepReportsScreen';
 import SalesRepSettingsScreen from '../screens/salesrep/SalesRepSettingsScreen';
 import CollectorDashboardScreen from '../screens/collector/CollectorDashboardScreen';
+import CollectorAcceptDeliveriesScreen from '../screens/collector/CollectorAcceptDeliveriesScreen';
+import CollectorDeliveryDetailScreen from '../screens/collector/CollectorDeliveryDetailScreen';
+import CollectorTripReviewScreen from '../screens/collector/CollectorTripReviewScreen';
+import CollectorDeliverStockScreen from '../screens/collector/CollectorDeliverStockScreen';
+import CollectorDeliveredStockScreen from '../screens/collector/CollectorDeliveredStockScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -78,11 +84,17 @@ export default function AppNavigator() {
         <Stack.Screen name="AlertsDiscrepanciesSR" component={AlertsDiscrepanciesSR} />
         <Stack.Screen name="ReturnStocksSR" component={ReturnStocksSR} />
         <Stack.Screen name="SalesRepStock" component={SalesRepStockScreen} />
+        <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} />
         <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} />
         <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} />
         <Stack.Screen name="SalesRepReports" component={SalesRepReportsScreen} />
         <Stack.Screen name="SalesRepSettings" component={SalesRepSettingsScreen} />
         <Stack.Screen name="CollectorDashboard" component={CollectorDashboardScreen} />
+        <Stack.Screen name="CollectorAcceptDeliveries" component={CollectorAcceptDeliveriesScreen} />
+        <Stack.Screen name="CollectorDeliveryDetail" component={CollectorDeliveryDetailScreen} />
+        <Stack.Screen name="CollectorTripReview" component={CollectorTripReviewScreen} />
+        <Stack.Screen name="CollectorDeliverStock" component={CollectorDeliverStockScreen} />
+        <Stack.Screen name="CollectorDeliveredStock" component={CollectorDeliveredStockScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

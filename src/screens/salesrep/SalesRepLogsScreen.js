@@ -50,7 +50,9 @@ const REQUEST_STATUS_META = {
 };
 
 function getLogKey(log) {
-  return log.logType === 'request' ? `request-${log.requestId}` : `acceptance-${log.acceptanceId}`;
+  if (log.logType === 'request') return `request-${log.requestId}`;
+  if (log.logType === 'delivery') return `delivery-${log.transactionId}`;
+  return `acceptance-${log.acceptanceId}`;
 }
 
 export default function SalesRepLogsScreen() {
@@ -66,14 +68,20 @@ export default function SalesRepLogsScreen() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     const agent = await authService.getCurrentUser();
-    const [logsResult, requestsResult] = await Promise.all([
+    const [logsResult, requestsResult, deliveriesResult] = await Promise.all([
       inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT),
       requestService.getMyStockRequests(agent?.id, LOGS_LIMIT),
+      inventoryService.getMyDeliveries(agent?.id, LOGS_LIMIT),
     ]);
+
+    const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
+      (d) => d.deliveryStatus === 'delivered'
+    );
 
     const merged = [
       ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
       ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
+      ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
     ];
     merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setLogs(merged);
@@ -118,6 +126,9 @@ export default function SalesRepLogsScreen() {
     if (log.logType === 'request') {
       const meta = REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending;
       return `Stock Request — ${meta.label}`;
+    }
+    if (log.logType === 'delivery') {
+      return `Delivery Arrived — ${log.collectorName || 'Collector'}`;
     }
     return log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
   };
@@ -176,9 +187,21 @@ export default function SalesRepLogsScreen() {
               >
                 <View style={styles.logIconBadge}>
                   <Icon
-                    name={log.logType === 'request' ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon : 'trayDown'}
+                    name={
+                      log.logType === 'request'
+                        ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon
+                        : log.logType === 'delivery'
+                        ? 'checkCircle'
+                        : 'trayDown'
+                    }
                     size={18}
-                    color={log.logType === 'request' ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor : COLORS.primary}
+                    color={
+                      log.logType === 'request'
+                        ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor
+                        : log.logType === 'delivery'
+                        ? COLORS.success
+                        : COLORS.primary
+                    }
                     weight="duotone"
                   />
                 </View>
@@ -241,6 +264,12 @@ export default function SalesRepLogsScreen() {
                   <Text style={styles.metaText}>{selectedLog.branchName}</Text>
                 </View>
               )}
+              {selectedLog.logType === 'delivery' && (
+                <View style={styles.metaRow}>
+                  <Icon name="person" size={16} color={COLORS.primary} />
+                  <Text style={styles.metaText}>{selectedLog.collectorName || 'Collector'} (Collector)</Text>
+                </View>
+              )}
               {(selectedLog.logType === 'request' ? selectedLog.deviceModel : selectedLog.media?.deviceModel) && (
                 <View style={styles.metaRow}>
                   <Icon name="package" size={16} color={COLORS.textSecondary} />
@@ -253,7 +282,7 @@ export default function SalesRepLogsScreen() {
               )}
             </View>
 
-            {selectedLog.logType !== 'request' && (
+            {selectedLog.logType !== 'request' && selectedLog.logType !== 'delivery' && (
               <>
                 <Text style={styles.detailSectionLabel}>Release QR Code</Text>
                 <SaveableQRCode value={selectedLog.qrCode} size={180} style={styles.qrCard} />
