@@ -175,7 +175,7 @@ export default function ReleaseStockConfirmScreen() {
   };
 
   const handleDone = () => {
-    navigation.navigate('ManagerDashboard');
+    navigation.navigate('ManagerDashboard', undefined, { pop: true });
   };
 
   if (qrCode) {

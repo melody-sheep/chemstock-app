@@ -9,6 +9,7 @@ import ManageAccountsScreen from '../screens/manager/ManageAccountsScreen';
 import AgentAccountsScreen from '../screens/manager/AgentAccountsScreen';
 import ReceiveStockScreen from '../screens/manager/ReceiveStockScreen';
 import AddNewBatchesScreen from '../screens/manager/AddNewBatchesScreen';
+import ProductBrowserScreen from '../screens/manager/ProductBrowserScreen';
 import ReceiveStockPreviewScreen from '../screens/manager/ReceiveStockPreviewScreen';
 import ManagerStockScreen from '../screens/manager/ManagerStockScreen';
 import StockLogsScreen from '../screens/manager/StockLogsScreen';
@@ -52,6 +53,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AgentAccounts" component={AgentAccountsScreen} />
         <Stack.Screen name="ReceiveStock" component={ReceiveStockScreen} />
         <Stack.Screen name="AddNewBatches" component={AddNewBatchesScreen} />
+        <Stack.Screen name="ProductBrowser" component={ProductBrowserScreen} />
         <Stack.Screen name="ReceiveStockPreview" component={ReceiveStockPreviewScreen} />
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} />
         <Stack.Screen name="StockLogs" component={StockLogsScreen} />

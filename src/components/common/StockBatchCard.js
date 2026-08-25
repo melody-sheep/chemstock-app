@@ -15,7 +15,10 @@ const CARD_WIDTH = 152;
 /**
  * StockBatchCard - one card per received batch (in-stock) or catalog
  * product with no batches yet (out-of-stock), used on the Manager Stocks
- * screen's horizontal-scroll rows.
+ * screen's horizontal-scroll rows. Every card shows the same plain
+ * outlined thumbnail + icon treatment regardless of section — no tinted
+ * backgrounds, no "Out of Stock" text label, so it reads the same whether
+ * it's a "Frequently Added" shortcut or a plain "All Products" entry.
  */
 export default function StockBatchCard({
   productName,
@@ -23,6 +26,7 @@ export default function StockBatchCard({
   batchNumber = null,
   expDate = null,
   outOfStock = false,
+  wireframe = false,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
@@ -36,17 +40,21 @@ export default function StockBatchCard({
     } else {
       expiryBadge = { label: 'Safe Batch on Shelf', color: COLORS.success, bg: COLORS.success + '18' };
     }
+    if (wireframe) {
+      expiryBadge = { ...expiryBadge, color: '#757575', bg: '#F1F5F9' };
+    }
   }
 
+  // Out-of-stock cards are muted (dimmed) in the wireframe "All Products"
+  // grid, where stock status is the point — but silently, via opacity only.
+  // No "Out of Stock" text label anywhere; the icon alone is enough.
+  const isWireframeOutOfStock = outOfStock && wireframe;
+
   return (
-    <View style={[styles.card, outOfStock && styles.cardMuted]}>
+    <View style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}>
       <View style={styles.thumbWrap}>
-        <View style={[styles.thumbIconBg, outOfStock && styles.thumbIconBgMuted]}>
-          <Icon
-            name="boxPackage"
-            size={36}
-            style={outOfStock ? styles.iconMuted : undefined}
-          />
+        <View style={styles.thumbIconBg}>
+          <Icon name="boxPackage" size={36} />
         </View>
 
         {expiryBadge && (
@@ -57,13 +65,9 @@ export default function StockBatchCard({
           </View>
         )}
 
-        {outOfStock ? (
-          <View style={[styles.badge, styles.badgeTopLeft, styles.outOfStockBadge]}>
-            <Text style={[styles.badgeText, styles.outOfStockBadgeText]}>Out of Stock</Text>
-          </View>
-        ) : (
-          <View style={[styles.badge, styles.badgeTopRight, styles.qtyBadge]}>
-            <Text style={styles.qtyBadgeText}>{quantity} pcs</Text>
+        {!outOfStock && (
+          <View style={[styles.badge, styles.badgeTopRight, wireframe ? styles.wireframeBadge : styles.qtyBadge]}>
+            <Text style={[styles.qtyBadgeText, wireframe && styles.wireframeBadgeText]}>{quantity} pcs</Text>
           </View>
         )}
       </View>
@@ -93,13 +97,14 @@ StockBatchCard.propTypes = {
   batchNumber: PropTypes.string,
   expDate: PropTypes.string,
   outOfStock: PropTypes.bool,
+  wireframe: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 0.5,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
@@ -108,11 +113,20 @@ const styles = StyleSheet.create({
   cardMuted: {
     opacity: 0.6,
   },
+  wireframeCard: {
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+    borderColor: '#B0B0B0',
+  },
   thumbWrap: {
     width: '100%',
     height: 72,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.xs,
@@ -122,12 +136,6 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  thumbIconBgMuted: {
-    opacity: 0.5,
-  },
-  iconMuted: {
-    opacity: 0.5,
   },
   badge: {
     position: 'absolute',
@@ -158,14 +166,11 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.success,
   },
-  outOfStockBadge: {
-    backgroundColor: COLORS.error + '18',
+  wireframeBadge: {
+    backgroundColor: '#F1F5F9',
   },
-  outOfStockBadgeText: {
-    fontSize: 9,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.error,
+  wireframeBadgeText: {
+    color: '#757575',
   },
   productName: {
     fontSize: TYPOGRAPHY.fontSize.sm,

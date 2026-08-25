@@ -5,7 +5,6 @@ import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 
 /**
  * ActionCard - Grid tile for dashboard "Main Operation" style menus.
@@ -60,7 +59,6 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
-    ...SHADOWS.cardSoft,
   },
   icon: {
     marginRight: SPACING.sm,

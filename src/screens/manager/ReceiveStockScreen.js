@@ -12,7 +12,6 @@ import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 
 export default function ReceiveStockScreen() {
   const navigation = useNavigation();
@@ -76,7 +75,7 @@ export default function ReceiveStockScreen() {
             <Text style={styles.sectionTitle}>Shipment Identification</Text>
 
             <TouchableOpacity style={styles.qrScanBox} onPress={handleScanQR} activeOpacity={0.7}>
-              <Icon name="qrCode" size={56} color={COLORS.textPrimary} />
+              <Icon name="qrCodeDetailed" size={56} color={COLORS.textPrimary} />
               <Text style={styles.qrScanTitle}>Scan QR Code</Text>
               <Text style={styles.qrScanSubtext}>(For products that already have QR code)</Text>
             </TouchableOpacity>
@@ -109,12 +108,12 @@ export default function ReceiveStockScreen() {
               </View>
             ) : (
               <View style={styles.emptyQueue}>
+                <Text style={styles.emptyQueueText}>Scanned Items Displays Here!</Text>
                 <Image
-                  source={require('../../../assets/image/empty_box1.png')}
+                  source={require('../../../assets/manager_assets/scanned_qr_man.png')}
                   style={styles.emptyQueueImage}
                   resizeMode="contain"
                 />
-                <Text style={styles.emptyQueueText}>Scanned Items Displays Here!</Text>
               </View>
             )}
           </View>
@@ -163,16 +162,15 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   qrScanBox: {
-    minHeight: 140,
+    minHeight: 180,
     borderWidth: 1.5,
     borderColor: '#757575',
     borderStyle: 'dotted',
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.md,
     backgroundColor: '#FFFFFF',
-    ...SHADOWS.cardSoft,
   },
   qrScanTitle: {
     marginTop: SPACING.sm,
@@ -206,21 +204,24 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
     borderStyle: 'dashed',
     borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.md,
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    paddingLeft: SPACING.md,
+    paddingRight: SPACING.xs,
     backgroundColor: '#FFFFFF',
   },
   emptyQueueImage: {
-    width: 64,
-    height: 64,
+    width: 112,
+    height: 112,
   },
   emptyQueueText: {
-    marginTop: SPACING.xs,
+    maxWidth: '55%',
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
-    textAlign: 'center',
+    textAlign: 'left',
   },
 });

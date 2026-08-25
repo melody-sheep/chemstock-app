@@ -5,11 +5,10 @@ import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 
 /**
  * StatCard - Quick-stat tile: duotone icon, bold value, label.
- * Flat card with a colored left accent stroke and a soft shadow.
+ * Flat card with a colored left accent stroke, no shadow.
  * Used in dashboard "Quick Stats" rows across roles.
  */
 export default function StatCard({
@@ -70,7 +69,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 2,
     padding: SPACING.md,
     backgroundColor: '#FFFFFF',
-    ...SHADOWS.card,
   },
   textColumn: {
     flexShrink: 1,

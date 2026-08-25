@@ -48,13 +48,6 @@ WarningSection.propTypes = {
   icon: PropTypes.string,
 };
 
-WarningSection.defaultProps = {
-  title: 'Warning',
-  description: 'This will set up your device for manager access. Only continue if you\'re authorized to manage this branch.',
-  variant: 'centered',
-  icon: 'warningTriangle',
-};
-
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',

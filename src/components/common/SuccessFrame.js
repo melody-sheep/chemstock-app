@@ -14,7 +14,7 @@ const { width: screenWidth } = Dimensions.get('window');
  * Positioned 50px below Header 2
  * Shows: ✅ [x] branches ready for setup (no extra "check char" icon)
  */
-export default function SuccessFrame({ visible, branchCount = 0, onFadeComplete }) {
+export default function SuccessFrame({ visible, branchCount = 0, onFadeComplete = null }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const timeoutRef = useRef(null);
 
@@ -89,11 +89,6 @@ SuccessFrame.propTypes = {
   visible: PropTypes.bool.isRequired,
   branchCount: PropTypes.number,
   onFadeComplete: PropTypes.func,
-};
-
-SuccessFrame.defaultProps = {
-  branchCount: 0,
-  onFadeComplete: null,
 };
 
 const styles = StyleSheet.create({

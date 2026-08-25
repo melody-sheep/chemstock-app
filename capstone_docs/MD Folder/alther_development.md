@@ -96,3 +96,94 @@ Receive Stock flow (two screens), a batch of shared-component reuse fixes, and a
 ## Next goal
 
 Wire the Receive Stock → Add New Batches loop to real Supabase data once a `products`/inventory table exists (Sprint 2 per the roadmap), and decide whether to prioritize the dev-client migration now (unblocks both QR scanning and the status bar polish) or defer it further.
+
+---
+
+# Session — August 24, 2026
+
+Repo integration (merged the team's three branches into `main`), a Sprint 1 planning pass, and a long UI/UX overhaul across the Add New Batches → Preview & Confirm flow — new reusable components, several real bugs found and fixed along the way, and an app-wide skeleton-loading system started.
+
+---
+
+## Repo / planning
+
+- Merged `origin/jay`, `origin/gio`, `origin/clint` into `main` via a throwaway `integration-test` branch (fast-forwarded cleanly — `gio` and `clint` turned out to already be fully contained in `jay`'s branch, so only one real merge happened). Pushed to `origin/main`; branch cleaned up after.
+- Walked through a full Sprint 1 plan (`user_profiles`/`branches` schema, RLS policies, an `activate_manager()` RPC for atomicity, the username→email login-resolution gap, the manager→create-Sales-Rep/Collector privilege problem with client-side `signUp()`) — advisory only, not committed as code this session; written up for manual execution.
+
+## What was created
+
+### New reusable components (`src/components/common/`)
+- `SpotlightHint.js` — dims the screen and cuts a highlighted hole around a *real* on-screen element via an SVG mask (`react-native-svg`, no new dependency), with a callout + "Got it" button. Built to replace an initial banner-style hint that added a new UI element instead of pointing at the existing one.
+- `QuantityStepper.js` — minus/plus buttons framing an editable quantity `TextInput` in one bordered pill, so a count can be typed directly instead of only stepped one at a time.
+- `ShipmentProofRow.js` — the "take/retake photo" action row (full-height camera panel, duotone status icon, label, optional "view" button), extracted out of `AddNewBatchesScreen` so `ReceiveStockPreviewScreen` could reuse it identically for retaking before final submit.
+- `SkeletonBlock.js` — pulsing placeholder rectangle (RN `Animated` API, no gradient library needed), the primitive behind every skeleton shape.
+- `SkeletonCard.js` — exports `SkeletonCard` (thumbnail + lines, matching the shape most list/card screens already use) and `SkeletonList` (a few stacked in one call).
+- `LoadingSpinner.js` (`src/components/ui/`) — this file existed but was **completely empty (0 bytes)** since before this session; written for real now (centered `ActivityIndicator`, `fill` prop for section vs. full-screen use).
+
+### New hooks (`src/hooks/`)
+- `useFirstTimeHint.js` — tracks whether a named onboarding tip has been dismissed on-device (AsyncStorage via the existing `storage.js` wrapper, same pattern as `productUsage.js`), so a tip shows once ever, not on every visit. Pairs with `SpotlightHint`.
+
+### Icon.js additions
+- `trashSimple` (Phosphor `TrashSimple`) and `expand` (Phosphor `ArrowsOut`) — both verified against the installed package source before adding, continuing the standing rule for this file.
+
+### formatters.js additions
+- `formatCoordinates()` — "14.5995°N, 120.9842°E" style, hemisphere letters derived from the actual coordinate sign rather than hardcoded (stays correct outside the Philippines too).
+- `formatDateTime()` — "May 20, 2024 | 02:30 PM" style, replacing ad hoc `.toLocaleString()` calls.
+
+### Rebuilt: `ReceiveStockPreviewScreen.js`
+Registered Items now uses the real, editable `RegisteredItemsList` (qty stepper, Mfg/Exp date pickers, remove) instead of a dumb read-only list, so a mistake can be fixed on this screen instead of forcing a trip back. Added a "Photo Proof" card (real captured photo, tap-to-zoom via `CameraCaptureModal`'s existing viewer, "From Factory to {manager's real name}", GPS/Branch/Device/Date rows) built to match a UI spec screenshot the team provided. Clarified with the team first that this is the *pre-submit* screen (batch numbers, per-item camera/download icons, and "Go Back to Dashboard" in the mockup all only make sense post-submission) before building it — kept the real "Receive and Generate QR" action and dropped the icons that had no real pre-submit meaning.
+
+## What was fixed / changed
+
+### `AddNewBatchesScreen.js` + `RegisteredItemsList.js` (multi-pass redesign)
+- Item card layout rebuilt to spec: 92×120 image frame, Name → Qty → Mfg → Exp info stack, delete pinned top-right, quantity stepper pinned bottom-right.
+- Mfg/Exp date logic (`useItemDatePicker.js`): the calendar itself now constrains selectable dates (`minimumDate`/`maximumDate`) so Exp literally can't be picked before Mfg, in either entry order — enforced at the UI, not just validated after the fact.
+- **Added a real gate that didn't exist before**: both "Save to Preview" and "Receive and Generate QR" now block (alert + disabled button) if any item is missing a Mfg or Exp date.
+- **Real bug found and fixed**: the image frame's height didn't match its row because `itemRow` had its own padding *on top of* a hardcoded child height — padding pushes a flex row taller regardless of a fixed-height child, so the row was silently ~32px taller than the image. Fixed by moving padding onto the text content instead of the row.
+- **Real bug found and fixed**: an earlier attempt at "auto-matching" height used `alignSelf: 'stretch'` with a percentage-sized placeholder `Image` inside — percentage dimensions inside a flex-stretch-only parent is a known React Native/Yoga trouble spot and caused the card to blow up to fill the screen. Reverted to explicit fixed pixel values.
+- Card borders iterated per feedback down to bottom-only + a 2px gap between cards; image frame roundness set to 0 (square) at final request; the placeholder "box" icon (shown on every card today — no catalog product has a real photo yet) now renders small and centered instead of stretched edge-to-edge across the frame.
+- `ShipmentProofRow` swapped in in place of ~50 lines of now-duplicated inline JSX/styles (see component list above).
+
+### `ProductChip.js` ("Selected Products" chips)
+- Removed the tinted thumbnail background (`item.tint` placeholder colors, same root cause as the `StockBatchCard` fix below) — plain white frame with a neutral outline instead.
+- Frame settled at a fixed 92×80 with a small (8px) radius after a round-trip through fully square corners; user feedback was every other surface in the app is rounded, so a totally square chip read as inconsistent.
+- The order-number tag and remove control both sit flush in their respective top corners (no inset gap), matching corner rounding only on their own outer corner.
+- **Real bug found and fixed**: an earlier edit left two `chipRemove` keys in the same `StyleSheet.create()` object — the second silently won regardless of what the JSX intended, so the remove control kept rendering as a full-height rail after the JSX had already been changed back to a corner tag. `tint` prop removed entirely from the component (dead after the background removal).
+
+### `CameraCaptureModal.js`
+Split the camera-permission request out of the full-screen black camera view into the existing bottom-sheet `Modal.js` — asking for a permission doesn't need to take over the whole screen the way the live camera does.
+
+### `LoginScreen.js`
+Removed the always-visible "Access is restricted..." banner; it now only appears in a confirmation modal (reusing `Modal.js` + `WarningSection.js`) when "Manager Activation" is tapped, saving permanent screen space for something only relevant at that moment. Also found the divider and "Manager Activation" button were both using `COLORS.border` (a pale blue) as an outline — replaced with the app's standard neutral gray divider and a borderless filled pill.
+
+### `StockBatchCard.js` / `ProductBrowserScreen.js`
+- Removed tinted thumbnail backgrounds (`thumbTint` prop dropped entirely).
+- **Real bug found and fixed**: the product icon only ever rendered on `wireframe={false}` cards — meaning the "All Products" grid (which is always `wireframe`) has never shown an icon at all. Now unconditional.
+- Removed the "Out of Stock" text badge (icon + dimming alone now signal it).
+- Cleaned up an `outOfStockBadge`/`outOfStockBadgeText` style pair that was defined but never actually referenced anywhere in the render — pre-existing dead code, unrelated to this pass, removed while in the file.
+- Since `StockBatchCard` is shared, this fixes both `ProductBrowserScreen`'s two sections *and* `ManagerStockScreen`'s in-stock/out-of-stock rows in one place.
+
+### `Button.js`
+Default `hasShadow` flipped `true → false`, default `height` reduced `56 → 48`, applied app-wide except `LoginScreen.js` — checked first that it's the only screen explicitly overriding both props, so the shared-default change can't silently touch it.
+
+### `StatCard.js` / `ActionCard.js`
+Removed their shadow (`SHADOWS.card` / `SHADOWS.cardSoft`) at the component level, so it's fixed everywhere they're used (all three dashboards' Quick Stats and Main Operation grids) rather than per-screen. `LogListItem.js` already had no shadow — nothing to change there.
+
+### Skeleton loading rolled out to
+- `ManagerDashboardScreen.js`, `SalesRepDashboardScreen.js` — **neither had any loading state at all** before this; both could flash "—" / an empty-state message before real data arrived. Added `isLoading`, skeletons for Quick Stats, Recent Logs, and the welcome-name/branch header text.
+- `CollectorDashboardScreen.js` — its Quick Stats and Recent Logs are still 100% hardcoded placeholders (no service backs them — Collector features aren't built yet per the roadmap), so skeletoning fake data there would've been dishonest UI. Scoped to just the one real async part: the welcome-name/branch fetch.
+- `ManagerStockScreen.js` — already had `isLoading` wired up but showed a bare spinner; swapped for content-shaped skeleton card rows.
+
+---
+
+## Known gaps / open items
+
+- Skeleton loading is proven out on 4 screens; a grep survey found **12 screens total** with a loading state (`ReceiveStockPreviewScreen`, `ProductBrowserScreen`, `SalesRepStockScreen`, `SalesRepLogsScreen`, `TrackDeliveriesScreen`, `StockLogsScreen`, `ReleaseStockScanReviewScreen`, `ReleaseStockRecipientScreen`, `ManageAccountsScreen` still on bare spinners or nothing).
+- `ReceiveStockPreviewScreen`'s Photo Proof card only shows one photo — the UI spec screenshot showed "Photo 1 of 2" with pagination dots, but the actual capture flow only ever produces one photo. Didn't fabricate fake multi-photo pagination against real single-photo data.
+- `SpotlightHint` measures its target's on-screen position once (on layout); if the manager scrolls before dismissing it, the highlighted hole won't follow — acceptable for now since it appears right as the target comes into view, but worth a scroll-aware re-measure if it becomes noticeable.
+- Investigated a reported "device metadata isn't obtaining exact details" issue — `authService`/`inventoryService` were already pulling real data from Supabase/`expo-device`/`expo-location`, not mocked. Improved the *display formatting* (GPS hemisphere letters, date format, device label simplified to just the model name) since that's what was concretely fixable without a reproducible runtime symptom to chase further.
+- Sprint 1's actual schema/RLS/RPC work (the planning pass above) is still not applied to Supabase — remains manual follow-up.
+
+## Next goal
+
+Extend the skeleton-loading pattern to the remaining ~11 screens (mechanical repeat of the same `SkeletonBlock`/`SkeletonList` swap now that it's proven out), then pick up Sprint 1's actual database work (`branches`/`user_profiles`, RLS, the `activate_manager()` RPC) since that's still the single biggest blocker per the sprint roadmap.

@@ -18,8 +18,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * Reusable Input Component with icon support
  */
 export default function Input({
-  placeholder,
-  value,
+  placeholder = '',
+  value = '',
   onChangeText,
   secureTextEntry = false,
   icon = null,
@@ -37,6 +37,7 @@ export default function Input({
   onTogglePasswordVisibility = null,
   onFocus = null,
   onBlur = null,
+  style = null,
 }) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -126,7 +127,7 @@ export default function Input({
         </View>
       )}
       
-      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null, isFocused && styles.inputFocused]}>
+      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null, isFocused && styles.inputFocused, style]}>
         {icon && (
           <TouchableOpacity
             style={styles.iconLeft}
@@ -223,27 +224,7 @@ Input.propTypes = {
   onTogglePasswordVisibility: PropTypes.func,
   onFocus: PropTypes.func,
   onBlur: PropTypes.func,
-};
-
-Input.defaultProps = {
-  placeholder: '',
-  value: '',
-  secureTextEntry: false,
-  icon: null,
-  rightIcon: null,
-  onRightIconPress: null,
-  keyboardType: 'default',
-  autoCapitalize: 'none',
-  returnKeyType: 'next',
-  onSubmitEditing: null,
-  blurOnSubmit: false,
-  error: null,
-  inputRef: null,
-  label: null,
-  required: false,
-  onTogglePasswordVisibility: null,
-  onFocus: null,
-  onBlur: null,
+  style: PropTypes.object,
 };
 
 const styles = StyleSheet.create({
@@ -287,6 +268,8 @@ const styles = StyleSheet.create({
     color: '#757575',
     paddingVertical: Platform.OS === 'ios' ? 8 : 4,
     paddingHorizontal: SPACING.md,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     ...Platform.select({
       web: {
         outlineStyle: 'none',

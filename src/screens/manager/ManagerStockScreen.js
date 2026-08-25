@@ -1,6 +1,6 @@
 // src/screens/manager/ManagerStockScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -11,6 +11,7 @@ import StockBatchCard from '../../components/common/StockBatchCard';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import FilterSheet from '../../components/common/FilterSheet';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
@@ -64,7 +65,7 @@ export default function ManagerStockScreen() {
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
-      navigation.navigate('ManagerDashboard');
+      navigation.navigate('ManagerDashboard', undefined, { pop: true });
     } else if (key === 'stock') {
       // already here
     } else {
@@ -193,9 +194,23 @@ export default function ManagerStockScreen() {
         )}
 
         {isLoading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
+            <View style={styles.skeletonCardRow}>
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+            </View>
+            <SkeletonBlock
+              width={180}
+              height={18}
+              borderRadius={4}
+              style={[styles.skeletonSectionTitle, styles.sectionSpacing]}
+            />
+            <View style={styles.skeletonCardRow}>
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+            </View>
+          </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHeaderRow}>
@@ -340,7 +355,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.primary,
   },
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  skeletonSectionTitle: { marginBottom: SPACING.sm },
+  skeletonCardRow: { flexDirection: 'row', gap: SPACING.sm },
   content: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,

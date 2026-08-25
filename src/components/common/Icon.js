@@ -33,7 +33,9 @@ import {
   Truck,
   DotsThreeVertical,
   Trash,
+  TrashSimple,
   IdentificationCard,
+  ArrowsOut,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -117,6 +119,23 @@ const DUOTONE_ICONS = {
   },
 };
 
+// Icons composed of several independent <path> elements sharing one
+// inherited fill (mirrors the source SVGs' own `<g fill="currentColor">`
+// grouping) — unlike MULTICOLOR_ICONS, every path here still respects the
+// `color` prop instead of a baked-in fill.
+const MULTIPATH_ICONS = {
+  qrCodeDetailed: {
+    viewBox: '0 0 16 16',
+    paths: [
+      'M2 2h2v2H2z',
+      'M6 0v6H0V0zM5 1H1v4h4zM4 12H2v2h2z',
+      'M6 10v6H0v-6zm-5 1v4h4v-4zm11-9h2v2h-2z',
+      'M10 0v6h6V0zm5 1v4h-4V1zM8 1V0h1v2H8v2H7V1zm0 5V4h1v2zM6 8V7h1V6h1v2h1V7h5v1h-4v1H7V8zm0 0v1H2V8H1v1H0V7h3v1zm10 1h-1V7h1zm-1 0h-1v2h2v-1h-1zm-4 0h2v1h-1v1h-1zm2 3v-1h-1v1h-1v1H9v1h3v-2zm0 0h3v1h-2v1h-1zm-4-1v1h1v-2H7v1z',
+      'M7 12h1v3h4v1H7zm9 2v2h-3v-1h2v-1z',
+    ],
+  },
+};
+
 // Icons rendered directly via phosphor-react-native — these support weight
 // variants (thin/light/regular/bold/fill/duotone), unlike the hand-traced
 // paths above which are fixed to a single style.
@@ -152,7 +171,9 @@ const PHOSPHOR_ICONS = {
   truck: Truck,
   moreVertical: DotsThreeVertical,
   trash: Trash,
+  trashSimple: TrashSimple,
   idCard: IdentificationCard,
+  expand: ArrowsOut,
 };
 
 const ICON_NAMES = [
@@ -162,8 +183,8 @@ const ICON_NAMES = [
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter',
-  'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'idCard',
-  'boxPackage', 'peopleGroup',
+  'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
+  'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];
 
@@ -202,6 +223,17 @@ export default function Icon({
         <Svg width={size} height={size} viewBox="0 0 256 256" style={style}>
           <Path d={duotoneIcon.fillPath} fill={duotoneColor || color} />
           <Path d={duotoneIcon.strokePath} fill={color} />
+        </Svg>
+      );
+    }
+
+    const multipathIcon = MULTIPATH_ICONS[name];
+    if (multipathIcon) {
+      return (
+        <Svg width={size} height={size} viewBox={multipathIcon.viewBox} fill={color} style={style}>
+          {multipathIcon.paths.map((d, i) => (
+            <Path key={i} d={d} />
+          ))}
         </Svg>
       );
     }

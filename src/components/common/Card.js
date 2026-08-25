@@ -41,7 +41,7 @@ export default function Card({
   marginTop = 0,
   marginBottom = 0,
   marginHorizontal = SPACING.lg,
-  style,
+  style = {},
 }) {
   return (
     <View
@@ -81,20 +81,6 @@ Card.propTypes = {
   marginBottom: PropTypes.number,
   marginHorizontal: PropTypes.number,
   style: PropTypes.object,
-};
-
-Card.defaultProps = {
-  backgroundColor: '#F7FEFF',
-  borderColor: '#555353',
-  borderWidth: 0.5,
-  borderRadius: 12,
-  paddingHorizontal: SPACING.lg,
-  paddingVertical: SPACING.lg,
-  hasShadow: false,
-  marginTop: 0,
-  marginBottom: 0,
-  marginHorizontal: SPACING.lg,
-  style: {},
 };
 
 const styles = StyleSheet.create({
