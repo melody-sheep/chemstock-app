@@ -68,8 +68,10 @@ export default function ManagerStockScreen() {
       navigation.navigate('ManagerDashboard', undefined, { pop: true });
     } else if (key === 'stock') {
       // already here
+    } else if (key === 'settings') {
+      navigation.navigate('ManagerSettings');
     } else {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'manager' });
     }
   };
 

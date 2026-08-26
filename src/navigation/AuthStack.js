@@ -11,11 +11,6 @@ const Stack = createNativeStackNavigator();
  * Handles unauthenticated flow: Login → Activation → Dashboard
  */
 export default function AuthStack() {
-  console.log('========================================');
-  console.log('🧭 [AuthStack] ======================================');
-  console.log('🧭 [AuthStack] AuthStack rendered');
-  console.log('========================================');
-
   return (
     <Stack.Navigator
       screenOptions={{

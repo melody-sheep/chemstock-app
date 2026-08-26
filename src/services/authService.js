@@ -15,7 +15,7 @@ class AuthService extends BaseService {
   constructor() {
     super('AuthService');
     this.currentSession = null;
-    console.log('🔐 [AuthService] Service initialized');
+    console.log('[INFO] [AuthService] Service initialized');
   }
 
   /**
@@ -33,13 +33,13 @@ class AuthService extends BaseService {
         .in('id', branchIds);
 
       if (error) {
-        console.error('❌ [AuthService] Branch fetch error:', error);
+        console.error('[ERROR] [AuthService] Branch fetch error:', error);
         return '';
       }
 
       return (data || []).map((b) => b.name).join(', ');
     } catch (error) {
-      console.error('❌ [AuthService] Branch fetch error:', error);
+      console.error('[ERROR] [AuthService] Branch fetch error:', error);
       return '';
     }
   }
@@ -49,12 +49,8 @@ class AuthService extends BaseService {
    * @param {Object} credentials - { username, password }
    */
   async login(credentials) {
-    console.log('========================================');
-    console.log('🔐 [AuthService] Login attempt');
-    console.log('👤 [AuthService] Username:', credentials.username);
-    
-    debugLog('info', 'AuthService', 'Login attempt', { 
-      username: credentials.username 
+    debugLog('info', 'AuthService', 'Login attempt', {
+      username: credentials.username
     });
     
     try {   
@@ -73,11 +69,11 @@ class AuthService extends BaseService {
       }); 
 
       if (agentLoginError) {
-        console.error(`❌ [AuthService] Agent login RPC error: ${agentLoginError.message}`);
+        console.error(`[ERROR] [AuthService] Agent login RPC error: ${agentLoginError.message}`);
       }
 
       if (agentProfile && agentProfile.id) {
-        console.log('✅ [AuthService] Agent login successful:', agentProfile.username);
+        console.log('[INFO] [AuthService] Agent login successful:', agentProfile.username);
         const branchName = await this._fetchBranchNames(agentProfile?.branch_ids);
 
         const agentUser = {
@@ -115,20 +111,17 @@ class AuthService extends BaseService {
         //========================================
         let email = trimmedUsername;
         if (!email.includes('@')) {
-          console.log('📡 [AuthService] Resolving username to email via RPC...');
           const { data: resolvedEmail, error: lookupError } = await supabase.rpc(
             'get_email_by_username',
             { p_username: trimmedUsername }
           );
 
           if (lookupError || !resolvedEmail) {
-            console.warn('⚠️ [AuthService] Username not found:', email);
+            console.warn('[WARN] [AuthService] Username not found:', email);
             throw new Error('Invalid username or password');
           }
           email = resolvedEmail;
         }
-
-        console.log('📧 [AuthService] Using email:', email);
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
@@ -152,7 +145,7 @@ class AuthService extends BaseService {
           .single();
 
         if (profileError) {
-          console.error('❌ [AuthService] Profile fetch error:', profileError);
+          console.error('[ERROR] [AuthService] Profile fetch error:', profileError);
         }
 
         const branchName = await this._fetchBranchNames(profile?.branch_ids);
@@ -173,13 +166,10 @@ class AuthService extends BaseService {
           }
         };
             
-        console.log('✅ [AuthService] Login successful');
         debugLog('info', 'AuthService', 'Login successful', {userId: result.user.id});
         return result;
-        
-      } catch (error) {
-          console.error('❌ [AuthService] Login error:', error);
 
+      } catch (error) {
           this.handleError(error, { username: credentials.username });
 
           if (isRLSError(error)) {
@@ -198,38 +188,24 @@ class AuthService extends BaseService {
    * Register new user (for managers to create accounts)
    */
   async register(userData) {
-    console.log('========================================');
-    console.log('📝 [AuthService] Register attempt');
-    console.log('👤 [AuthService] Email:', userData.email);
-    console.log('🔑 [AuthService] Password length:', userData.password?.length);
-    
     debugLog('info', 'AuthService', 'Register attempt', { email: userData.email });
-    
+
     try {
       // Validate input
       this.validateRequired(['email', 'password', 'username'], userData);
-      
-      console.log('📡 [AuthService] Creating auth user...');
-      
+
       // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
       });
-      
+
       if (authError) {
-        console.error('❌ [AuthService] Auth signup error:', authError);
-        console.error('❌ [AuthService] Error code:', authError.code);
-        console.error('❌ [AuthService] Error message:', authError.message);
+        console.error('[ERROR] [AuthService] Auth signup error:', authError);
         throw authError;
       }
-      
-      console.log('✅ [AuthService] Auth user created');
-      console.log('🆔 [AuthService] User ID:', authData.user?.id);
-      
-      console.log('✅ [AuthService] Registration successful (no profile created)');
-      
-      debugLog('info', 'AuthService', 'Registration successful', { 
+
+      debugLog('info', 'AuthService', 'Registration successful', {
         userId: authData.user.id
       });
       
@@ -245,25 +221,23 @@ class AuthService extends BaseService {
       };
       
     } catch (error) {
-      console.error('❌ [AuthService] Register error:', error);
-      console.error('❌ [AuthService] Error stack:', error.stack);
-      
-      this.handleError(error, userData);
-      
+      // Never pass the raw userData through — it still has the plaintext
+      // password on it, and handleError logs its context object verbatim.
+      this.handleError(error, { email: userData.email, username: userData.username });
+
       if (isRLSError(error)) {
         throw new Error('Permission denied to register. Please contact support.');
       }
-      
+
       throw error;
     }
   }
-  
+
   /**
    * Logout user
    */
 
   async logout() {
-    console.log('🚪 [AuthService] Logout called');
     debugLog('info', 'AuthService', 'Logout');
 
     try {
@@ -274,47 +248,37 @@ class AuthService extends BaseService {
 
       const { error } = await supabase.auth.signOut();
       if (error) {
-        console.error('❌ [AuthService] Logout error:', error);
         throw error;
       }
 
       this.currentSession = null;
-      console.log('✅ [AuthService] Logout successful');
       debugLog('info', 'AuthService', 'Logout successful');
 
     } catch (error) {
-      console.error('❌ [AuthService] Logout error:', error);
       this.handleError(error);
       throw error;
     }
   }
-  
+
   /**
    * Get current authenticated user
    */
   async getCurrentUser() {
-    console.log('👤 [AuthService] getCurrentUser called');
     debugLog('info', 'AuthService', 'Fetching current user');
-    
+
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError) {
-        console.error('❌ [AuthService] Session error:', sessionError);
         throw sessionError;
       }
-      
+
       if (!session) {
-        console.log('ℹ️ [AuthService] No active Supabase session — checking for an agent session');
+        // No active Supabase session — fall back to a persisted agent session.
         const agentUser = await storage.get(AGENT_SESSION_KEY);
-        if (agentUser) {
-          console.log('✅ [AuthService] Restored agent session:', agentUser.username);
-        }
         return agentUser;
       }
 
-      console.log('✅ [AuthService] Session found for user:', session.user?.id);
-      
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('*')
@@ -333,41 +297,33 @@ class AuthService extends BaseService {
         branchName,
         isActivated: !!profile,
       };
-      
-      console.log('✅ [AuthService] User fetched:', user.username);
-      
+
       return user;
-      
+
     } catch (error) {
-      console.error('❌ [AuthService] Error in getCurrentUser:', error);
       this.handleError(error);
       return null;
     }
   }
-  
+
   /**
    * Check if user is authenticated
    */
   async isAuthenticated() {
-    console.log('🔍 [AuthService] Checking authentication status');
     const { data: { session } } = await supabase.auth.getSession();
-    const isAuth = !!session;
-    console.log(`🔍 [AuthService] Is authenticated: ${isAuth}`);
-    return isAuth;
+    return !!session;
   }
-  
+
   /**
    * Get current session token
    */
   getToken() {
-    const token = this.currentSession?.access_token || null;
-    console.log(`🔑 [AuthService] Token available: ${!!token}`);
-    return token;
+    return this.currentSession?.access_token || null;
   }
 }
 
 // Singleton instance
 const authService = new AuthService();
-console.log('✅ [AuthService] Service instance created');
+console.log('[INFO] [AuthService] Service instance created');
 
 export default authService;

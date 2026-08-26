@@ -305,7 +305,7 @@ export default function StockLogsScreen() {
                         style={styles.photo}
                         resizeMode="cover"
                         onError={(e) =>
-                          console.error('❌ [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
+                          console.error('[ERROR] [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
                         }
                       />
                     ) : (

@@ -40,7 +40,7 @@ export default function RequestListSR() {
         const position = await Location.getCurrentPositionAsync({});
         setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
       } catch (error) {
-        console.error('❌ [RequestListSR] Location error:', error);
+        console.error('[ERROR] [RequestListSR] Location error:', error);
         setLocationError('Unable to determine location');
       }
     })();

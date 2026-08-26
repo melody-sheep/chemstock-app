@@ -8,6 +8,7 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import ProductPickerList from '../../components/common/ProductPickerList';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import { COLORS } from '../../constants/colors';
@@ -20,6 +21,7 @@ export default function QuickRegisterReleaseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType } = route.params;
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const [items, setItems] = useState([]);
   const [photoUri, setPhotoUri] = useState(null);
@@ -71,7 +73,11 @@ export default function QuickRegisterReleaseScreen() {
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
           <ProductPickerList
@@ -106,8 +112,11 @@ export default function QuickRegisterReleaseScreen() {
             📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
           </Text>
 
-          <Button title="Next" icon="arrowRight" iconPosition="right" onPress={handleNext} variant="black" />
         </ScrollView>
+
+        <BottomActionBar>
+          <Button title="Next" icon="arrowRight" iconPosition="right" onPress={handleNext} variant="black" />
+        </BottomActionBar>
 
         <CameraCaptureModal
           visible={isCameraVisible}
@@ -142,7 +151,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { padding: SPACING.lg, gap: SPACING.md, paddingBottom: 48 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.md, paddingBottom: 48 },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

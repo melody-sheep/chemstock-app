@@ -1,6 +1,6 @@
 // src/screens/manager/ReceiveStockPreviewScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Share, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
@@ -15,10 +16,14 @@ import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import useScrolledToEnd from '../../hooks/useScrolledToEnd';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatCoordinates, formatDateTime } from '../../utils/formatters';
+
+const { width: screenWidth } = Dimensions.get('window');
+const HALF_BUTTON_WIDTH = (screenWidth - SPACING.lg * 2 - SPACING.sm) / 2;
 
 export default function ReceiveStockPreviewScreen() {
   const navigation = useNavigation();
@@ -39,13 +44,16 @@ export default function ReceiveStockPreviewScreen() {
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qrCode, setQrCode] = useState(null);
+  const [registeredAt, setRegisteredAt] = useState(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
+  const { hasReachedEnd, onScroll, onContentSizeChange, onLayout } = useScrolledToEnd();
 
   useEffect(() => {
     authService
       .getCurrentUser()
       .then(setManager)
       .catch((error) => {
-        console.error('❌ [ReceiveStockPreview] Failed to load manager:', error);
+        console.error('[ERROR] [ReceiveStockPreview] Failed to load manager:', error);
         setManager(null);
       })
       .finally(() => setIsLoadingManager(false));
@@ -60,7 +68,7 @@ export default function ReceiveStockPreviewScreen() {
         const position = await Location.getCurrentPositionAsync({});
         setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
       } catch (error) {
-        console.error('❌ [ReceiveStockPreview] Location error:', error);
+        console.error('[ERROR] [ReceiveStockPreview] Location error:', error);
         setLocationError('Unable to determine location');
       }
     })();
@@ -117,6 +125,15 @@ export default function ReceiveStockPreviewScreen() {
       Alert.alert('Photo Required', 'Take a photo of the waybill/invoice before registering.');
       return;
     }
+    if (!coords) {
+      Alert.alert(
+        locationError ? 'Location Unavailable' : 'Getting Your Location',
+        locationError
+          ? `${locationError}. Location is required to register a batch — check your device's location settings and try again.`
+          : "Still locating your device — this only takes a moment. Try again in a second."
+      );
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -143,6 +160,7 @@ export default function ReceiveStockPreviewScreen() {
       }
 
       setQrCode(result.data.qrCode);
+      setRegisteredAt(new Date());
     } catch (error) {
       Alert.alert('Failed to Register Stock', error.message || 'Please try again.');
     } finally {
@@ -152,6 +170,16 @@ export default function ReceiveStockPreviewScreen() {
 
   const handleDone = () => {
     navigation.navigate('ManagerDashboard', undefined, { pop: true });
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `ChemStock batch registered — ${items.length} item${items.length === 1 ? '' : 's'}, ${totalUnits} units.\nQR Code: ${qrCode}`,
+      });
+    } catch (error) {
+      console.error('[ERROR] [ReceiveStockPreview] Share failed:', error);
+    }
   };
 
   if (qrCode) {
@@ -167,13 +195,62 @@ export default function ReceiveStockPreviewScreen() {
             paddingHorizontal={SPACING.md}
           />
           <View style={styles.qrScreen}>
-            <Icon name="checkCircle" size={40} color={COLORS.success} weight="fill" />
+            <Icon
+              name="successCircle"
+              size={64}
+              color={COLORS.success}
+              duotoneColor={COLORS.success + '15'}
+              weight="duotone"
+            />
             <Text style={styles.qrTitle}>Stock Registered Successfully</Text>
-            <Text style={styles.qrSubtitle}>
-              {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
-            </Text>
-            <SaveableQRCode value={qrCode} size={200} style={styles.qrCard} />
-            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
+            <Text style={styles.qrSubtitle}>Scan this code anytime to track the batch.</Text>
+
+            <SaveableQRCode value={qrCode} size={150} style={styles.qrCard} />
+
+            <View style={styles.receiptCard}>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Branch</Text>
+                <Text style={styles.receiptValue} numberOfLines={1}>
+                  {manager?.branchName || '—'}
+                </Text>
+              </View>
+              <View style={styles.receiptDivider} />
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Items</Text>
+                <Text style={styles.receiptValue}>
+                  {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
+                </Text>
+              </View>
+              <View style={styles.receiptDivider} />
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Registered</Text>
+                <Text style={styles.receiptValue}>{formatDateTime(registeredAt)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.actionsRow}>
+              <Button
+                title="Share"
+                variant="outline"
+                accentColor={COLORS.accentPurple}
+                icon="send"
+                iconSize={16}
+                onPress={handleShare}
+                width={HALF_BUTTON_WIDTH}
+                height={40}
+                fontSize={14}
+              />
+              <Button
+                title="Done"
+                variant="black"
+                icon="checkmark"
+                iconSize={16}
+                onPress={handleDone}
+                width={HALF_BUTTON_WIDTH}
+                height={40}
+                fontSize={14}
+              />
+            </View>
           </View>
         </View>
       </>
@@ -195,7 +272,14 @@ export default function ReceiveStockPreviewScreen() {
 
         <SubScreenSecondaryHeader title="Generate Qr Code" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          onContentSizeChange={onContentSizeChange}
+          onLayout={onLayout}
+          scrollEventThrottle={16}
+        >
           <RegisteredItemsList
             items={items}
             onSetQty={handleSetQty}
@@ -263,15 +347,29 @@ export default function ReceiveStockPreviewScreen() {
             </Text>
           </View>
 
+        </ScrollView>
+
+        <BottomActionBar>
           <Button
-            title={isSubmitting ? 'Registering…' : 'Receive and Generate QR'}
+            title={
+              isSubmitting
+                ? 'Registering…'
+                : !hasReachedEnd
+                ? 'Scroll Down to Review'
+                : !coords
+                ? locationError
+                  ? 'Location Unavailable'
+                  : 'Getting Your Location…'
+                : 'Receive and Generate QR'
+            }
             variant="black"
             onPress={handleReceiveAndGenerate}
             loading={isSubmitting}
-            disabled={isSubmitting || !manager || items.length === 0 || hasIncompleteDates}
-            style={styles.submitButton}
+            disabled={
+              isSubmitting || !manager || items.length === 0 || hasIncompleteDates || !hasReachedEnd || !coords
+            }
           />
-        </ScrollView>
+        </BottomActionBar>
 
         <CameraCaptureModal
           visible={isCameraVisible}
@@ -366,17 +464,15 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: '#272632',
   },
-  submitButton: {
-    width: '100%',
-  },
   qrScreen: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.xl,
-    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xl,
+    gap: SPACING.xs,
   },
   qrTitle: {
+    marginTop: SPACING.xs,
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -384,16 +480,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   qrSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  qrCard: {
+    marginBottom: SPACING.sm,
+    padding: SPACING.md,
+  },
+  receiptCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  receiptDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+  },
+  receiptLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
   },
-  qrCard: {
-    marginBottom: SPACING.xl,
+  receiptValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: '#272632',
   },
-  doneButton: {
-    width: '100%',
+  actionsRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
   },
 });

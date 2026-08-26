@@ -28,7 +28,7 @@ class DeliveryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [DeliveryService] get_my_collector_deliveries RPC error:', error);
+        console.error('[ERROR] [DeliveryService] get_my_collector_deliveries RPC error:', error);
         throw new Error(error.message || 'Failed to load deliveries');
       }
 
@@ -60,7 +60,7 @@ class DeliveryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [DeliveryService] start_delivery_trip RPC error:', error);
+        console.error('[ERROR] [DeliveryService] start_delivery_trip RPC error:', error);
         throw new Error(error.message || 'Failed to start trip');
       }
 
@@ -87,7 +87,7 @@ class DeliveryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [DeliveryService] cancel_delivery_trip RPC error:', error);
+        console.error('[ERROR] [DeliveryService] cancel_delivery_trip RPC error:', error);
         throw new Error(error.message || 'Failed to cancel trip');
       }
 
@@ -117,7 +117,7 @@ class DeliveryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [DeliveryService] log_delivery_checkpoint RPC error:', error);
+        console.error('[ERROR] [DeliveryService] log_delivery_checkpoint RPC error:', error);
         throw new Error(error.message || 'Failed to log checkpoint');
       }
 
@@ -147,7 +147,7 @@ class DeliveryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [DeliveryService] finish_delivery_leg RPC error:', error);
+        console.error('[ERROR] [DeliveryService] finish_delivery_leg RPC error:', error);
         throw new Error(error.message || 'Failed to finish delivery');
       }
 

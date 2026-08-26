@@ -9,6 +9,7 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import MapLocationPickerModal from '../../components/common/MapLocationPickerModal';
 import { COLORS } from '../../constants/colors';
@@ -31,6 +32,7 @@ export default function ReleaseStockDeliveryScreen() {
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType, mode, items, registerItems, registerPhotoUri, requestId } =
     route.params;
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const [originCoords, setOriginCoords] = useState(null);
   const [originAddress, setOriginAddress] = useState(null);
@@ -59,10 +61,10 @@ export default function ReleaseStockDeliveryScreen() {
           const results = await Location.reverseGeocodeAsync(coords);
           setOriginAddress(formatAddress(results?.[0]));
         } catch (geocodeError) {
-          console.error('❌ [ReleaseStockDelivery] Reverse geocode failed:', geocodeError);
+          console.error('[ERROR] [ReleaseStockDelivery] Reverse geocode failed:', geocodeError);
         }
       } catch (error) {
-        console.error('❌ [ReleaseStockDelivery] Location error:', error);
+        console.error('[ERROR] [ReleaseStockDelivery] Location error:', error);
         setOriginError('Unable to determine location');
       }
     })();
@@ -76,7 +78,7 @@ export default function ReleaseStockDeliveryScreen() {
       const results = await Location.reverseGeocodeAsync(coords);
       setDestinationAddress(formatAddress(results?.[0]));
     } catch (geocodeError) {
-      console.error('❌ [ReleaseStockDelivery] Destination reverse geocode failed:', geocodeError);
+      console.error('[ERROR] [ReleaseStockDelivery] Destination reverse geocode failed:', geocodeError);
     }
   };
 
@@ -123,7 +125,10 @@ export default function ReleaseStockDeliveryScreen() {
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+        >
           <Stepper currentStep={3} labels={STEP_LABELS} />
 
           <Text style={styles.sectionTitle}>Deliver from (current location)</Text>
@@ -181,6 +186,9 @@ export default function ReleaseStockDeliveryScreen() {
             </>
           )}
 
+        </ScrollView>
+
+        <BottomActionBar>
           <Button
             title="Review Details"
             icon="arrowRight"
@@ -188,9 +196,8 @@ export default function ReleaseStockDeliveryScreen() {
             onPress={handleNext}
             disabled={!canProceed}
             variant="black"
-            style={styles.nextButton}
           />
-        </ScrollView>
+        </BottomActionBar>
       </View>
 
       <MapLocationPickerModal
@@ -233,7 +240,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { padding: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -330,5 +337,4 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: COLORS.textSecondary,
   },
-  nextButton: { marginTop: SPACING.sm },
 });

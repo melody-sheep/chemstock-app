@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
 import LogListItem from '../../components/common/LogListItem';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
@@ -19,6 +20,7 @@ export default function ReceiveStockScreen() {
   // cross-screen bridge wired yet, so this stays empty for now (see summary).
   const [queuedItems] = useState([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const handleDocumentPress = () => {
     Alert.alert('Ledger', 'The stock ledger is coming soon.');
@@ -70,7 +72,10 @@ export default function ReceiveStockScreen() {
 
         <SubScreenSecondaryHeader title="Receive Factory Stock" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shipment Identification</Text>
 
@@ -89,7 +94,6 @@ export default function ReceiveStockScreen() {
               icon="plus"
               iconWeight="bold"
               onPress={handleGenerateBatch}
-              height={52}
               style={styles.orangeButton}
             />
           </View>
@@ -118,12 +122,15 @@ export default function ReceiveStockScreen() {
             )}
           </View>
 
+        </ScrollView>
+
+        <BottomActionBar>
           <Button
             title="Confirm & Register New Batch"
             variant="black"
             onPress={handleConfirmRegister}
           />
-        </ScrollView>
+        </BottomActionBar>
 
         <ConfirmationDialog
           visible={showConfirmDialog}

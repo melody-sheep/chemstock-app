@@ -107,7 +107,7 @@ export default function MapLocationPickerModal({ visible, onClose, onConfirm, or
       const { lat, lng } = JSON.parse(event.nativeEvent.data);
       setPickedCoords({ latitude: lat, longitude: lng });
     } catch (error) {
-      console.error('❌ [MapLocationPickerModal] Failed to parse WebView message:', error);
+      console.error('[ERROR] [MapLocationPickerModal] Failed to parse WebView message:', error);
     }
   };
 

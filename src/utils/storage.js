@@ -12,7 +12,7 @@ export const storage = {
       const value = await AsyncStorage.getItem(key);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error(`❌ [storage] Failed to get "${key}":`, error.message);
+      console.error(`[ERROR] [storage] Failed to get "${key}":`, error.message);
       return null;
     }
   },
@@ -21,7 +21,7 @@ export const storage = {
     try {
       await AsyncStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
-      console.error(`❌ [storage] Failed to set "${key}":`, error.message);
+      console.error(`[ERROR] [storage] Failed to set "${key}":`, error.message);
     }
   },
 
@@ -29,7 +29,7 @@ export const storage = {
     try {
       await AsyncStorage.removeItem(key);
     } catch (error) {
-      console.error(`❌ [storage] Failed to remove "${key}":`, error.message);
+      console.error(`[ERROR] [storage] Failed to remove "${key}":`, error.message);
     }
   },
 };

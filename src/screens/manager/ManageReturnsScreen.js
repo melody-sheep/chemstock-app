@@ -1,6 +1,6 @@
 // src/screens/manager/ManageReturnsScreen.js
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -34,8 +34,10 @@ export default function ManageReturnsScreen() {
       navigation.navigate('ManagerDashboard');
     } else if (key === 'stock') {
       navigation.navigate('ManagerStock');
+    } else if (key === 'settings') {
+      navigation.navigate('ManagerSettings');
     } else {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'manager' });
     }
   };
 

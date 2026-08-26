@@ -45,7 +45,16 @@ export default function RegisteredItemsList({
   const [spotlightTarget, setSpotlightTarget] = useState(null);
   const measureSpotlightTarget = () => {
     firstDateGroupRef.current?.measureInWindow((x, y, width, height) => {
-      setSpotlightTarget({ x, y, width, height });
+      // Explicit no-op guard: skip the setState if the measurement didn't
+      // actually change. onLayout should already only fire on a real frame
+      // change, but this makes the settle-after-one-pass guarantee true by
+      // construction rather than relying on that RN internal.
+      setSpotlightTarget((prev) => {
+        if (prev && prev.x === x && prev.y === y && prev.width === width && prev.height === height) {
+          return prev;
+        }
+        return { x, y, width, height };
+      });
     });
   };
 
@@ -243,7 +252,8 @@ const styles = StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    minHeight: 120,
+    alignItems: 'center',
+    minHeight: 148,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
   },
@@ -252,7 +262,10 @@ const styles = StyleSheet.create({
   },
   itemThumbWrap: {
     width: 92,
-    height: 120,
+    height: 132,
+    marginLeft: SPACING.sm,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     overflow: 'hidden',

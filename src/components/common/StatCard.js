@@ -23,7 +23,6 @@ export default function StatCard({
   label,
   style = {},
 }) {
-  console.log(`📊 [StatCard] Rendering "${label}" with icon="${icon}"`);
   return (
     <View style={[styles.card, { backgroundColor, borderLeftColor }, style]}>
       <Icon

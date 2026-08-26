@@ -6,6 +6,7 @@ import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/nativ
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import SearchDropdownField from '../../components/common/SearchDropdownField';
 import SelectedProductsRow from '../../components/common/SelectedProductsRow';
@@ -27,6 +28,7 @@ export default function AddNewBatchesScreen() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const handleDocumentPress = () => {
     Alert.alert('Ledger', 'The stock ledger is coming soon.');
@@ -140,7 +142,11 @@ export default function AddNewBatchesScreen() {
 
         <SubScreenSecondaryHeader title="Add New Batches" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.sectionTitle}>Search Product:</Text>
           <SearchDropdownField
             value={searchText}
@@ -186,12 +192,15 @@ export default function AddNewBatchesScreen() {
             📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
           </Text>
 
+        </ScrollView>
+
+        <BottomActionBar>
           <Button
             title="Save to Preview"
             onPress={handleSaveToPreview}
             style={!isFormComplete ? styles.saveButtonDisabled : undefined}
           />
-        </ScrollView>
+        </BottomActionBar>
 
         <CameraCaptureModal
           visible={isCameraVisible}

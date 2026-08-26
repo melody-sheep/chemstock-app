@@ -97,7 +97,6 @@ export default function Input({
     try {
       if (inputRef && inputRef.current) {
         inputRef.current.focus();
-        console.log('📱 [Input] Left icon tapped - focusing input');
       }
     } catch (error) {
       console.error('Error focusing input from left icon:', error);

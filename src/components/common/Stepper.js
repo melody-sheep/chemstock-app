@@ -15,7 +15,9 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * - Line color = GRAY (#C0C0C0), weight: 2px
  * - Active dot = PURE GREEN (no white dot)
  * - Inactive dot = HOLLOW GRAY
- * - Left aligned with SPACING.lg margin
+ * - No horizontal margin of its own — the hosting screen's own content
+ *   padding supplies it, so Stepper never stacks a second margin on top of
+ *   whatever margin that screen already applies to its other content.
  */
 export default function Stepper({
   currentStep = 1,
@@ -52,7 +54,6 @@ Stepper.propTypes = {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xs,
     paddingBottom: SPACING.xs,
   },

@@ -33,7 +33,7 @@ class RequestService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [RequestService] submit_stock_request RPC error:', error);
+        console.error('[ERROR] [RequestService] submit_stock_request RPC error:', error);
         throw new Error(error.message || 'Failed to submit request');
       }
 
@@ -61,7 +61,7 @@ class RequestService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [RequestService] get_my_stock_requests RPC error:', error);
+        console.error('[ERROR] [RequestService] get_my_stock_requests RPC error:', error);
         throw new Error(error.message || 'Failed to load your requests');
       }
 
@@ -84,7 +84,7 @@ class RequestService extends BaseService {
       const { data, error } = await supabase.rpc('get_branch_stock_requests', { p_limit: limit });
 
       if (error) {
-        console.error('❌ [RequestService] get_branch_stock_requests RPC error:', error);
+        console.error('[ERROR] [RequestService] get_branch_stock_requests RPC error:', error);
         throw new Error(error.message || 'Failed to load requests');
       }
 
@@ -104,7 +104,7 @@ class RequestService extends BaseService {
       const { error } = await supabase.rpc('accept_stock_request', { p_request_id: requestId });
 
       if (error) {
-        console.error('❌ [RequestService] accept_stock_request RPC error:', error);
+        console.error('[ERROR] [RequestService] accept_stock_request RPC error:', error);
         throw new Error(error.message || 'Failed to accept request');
       }
 
@@ -127,7 +127,7 @@ class RequestService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [RequestService] decline_stock_request RPC error:', error);
+        console.error('[ERROR] [RequestService] decline_stock_request RPC error:', error);
         throw new Error(error.message || 'Failed to decline request');
       }
 
@@ -157,7 +157,7 @@ class RequestService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [RequestService] link_request_fulfillment RPC error:', error);
+        console.error('[ERROR] [RequestService] link_request_fulfillment RPC error:', error);
         throw new Error(error.message || 'Failed to link request fulfillment');
       }
 

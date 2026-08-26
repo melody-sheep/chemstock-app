@@ -32,8 +32,6 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // ULTRA COMPACT PASSWORD CHECKLIST - 2 COLUMNS
 // ============================================
 const PasswordChecklist = ({ password }) => {
-  console.log('🔒 [PasswordChecklist] Checking password requirements');
-  
   const checks = [
     { id: 'length', label: '8+ chars', test: (p) => p.length >= 8 },
     { id: 'uppercase', label: 'A-Z', test: (p) => /[A-Z]/.test(p) },
@@ -44,11 +42,8 @@ const PasswordChecklist = ({ password }) => {
   
   const metCount = checks.filter(c => c.test(password)).length;
   const totalChecks = checks.length;
-  
-  console.log(`🔒 [PasswordChecklist] ${metCount}/${totalChecks} requirements met`);
-  
+
   if (password.length === 0) {
-    console.log('🔒 [PasswordChecklist] No password entered - hiding checklist');
     return null;
   }
   
@@ -71,8 +66,6 @@ const PasswordChecklist = ({ password }) => {
     strengthLabel = 'Strong';
     strengthLabelColor = '#4CAF50';
   }
-  
-  console.log(`🔒 [PasswordChecklist] Strength: ${strengthLabel} (${strengthPercent.toFixed(0)}%)`);
   
   return (
     <View style={styles.checklistContainer}>
@@ -123,8 +116,6 @@ const PasswordChecklist = ({ password }) => {
  * ManagerActivationScreen - MVVM Pattern
  */
 export default function ManagerActivationScreen() {
-  console.log('📱 [ManagerActivationScreen] 🚀 Screen mounted');
-  
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   
@@ -179,33 +170,29 @@ export default function ManagerActivationScreen() {
   // EFFECTS
   // ============================================
   useEffect(() => {
-    console.log('📱 [ManagerActivationScreen] 🔄 Checking validation state');
     try {
       if (isValidCode && branchInfo && branchInfo.names && branchInfo.names.length > 0) {
         const count = branchInfo.names.length;
         setBranchCount(count);
         setShowSuccessFrame(true);
         setLocalError('');
-        console.log(`✅ [ManagerActivationScreen] Validation success: ${count} branches found`);
-        console.log(`📋 [ManagerActivationScreen] Branches: ${branchInfo.names.join(', ')}`);
+        console.log(`[INFO] [ManagerActivationScreen] Validation success: ${count} branches found`);
       }
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Error in validation effect:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Error in validation effect:', err);
       setLocalError('An unexpected error occurred while validating.');
     }
   }, [isValidCode, branchInfo]);
 
   useEffect(() => {
-    console.log('📱 [ManagerActivationScreen] ⏳ Focusing input');
     try {
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
-          console.log('✅ [ManagerActivationScreen] Input focused');
         }
       }, 500);
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Error focusing input:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Error focusing input:', err);
     }
   }, []);
   
@@ -213,15 +200,12 @@ export default function ManagerActivationScreen() {
   // ANIMATION HELPERS
   // ============================================
   const animateStepTransition = (direction) => {
-    console.log(`📱 [ManagerActivationScreen] 🎬 Animating step transition: ${direction}`);
-    
     if (isTransitioning) {
-      console.log('⚠️ [ManagerActivationScreen] Transition already in progress');
       return;
     }
-    
+
     setIsTransitioning(true);
-    
+
     try {
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -235,19 +219,15 @@ export default function ManagerActivationScreen() {
           useNativeDriver: true,
         }),
       ]).start(() => {
-        console.log('✅ [ManagerActivationScreen] Fade out complete');
-        
         if (direction === 'forward') {
           setCurrentStep(2);
-          console.log('📱 [ManagerActivationScreen] ➡️ Step 1 → 2');
         } else {
           setCurrentStep(1);
-          console.log('📱 [ManagerActivationScreen] ⬅️ Step 2 → 1');
         }
-        
+
         fadeAnim.setValue(0);
         slideAnim.setValue(direction === 'forward' ? 30 : -30);
-        
+
         Animated.parallel([
           Animated.timing(fadeAnim, {
             toValue: 1,
@@ -260,12 +240,11 @@ export default function ManagerActivationScreen() {
             useNativeDriver: true,
           }),
         ]).start(() => {
-          console.log('✅ [ManagerActivationScreen] Fade in complete');
           setIsTransitioning(false);
         });
       });
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Animation error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Animation error:', err);
       setIsTransitioning(false);
     }
   };
@@ -274,7 +253,6 @@ export default function ManagerActivationScreen() {
   // SCROLL HELPERS - USING measureLayout FOR ACCURACY
   // ============================================
   const scrollToPasswordInput = () => {
-    console.log('📱 [ManagerActivationScreen] 📜 Scrolling to password input');
     try {
       setTimeout(() => {
         if (scrollViewRef.current) {
@@ -282,16 +260,14 @@ export default function ManagerActivationScreen() {
             y: 200,
             animated: true,
           });
-          console.log('✅ [ManagerActivationScreen] Scrolled to password input');
         }
       }, 400);
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Scroll error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Scroll error:', err);
     }
   };
-  
+
   const scrollToConfirmPasswordInput = () => {
-    console.log('📱 [ManagerActivationScreen] 📜 Scrolling to confirm password input');
     try {
       setTimeout(() => {
         if (scrollViewRef.current) {
@@ -301,11 +277,10 @@ export default function ManagerActivationScreen() {
             y: scrollAmount,
             animated: true,
           });
-          console.log(`✅ [ManagerActivationScreen] Scrolled to ${scrollAmount}px`);
         }
       }, 500);
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Scroll error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Scroll error:', err);
     }
   };
   
@@ -313,97 +288,85 @@ export default function ManagerActivationScreen() {
   // HANDLERS - Step 1
   // ============================================
   const handleSuccessFrameFade = () => {
-    console.log('📱 [ManagerActivationScreen] Success frame faded');
     setShowSuccessFrame(false);
   };
-  
+
   const handleActivationInputChange = (text) => {
-    console.log(`📱 [ManagerActivationScreen] Activation code: ${text.length} chars`);
     setActivationKey(text);
     setLocalError('');
   };
-  
+
   const handleActivationKeySubmit = async () => {
-    console.log('📱 [ManagerActivationScreen] ⌨️ Done key pressed - dismissing keyboard + validating');
     Keyboard.dismiss();
-    
+
     setTimeout(async () => {
       await handleValidateCode();
     }, 300);
   };
-  
+
   const handleValidateCode = async () => {
-    console.log('📱 [ManagerActivationScreen] 🔍 Validating activation code');
     setLocalError('');
-    
+
     try {
       if (!activationKey || !activationKey.trim()) {
-        console.warn('⚠️ [ManagerActivationScreen] Empty activation code');
+        console.warn('[WARN] [ManagerActivationScreen] Empty activation code');
         setLocalError('Please enter an activation code');
         return;
       }
-      
+
       if (activationKey.trim().length < 4) {
-        console.warn('⚠️ [ManagerActivationScreen] Activation code too short');
+        console.warn('[WARN] [ManagerActivationScreen] Activation code too short');
         setLocalError('Activation code must be at least 4 characters');
         return;
       }
-      
-      console.log(`📱 [ManagerActivationScreen] Code: ${activationKey.trim()}`);
+
       const result = await submit();
-      
+
       if (result && branchInfo && branchInfo.names && branchInfo.names.length > 0) {
-        console.log('✅ [ManagerActivationScreen] Validation successful');
         setShowSuccessFrame(true);
       } else if (!result && error) {
-        console.error('❌ [ManagerActivationScreen] Validation failed:', error);
+        console.error('[ERROR] [ManagerActivationScreen] Validation failed:', error);
         setLocalError(error);
       }
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Validation error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Validation error:', err);
       setLocalError('An unexpected error occurred. Please try again.');
     }
   };
-  
+
   const handleContinue = () => {
-    console.log('📱 [ManagerActivationScreen] ➡️ Continuing to Step 2');
-    
     try {
       if (!isValidCode || !branchInfo) {
-        console.warn('⚠️ [ManagerActivationScreen] Cannot continue - validation required');
+        console.warn('[WARN] [ManagerActivationScreen] Cannot continue - validation required');
         setLocalError('Please validate your activation code first');
         Alert.alert('Validation Required', 'Please enter and validate your activation code before continuing.');
         return;
       }
-      
+
       animateStepTransition('forward');
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Continue error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Continue error:', err);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     }
   };
-  
+
   const handleBackToStep1 = () => {
-    console.log('📱 [ManagerActivationScreen] ⬅️ Going back to Step 1');
-    
     try {
       setManagerUsername('');
       setManagerPassword('');
       setConfirmPassword('');
       setStep2Errors({ username: '', password: '', confirmPassword: '' });
-      console.log('📱 [ManagerActivationScreen] 🧹 Cleared Step 2 inputs');
       animateStepTransition('backward');
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Back error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Back error:', err);
     }
   };
-  
+
   const handleBackToLogin = () => {
-    console.log('📱 [ManagerActivationScreen] 🔙 Navigating back to Login');
     try {
       navigation.goBack();
     } catch (err) {
-      console.error('❌ [ManagerActivationScreen] Navigation error:', err);
+      console.error('[ERROR] [ManagerActivationScreen] Navigation error:', err);
     }
   };
   
@@ -411,15 +374,13 @@ export default function ManagerActivationScreen() {
   // HANDLERS - Step 2
   // ============================================
   const handleUsernameChange = (text) => {
-    console.log(`📱 [ManagerActivationScreen] Username: ${text.length} chars`);
     setManagerUsername(text);
     if (step2Errors.username) {
       setStep2Errors(prev => ({ ...prev, username: '' }));
     }
   };
-  
+
   const handlePasswordChange = (text) => {
-    console.log(`📱 [ManagerActivationScreen] Password: ${text.length} chars`);
     setManagerPassword(text);
     if (step2Errors.password) {
       setStep2Errors(prev => ({ ...prev, password: '' }));
@@ -428,31 +389,25 @@ export default function ManagerActivationScreen() {
       setStep2Errors(prev => ({ ...prev, confirmPassword: '' }));
     }
   };
-  
+
   const handlePasswordFocus = () => {
-    console.log('📱 [ManagerActivationScreen] 🔽 Password input focused');
     scrollToPasswordInput();
   };
-  
+
   const handleConfirmPasswordFocus = () => {
-    console.log('📱 [ManagerActivationScreen] 🔽 Confirm password input focused');
     scrollToConfirmPasswordInput();
   };
-  
+
   const handleConfirmPasswordChange = (text) => {
-    console.log(`📱 [ManagerActivationScreen] Confirm password: ${text.length} chars`);
     setConfirmPassword(text);
     if (managerPassword && text !== managerPassword) {
-      console.warn('⚠️ [ManagerActivationScreen] Passwords do not match');
       setStep2Errors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
     } else {
       setStep2Errors(prev => ({ ...prev, confirmPassword: '' }));
     }
   };
-  
-  const handleCompleteSetup = async () => {
-  console.log('📱 [ManagerActivationScreen] 🎯 Completing setup');
 
+  const handleCompleteSetup = async () => {
   try {
     let hasError = false;
     const errors = { username: '', password: '', confirmPassword: '' };
@@ -516,7 +471,7 @@ export default function ManagerActivationScreen() {
       );
     }
   } catch (err) {
-    console.error('❌ [ManagerActivationScreen] Setup error:', err);
+    console.error('[ERROR] [ManagerActivationScreen] Setup error:', err);
     Alert.alert('Error', 'An unexpected error occurred during setup. Please try again.');
   }
 };
@@ -541,8 +496,6 @@ export default function ManagerActivationScreen() {
   // RENDER - Step 1
   // ============================================
   if (currentStep === 1) {
-    console.log('📱 [ManagerActivationScreen] 🖥️ Rendering Step 1');
-    
     const isButtonEnabled = isValidCode && branchInfo && branchInfo.names && branchInfo.names.length > 0;
     const hasBranches = branchInfo && branchInfo.names && branchInfo.names.length > 0;
     const buttonWidth = screenWidth - (SPACING.lg * 2);
@@ -710,8 +663,6 @@ export default function ManagerActivationScreen() {
   // ============================================
   // RENDER - Step 2 (NO KeyboardWrapper - fixed bottom stays in place)
   // ============================================
-  console.log('📱 [ManagerActivationScreen] 🖥️ Rendering Step 2');
-  
   return (
     <>
       <StatusBar style="light" />
@@ -903,6 +854,7 @@ const styles = StyleSheet.create({
   },
   stepperWrapper: {
     marginTop: 16,
+    paddingHorizontal: SPACING.lg,
   },
   inputSection: {
     paddingHorizontal: SPACING.lg,

@@ -177,7 +177,7 @@ export default function LoginScreen() {
               borderRadius={12}
               hasShadow={true}
               style={styles.loginButton}
-              disabled={isLoading}
+              disabled={isLoading || !username.trim() || !password}
             />
 
             <View style={styles.rowContainer}>

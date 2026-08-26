@@ -67,7 +67,6 @@ const MAIN_OPERATIONS = [
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
@@ -181,7 +180,6 @@ export default function SalesRepDashboardScreen() {
   });
 
   const handleTabPress = (key) => {
-    setActiveTab(key);
     if (key === 'stock') {
       navigation.navigate('SalesRepStock');
     } else if (key === 'reports') {
@@ -209,6 +207,7 @@ export default function SalesRepDashboardScreen() {
       <View style={styles.container}>
         <Header
           showProfileIcon={true}
+          onProfilePress={() => navigation.navigate('SalesRepSettings')}
           title="Sales Rep Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('SalesRepLogs')}
@@ -370,7 +369,7 @@ export default function SalesRepDashboardScreen() {
         </View>
 
         <BottomNavBar
-          activeTab={activeTab}
+          activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
         />

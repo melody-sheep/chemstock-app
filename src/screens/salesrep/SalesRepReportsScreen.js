@@ -45,18 +45,16 @@ const DAILY_REPORTS = [
 
 export default function SalesRepReportsScreen() {
   const navigation = useNavigation();
-  const [activeTab, setActiveTab] = useState('reports');
 
   const handleBack = () => navigation.goBack();
 
   const handleTabPress = (key) => {
-    setActiveTab(key);
     if (key === 'dashboard') {
       navigation.navigate('SalesRepDashboard');
     } else if (key === 'stock') {
       navigation.navigate('SalesRepStock');
-    } else if (key !== 'reports') {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+    } else if (key === 'settings') {
+      navigation.navigate('SalesRepSettings');
     }
   };
 
@@ -170,7 +168,7 @@ export default function SalesRepReportsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab={activeTab} onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => {}} />
       </View>
     </>
   );

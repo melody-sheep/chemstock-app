@@ -78,7 +78,7 @@ export default function ReceiveStockSR() {
       const position = await Location.getCurrentPositionAsync({});
       setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
     } catch (error) {
-      console.error('❌ [ReceiveStockSR] Location error:', error);
+      console.error('[ERROR] [ReceiveStockSR] Location error:', error);
       setLocationError('Unable to determine location');
     }
   };

@@ -1,6 +1,6 @@
 // src/screens/salesrep/SalesRepStockScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
@@ -46,8 +46,10 @@ export default function SalesRepStockScreen() {
       navigation.navigate('SalesRepDashboard');
     } else if (key === 'stock') {
       // already here
-    } else {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+    } else if (key === 'reports') {
+      navigation.navigate('SalesRepReports');
+    } else if (key === 'settings') {
+      navigation.navigate('SalesRepSettings');
     }
   };
 

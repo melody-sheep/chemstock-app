@@ -8,6 +8,7 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
@@ -20,6 +21,7 @@ export default function ReleaseStockScanReviewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType, qrCode } = route.params;
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -99,7 +101,10 @@ export default function ReleaseStockScanReviewScreen() {
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+        >
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
           <Text style={styles.sectionTitle}>Current Scanned Items</Text>
@@ -167,6 +172,9 @@ export default function ReleaseStockScanReviewScreen() {
             </Text>
           )}
 
+        </ScrollView>
+
+        <BottomActionBar>
           <Button
             title="Next"
             icon="arrowRight"
@@ -174,9 +182,8 @@ export default function ReleaseStockScanReviewScreen() {
             onPress={handleNext}
             disabled={releaseItems.length === 0}
             variant="black"
-            style={styles.nextButton}
           />
-        </ScrollView>
+        </BottomActionBar>
       </View>
     </>
   );
@@ -205,7 +212,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { padding: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -291,5 +298,4 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: '#272632',
   },
-  nextButton: { marginTop: SPACING.sm },
 });

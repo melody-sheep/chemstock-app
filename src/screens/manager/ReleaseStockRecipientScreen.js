@@ -9,6 +9,7 @@ import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
 import { ROLES } from '../../constants/roles';
@@ -39,6 +40,7 @@ export default function ReleaseStockRecipientScreen() {
   // request already specifies exact products/quantities. Absent for the
   // normal manual Release Stock flow, which behaves exactly as before.
   const prefillRequest = route.params?.prefillRequest;
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const [manager, setManager] = useState(null);
   const [agents, setAgents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -170,7 +172,10 @@ export default function ReleaseStockRecipientScreen() {
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+        >
           <Stepper currentStep={1} labels={STEP_LABELS} />
 
           {prefillRequest && (
@@ -197,7 +202,11 @@ export default function ReleaseStockRecipientScreen() {
                       <Icon name="checkmark" size={12} color="#FFFFFF" />
                     </View>
                   )}
-                  <Icon name="person" size={22} color={isActive ? COLORS.primary : COLORS.textSecondary} />
+                  <Icon
+                    name={tab.key === ROLES.COLLECTOR ? 'truck' : 'person'}
+                    size={22}
+                    color={isActive ? COLORS.primary : COLORS.textSecondary}
+                  />
                   <Text style={[styles.roleCardLabel, isActive && styles.roleCardLabelActive]}>{tab.label}</Text>
                   <Text style={styles.roleCardSubtitle}>({tab.subtitle})</Text>
                 </TouchableOpacity>
@@ -286,7 +295,7 @@ export default function ReleaseStockRecipientScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <View style={styles.bottomBar}>
+        <BottomActionBar>
           <Button
             title="Next"
             icon="arrowRight"
@@ -294,9 +303,8 @@ export default function ReleaseStockRecipientScreen() {
             onPress={handleNext}
             disabled={!canProceed}
             variant="black"
-            height={52}
           />
-        </View>
+        </BottomActionBar>
       </View>
     </>
   );
@@ -325,7 +333,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: 24 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: 24 },
   roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm, marginBottom: SPACING.md },
   roleCard: {
     flex: 1,
@@ -449,12 +457,5 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textPrimary,
     textAlign: 'center',
-  },
-  bottomBar: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    backgroundColor: COLORS.background,
   },
 });

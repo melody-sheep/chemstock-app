@@ -78,7 +78,7 @@ export default function ReleaseStockConfirmScreen() {
         const position = await Location.getCurrentPositionAsync({});
         setSelfCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
       } catch (error) {
-        console.error('❌ [ReleaseStockConfirm] Location error:', error);
+        console.error('[ERROR] [ReleaseStockConfirm] Location error:', error);
         setLocationError('Unable to determine location');
       }
     })();
@@ -162,7 +162,7 @@ export default function ReleaseStockConfirmScreen() {
       if (requestId) {
         const linkResult = await requestService.linkRequestFulfillment(requestId, releaseResult.data.transactionId);
         if (!linkResult.success) {
-          console.error('❌ [ReleaseStockConfirm] Failed to link request fulfillment:', linkResult.message);
+          console.error('[ERROR] [ReleaseStockConfirm] Failed to link request fulfillment:', linkResult.message);
         }
       }
 

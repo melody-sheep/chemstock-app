@@ -4,12 +4,15 @@ import { View, Text, Modal, TouchableOpacity, Image, StyleSheet } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
+import * as Device from 'expo-device';
 import Icon from './Icon';
 import Button from './Button';
 import BottomSheetModal from './Modal';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { formatCoordinates, formatDateTime } from '../../utils/formatters';
 
 /**
  * CameraCaptureModal - full-screen, camera-only capture (no gallery access
@@ -25,12 +28,21 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
   const [previewUri, setPreviewUri] = useState(initialUri);
   const cameraRef = useRef(null);
 
+  // Metadata only exists for a photo taken *this* session — re-opening the
+  // modal to just view an already-saved photo (initialUri set) has no
+  // captured-at/coords to show, so the strip only appears for a fresh shot.
+  const [isFreshCapture, setIsFreshCapture] = useState(false);
+  const [capturedAt, setCapturedAt] = useState(null);
+  const [previewCoords, setPreviewCoords] = useState(null);
+  const [previewLocationError, setPreviewLocationError] = useState(null);
+
   // Re-sync to the caller's existing photo each time the modal opens, so
   // "view" (initialUri set) lands on the review screen while "retake" /
   // "take photo" (initialUri null) lands on the live camera.
   useEffect(() => {
     if (visible) {
       setPreviewUri(initialUri || null);
+      setIsFreshCapture(false);
     }
   }, [visible, initialUri]);
 
@@ -45,8 +57,25 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
       setPreviewUri(photo.uri);
+      setIsFreshCapture(true);
+      setCapturedAt(new Date());
+      setPreviewCoords(null);
+      setPreviewLocationError(null);
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setPreviewLocationError('Location permission denied');
+          return;
+        }
+        const position = await Location.getCurrentPositionAsync({});
+        setPreviewCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      } catch (locationError) {
+        console.error('[ERROR] [CameraCaptureModal] Location error:', locationError);
+        setPreviewLocationError('Unable to determine location');
+      }
     } catch (error) {
-      console.error('❌ [CameraCaptureModal] Capture failed:', error);
+      console.error('[ERROR] [CameraCaptureModal] Capture failed:', error);
     }
   };
 
@@ -73,9 +102,47 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
           {previewUri ? (
             <>
               <Image source={{ uri: previewUri }} style={styles.preview} resizeMode="contain" />
+
+              {isFreshCapture && (
+                <View style={styles.metaStrip}>
+                  <View style={styles.metaRow}>
+                    <Icon name="calendar" size={14} color="#FFFFFF" />
+                    <Text style={styles.metaText}>{formatDateTime(capturedAt)}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Icon name="location" size={14} color="#FFFFFF" />
+                    <Text style={styles.metaText}>
+                      {previewCoords
+                        ? formatCoordinates(previewCoords.latitude, previewCoords.longitude)
+                        : previewLocationError || 'Locating…'}
+                    </Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Icon name="package" size={14} color="#FFFFFF" />
+                    <Text style={styles.metaText}>{Device.modelName || 'Unknown device'}</Text>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.previewActions}>
-                <Button title="Retake" variant="outline" onPress={handleRetake} style={styles.actionButton} />
-                <Button title="Use Photo" variant="black" onPress={handleUsePhoto} style={styles.actionButton} />
+                <Button
+                  title="Retake"
+                  variant="outline"
+                  accentColor="#FFFFFF"
+                  icon="returns"
+                  iconSize={18}
+                  onPress={handleRetake}
+                  style={[styles.actionButton, styles.glassButton]}
+                />
+                <Button
+                  title="Use Photo"
+                  variant="outline"
+                  accentColor="#1A1A1A"
+                  icon="checkmark"
+                  iconSize={18}
+                  onPress={handleUsePhoto}
+                  style={[styles.actionButton, styles.glassButtonSolid]}
+                />
               </View>
             </>
           ) : (
@@ -172,6 +239,23 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     backgroundColor: '#FFFFFF',
   },
+  metaStrip: {
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    backgroundColor: '#000000',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  metaText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: '#FFFFFF',
+  },
   previewActions: {
     flexDirection: 'row',
     gap: SPACING.md,
@@ -179,6 +263,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   actionButton: { flex: 1 },
+  // Faked "glassmorphism" (translucent + light border, no real blur library
+  // pulled in for one screen) — fits the dark camera preview instead of the
+  // app's usual navy buttons, which read oddly over a live camera feed.
+  glassButton: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  glassButtonSolid: {
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
   permissionSheet: {
     alignItems: 'center',
   },

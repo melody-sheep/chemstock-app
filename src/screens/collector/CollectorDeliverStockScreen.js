@@ -54,7 +54,7 @@ export default function CollectorDeliverStockScreen() {
             const position = await Location.getCurrentPositionAsync({});
             setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
           } catch (error) {
-            console.error('❌ [CollectorDeliverStockScreen] Location error:', error);
+            console.error('[ERROR] [CollectorDeliverStockScreen] Location error:', error);
           }
         }
       })(),

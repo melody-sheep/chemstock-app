@@ -19,7 +19,6 @@ export default function ActionCard({
   onPress = null,
   style = {},
 }) {
-  console.log(`🔲 [ActionCard] Rendering "${title}" with icon="${icon}" duotoneColor=${duotoneColor}`);
   return (
     <TouchableOpacity
       style={[styles.card, style]}

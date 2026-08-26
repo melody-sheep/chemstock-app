@@ -24,7 +24,7 @@ class AgentService extends BaseService {
             });
 
             if (error) {
-                console.error('❌ [AgentService] Error creating agent account:', error);
+                console.error('[ERROR] [AgentService] Error creating agent account:', error);
                 if (error.code === '23505') {
                     throw new Error('That username is already taken.');
                 }
@@ -47,7 +47,7 @@ class AgentService extends BaseService {
             const { data, error } = await supabase.rpc('get_my_agent_accounts');
 
             if (error) {
-                console.error('❌ [AgentService] Error fetching agent accounts:', error);
+                console.error('[ERROR] [AgentService] Error fetching agent accounts:', error);
                 throw new Error(error.message || 'Failed to load accounts');
             }
 
@@ -65,7 +65,7 @@ class AgentService extends BaseService {
                     .in('id', allBranchIds);
 
                 if (branchError) {
-                    console.error('❌ [AgentService] Error fetching branch names:', branchError);
+                    console.error('[ERROR] [AgentService] Error fetching branch names:', branchError);
                 } else {
                     branchNameById = Object.fromEntries((branches || []).map((b) => [b.id, b.name]));
                 }
@@ -96,7 +96,7 @@ class AgentService extends BaseService {
             const { error } = await supabase.rpc('delete_agent_account', { p_agent_id: agentId });
 
             if (error) {
-                console.error('❌ [AgentService] Error deleting agent account:', error);
+                console.error('[ERROR] [AgentService] Error deleting agent account:', error);
                 throw new Error(error.message || 'Failed to remove account');
             }
 

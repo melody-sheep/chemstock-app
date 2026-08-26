@@ -199,7 +199,6 @@ export default function Icon({
   duotoneColor = null,
   duotoneOpacity = 0.2,
 }) {
-  console.log(`🎨 [Icon] Rendering name="${name}" size=${size} weight=${weight}`);
   try {
     if (!name) {
       console.warn(`Icon name is required. Available: ${ICON_NAMES.join(', ')}`);
@@ -272,8 +271,7 @@ export default function Icon({
       </Svg>
     );
   } catch (error) {
-    console.error(`🔴 [Icon] CAUGHT error rendering name="${name}":`, error?.message);
-    console.error('🔴 [Icon] Stack:', error?.stack);
+    console.error(`[ERROR] [Icon] Error rendering name="${name}":`, error?.message);
     return null;
   }
 }

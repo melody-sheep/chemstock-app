@@ -198,7 +198,6 @@ export default function ManageAccountsScreen() {
             iconWeight="bold"
             onPress={() => navigation.navigate('AgentAccounts')}
             variant="black"
-            height={52}
           />
         </View>
       </View>

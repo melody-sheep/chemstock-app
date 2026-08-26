@@ -66,7 +66,6 @@ const MAIN_OPERATIONS = [
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
@@ -180,11 +179,12 @@ export default function ManagerDashboardScreen() {
   });
 
   const handleTabPress = (key) => {
-    setActiveTab(key);
     if (key === 'stock') {
       navigation.navigate('ManagerStock');
+    } else if (key === 'settings') {
+      navigation.navigate('ManagerSettings');
     } else if (key !== 'dashboard') {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'manager' });
     }
   };
 
@@ -204,6 +204,7 @@ export default function ManagerDashboardScreen() {
       <View style={styles.container}>
         <Header
           showProfileIcon={true}
+          onProfilePress={() => navigation.navigate('ManagerSettings')}
           title="Manager Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('StockLogs')}
@@ -365,7 +366,7 @@ export default function ManagerDashboardScreen() {
         </View>
 
         <BottomNavBar
-          activeTab={activeTab}
+          activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
         />

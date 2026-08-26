@@ -43,7 +43,7 @@ class InventoryService extends BaseService {
         .upload(path, bytes, { contentType: 'image/jpeg' });
 
       if (error) {
-        console.error('❌ [InventoryService] Photo upload failed:', error);
+        console.error('[ERROR] [InventoryService] Photo upload failed:', error);
         throw new Error(error.message || 'Failed to upload shipment photo');
       }
 
@@ -84,7 +84,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] receive_stock_batch RPC error:', error);
+        console.error('[ERROR] [InventoryService] receive_stock_batch RPC error:', error);
         throw new Error(error.message || 'Failed to register incoming stock');
       }
 
@@ -114,7 +114,7 @@ class InventoryService extends BaseService {
         .order('exp_date', { ascending: true, nullsFirst: false });
 
       if (error) {
-        console.error('❌ [InventoryService] getBranchStock error:', error);
+        console.error('[ERROR] [InventoryService] getBranchStock error:', error);
         throw new Error(error.message || 'Failed to load branch stock');
       }
 
@@ -152,7 +152,7 @@ class InventoryService extends BaseService {
         .limit(limit);
 
       if (error) {
-        console.error('❌ [InventoryService] getReceivingLogs error:', error);
+        console.error('[ERROR] [InventoryService] getReceivingLogs error:', error);
         throw new Error(error.message || 'Failed to load receiving logs');
       }
 
@@ -191,7 +191,7 @@ class InventoryService extends BaseService {
         .limit(limit);
 
       if (error) {
-        console.error('❌ [InventoryService] getReleaseLogs error:', error);
+        console.error('[ERROR] [InventoryService] getReleaseLogs error:', error);
         throw new Error(error.message || 'Failed to load release logs');
       }
 
@@ -241,7 +241,7 @@ class InventoryService extends BaseService {
         .createSignedUrl(storagePath, 300);
 
       if (error) {
-        console.error('❌ [InventoryService] getShipmentPhotoUrl error:', error);
+        console.error('[ERROR] [InventoryService] getShipmentPhotoUrl error:', error);
         return null;
       }
 
@@ -279,7 +279,7 @@ class InventoryService extends BaseService {
         .maybeSingle();
 
       if (error) {
-        console.error('❌ [InventoryService] getReceivingBatchByQrCode error:', error);
+        console.error('[ERROR] [InventoryService] getReceivingBatchByQrCode error:', error);
         throw new Error(error.message || 'Failed to look up that QR code');
       }
 
@@ -346,7 +346,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] release_stock_batch RPC error:', error);
+        console.error('[ERROR] [InventoryService] release_stock_batch RPC error:', error);
         throw new Error(error.message || 'Failed to release stock');
       }
 
@@ -385,7 +385,7 @@ class InventoryService extends BaseService {
         .limit(limit);
 
       if (error) {
-        console.error('❌ [InventoryService] getDeliveries error:', error);
+        console.error('[ERROR] [InventoryService] getDeliveries error:', error);
         throw new Error(error.message || 'Failed to load deliveries');
       }
 
@@ -421,7 +421,7 @@ class InventoryService extends BaseService {
         .upload(path, bytes, { contentType: 'image/jpeg' });
 
       if (error) {
-        console.error('❌ [InventoryService] Stock acceptance photo upload failed:', error);
+        console.error('[ERROR] [InventoryService] Stock acceptance photo upload failed:', error);
         throw new Error(error.message || 'Failed to upload photo');
       }
 
@@ -451,7 +451,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] get_transaction_by_qr_code_for_agent RPC error:', error);
+        console.error('[ERROR] [InventoryService] get_transaction_by_qr_code_for_agent RPC error:', error);
         throw new Error(error.message || 'Transaction not found or not assigned to you');
       }
 
@@ -485,7 +485,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] accept_stock_release RPC error:', error);
+        console.error('[ERROR] [InventoryService] accept_stock_release RPC error:', error);
         throw new Error(error.message || 'Failed to accept stock');
       }
 
@@ -512,7 +512,7 @@ class InventoryService extends BaseService {
       const { data, error } = await supabase.rpc('get_sr_inventory', { p_agent_id: agentId });
 
       if (error) {
-        console.error('❌ [InventoryService] get_sr_inventory RPC error:', error);
+        console.error('[ERROR] [InventoryService] get_sr_inventory RPC error:', error);
         throw new Error(error.message || 'Failed to load your stock');
       }
 
@@ -542,7 +542,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] get_sr_activity_logs RPC error:', error);
+        console.error('[ERROR] [InventoryService] get_sr_activity_logs RPC error:', error);
         throw new Error(error.message || 'Failed to load activity logs');
       }
 
@@ -573,7 +573,7 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('❌ [InventoryService] get_my_deliveries RPC error:', error);
+        console.error('[ERROR] [InventoryService] get_my_deliveries RPC error:', error);
         throw new Error(error.message || 'Failed to load deliveries');
       }
 

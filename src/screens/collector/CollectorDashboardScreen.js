@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorDashboardScreen.js
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, Image, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -38,7 +38,6 @@ const MAIN_OPERATIONS = [
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
@@ -124,9 +123,10 @@ export default function CollectorDashboardScreen() {
   ];
 
   const handleTabPress = (key) => {
-    setActiveTab(key);
-    if (key !== 'dashboard') {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+    if (key === 'settings') {
+      navigation.navigate('CollectorSettings');
+    } else if (key !== 'dashboard') {
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'collector' });
     }
   };
 
@@ -145,6 +145,7 @@ export default function CollectorDashboardScreen() {
       <View style={styles.container}>
         <Header
           showProfileIcon={true}
+          onProfilePress={() => navigation.navigate('CollectorSettings')}
           title="Collector Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('CollectorDeliveredStock')}
@@ -316,7 +317,7 @@ export default function CollectorDashboardScreen() {
         </View>
 
         <BottomNavBar
-          activeTab={activeTab}
+          activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={handleFabPress}
           fabIcon="truck"

@@ -19,7 +19,6 @@ export default function LogListItem({
   onPress = null,
   style = {},
 }) {
-  console.log(`📋 [LogListItem] Rendering "${text}" with icon="${icon}"`);
   return (
     <TouchableOpacity
       style={[styles.row, style]}

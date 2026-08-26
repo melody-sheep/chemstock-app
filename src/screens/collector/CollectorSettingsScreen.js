@@ -1,4 +1,4 @@
-// src/screens/salesrep/SalesRepSettingsScreen.js
+// src/screens/collector/CollectorSettingsScreen.js
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -7,10 +7,17 @@ import Icon from '../../components/common/Icon';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import authService from '../../services/authService';
-import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-export default function SalesRepSettingsScreen() {
+/**
+ * CollectorSettingsScreen - third and last of the role settings screens
+ * (see ManagerSettingsScreen / SalesRepSettingsScreen), same structure so
+ * all three roles' Settings tab + profile icon land somewhere consistent.
+ * Static design pass, same caveats as the other two: permission rows are
+ * local UI state, not live device reads yet; Edit Profile/Change Password
+ * are handleComingSoon stubs.
+ */
+export default function CollectorSettingsScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
   const [locationEnabled, setLocationEnabled] = useState(true);
@@ -27,13 +34,9 @@ export default function SalesRepSettingsScreen() {
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
-      navigation.navigate('SalesRepDashboard');
-    } else if (key === 'stock') {
-      navigation.navigate('SalesRepStock');
-    } else if (key === 'reports') {
-      navigation.navigate('SalesRepReports');
+      navigation.navigate('CollectorDashboard');
     } else if (key !== 'settings') {
-      Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'collector' });
     }
   };
 
@@ -41,7 +44,7 @@ export default function SalesRepSettingsScreen() {
     if (!value) {
       Alert.alert(
         'Disable Location?',
-        'Geotagging is required to confirm stock receipts and handovers. Disabling it will prevent you from completing transactions.',
+        'Geotagging is required to confirm delivery checkpoints and drop-offs. Disabling it will prevent you from completing deliveries.',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Disable Anyway', style: 'destructive', onPress: () => setLocationEnabled(false) },
@@ -64,7 +67,7 @@ export default function SalesRepSettingsScreen() {
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
-  const repName = user?.full_name || user?.username || 'Sales Representative';
+  const collectorName = user?.full_name || user?.username || 'Collector';
   const branchName = user?.branchName || 'No branch assigned';
 
   return (
@@ -89,8 +92,8 @@ export default function SalesRepSettingsScreen() {
               <Icon name="person" size={30} color="#94a3b8" />
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName} numberOfLines={1}>{repName}</Text>
-              <Text style={styles.profileRole}>Sales Representative</Text>
+              <Text style={styles.profileName} numberOfLines={1}>{collectorName}</Text>
+              <Text style={styles.profileRole}>Collector</Text>
               <View style={styles.profileBranchRow}>
                 <Icon name="location" size={12} color="#F04D59" />
                 <Text style={styles.profileBranch} numberOfLines={1}>{branchName}</Text>
@@ -135,7 +138,7 @@ export default function SalesRepSettingsScreen() {
                 </View>
                 <View style={styles.toggleTextWrap}>
                   <Text style={styles.rowLabel}>Geotagging (GPS)</Text>
-                  <Text style={styles.rowSubLabel}>Captured only at stock release and receipt confirmation.</Text>
+                  <Text style={styles.rowSubLabel}>Captured at every delivery checkpoint and drop-off.</Text>
                 </View>
               </View>
               <Switch
@@ -155,7 +158,24 @@ export default function SalesRepSettingsScreen() {
                 </View>
                 <View style={styles.toggleTextWrap}>
                   <Text style={styles.rowLabel}>Camera Access</Text>
-                  <Text style={styles.rowSubLabel}>Required for QR scanning and photo handover proof.</Text>
+                  <Text style={styles.rowSubLabel}>Required for QR scanning and delivery photo proof.</Text>
+                </View>
+              </View>
+              <View style={styles.grantedPill}>
+                <Text style={styles.grantedPillText}>Granted</Text>
+              </View>
+            </View>
+
+            <View style={styles.rowDivider} />
+
+            <View style={styles.rowItem}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconWrap}>
+                  <Icon name="document" size={18} color="#03045E" />
+                </View>
+                <View style={styles.toggleTextWrap}>
+                  <Text style={styles.rowLabel}>Gallery Access</Text>
+                  <Text style={styles.rowSubLabel}>Used only to save a generated QR code to your photos.</Text>
                 </View>
               </View>
               <View style={styles.grantedPill}>
@@ -195,6 +215,18 @@ export default function SalesRepSettingsScreen() {
 
             <View style={styles.rowDivider} />
 
+            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Terms of Use')}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconWrap}>
+                  <Icon name="idCard" size={18} color="#03045E" />
+                </View>
+                <Text style={styles.rowLabel}>Terms of Use</Text>
+              </View>
+              <Icon name="arrowRight" size={16} color="#94a3b8" />
+            </Pressable>
+
+            <View style={styles.rowDivider} />
+
             <View style={styles.rowItem}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
@@ -214,7 +246,7 @@ export default function SalesRepSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} fabIcon="truck" />
       </View>
 
       <ConfirmationDialog
@@ -223,7 +255,7 @@ export default function SalesRepSettingsScreen() {
         onConfirm={handleConfirmLogout}
         icon="lock"
         title="Log Out"
-        description="You're about to log out of ChemStock. You'll need to sign in again to access your inventory."
+        description="You're about to log out of ChemStock. You'll need to sign in again to access your deliveries."
         confirmLabel="Log Out"
       />
     </>

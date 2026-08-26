@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { padding: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.sm, paddingBottom: 40 },
   recipientNote: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
