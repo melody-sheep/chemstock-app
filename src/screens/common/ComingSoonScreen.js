@@ -21,7 +21,7 @@ const ROLE_LABELS = {
 // pressing it just re-navigates here with different params instead of
 // dead-ending on an alert.
 const ROLE_ROUTES = {
-  manager: { dashboard: 'ManagerDashboard', stock: 'ManagerStock', settings: 'ManagerSettings' },
+  manager: { dashboard: 'ManagerDashboard', stock: 'ManagerStock', reports: 'ManagerReports', settings: 'ManagerSettings' },
   salesrep: { dashboard: 'SalesRepDashboard', stock: 'SalesRepStock', reports: 'SalesRepReports', settings: 'SalesRepSettings' },
   collector: { dashboard: 'CollectorDashboard', settings: 'CollectorSettings' },
 };

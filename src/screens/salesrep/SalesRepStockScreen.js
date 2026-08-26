@@ -53,14 +53,21 @@ export default function SalesRepStockScreen() {
     }
   };
 
+  // remaining_quantity (not quantity) is what's actually still on hand —
+  // quantity stays fixed at the originally-received amount forever, while
+  // remaining_quantity is drained by daily-report submission and
+  // discrepancy resolution. A batch fully consumed by either of those
+  // (remaining_quantity 0) is no longer "in stock" and shouldn't render.
+  const currentStock = stock.filter((row) => row.remaining_quantity > 0);
+
   const query = searchText.trim().toLowerCase();
-  const visibleStock = stock.filter((row) => {
+  const visibleStock = currentStock.filter((row) => {
     if (!query) return true;
     return row.product_name?.toLowerCase().includes(query) || row.product_code?.toLowerCase().includes(query);
   });
-  const healthyStock = visibleStock.filter((row) => row.quantity >= STOCK_HEALTHY_THRESHOLD);
-  const lowStock = visibleStock.filter((row) => row.quantity < STOCK_HEALTHY_THRESHOLD);
-  const totalUnits = stock.reduce((sum, row) => sum + row.quantity, 0);
+  const healthyStock = visibleStock.filter((row) => row.remaining_quantity >= STOCK_HEALTHY_THRESHOLD);
+  const lowStock = visibleStock.filter((row) => row.remaining_quantity < STOCK_HEALTHY_THRESHOLD);
+  const totalUnits = currentStock.reduce((sum, row) => sum + row.remaining_quantity, 0);
 
   const renderProductCard = (item) => (
     <View key={item.id} style={styles.productCard}>
@@ -69,7 +76,7 @@ export default function SalesRepStockScreen() {
           <Icon name="package" size={22} color="#94a3b8" />
         </View>
         <View style={styles.qtyBadge}>
-          <Text style={styles.qtyBadgeText}>{item.quantity} pcs</Text>
+          <Text style={styles.qtyBadgeText}>{item.remaining_quantity} pcs</Text>
         </View>
       </View>
 
@@ -152,7 +159,7 @@ export default function SalesRepStockScreen() {
 
             <View style={styles.agentFooterRow}>
               <Text style={styles.summaryText}>
-                {stock.length} batch{stock.length === 1 ? '' : 'es'}, {totalUnits} unit{totalUnits === 1 ? '' : 's'} on hand
+                {currentStock.length} batch{currentStock.length === 1 ? '' : 'es'}, {totalUnits} unit{totalUnits === 1 ? '' : 's'} on hand
               </Text>
             </View>
           </View>
@@ -170,7 +177,7 @@ export default function SalesRepStockScreen() {
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>
-          ) : stock.length === 0 ? (
+          ) : currentStock.length === 0 ? (
             <View style={styles.loadingWrap}>
               <Icon name="boxPackage" size={32} color={COLORS.textSecondary} />
               <Text style={styles.emptyStateText}>No stock yet — accept a release to see it here.</Text>

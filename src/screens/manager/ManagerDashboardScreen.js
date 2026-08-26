@@ -57,7 +57,7 @@ const QUICK_STATS = [
 const MAIN_OPERATIONS = [
   { key: 'receiveStock', icon: 'packageHex', iconColor: COLORS.primary, duotoneColor: COLORS.iconReceiveFill, title: 'Receive Stock', screen: 'ReceiveStock' },
   { key: 'releaseStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Release Stock', screen: 'ReleaseStockRecipient' },
-  { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Manage Returns', screen: 'ManageReturns' },
+  { key: 'manageReturns', icon: 'returnBox', iconColor: COLORS.iconReturnStroke, duotoneColor: COLORS.iconReturnFill, title: 'Reports & Returns', screen: 'ManageReturns' },
   { key: 'alerts', icon: 'alertTriangle', iconColor: COLORS.iconAlertStroke, duotoneColor: COLORS.iconAlertFill, title: 'Alerts / Discrepancies', screen: 'ManagerAlerts' },
   { key: 'trackDeliveries', icon: 'compassTarget', iconColor: COLORS.iconTrackStroke, duotoneColor: COLORS.iconTrackFill, title: 'Track Deliveries', screen: 'TrackDeliveries' },
   { key: 'agentAccounts', icon: 'agentsGroup', iconColor: COLORS.iconAgentStroke, duotoneColor: COLORS.iconAgentFill, title: 'Manage Accounts', screen: 'ManageAccounts' },
@@ -181,6 +181,8 @@ export default function ManagerDashboardScreen() {
   const handleTabPress = (key) => {
     if (key === 'stock') {
       navigation.navigate('ManagerStock');
+    } else if (key === 'reports') {
+      navigation.navigate('ManagerReports');
     } else if (key === 'settings') {
       navigation.navigate('ManagerSettings');
     } else if (key !== 'dashboard') {

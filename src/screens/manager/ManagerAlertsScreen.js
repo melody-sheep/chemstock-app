@@ -1,51 +1,46 @@
 // src/screens/manager/ManagerAlertsScreen.js
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import CustomModal from '../../components/common/Modal';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-
-const TODAYS_ALERTS = [
-  {
-    id: 'a1',
-    code: 'LIN-60ML',
-    fullName: 'LIN-60ML [full name]',
-    date: 'mm - dd - yyyy',
-    missing: 1,
-    agentName: 'Jay Dela Cruz',
-    agentRole: 'Sales Rep',
-    released: 10,
-    reported: 8,
-    returned: 1,
-  },
-  {
-    id: 'a2',
-    code: 'LIN-120ML',
-    fullName: 'LIN-120ML [full name]',
-    date: 'mm - dd - yyyy',
-    missing: 2,
-    agentName: 'Maria S.',
-    agentRole: 'Sales Rep',
-    released: 15,
-    reported: 12,
-    returned: 1,
-  },
-];
+import reportService from '../../services/reportService';
+import { formatDisplayDate } from '../../utils/formatters';
 
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
+  const [alerts, setAlerts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sortNewestFirst, setSortNewestFirst] = useState(true);
+  const [selectedAlert, setSelectedAlert] = useState(null);
+
+  const loadAlerts = useCallback(async () => {
+    setIsLoading(true);
+    const result = await reportService.getBranchDiscrepancies(200);
+    setAlerts(result.success ? result.data : []);
+    setIsLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAlerts();
+    }, [loadAlerts])
+  );
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
       navigation.navigate('ManagerDashboard');
     } else if (key === 'stock') {
       navigation.navigate('ManagerStock');
+    } else if (key === 'reports') {
+      navigation.navigate('ManagerReports');
     } else if (key === 'settings') {
       navigation.navigate('ManagerSettings');
     } else {
@@ -53,16 +48,10 @@ export default function ManagerAlertsScreen() {
     }
   };
 
-  const handleFilterPress = () => {
-    Alert.alert('Filter Alerts', 'Filtering by branch, agent, or discrepancy type is coming soon.');
-  };
-
-  const handleOpenAlert = (alert) => {
-    Alert.alert(
-      `${alert.code} Discrepancy`,
-      `${alert.agentName} (${alert.agentRole})\nReleased: ${alert.released}x\nReported: ${alert.reported} sold (${alert.returned} return)\nMissing: ${alert.missing}x`
-    );
-  };
+  const sortedAlerts = [...alerts].sort((a, b) => {
+    const diff = new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime();
+    return sortNewestFirst ? -diff : diff;
+  });
 
   return (
     <>
@@ -89,67 +78,140 @@ export default function ManagerAlertsScreen() {
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Todays Alerts</Text>
-            <View style={styles.alertDot} />
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity onPress={handleFilterPress} accessibilityLabel="Filter alerts" accessibilityRole="button">
-              <Icon name="filter" size={20} color={COLORS.primary} />
-            </TouchableOpacity>
+        {isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>All Alerts</Text>
+              <View style={styles.alertDot} />
+              <View style={{ flex: 1 }} />
+              <View style={styles.sortRow}>
+                <TouchableOpacity
+                  style={[styles.sortPill, sortNewestFirst && styles.sortPillActive]}
+                  onPress={() => setSortNewestFirst(true)}
+                >
+                  <Text style={[styles.sortPillText, sortNewestFirst && styles.sortPillTextActive]}>Newest</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sortPill, !sortNewestFirst && styles.sortPillActive]}
+                  onPress={() => setSortNewestFirst(false)}
+                >
+                  <Text style={[styles.sortPillText, !sortNewestFirst && styles.sortPillTextActive]}>Oldest</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-          <View style={styles.alertsList}>
-            {TODAYS_ALERTS.map((alert) => (
-              <TouchableOpacity
-                key={alert.id}
-                style={styles.alertCard}
-                onPress={() => handleOpenAlert(alert)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.alertTopRow}>
-                  <View style={styles.avatarWrap}>
-                    <Icon name="person" size={22} color="#94a3b8" />
-                  </View>
+            {sortedAlerts.length === 0 ? (
+              <Text style={styles.emptyText}>No discrepancy alerts right now.</Text>
+            ) : (
+              <View style={styles.alertsList}>
+                {sortedAlerts.map((alert) => {
+                  const isLoss = alert.discrepancyType === 'loss';
+                  return (
+                    <TouchableOpacity
+                      key={alert.reportItemId}
+                      style={styles.alertCard}
+                      onPress={() => setSelectedAlert(alert)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.alertTopRow}>
+                        <View style={styles.avatarWrap}>
+                          <Icon name="person" size={22} color="#94a3b8" />
+                        </View>
 
-                  <View style={styles.alertDetails}>
-                    <Text style={styles.alertCode} numberOfLines={1}>Code: {alert.code}</Text>
-                    <Text style={styles.alertFullName} numberOfLines={1}>{alert.fullName}</Text>
-                    <Text style={styles.alertMeta}>Date: {alert.date}</Text>
-                  </View>
+                        <View style={styles.alertDetails}>
+                          <Text style={styles.alertCode} numberOfLines={1}>Code: {alert.productCode}</Text>
+                          <Text style={styles.alertFullName} numberOfLines={1}>{alert.productName}</Text>
+                          <Text style={styles.alertMeta}>Date: {formatDisplayDate(alert.reportDate)}</Text>
+                        </View>
 
-                  <View style={styles.missingWrap}>
-                    <View style={styles.warningIconWrap}>
-                      <Icon name="warningTriangle" size={18} color="#F04D59" weight="fill" />
-                    </View>
-                    <Text style={styles.missingText}>{alert.missing}x Missing</Text>
-                  </View>
-                </View>
+                        <View style={styles.missingWrap}>
+                          <View style={styles.warningIconWrap}>
+                            <Icon name="warningTriangle" size={18} color="#F04D59" weight="fill" />
+                          </View>
+                          <Text style={styles.missingText}>
+                            {Math.abs(alert.discrepancy)}x {isLoss ? 'Missing' : 'Over'}
+                          </Text>
+                        </View>
+                      </View>
 
-                <View style={styles.agentRow}>
-                  <Text style={styles.agentName}>{alert.agentName}</Text>
-                  <Text style={styles.agentRole}>{alert.agentRole}</Text>
-                </View>
+                      <View style={styles.agentRow}>
+                        <Text style={styles.agentName}>{alert.agentName}</Text>
+                        <Text style={styles.agentRole}>Sales Rep</Text>
+                        {alert.resolutionStatus === 'resolved' && (
+                          <Text style={styles.settledTag}>Settled</Text>
+                        )}
+                        {alert.latestRequest?.status === 'pending' && (
+                          <Text style={styles.pendingTag}>Return Pending</Text>
+                        )}
+                      </View>
 
-                <View style={styles.figuresRow}>
-                  <View style={styles.figurePill}>
-                    <Text style={styles.figurePillText}>Released: {alert.released}x</Text>
-                  </View>
-                  <View style={styles.figurePill}>
-                    <Text style={styles.figurePillText}>
-                      Reported: {alert.reported} sold ({alert.returned} return)
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                      <View style={styles.figuresRow}>
+                        <View style={styles.figurePill}>
+                          <Text style={styles.figurePillText}>In Custody: {alert.inCustodyQuantity}x</Text>
+                        </View>
+                        <View style={styles.figurePill}>
+                          <Text style={styles.figurePillText}>
+                            Reported: {alert.soldQuantity} sold ({alert.returnQuantity} return)
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
-          <View style={{ height: 24 }} />
-        </ScrollView>
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        )}
 
         <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => {}} />
       </View>
+
+      <CustomModal visible={!!selectedAlert} onClose={() => setSelectedAlert(null)} height={440}>
+        {selectedAlert && (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalTitle}>{selectedAlert.productCode}</Text>
+            <Text style={styles.modalSubtitle}>{selectedAlert.productName}</Text>
+            <Text style={styles.modalMeta}>{selectedAlert.agentName} · {formatDisplayDate(selectedAlert.reportDate)}</Text>
+
+            <View style={styles.modalFiguresRow}>
+              <View style={styles.modalFigureColumn}>
+                <Text style={styles.modalFigureLabel}>In Custody</Text>
+                <Text style={styles.modalFigureValue}>{selectedAlert.inCustodyQuantity}</Text>
+              </View>
+              <View style={styles.modalFigureColumn}>
+                <Text style={styles.modalFigureLabel}>Sold</Text>
+                <Text style={styles.modalFigureValue}>{selectedAlert.soldQuantity}</Text>
+              </View>
+              <View style={styles.modalFigureColumn}>
+                <Text style={styles.modalFigureLabel}>Return</Text>
+                <Text style={styles.modalFigureValue}>{selectedAlert.returnQuantity}</Text>
+              </View>
+              <View style={styles.modalFigureColumn}>
+                <Text style={styles.modalFigureLabel}>
+                  {selectedAlert.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+                </Text>
+                <Text style={[styles.modalFigureValue, styles.modalFigureValueFlag]}>
+                  {Math.abs(selectedAlert.discrepancy)}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.modalStatusText}>
+              {selectedAlert.resolutionStatus === 'resolved'
+                ? 'This discrepancy has been settled.'
+                : selectedAlert.latestRequest?.status === 'pending'
+                ? 'A return request from this Sales Rep is pending your review in Reports & Returns.'
+                : 'No return request has been submitted for this discrepancy yet.'}
+            </Text>
+          </ScrollView>
+        )}
+      </CustomModal>
     </>
   );
 }
@@ -183,6 +245,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
@@ -205,6 +268,35 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#EF4444',
+  },
+  sortRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F3F6',
+    borderRadius: 999,
+    padding: 3,
+  },
+  sortPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  sortPillActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  sortPillText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: COLORS.textSecondary,
+  },
+  sortPillTextActive: {
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  emptyText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
   },
   alertsList: {
     gap: 16,
@@ -287,6 +379,20 @@ const styles = StyleSheet.create({
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
+  settledTag: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    color: '#1E7A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  pendingTag: {
+    marginLeft: 'auto',
+    fontSize: 10,
+    color: '#B26400',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
   figuresRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -304,5 +410,58 @@ const styles = StyleSheet.create({
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+  },
+  modalTitle: {
+    fontSize: 17,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  modalMeta: {
+    fontSize: 11,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  modalFiguresRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  modalFigureColumn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  modalFigureLabel: {
+    fontSize: 10,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginBottom: 4,
+  },
+  modalFigureValue: {
+    fontSize: 16,
+    color: '#03045E',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  modalFigureValueFlag: {
+    color: '#B91C1C',
+  },
+  modalStatusText: {
+    fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    lineHeight: 18,
   },
 });

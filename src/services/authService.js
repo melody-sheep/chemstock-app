@@ -276,7 +276,54 @@ class AuthService extends BaseService {
       if (!session) {
         // No active Supabase session — fall back to a persisted agent session.
         const agentUser = await storage.get(AGENT_SESSION_KEY);
-        return agentUser;
+        if (!agentUser) {
+          return agentUser;
+        }
+
+        // Agents have no real Supabase Auth session to key a fresh fetch
+        // off of, so their profile — branch_ids especially — was previously
+        // only ever captured once at login and cached forever. Re-verify
+        // against the DB on every call instead, degrading gracefully to the
+        // cached copy if the agent is offline or the refresh fails, rather
+        // than breaking or force-logging-out an otherwise-working session.
+        debugLog('info', 'AuthService', 'Refreshing agent profile', { agentId: agentUser.id, cachedBranchIds: agentUser.branchIds });
+        try {
+          const { data: freshProfile, error: refreshError } = await supabase.rpc('get_agent_profile', {
+            p_agent_id: agentUser.id,
+          });
+
+          if (refreshError) {
+            console.error('[ERROR] [AuthService] Agent profile refresh error:', refreshError);
+            return agentUser;
+          }
+
+          debugLog('info', 'AuthService', 'Agent profile refresh RPC result', { freshProfile });
+
+          if (!freshProfile) {
+            // Agent no longer exists or is no longer sales_rep/collector —
+            // keep the cached session rather than abruptly logging them out.
+            console.warn('[WARN] [AuthService] get_agent_profile returned no row for agent id', agentUser.id);
+            return agentUser;
+          }
+
+          const branchName = await this._fetchBranchNames(freshProfile.branch_ids);
+          const refreshedUser = {
+            ...agentUser,
+            username: freshProfile.username,
+            full_name: freshProfile.full_name,
+            role: freshProfile.role,
+            branchIds: freshProfile.branch_ids || [],
+            branchName,
+          };
+
+          debugLog('info', 'AuthService', 'Agent profile refreshed', { branchIds: refreshedUser.branchIds, branchName: refreshedUser.branchName });
+
+          await storage.set(AGENT_SESSION_KEY, refreshedUser);
+          return refreshedUser;
+        } catch (refreshException) {
+          console.error('[ERROR] [AuthService] Agent profile refresh failed:', refreshException);
+          return agentUser;
+        }
       }
 
       const { data: profile } = await supabase

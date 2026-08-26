@@ -1,73 +1,60 @@
 // src/screens/salesrep/ReturnStocksSR.js
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
+import CustomModal from '../../components/common/Modal';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { COLORS } from '../../constants/colors';
+import authService from '../../services/authService';
+import reportService from '../../services/reportService';
+import { supabase } from '../../services/supabaseClient';
+import { formatRelativeTime } from '../../utils/formatters';
 
-const INITIAL_ITEMS = [
-  {
-    id: 'A',
-    code: 'Product A Code Name',
-    fullName: 'Product  A Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 20,
-    qty: 1,
-    condition: 'salable',
-  },
-  {
-    id: 'B',
-    code: 'Product B Code Name',
-    fullName: 'Product  B Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 15,
-    qty: 2,
-    condition: 'salable',
-  },
-  {
-    id: 'C',
-    code: 'Product C Code Name',
-    fullName: 'Product  C Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 15,
-    qty: 1,
-    condition: 'damaged',
-  },
-];
+// Read-only status list of this SR's own return/resolve-discrepancy
+// requests. The submission form itself lives on ResolveDiscrepancyScreen,
+// reached only from a pending item on AlertsDiscrepanciesSR.
+const STATUS_META = {
+  pending: { label: 'Pending', bg: '#FFF1D6', text: '#B26400' },
+  accepted: { label: 'Accepted', bg: '#EAFBF2', text: '#1E7A3A' },
+  rejected: { label: 'Rejected', bg: '#FBDCDC', text: '#B91C1C' },
+};
+
+const SHIPMENT_BUCKET = 'shipment-media';
 
 export default function ReturnStocksSR() {
   const navigation = useNavigation();
-  const [items, setItems] = useState(INITIAL_ITEMS);
-  const [photoTaken, setPhotoTaken] = useState(false);
+  const [requests, setRequests] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+
+  const loadRequests = useCallback(async () => {
+    setIsLoading(true);
+    const agent = await authService.getCurrentUser();
+    const result = await reportService.getMyReturnRequests(agent?.id, 50);
+    setRequests(result.success ? result.data : []);
+    setIsLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadRequests();
+    }, [loadRequests])
+  );
 
   const handleBack = () => navigation.goBack();
 
-  const adjustQty = (id, delta) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, qty: Math.max(0, Math.min(item.inCustody, item.qty + delta)) }
-          : item
-      )
-    );
-  };
-
-  const setCondition = (id, condition) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, condition } : item)));
-  };
-
-  const handleTakePhoto = () => {
-    setPhotoTaken(true);
-    Alert.alert('Photo Proof', 'This will open the camera to capture proof of the return batch.');
-  };
-
-  const handleSubmit = () => {
-    if (!photoTaken) {
-      Alert.alert('Photo Required', 'Please take a photo proof before submitting the return.');
-      return;
+  const handleOpenRequest = async (request) => {
+    setSelectedRequest(request);
+    setPhotoUrl(null);
+    if (request.media?.storagePath) {
+      const { data } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .createSignedUrl(request.media.storagePath, 60 * 10);
+      setPhotoUrl(data?.signedUrl || null);
     }
-    Alert.alert('Return Submitted', 'A return manifest QR code has been generated and sent to the branch manager.');
   };
 
   return (
@@ -86,113 +73,97 @@ export default function ReturnStocksSR() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.sectionHeaderPanel}>
-            <Text style={styles.sectionLabel}>Active Return Batch</Text>
-            <View style={styles.infoColumn}>
-              <View style={styles.infoRowRounded}>
-                <Text style={styles.infoLabel}>Batch ID</Text>
-                <Text style={styles.infoValue}>RTN-2026-0522-IPN</Text>
-              </View>
-              <View style={styles.infoRowRounded}>
-                <Text style={styles.infoLabel}>Target Branch</Text>
-                <Text style={styles.infoValue}>Regency II, Iponan, CDO</Text>
-              </View>
-            </View>
+        {isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
-
-          <View style={styles.itemsList}>
-            {items.map((item) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemTopRow}>
-                  <View style={styles.thumbnail}>
-                    <Icon name="package" size={26} color="#94a3b8" />
-                  </View>
-
-                  <View style={styles.itemDetails}>
-                    <Text style={styles.itemCode} numberOfLines={1}>{item.code}</Text>
-                    <Text style={styles.itemFullName} numberOfLines={1}>{item.fullName}</Text>
-                    <Text style={styles.itemMeta}>Date given: {item.dateGiven}</Text>
-                    <Text style={styles.itemMeta}>In Custody: {item.inCustody}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.controlRow}>
-                  <View style={styles.counterGroup}>
-                    <Pressable style={styles.counterButton} onPress={() => adjustQty(item.id, -1)}>
-                      <Icon name="minus" size={14} color="#03045E" />
-                    </Pressable>
-                    <Text style={styles.counterValue}>{item.qty}</Text>
-                    <Pressable style={styles.counterButton} onPress={() => adjustQty(item.id, 1)}>
-                      <Icon name="plus" size={14} color="#03045E" />
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.conditionGroup}>
-                    <Text style={styles.conditionLabel}>Condition:</Text>
-                    <Pressable
-                      style={[styles.conditionPill, item.condition === 'salable' && styles.conditionPillSalableActive]}
-                      onPress={() => setCondition(item.id, 'salable')}
-                    >
-                      <Text style={[styles.conditionPillText, item.condition === 'salable' && styles.conditionPillTextSalableActive]}>
-                        Salable
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.conditionPill, item.condition === 'damaged' && styles.conditionPillDamagedActive]}
-                      onPress={() => setCondition(item.id, 'damaged')}
-                    >
-                      <Text style={[styles.conditionPillText, item.condition === 'damaged' && styles.conditionPillTextDamagedActive]}>
-                        Damaged
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            ))}
+        ) : requests.length === 0 ? (
+          <View style={styles.loadingWrap}>
+            <Icon name="returnBox" size={32} color={COLORS.textSecondary} />
+            <Text style={styles.emptyText}>No return requests yet.</Text>
+            <Text style={styles.emptySubtext}>
+              Requests you send from a discrepancy alert will show up here.
+            </Text>
           </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {requests.map((request) => {
+              const meta = STATUS_META[request.status] || STATUS_META.pending;
 
-          <Pressable style={styles.photoCard} onPress={handleTakePhoto}>
-            <Text style={styles.listTitle}>Photo Proof</Text>
-            <View style={styles.photoPlaceholder}>
-              <Icon name="camera" size={36} color="#03045E" />
-              <Text style={styles.photoText}>
-                {photoTaken ? 'Photo captured' : 'Tap to capture proof of return'}
-              </Text>
-            </View>
-          </Pressable>
+              return (
+                <Pressable
+                  key={request.resolutionRequestId}
+                  style={styles.requestCard}
+                  onPress={() => handleOpenRequest(request)}
+                >
+                  <View style={styles.requestTopRow}>
+                    <View style={styles.thumbnail}>
+                      <Icon name="package" size={24} color="#94a3b8" />
+                    </View>
 
-          <View style={styles.locationCard}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="location" size={18} color="#F04D59" />
-                <Text style={styles.detailLabel}>GPS</Text>
-              </View>
-              <Text style={styles.detailValue}>14.5995°N, 120.9842°E</Text>
-            </View>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="package" size={18} color="#03045E" />
-                <Text style={styles.detailLabel}>Branch</Text>
-              </View>
-              <Text style={styles.detailValue}>Regency II, Iponan</Text>
-            </View>
-            <View style={[styles.locationRow, styles.lastLocationRow]}>
-              <View style={styles.locationLeft}>
-                <Icon name="clock" size={18} color="#00B4D8" />
-                <Text style={styles.detailLabel}>Time</Text>
-              </View>
-              <Text style={styles.detailValue}>May 20, 2024 | 02:30 PM</Text>
-            </View>
-          </View>
-        </ScrollView>
+                    <View style={styles.requestDetails}>
+                      <Text style={styles.requestCode} numberOfLines={1}>{request.productCode}</Text>
+                      <Text style={styles.requestName} numberOfLines={1}>{request.productName}</Text>
+                      <Text style={styles.requestMeta}>Sent {formatRelativeTime(request.createdAt)}</Text>
+                    </View>
 
-        <View style={styles.footer}>
-          <Pressable style={styles.primaryButton} onPress={handleSubmit}>
-            <Text style={styles.primaryButtonText}>Generate QR and Submit Return</Text>
-          </Pressable>
-        </View>
+                    <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
+                      <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
+                    </View>
+                  </View>
+
+                  {request.status === 'rejected' && request.rejectReason && (
+                    <Text style={styles.rejectReasonText}>Reason: {request.rejectReason}</Text>
+                  )}
+                </Pressable>
+              );
+            })}
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        )}
       </View>
+
+      <CustomModal visible={!!selectedRequest} onClose={() => setSelectedRequest(null)} height={520}>
+        {selectedRequest && (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalTitle}>{selectedRequest.productCode}</Text>
+            <Text style={styles.modalSubtitle}>{selectedRequest.productName}</Text>
+
+            <View style={styles.modalStatusRow}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: (STATUS_META[selectedRequest.status] || STATUS_META.pending).bg },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    { color: (STATUS_META[selectedRequest.status] || STATUS_META.pending).text },
+                  ]}
+                >
+                  {(STATUS_META[selectedRequest.status] || STATUS_META.pending).label}
+                </Text>
+              </View>
+              <Text style={styles.modalMeta}>Discrepancy: {Math.abs(selectedRequest.discrepancy)} units</Text>
+            </View>
+
+            {selectedRequest.status === 'rejected' && selectedRequest.rejectReason && (
+              <Text style={styles.rejectReasonText}>Reason: {selectedRequest.rejectReason}</Text>
+            )}
+
+            {photoUrl && (
+              <Image source={{ uri: photoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+            )}
+
+            {selectedRequest.gps && (
+              <Text style={styles.modalMeta}>
+                GPS: {selectedRequest.gps.latitude.toFixed(4)}, {selectedRequest.gps.longitude.toFixed(4)}
+              </Text>
+            )}
+          </ScrollView>
+        )}
+      </CustomModal>
     </>
   );
 }
@@ -225,250 +196,102 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 8,
   },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 24 },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  emptySubtext: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
+    gap: 12,
   },
-  sectionHeaderPanel: {
-    backgroundColor: '#F7FEFF',
-    borderWidth: 0.5,
-    borderColor: '#4CF294',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 18,
-  },
-  sectionLabel: {
-    fontSize: 18,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  infoColumn: {
-    marginTop: 10,
-    gap: 8,
-  },
-  infoRowRounded: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#EDEFF3',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-  infoValue: {
-    fontSize: 13,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  itemsList: {
-    gap: 16,
-    marginBottom: 18,
-  },
-  itemCard: {
+  requestCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
     borderRadius: 14,
     padding: 12,
   },
-  itemTopRow: {
+  requestTopRow: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
   thumbnail: {
-    width: 60,
-    height: 68,
+    width: 52,
+    height: 58,
     borderRadius: 10,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  itemDetails: {
+  requestDetails: {
     flex: 1,
   },
-  itemCode: {
-    fontSize: 15,
+  requestCode: {
+    fontSize: 14,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
-  itemFullName: {
+  requestName: {
     fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
-  itemMeta: {
+  requestMeta: {
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 4,
   },
-  controlRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  counterGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#DBE4EE',
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  counterButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F1F3F6',
-  },
-  counterValue: {
-    minWidth: 32,
-    textAlign: 'center',
-    fontSize: 13,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  conditionGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  conditionLabel: {
-    fontSize: 11,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    marginRight: 2,
-  },
-  conditionPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#DBE4EE',
-    backgroundColor: '#FFFFFF',
-  },
-  conditionPillSalableActive: {
-    backgroundColor: '#EAFBF2',
-    borderColor: '#22C55E',
-  },
-  conditionPillDamagedActive: {
-    backgroundColor: '#FBDCDC',
-    borderColor: '#EF4444',
-  },
-  conditionPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    color: '#555353',
-  },
-  conditionPillTextSalableActive: {
-    color: '#1E7A3A',
-  },
-  conditionPillTextDamagedActive: {
+  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadgeText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  rejectReasonText: {
+    marginTop: 8,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: '#B91C1C',
   },
-  photoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 18,
-  },
-  listTitle: {
+  modalTitle: {
+    fontSize: 17,
     color: '#272632',
-    fontSize: 18,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-    marginBottom: 10,
   },
-  photoPlaceholder: {
-    borderWidth: 1.5,
-    borderColor: '#D7E3F1',
-    borderStyle: 'dashed',
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    height: 110,
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  modalStatusRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 12,
   },
-  photoText: {
+  modalMeta: {
+    fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 8,
-    color: '#555353',
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
-  locationCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF2F7',
-  },
-  lastLocationRow: {
-    borderBottomWidth: 0,
-  },
-  locationLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  detailLabel: {
-    color: '#555353',
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-  detailValue: {
-    color: '#272632',
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 24,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
-  },
-  primaryButton: {
-    backgroundColor: '#03045E',
-    borderRadius: 12,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+  modalPhoto: {
+    width: '100%',
+    height: 220,
+    borderRadius: 14,
+    marginTop: 12,
   },
 });

@@ -1,84 +1,102 @@
 // src/screens/manager/ReturnStockVerifyScreen.js
-import React from 'react';
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
+import CustomModal from '../../components/common/Modal';
+import Button from '../../components/common/Button';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import reportService from '../../services/reportService';
+import { supabase } from '../../services/supabaseClient';
+import { formatDisplayDate, formatDateTime } from '../../utils/formatters';
 
-const GOOD_CONDITION_ITEMS = [
-  {
-    id: 'A',
-    code: 'Product A Code Name',
-    fullName: 'Product  A Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 20,
-    qty: 1,
-  },
-  {
-    id: 'B',
-    code: 'Product B Code Name',
-    fullName: 'Product  B Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 15,
-    qty: 2,
-  },
-];
-
-const DAMAGED_CONDITION_ITEMS = [
-  {
-    id: 'C',
-    code: 'Product C Code Name',
-    fullName: 'Product  C Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 15,
-    qty: 1,
-  },
-];
+const SHIPMENT_BUCKET = 'shipment-media';
 
 export default function ReturnStockVerifyScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const returnRequest = route.params?.returnRequest || {
-    repName: 'Jay Dela Cruz',
-    batchId: 'RTN-2026-0522-IPN',
-  };
+  const returnRequest = route.params?.returnRequest;
+
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPhoto() {
+      if (!returnRequest?.media?.storagePath) return;
+      const { data } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .createSignedUrl(returnRequest.media.storagePath, 60 * 10);
+      if (!cancelled) setPhotoUrl(data?.signedUrl || null);
+    }
+    loadPhoto();
+    return () => {
+      cancelled = true;
+    };
+  }, [returnRequest?.media?.storagePath]);
+
+  if (!returnRequest) {
+    return (
+      <View style={styles.container}>
+        <Header
+          showBackButton
+          backButtonText="Reports & Returns"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+        />
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyText}>This return request could not be loaded.</Text>
+        </View>
+      </View>
+    );
+  }
 
   const handleApprove = () => {
     Alert.alert(
       'Approve Return',
-      `This will restock the verified items and close batch ${returnRequest.batchId}.`,
+      `This will restock ${Math.abs(returnRequest.discrepancy)} unit(s) of ${returnRequest.productCode} into branch inventory.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Approve', onPress: () => navigation.goBack() },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            setIsSubmitting(true);
+            const result = await reportService.acceptDiscrepancyResolution(returnRequest.resolutionRequestId);
+            setIsSubmitting(false);
+            if (!result.success) {
+              Alert.alert('Failed', result.message || 'Could not approve this return.');
+              return;
+            }
+            navigation.goBack();
+          },
+        },
       ]
     );
   };
 
-  const renderItem = (item, tone) => (
-    <View key={item.id} style={styles.itemCard}>
-      <View style={styles.thumbnail}>
-        <Icon name="package" size={24} color="#94a3b8" />
-      </View>
-
-      <View style={styles.itemDetails}>
-        <Text style={styles.itemCode} numberOfLines={1}>{item.code}</Text>
-        <Text style={styles.itemFullName} numberOfLines={1}>{item.fullName}</Text>
-        <Text style={styles.itemMeta}>Date given: {item.dateGiven}</Text>
-        <Text style={styles.itemMeta}>In Custody: {item.inCustody}</Text>
-      </View>
-
-      <View style={[styles.qtyBadge, tone === 'good' ? styles.qtyBadgeGood : styles.qtyBadgeDamaged]}>
-        <Text style={[styles.qtyBadgeText, tone === 'good' ? styles.qtyBadgeTextGood : styles.qtyBadgeTextDamaged]}>
-          {item.qty}
-        </Text>
-      </View>
-    </View>
-  );
+  const handleReject = async () => {
+    setIsSubmitting(true);
+    const result = await reportService.rejectDiscrepancyResolution(
+      returnRequest.resolutionRequestId,
+      rejectReason.trim() || null
+    );
+    setIsSubmitting(false);
+    setIsRejectModalVisible(false);
+    if (!result.success) {
+      Alert.alert('Failed', result.message || 'Could not reject this return.');
+      return;
+    }
+    navigation.goBack();
+  };
 
   return (
     <>
@@ -86,7 +104,7 @@ export default function ReturnStockVerifyScreen() {
       <View style={styles.container}>
         <Header
           showBackButton
-          backButtonText="Return Stocks"
+          backButtonText="Reports & Returns"
           showDocumentIcon
           onDocumentPress={() => navigation.navigate('StockLogs')}
           height={56}
@@ -106,67 +124,81 @@ export default function ReturnStockVerifyScreen() {
             </View>
             <Text style={styles.verificationLine}>
               <Text style={styles.verificationLabel}>Sales Rep: </Text>
-              {returnRequest.repName}
+              {returnRequest.agentName}
             </Text>
             <Text style={styles.verificationLine}>
-              <Text style={styles.verificationLabel}>Batch ID: </Text>
-              {returnRequest.batchId}
+              <Text style={styles.verificationLabel}>Report Date: </Text>
+              {formatDisplayDate(returnRequest.reportDate)}
             </Text>
           </View>
         </SecondaryHeader>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Review Good Condition Stock</Text>
-            <View style={[styles.statusDot, { backgroundColor: '#22C55E' }]} />
-          </View>
-          <View style={styles.itemsList}>
-            {GOOD_CONDITION_ITEMS.map((item) => renderItem(item, 'good'))}
+            <Text style={styles.sectionTitle}>Discrepancy Detail</Text>
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: returnRequest.discrepancy < 0 ? '#EF4444' : '#B26400' },
+              ]}
+            />
           </View>
 
-          <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
-            <Text style={styles.sectionTitle}>Review Damaged Condition Stock</Text>
-            <View style={[styles.statusDot, { backgroundColor: '#EF4444' }]} />
-          </View>
-          <View style={styles.itemsList}>
-            {DAMAGED_CONDITION_ITEMS.map((item) => renderItem(item, 'damaged'))}
+          <View style={styles.itemCard}>
+            <View style={styles.thumbnail}>
+              <Icon name="package" size={24} color="#94a3b8" />
+            </View>
+
+            <View style={styles.itemDetails}>
+              <Text style={styles.itemCode} numberOfLines={1}>{returnRequest.productCode}</Text>
+              <Text style={styles.itemFullName} numberOfLines={1}>{returnRequest.productName}</Text>
+            </View>
+
+            <View style={[styles.qtyBadge, returnRequest.discrepancy < 0 ? styles.qtyBadgeDamaged : styles.qtyBadgeGood]}>
+              <Text style={[styles.qtyBadgeText, returnRequest.discrepancy < 0 ? styles.qtyBadgeTextDamaged : styles.qtyBadgeTextGood]}>
+                {Math.abs(returnRequest.discrepancy)}
+              </Text>
+            </View>
           </View>
 
           <Text style={[styles.listTitle, styles.sectionSpacing]}>Photo Proof</Text>
           <View style={styles.photoCard}>
-            <View style={styles.thumbnailLarge}>
-              <Icon name="package" size={40} color="#D8DEE8" />
-            </View>
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.photoLarge} resizeMode="cover" />
+            ) : (
+              <View style={styles.thumbnailLarge}>
+                <Icon name="package" size={40} color="#D8DEE8" />
+              </View>
+            )}
           </View>
 
           <View style={styles.locationCard}>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="location" size={18} color="#F04D59" />
-                <Text style={styles.detailLabel}>GPS</Text>
+            {returnRequest.gps && (
+              <View style={styles.locationRow}>
+                <View style={styles.locationLeft}>
+                  <Icon name="location" size={18} color="#F04D59" />
+                  <Text style={styles.detailLabel}>GPS</Text>
+                </View>
+                <Text style={styles.detailValue}>
+                  {returnRequest.gps.latitude.toFixed(4)}°, {returnRequest.gps.longitude.toFixed(4)}°
+                </Text>
               </View>
-              <Text style={styles.detailValue}>14.5995°N, 120.9842°E</Text>
-            </View>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="package" size={18} color="#03045E" />
-                <Text style={styles.detailLabel}>Branch</Text>
+            )}
+            {returnRequest.media?.deviceModel && (
+              <View style={styles.locationRow}>
+                <View style={styles.locationLeft}>
+                  <Icon name="moreVertical" size={18} color="#00B4D8" />
+                  <Text style={styles.detailLabel}>Device</Text>
+                </View>
+                <Text style={styles.detailValue}>{returnRequest.media.deviceModel}</Text>
               </View>
-              <Text style={styles.detailValue}>Regency II, Iponan</Text>
-            </View>
-            <View style={styles.locationRow}>
-              <View style={styles.locationLeft}>
-                <Icon name="moreVertical" size={18} color="#00B4D8" />
-                <Text style={styles.detailLabel}>Device</Text>
-              </View>
-              <Text style={styles.detailValue}>Infinix Zero 30 5G</Text>
-            </View>
+            )}
             <View style={[styles.locationRow, styles.lastLocationRow]}>
               <View style={styles.locationLeft}>
                 <Icon name="clock" size={18} color="#00B4D8" />
-                <Text style={styles.detailLabel}>Time</Text>
+                <Text style={styles.detailLabel}>Requested</Text>
               </View>
-              <Text style={styles.detailValue}>May 20, 2024 | 02:30 PM</Text>
+              <Text style={styles.detailValue}>{formatDateTime(new Date(returnRequest.createdAt))}</Text>
             </View>
           </View>
 
@@ -174,17 +206,52 @@ export default function ReturnStockVerifyScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <Pressable style={styles.primaryButton} onPress={handleApprove}>
-            <Text style={styles.primaryButtonText}>Approve Return</Text>
-          </Pressable>
+          <View style={styles.footerRow}>
+            <Pressable
+              style={[styles.rejectButton, isSubmitting && styles.buttonDisabled]}
+              onPress={() => setIsRejectModalVisible(true)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+              onPress={handleApprove}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.primaryButtonText}>Approve Return</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
+
+      <CustomModal visible={isRejectModalVisible} onClose={() => setIsRejectModalVisible(false)} height={320}>
+        <Text style={styles.modalTitle}>Reject Return Request</Text>
+        <Text style={styles.modalSubtitle}>
+          Optionally let {returnRequest.agentName} know why — they can resubmit after this.
+        </Text>
+        <TextInput
+          style={styles.reasonInput}
+          placeholder="Reason (optional)"
+          value={rejectReason}
+          onChangeText={setRejectReason}
+          multiline
+        />
+        <Button title="Confirm Reject" variant="black" onPress={handleReject} disabled={isSubmitting} style={{ marginTop: SPACING.md }} />
+      </CustomModal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  emptyText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   verificationHeader: {
     flex: 1,
     justifyContent: 'center',
@@ -245,9 +312,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  itemsList: {
-    gap: 12,
-  },
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -279,12 +343,6 @@ const styles = StyleSheet.create({
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
-  },
-  itemMeta: {
-    fontSize: 10,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 3,
   },
   qtyBadge: {
     width: 32,
@@ -330,6 +388,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  photoLarge: {
+    width: '100%',
+    height: 220,
+    borderRadius: 12,
+  },
   locationCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -373,7 +436,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
   },
+  footerRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   primaryButton: {
+    flex: 1,
     backgroundColor: '#03045E',
     borderRadius: 12,
     height: 52,
@@ -385,5 +456,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+  },
+  rejectButtonText: {
+    color: '#B91C1C',
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  modalTitle: {
+    fontSize: 17,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: '#DBE4EE',
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 90,
+    textAlignVertical: 'top',
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: '#272632',
   },
 });

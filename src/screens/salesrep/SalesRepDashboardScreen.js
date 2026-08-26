@@ -99,7 +99,9 @@ export default function SalesRepDashboardScreen() {
     ]);
 
     if (inventoryResult.success) {
-      setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.quantity, 0));
+      // remaining_quantity (current custody), not quantity (originally
+      // received) — see SalesRepStockScreen.js for the full explanation.
+      setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0));
     }
     const requests = requestsResult.success ? requestsResult.data : [];
     setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);

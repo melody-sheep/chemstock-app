@@ -46,7 +46,7 @@ export default function RequestStockSR() {
   // pattern ManagerStockScreen already uses for branch_inventory, just with
   // 3 buckets since "0 units" is a meaningful, requestable state here too.
   const qtyByCode = stock.reduce((map, row) => {
-    map[row.product_code] = (map[row.product_code] || 0) + row.quantity;
+    map[row.product_code] = (map[row.product_code] || 0) + row.remaining_quantity;
     return map;
   }, {});
 

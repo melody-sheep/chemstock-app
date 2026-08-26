@@ -433,6 +433,40 @@ class InventoryService extends BaseService {
   }
 
   /**
+   * Uploads a Sales Rep's discrepancy-resolution ("return stock") proof
+   * photo. Same anon-agent path-prefix pattern as uploadStockAcceptancePhoto,
+   * distinct prefix/policy (2026-08-26_sr_daily_reports_and_returns.sql).
+   * @returns {Promise<string>} the storage path (not a public URL)
+   */
+  async uploadDiscrepancyPhoto(uri, agentId) {
+    debugLog('info', 'InventoryService', 'Uploading discrepancy resolution photo', { agentId });
+
+    try {
+      this.validateRequired(['uri', 'agentId'], { uri, agentId });
+
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = base64ToUint8Array(base64);
+      const path = `sr-discrepancy-resolutions/${agentId}/${Date.now()}.jpg`;
+
+      const { error } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .upload(path, bytes, { contentType: 'image/jpeg' });
+
+      if (error) {
+        console.error('[ERROR] [InventoryService] Discrepancy resolution photo upload failed:', error);
+        throw new Error(error.message || 'Failed to upload photo');
+      }
+
+      return path;
+    } catch (error) {
+      this.log('error', 'uploadDiscrepancyPhoto failed', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
    * Looks up a release transaction by its QR code, agent-side. Sales Reps/
    * Collectors have no Supabase Auth session (auth.uid() is always null for
    * them), so this can't be a plain RLS-gated `.from().select()` like the

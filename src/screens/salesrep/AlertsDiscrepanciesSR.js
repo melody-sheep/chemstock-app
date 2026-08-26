@@ -1,54 +1,159 @@
 // src/screens/salesrep/AlertsDiscrepanciesSR.js
-import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
-
-const PENDING_ITEMS = [
-  {
-    id: 'C',
-    code: 'Product C Code Name',
-    fullName: 'Product  C Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: 15,
-    released: 15,
-    sold: 13,
-    returned: 1,
-    missing: 1,
-  },
-];
-
-const SETTLED_ITEMS = [
-  {
-    id: 'X1',
-    code: 'Product [x] Code Name',
-    fullName: 'Product  [x] Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: '[x]',
-    released: '[x]',
-    sold: '[x]',
-    returned: '[x]',
-    missing: '[x]',
-  },
-  {
-    id: 'X2',
-    code: 'Product [x] Code Name',
-    fullName: 'Product  [x] Full Product Name',
-    dateGiven: 'mm - dd - yyyy',
-    inCustody: '[x]',
-    released: '[x]',
-    sold: '[x]',
-    returned: '[x]',
-    missing: '[x]',
-  },
-];
+import { COLORS } from '../../constants/colors';
+import authService from '../../services/authService';
+import reportService from '../../services/reportService';
 
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
+  const [discrepancies, setDiscrepancies] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadDiscrepancies = useCallback(async () => {
+    setIsLoading(true);
+    const agent = await authService.getCurrentUser();
+    const result = await reportService.getMyDiscrepancies(agent?.id, 50);
+    setDiscrepancies(result.success ? result.data : []);
+    setIsLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDiscrepancies();
+    }, [loadDiscrepancies])
+  );
 
   const handleBack = () => navigation.goBack();
+
+  const pendingItems = discrepancies.filter((d) => d.resolutionStatus === 'open');
+  const settledItems = discrepancies.filter((d) => d.resolutionStatus === 'resolved');
+
+  const renderPendingCard = (item) => (
+    <Pressable
+      key={item.reportItemId}
+      style={styles.itemCard}
+      onPress={() => navigation.navigate('ResolveDiscrepancy', { reportItem: item })}
+    >
+      <View style={styles.itemTopRow}>
+        <View style={styles.thumbnailWrap}>
+          <View style={styles.thumbnail}>
+            <Icon name="package" size={26} color="#94a3b8" />
+          </View>
+          <View style={styles.warningIconWrap}>
+            <Icon name="warningTriangle" size={16} color="#F04D59" weight="fill" />
+          </View>
+        </View>
+
+        <View style={styles.itemDetails}>
+          <View style={styles.itemNameRow}>
+            <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
+            <View style={item.discrepancyType === 'loss' ? styles.missingBadge : styles.overBadge}>
+              <Text style={styles.missingBadgeText}>
+                {Math.abs(item.discrepancy)} {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+          <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+          {item.latestRequest?.status === 'pending' && (
+            <Text style={styles.pendingRequestText}>Return request pending manager review</Text>
+          )}
+          {item.latestRequest?.status === 'rejected' && (
+            <Text style={styles.rejectedRequestText}>
+              Last request rejected{item.latestRequest.rejectReason ? `: ${item.latestRequest.rejectReason}` : ''} — tap to resubmit
+            </Text>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.figuresRow}>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Released</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.inCustodyQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Sold</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.soldQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Return</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.returnQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={[styles.figureLabel, styles.missingLabel]}>
+            {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+          </Text>
+          <View style={[styles.figureBox, styles.figureBoxError]}>
+            <Text style={[styles.figureValue, styles.figureValueError]}>{Math.abs(item.discrepancy)}</Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+
+  const renderSettledCard = (item) => (
+    <View key={item.reportItemId} style={styles.itemCard}>
+      <View style={styles.itemTopRow}>
+        <View style={styles.thumbnailWrap}>
+          <View style={styles.thumbnail}>
+            <Icon name="package" size={26} color="#94a3b8" />
+          </View>
+          <View style={styles.settledIconWrap}>
+            <Icon name="checkmark" size={13} color="#FFFFFF" weight="bold" />
+          </View>
+        </View>
+
+        <View style={styles.itemDetails}>
+          <View style={styles.itemNameRow}>
+            <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
+            <View style={styles.settledBadge}>
+              <Text style={styles.settledBadgeText}>Settled</Text>
+            </View>
+          </View>
+          <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+          <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+        </View>
+      </View>
+
+      <View style={styles.figuresRow}>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Released</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.inCustodyQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Sold</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.soldQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>Return</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{item.returnQuantity}</Text>
+          </View>
+        </View>
+        <View style={styles.figureColumn}>
+          <Text style={styles.figureLabel}>{item.discrepancyType === 'loss' ? 'Missing' : 'Over'}</Text>
+          <View style={styles.figureBox}>
+            <Text style={styles.figureValue}>{Math.abs(item.discrepancy)}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <>
@@ -74,129 +179,35 @@ export default function AlertsDiscrepanciesSR() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Pending</Text>
-            <View style={styles.pendingDot} />
+        {isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Pending</Text>
+              <View style={styles.pendingDot} />
+            </View>
 
-          <View style={styles.itemsList}>
-            {PENDING_ITEMS.map((item) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemTopRow}>
-                  <View style={styles.thumbnailWrap}>
-                    <View style={styles.thumbnail}>
-                      <Icon name="package" size={26} color="#94a3b8" />
-                    </View>
-                    <View style={styles.warningIconWrap}>
-                      <Icon name="warningTriangle" size={16} color="#F04D59" weight="fill" />
-                    </View>
-                  </View>
+            {pendingItems.length === 0 ? (
+              <Text style={styles.emptyText}>No pending discrepancies. Nice work!</Text>
+            ) : (
+              <View style={styles.itemsList}>{pendingItems.map(renderPendingCard)}</View>
+            )}
 
-                  <View style={styles.itemDetails}>
-                    <View style={styles.itemNameRow}>
-                      <Text style={styles.itemCode} numberOfLines={1}>{item.code}</Text>
-                      <View style={styles.missingBadge}>
-                        <Text style={styles.missingBadgeText}>{item.missing} Missing</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.itemFullName} numberOfLines={1}>{item.fullName}</Text>
-                    <Text style={styles.itemMeta}>Date given: {item.dateGiven}</Text>
-                    <Text style={styles.itemMeta}>In Custody: {item.inCustody}</Text>
-                  </View>
-                </View>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Settled</Text>
+              <View style={styles.settledDot} />
+            </View>
 
-                <View style={styles.figuresRow}>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Released</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.released}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Sold</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.sold}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Return</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.returned}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={[styles.figureLabel, styles.missingLabel]}>Missing</Text>
-                    <View style={[styles.figureBox, styles.figureBoxError]}>
-                      <Text style={[styles.figureValue, styles.figureValueError]}>{item.missing}</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Settled</Text>
-            <View style={styles.settledDot} />
-          </View>
-
-          <View style={styles.itemsList}>
-            {SETTLED_ITEMS.map((item) => (
-              <View key={item.id} style={styles.itemCard}>
-                <View style={styles.itemTopRow}>
-                  <View style={styles.thumbnailWrap}>
-                    <View style={styles.thumbnail}>
-                      <Icon name="package" size={26} color="#94a3b8" />
-                    </View>
-                    <View style={styles.settledIconWrap}>
-                      <Icon name="checkmark" size={13} color="#FFFFFF" weight="bold" />
-                    </View>
-                  </View>
-
-                  <View style={styles.itemDetails}>
-                    <View style={styles.itemNameRow}>
-                      <Text style={styles.itemCode} numberOfLines={1}>{item.code}</Text>
-                      <View style={styles.settledBadge}>
-                        <Text style={styles.settledBadgeText}>Settled</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.itemFullName} numberOfLines={1}>{item.fullName}</Text>
-                    <Text style={styles.itemMeta}>Date given: {item.dateGiven}</Text>
-                    <Text style={styles.itemMeta}>In Custody: {item.inCustody}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.figuresRow}>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Released</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.released}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Sold</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.sold}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Return</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.returned}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.figureColumn}>
-                    <Text style={styles.figureLabel}>Missing</Text>
-                    <View style={styles.figureBox}>
-                      <Text style={styles.figureValue}>{item.missing}</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+            {settledItems.length === 0 ? (
+              <Text style={styles.emptyText}>No settled discrepancies yet.</Text>
+            ) : (
+              <View style={styles.itemsList}>{settledItems.map(renderSettledCard)}</View>
+            )}
+          </ScrollView>
+        )}
       </View>
     </>
   );
@@ -269,6 +280,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: 16,
     paddingTop: 18,
@@ -297,6 +309,12 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#22C55E',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    marginBottom: 24,
   },
   itemsList: {
     gap: 16,
@@ -357,6 +375,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  overBadge: {
+    backgroundColor: '#B26400',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
   missingBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
@@ -385,6 +409,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 4,
+  },
+  pendingRequestText: {
+    fontSize: 10,
+    color: '#B26400',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    marginTop: 4,
+  },
+  rejectedRequestText: {
+    fontSize: 10,
+    color: '#B91C1C',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
   },
   figuresRow: {
