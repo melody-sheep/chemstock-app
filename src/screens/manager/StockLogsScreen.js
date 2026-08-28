@@ -172,7 +172,6 @@ export default function StockLogsScreen() {
       <View style={styles.container}>
         <Header
           showBackButton
-          backButtonText="Manager Dashboard"
           title="Transaction Logs"
           height={56}
           backgroundColor="#03045E"

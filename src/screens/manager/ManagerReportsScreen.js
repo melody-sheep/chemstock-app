@@ -267,8 +267,8 @@ export default function ManagerReportsScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         <Header
-          showBackButton
-          backButtonText="Manager Dashboard"
+          title="Report Generation"
+          titleAlign="left"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

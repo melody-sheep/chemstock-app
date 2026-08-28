@@ -68,6 +68,8 @@ export default function ManagerStockScreen() {
       navigation.navigate('ManagerDashboard', undefined, { pop: true });
     } else if (key === 'stock') {
       // already here
+    } else if (key === 'reports') {
+      navigation.navigate('ManagerReports');
     } else if (key === 'settings') {
       navigation.navigate('ManagerSettings');
     } else {
@@ -139,8 +141,8 @@ export default function ManagerStockScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         <Header
-          showBackButton
-          backButtonText="Manager Dashboard"
+          title="Stock Inventory"
+          titleAlign="left"
           showDocumentIcon
           onDocumentPress={handleDocumentPress}
           height={56}

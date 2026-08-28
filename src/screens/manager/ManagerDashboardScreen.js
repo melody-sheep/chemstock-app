@@ -207,6 +207,7 @@ export default function ManagerDashboardScreen() {
         <Header
           showProfileIcon={true}
           onProfilePress={() => navigation.navigate('ManagerSettings')}
+          profilePhotoUrl={user?.profilePhotoUrl}
           title="Manager Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('StockLogs')}

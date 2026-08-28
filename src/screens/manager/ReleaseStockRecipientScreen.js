@@ -7,11 +7,13 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
+import { getInitials } from '../../utils/initials';
 import { ROLES } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -23,13 +25,6 @@ const ROLE_TABS = [
   { key: ROLES.SALES_REP, label: 'Sales Rep', subtitle: 'Handed Directly' },
   { key: ROLES.COLLECTOR, label: 'Collector', subtitle: 'Middleman / Bridge' },
 ];
-
-function getInitials(fullName) {
-  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 export default function ReleaseStockRecipientScreen() {
   const navigation = useNavigation();
@@ -123,6 +118,7 @@ export default function ReleaseStockRecipientScreen() {
     username: agent.username,
     role: agent.role,
     branchName: agent.branchName,
+    profilePhotoUrl: agent.profilePhotoUrl,
   });
 
   const canProceed = isCollectorRole ? !!selectedAgent && !!selectedTargetRep : !!selectedAgent;
@@ -245,9 +241,13 @@ export default function ReleaseStockRecipientScreen() {
                         <Icon name="checkmark" size={10} color="#FFFFFF" />
                       </View>
                     )}
-                    <View style={styles.agentAvatar}>
-                      <Text style={styles.agentAvatarText}>{getInitials(agent.full_name)}</Text>
-                    </View>
+                    <UserAvatar
+                      photoUrl={agent.profilePhotoUrl}
+                      fallbackText={getInitials(agent.full_name)}
+                      size={44}
+                      backgroundColor={COLORS.primaryLight}
+                      fallbackTextColor={COLORS.primary}
+                    />
                     <Text style={styles.agentRoleLabel}>
                       {activeRole === ROLES.SALES_REP ? 'Sales Rep' : 'Collector'}
                     </Text>
@@ -279,9 +279,13 @@ export default function ReleaseStockRecipientScreen() {
                             <Icon name="checkmark" size={10} color="#FFFFFF" />
                           </View>
                         )}
-                        <View style={styles.agentAvatar}>
-                          <Text style={styles.agentAvatarText}>{getInitials(agent.full_name)}</Text>
-                        </View>
+                        <UserAvatar
+                          photoUrl={agent.profilePhotoUrl}
+                          fallbackText={getInitials(agent.full_name)}
+                          size={44}
+                          backgroundColor={COLORS.primaryLight}
+                          fallbackTextColor={COLORS.primary}
+                        />
                         <Text style={styles.agentRoleLabel}>Sales Rep</Text>
                         <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
                       </TouchableOpacity>
@@ -430,20 +434,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
-  },
-  agentAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  agentAvatarText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.primary,
   },
   agentRoleLabel: {
     fontSize: 10,

@@ -4,9 +4,12 @@ import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 're
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
+import Header from '../../components/common/Header';
+import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import authService from '../../services/authService';
+import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
@@ -30,7 +33,6 @@ export default function CollectorSettingsScreen() {
     }, [])
   );
 
-  const handleBack = () => navigation.goBack();
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -74,23 +76,18 @@ export default function CollectorSettingsScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-
-          <Text style={styles.topBarTitle}>Settings</Text>
-
-          <View style={styles.iconButton}>
-            <Icon name="notification" size={20} color="#FFFFFF" />
-          </View>
-        </View>
+        <Header
+          title="Settings"
+          titleAlign="left"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+        />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.profileCard}>
-            <View style={styles.avatarWrap}>
-              <Icon name="person" size={30} color="#94a3b8" />
-            </View>
+            <UserAvatar photoUrl={user?.profilePhotoUrl} size={56} iconName="person" style={styles.avatarWrap} />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>{collectorName}</Text>
               <Text style={styles.profileRole}>Collector</Text>
@@ -99,14 +96,11 @@ export default function CollectorSettingsScreen() {
                 <Text style={styles.profileBranch} numberOfLines={1}>{branchName}</Text>
               </View>
             </View>
-            <Pressable style={styles.editButton} onPress={() => handleComingSoon('Edit Profile')}>
-              <Icon name="notePencil" size={16} color="#03045E" />
-            </Pressable>
           </View>
 
           <Text style={styles.sectionLabel}>Account</Text>
           <View style={styles.groupCard}>
-            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Edit Profile')}>
+            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('EditProfile')}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
                   <Icon name="idCard" size={18} color="#03045E" />
@@ -246,7 +240,7 @@ export default function CollectorSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} fabIcon="truck" />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} fabIcon="truck" hiddenKeys={['stock', 'reports']} />
       </View>
 
       <ConfirmationDialog
@@ -266,29 +260,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
   },
   content: {
     paddingHorizontal: 16,
@@ -338,14 +309,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-  },
-  editButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#EDEBFF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sectionLabel: {
     fontSize: 13,

@@ -5,9 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
+import Header from '../../components/common/Header';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { formatDisplayDate } from '../../utils/formatters';
@@ -41,7 +43,6 @@ export default function SalesRepReportsScreen() {
     }, [loadReports])
   );
 
-  const handleBack = () => navigation.goBack();
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -87,17 +88,14 @@ export default function SalesRepReportsScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-
-          <Text style={styles.topBarTitle}>Reports</Text>
-
-          <View style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" />
-          </View>
-        </View>
+        <Header
+          title="Report Generation"
+          titleAlign="left"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+        />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -251,29 +249,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {

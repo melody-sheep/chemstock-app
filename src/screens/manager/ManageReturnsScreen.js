@@ -6,6 +6,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
@@ -13,7 +14,9 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import reportService from '../../services/reportService';
+import agentService from '../../services/agentService';
 import { formatDisplayDate, formatRelativeTime } from '../../utils/formatters';
+import { getInitials } from '../../utils/initials';
 
 const TABS = [
   { key: 'reports', label: 'Reports' },
@@ -31,18 +34,25 @@ export default function ManageReturnsScreen() {
   const [activeReturnSubTab, setActiveReturnSubTab] = useState('pending');
   const [reports, setReports] = useState([]);
   const [returnRequests, setReturnRequests] = useState([]);
+  const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isAccepting, setIsAccepting] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    const [reportsResult, returnsResult] = await Promise.all([
+    const [reportsResult, returnsResult, agentsResult] = await Promise.all([
       reportService.getBranchDailyReports(50),
       reportService.getBranchReturnRequests(100),
+      agentService.getMyAgentAccounts(),
     ]);
     setReports(reportsResult.success ? reportsResult.data : []);
     setReturnRequests(returnsResult.success ? returnsResult.data : []);
+    setPhotoUrlByAgentId(
+      agentsResult.success
+        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
+        : {}
+    );
     setIsLoading(false);
   }, []);
 
@@ -155,9 +165,13 @@ export default function ManageReturnsScreen() {
                           onPress={() => setSelectedReport(report)}
                           activeOpacity={0.7}
                         >
-                          <View style={styles.returnAvatar}>
-                            <Icon name="person" size={22} color="#94a3b8" />
-                          </View>
+                          <UserAvatar
+                            photoUrl={photoUrlByAgentId[report.agentId]}
+                            fallbackText={getInitials(report.agentName)}
+                            size={44}
+                            backgroundColor="#F1F3F6"
+                            fallbackTextColor={COLORS.primary}
+                          />
                           <View style={styles.returnInfo}>
                             <Text style={styles.returnName} numberOfLines={1}>{report.agentName}</Text>
                             <Text style={styles.returnDate}>
@@ -186,9 +200,13 @@ export default function ManageReturnsScreen() {
                           onPress={() => setSelectedReport(report)}
                           activeOpacity={0.7}
                         >
-                          <View style={styles.returnAvatar}>
-                            <Icon name="person" size={22} color="#94a3b8" />
-                          </View>
+                          <UserAvatar
+                            photoUrl={photoUrlByAgentId[report.agentId]}
+                            fallbackText={getInitials(report.agentName)}
+                            size={44}
+                            backgroundColor="#F1F3F6"
+                            fallbackTextColor={COLORS.primary}
+                          />
                           <View style={styles.returnInfo}>
                             <Text style={styles.returnName} numberOfLines={1}>{report.agentName}</Text>
                             <Text style={styles.returnDate}>{formatDisplayDate(report.reportDate)}</Text>
@@ -238,9 +256,13 @@ export default function ManageReturnsScreen() {
                     onPress={() => handleOpenReturn(item)}
                     activeOpacity={activeReturnSubTab === 'pending' ? 0.7 : 1}
                   >
-                    <View style={styles.returnAvatar}>
-                      <Icon name="person" size={22} color="#94a3b8" />
-                    </View>
+                    <UserAvatar
+                      photoUrl={photoUrlByAgentId[item.agentId]}
+                      fallbackText={getInitials(item.agentName)}
+                      size={44}
+                      backgroundColor="#F1F3F6"
+                      fallbackTextColor={COLORS.primary}
+                    />
 
                     <View style={styles.returnInfo}>
                       <Text style={styles.returnName} numberOfLines={1}>
@@ -444,14 +466,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     gap: 12,
-  },
-  returnAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   returnInfo: {
     flex: 1,

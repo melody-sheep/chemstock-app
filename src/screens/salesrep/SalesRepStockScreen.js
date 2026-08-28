@@ -5,10 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
+import Header from '../../components/common/Header';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 
@@ -39,7 +41,6 @@ export default function SalesRepStockScreen() {
     }, [loadStock])
   );
 
-  const handleBack = () => navigation.goBack();
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -115,17 +116,16 @@ export default function SalesRepStockScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-
-          <Text style={styles.topBarTitle}>Sales Rep Dashboard</Text>
-
-          <View style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" />
-          </View>
-        </View>
+        <Header
+          title="Stock Inventory"
+          titleAlign="left"
+          showDocumentIcon
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+        />
 
         <View style={styles.bannerBar}>
           <View>
@@ -223,29 +223,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-  },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
   },
   bannerBar: {
     backgroundColor: '#EAFBF8',

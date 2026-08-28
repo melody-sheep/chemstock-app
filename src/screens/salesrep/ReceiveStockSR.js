@@ -3,14 +3,17 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
+import UserAvatar from '../../components/common/UserAvatar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -25,6 +28,7 @@ const HANDOFF_LABELS = {
 
 export default function ReceiveStockSR() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const { handoffType } = route.params || {};
 
@@ -92,6 +96,7 @@ export default function ReceiveStockSR() {
   const totalUnits = (batch?.items || []).reduce((sum, item) => sum + item.quantity, 0);
   const isCollectorSource = batch?.movementType === 'collector';
   const sourceName = isCollectorSource ? batch?.receivedByName : batch?.releasedByName;
+  const sourcePhotoUrl = isCollectorSource ? batch?.receivedByPhotoUrl : batch?.releasedByPhotoUrl;
   const sourceRole = isCollectorSource ? 'Collector' : 'Branch Manager';
 
   const handleAccept = async () => {
@@ -129,7 +134,7 @@ export default function ReceiveStockSR() {
       <>
         <StatusBar style="light" />
         <View style={styles.screen}>
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
             <Text style={styles.topBarTitle}>Stock Accepted</Text>
           </View>
           <View style={styles.successWrap}>
@@ -150,7 +155,7 @@ export default function ReceiveStockSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.backButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>
@@ -203,9 +208,13 @@ export default function ReceiveStockSR() {
                 </Text>
               </View>
               <View style={styles.sourceCard}>
-                <View style={styles.sourceAvatar}>
-                  <Icon name="person" size={22} color="#94a3b8" />
-                </View>
+                <UserAvatar
+                  photoUrl={sourcePhotoUrl}
+                  fallbackText={getInitials(sourceName)}
+                  size={44}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
                 <View style={styles.sourceTextWrap}>
                   <Text style={styles.sourceName}>{sourceName || 'Unknown'}</Text>
                   <Text style={styles.sourceRole}>{sourceRole}</Text>
@@ -471,14 +480,6 @@ const styles = StyleSheet.create({
     borderColor: '#EAEFF5',
     borderRadius: 14,
     padding: 12,
-  },
-  sourceAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sourceTextWrap: { flex: 1 },
   sourceName: {

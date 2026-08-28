@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
@@ -27,6 +28,7 @@ function computeDiscrepancy(sold, ret, inCustody) {
 
 export default function SubmitReportSR() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [agent, setAgent] = useState(null);
   const [reportDate, setReportDate] = useState(null);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
@@ -135,7 +137,7 @@ export default function SubmitReportSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>

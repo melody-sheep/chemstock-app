@@ -3,11 +3,13 @@ import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 export default function ReceiveStockTypeSR() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => navigation.goBack();
 
@@ -19,7 +21,7 @@ export default function ReceiveStockTypeSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>

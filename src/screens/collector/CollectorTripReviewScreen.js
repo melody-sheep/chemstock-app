@@ -5,11 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -121,11 +124,11 @@ export default function CollectorTripReviewScreen() {
         <Header
           showBackButton
           backButtonText="Accept Deliveries"
-          title="Delivery Details"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
+        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -142,11 +145,11 @@ export default function CollectorTripReviewScreen() {
         <Header
           showBackButton
           backButtonText={isActiveTrip ? 'Collector Dashboard' : 'Accept Deliveries'}
-          title="Delivery Details"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
+        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionLabel}>Collector</Text>
@@ -175,9 +178,13 @@ export default function CollectorTripReviewScreen() {
                 <Text style={styles.bannerText}>Deliver to: {leg.targetRecipientName || 'Sales Rep'}</Text>
               </View>
               <View style={styles.personCard}>
-                <View style={styles.avatarCircle}>
-                  <Icon name="person" size={20} color="#94a3b8" />
-                </View>
+                <UserAvatar
+                  photoUrl={leg.targetRecipientPhotoUrl}
+                  fallbackText={getInitials(leg.targetRecipientName)}
+                  size={40}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
                 <View style={styles.personTextWrap}>
                   <Text style={styles.personName}>{leg.targetRecipientName || 'Sales Rep'}</Text>
                   <Text style={styles.personRole}>Sales Representative</Text>

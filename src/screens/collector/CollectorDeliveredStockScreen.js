@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
@@ -47,11 +48,11 @@ export default function CollectorDeliveredStockScreen() {
         <Header
           showBackButton
           backButtonText="Collector Dashboard"
-          title="Delivered Stock"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
+        <SubScreenSecondaryHeader title="Delivered Stock" syncStatus="online" />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>

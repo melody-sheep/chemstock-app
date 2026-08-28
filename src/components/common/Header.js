@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import PropTypes from 'prop-types';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Icon from './Icon';
+import UserAvatar from './UserAvatar';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -27,15 +29,17 @@ const ArrowLeftBold = ({ size = 24, color = '#FFFFFF' }) => (
 
 export default function Header({
   showBackButton = false,
-  backButtonText = 'Back',
+  backButtonText = null,
   showOnlineStatus = false,
   showProfileIcon = false,
   onProfilePress = null,
+  profilePhotoUrl = null,
   showDocumentIcon = false,
   onDocumentPress = null,
   showNotificationIcon = false,
   onNotificationPress = null,
   title = null,
+  titleAlign = 'center',
   height = 56,
   backgroundColor = '#03045E',
   textColor = '#FFFFFF',
@@ -43,6 +47,7 @@ export default function Header({
   onBackPress = null,
 }) {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const handleBackPress = () => {
     try {
@@ -57,16 +62,22 @@ export default function Header({
   };
 
   return (
+    // Outer View reserves the status-bar (wifi/battery/notifications) area
+    // above the bar's own visible content, painted in the same
+    // backgroundColor so there's no white flash above a colored header.
+    // The inner row keeps the exact `height` callers already pass, so
+    // nothing inside gets squeezed by the added top inset.
     <View
       style={[
         styles.header,
         {
-          height: height,
+          height: height + insets.top,
+          paddingTop: insets.top,
           backgroundColor: backgroundColor,
-          paddingHorizontal: paddingHorizontal,
         },
       ]}
     >
+      <View style={[styles.headerRow, { height, paddingHorizontal }]}>
       {/* Left Section */}
       <View style={styles.leftSection}>
         {showBackButton && (
@@ -78,9 +89,11 @@ export default function Header({
             accessibilityRole="button"
           >
             <ArrowLeftBold size={20} color={textColor} />
-            <Text style={[styles.backText, { color: textColor }]}>
-              {backButtonText}
-            </Text>
+            {backButtonText && (
+              <Text style={[styles.backText, { color: textColor }]}>
+                {backButtonText}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
 
@@ -92,7 +105,14 @@ export default function Header({
               accessibilityLabel="Profile"
               accessibilityRole="button"
             >
-              <Icon name="profile" size={28} color={textColor} weight="fill" />
+              <UserAvatar
+                photoUrl={profilePhotoUrl}
+                size={28}
+                iconName="profile"
+                iconColor={textColor}
+                iconWeight="fill"
+                backgroundColor="transparent"
+              />
             </TouchableOpacity>
             {title && title !== '' && (
               <Text style={[styles.leftTitle, { color: textColor }]}>
@@ -101,11 +121,17 @@ export default function Header({
             )}
           </View>
         )}
+
+        {!showProfileIcon && !showBackButton && titleAlign === 'left' && title && title !== '' && (
+          <Text style={[styles.leftTitle, { color: textColor }]}>
+            {title}
+          </Text>
+        )}
       </View>
 
       {/* Center Section */}
       <View style={styles.centerSection}>
-        {!showProfileIcon && title && title !== '' && (
+        {!showProfileIcon && titleAlign === 'center' && title && title !== '' && (
           <Text style={[styles.title, { color: textColor }]}>
             {title}
           </Text>
@@ -148,6 +174,7 @@ export default function Header({
           </View>
         )}
       </View>
+      </View>
     </View>
   );
 }
@@ -158,11 +185,13 @@ Header.propTypes = {
   showOnlineStatus: PropTypes.bool,
   showProfileIcon: PropTypes.bool,
   onProfilePress: PropTypes.func,
+  profilePhotoUrl: PropTypes.string,
   showDocumentIcon: PropTypes.bool,
   onDocumentPress: PropTypes.func,
   showNotificationIcon: PropTypes.bool,
   onNotificationPress: PropTypes.func,
   title: PropTypes.string,
+  titleAlign: PropTypes.oneOf(['left', 'center']),
   height: PropTypes.number,
   backgroundColor: PropTypes.string,
   textColor: PropTypes.string,
@@ -173,14 +202,15 @@ Header.propTypes = {
 const styles = StyleSheet.create({
   header: {
     width: screenWidth,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 0,
     // Always paints above sibling content (e.g. a collapsing secondary
     // header/scroll area animating underneath it) regardless of mount order.
     zIndex: 20,
     elevation: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   leftSection: {
     flexShrink: 1,

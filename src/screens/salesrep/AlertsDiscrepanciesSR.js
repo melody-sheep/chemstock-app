@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
@@ -11,6 +12,7 @@ import reportService from '../../services/reportService';
 
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [discrepancies, setDiscrepancies] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -159,7 +161,7 @@ export default function AlertsDiscrepanciesSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>

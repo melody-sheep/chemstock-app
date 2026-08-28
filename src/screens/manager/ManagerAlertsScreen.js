@@ -6,25 +6,37 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import reportService from '../../services/reportService';
+import agentService from '../../services/agentService';
 import { formatDisplayDate } from '../../utils/formatters';
+import { getInitials } from '../../utils/initials';
 
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
   const [alerts, setAlerts] = useState([]);
+  const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
 
   const loadAlerts = useCallback(async () => {
     setIsLoading(true);
-    const result = await reportService.getBranchDiscrepancies(200);
-    setAlerts(result.success ? result.data : []);
+    const [alertsResult, agentsResult] = await Promise.all([
+      reportService.getBranchDiscrepancies(200),
+      agentService.getMyAgentAccounts(),
+    ]);
+    setAlerts(alertsResult.success ? alertsResult.data : []);
+    setPhotoUrlByAgentId(
+      agentsResult.success
+        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
+        : {}
+    );
     setIsLoading(false);
   }, []);
 
@@ -118,9 +130,14 @@ export default function ManagerAlertsScreen() {
                       activeOpacity={0.7}
                     >
                       <View style={styles.alertTopRow}>
-                        <View style={styles.avatarWrap}>
-                          <Icon name="person" size={22} color="#94a3b8" />
-                        </View>
+                        <UserAvatar
+                          photoUrl={photoUrlByAgentId[alert.agentId]}
+                          fallbackText={getInitials(alert.agentName)}
+                          size={44}
+                          backgroundColor="#F1F3F6"
+                          fallbackTextColor={COLORS.primary}
+                          style={styles.avatarMargin}
+                        />
 
                         <View style={styles.alertDetails}>
                           <Text style={styles.alertCode} numberOfLines={1}>Code: {alert.productCode}</Text>
@@ -311,13 +328,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
-  avatarWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarMargin: {
     marginRight: 12,
   },
   alertDetails: {

@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
@@ -72,11 +73,11 @@ export default function SalesRepTrackDeliveriesScreen() {
         <Header
           showBackButton
           backButtonText="Sales Rep Dashboard"
-          title="Track Deliveries"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
+        <SubScreenSecondaryHeader title="Track Deliveries" syncStatus="online" />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>

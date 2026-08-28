@@ -139,7 +139,6 @@ export default function SalesRepLogsScreen() {
       <View style={styles.container}>
         <Header
           showBackButton
-          backButtonText="Sales Rep Dashboard"
           title="Transaction Logs"
           height={56}
           backgroundColor="#03045E"

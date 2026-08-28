@@ -28,6 +28,7 @@ import TrackDeliveriesScreen from '../screens/manager/TrackDeliveriesScreen';
 import AgentStockRequestScreen from '../screens/manager/AgentStockRequestScreen';
 import ManagerSettingsScreen from '../screens/manager/ManagerSettingsScreen';
 import ComingSoonScreen from '../screens/common/ComingSoonScreen';
+import EditProfileScreen from '../screens/common/EditProfileScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
 import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
 import ReceiveStockSR from '../screens/salesrep/ReceiveStockSR';
@@ -83,6 +84,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} />
         <Stack.Screen name="ManagerSettings" component={ManagerSettingsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="ComingSoon" component={ComingSoonScreen} options={{ animation: 'none' }} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="ReceiveStockTypeSR" component={ReceiveStockTypeSR} />
         <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} />

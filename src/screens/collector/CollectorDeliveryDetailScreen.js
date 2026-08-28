@@ -3,15 +3,20 @@ import React, { useState } from 'react';
 import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
+import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
+import UserAvatar from '../../components/common/UserAvatar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -25,6 +30,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 // boundary — see the design plan for the full reasoning.
 export default function CollectorDeliveryDetailScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const { delivery } = route.params || {};
 
@@ -101,7 +107,7 @@ export default function CollectorDeliveryDetailScreen() {
 
   if (!delivery) {
     return (
-      <View style={styles.screen}>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
         <Text style={styles.errorText}>Delivery not found.</Text>
       </View>
     );
@@ -112,9 +118,8 @@ export default function CollectorDeliveryDetailScreen() {
       <>
         <StatusBar style="light" />
         <View style={styles.screen}>
-          <View style={styles.topBar}>
-            <Text style={styles.topBarTitle}>Stock Accepted</Text>
-          </View>
+          <Header height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+          <SubScreenSecondaryHeader title="Stock Accepted" syncStatus="online" />
           <View style={styles.successWrap}>
             <Icon name="checkCircle" size={48} color={COLORS.success} weight="fill" />
             <Text style={styles.successTitle}>Stock Accepted Successfully</Text>
@@ -133,16 +138,8 @@ export default function CollectorDeliveryDetailScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Delivery Details</Text>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
-          </View>
-        </View>
+        <Header showBackButton height={56} backgroundColor="#03045E" textColor="#FFFFFF" onBackPress={handleBack} />
+        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.listTitle}>Stock Transfer Information</Text>
@@ -150,9 +147,13 @@ export default function CollectorDeliveryDetailScreen() {
             <Text style={styles.sourceBannerText}>From: {delivery.branchName || 'Branch'}</Text>
           </View>
           <View style={styles.sourceCard}>
-            <View style={styles.sourceAvatar}>
-              <Icon name="person" size={22} color="#94a3b8" />
-            </View>
+            <UserAvatar
+              photoUrl={delivery.releasedByPhotoUrl}
+              fallbackText={getInitials(delivery.releasedByName)}
+              size={44}
+              backgroundColor="#F1F3F6"
+              fallbackTextColor={COLORS.primary}
+            />
             <View style={styles.sourceTextWrap}>
               <Text style={styles.sourceName}>{delivery.releasedByName || 'Branch Manager'}</Text>
               <Text style={styles.sourceRole}>Branch Manager</Text>
@@ -163,9 +164,13 @@ export default function CollectorDeliveryDetailScreen() {
             <Text style={styles.sourceBannerText}>Deliver to: {delivery.targetRecipientName || 'Sales Rep'}</Text>
           </View>
           <View style={styles.sourceCard}>
-            <View style={styles.sourceAvatar}>
-              <Icon name="person" size={22} color="#94a3b8" />
-            </View>
+            <UserAvatar
+              photoUrl={delivery.targetRecipientPhotoUrl}
+              fallbackText={getInitials(delivery.targetRecipientName)}
+              size={44}
+              backgroundColor="#F1F3F6"
+              fallbackTextColor={COLORS.primary}
+            />
             <View style={styles.sourceTextWrap}>
               <Text style={styles.sourceName}>{delivery.targetRecipientName || 'Sales Rep'}</Text>
               <Text style={styles.sourceRole}>Sales Representative</Text>
@@ -296,36 +301,6 @@ export default function CollectorDeliveryDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-  },
-  backButton: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#B7FFD6',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#00FF6E',
-  },
-  statusDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: '#00FF6E', marginRight: 5 },
-  statusText: { color: '#1D6A3A', fontSize: 10, fontWeight: '600', fontFamily: TYPOGRAPHY.fontFamily.bold },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32, gap: 12 },
   listTitle: { color: '#272632', fontSize: 18, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   sourceBanner: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
@@ -340,14 +315,6 @@ const styles = StyleSheet.create({
     borderColor: '#EAEFF5',
     borderRadius: 14,
     padding: 12,
-  },
-  sourceAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   sourceTextWrap: { flex: 1 },
   sourceName: { fontSize: 14, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },

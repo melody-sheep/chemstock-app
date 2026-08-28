@@ -146,6 +146,7 @@ export default function CollectorDashboardScreen() {
         <Header
           showProfileIcon={true}
           onProfilePress={() => navigation.navigate('CollectorSettings')}
+          profilePhotoUrl={user?.profilePhotoUrl}
           title="Collector Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('CollectorDeliveredStock')}
@@ -320,6 +321,7 @@ export default function CollectorDashboardScreen() {
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={handleFabPress}
+          hiddenKeys={['stock', 'reports']}
           fabIcon="truck"
         />
       </View>

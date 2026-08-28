@@ -1,11 +1,9 @@
 // src/components/common/ScreenContainer.js
 import React from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+// react-native's own SafeAreaView is a documented no-op on Android — only
+// ever worked on iOS. This one actually applies the device's real inset.
+import { SafeAreaView } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';

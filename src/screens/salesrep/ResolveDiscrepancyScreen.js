@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
@@ -21,6 +22,7 @@ import reportService from '../../services/reportService';
 export default function ResolveDiscrepancyScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const reportItem = route.params?.reportItem;
 
   const [photoUri, setPhotoUri] = useState(null);
@@ -80,7 +82,7 @@ export default function ResolveDiscrepancyScreen() {
   if (!reportItem) {
     return (
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>
@@ -100,7 +102,7 @@ export default function ResolveDiscrepancyScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>

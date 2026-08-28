@@ -2,6 +2,7 @@
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
 import { debugLog } from '../utils/logger';
+import { resolveProfilePhotoUrls } from '../utils/profilePhoto';
 
 class DeliveryService extends BaseService {
   constructor() {
@@ -32,7 +33,17 @@ class DeliveryService extends BaseService {
         throw new Error(error.message || 'Failed to load deliveries');
       }
 
-      return { success: true, data: data || [] };
+      const deliveries = data || [];
+      const photoUrlByPath = await resolveProfilePhotoUrls(
+        deliveries.flatMap((d) => [d.releasedByPhotoPath, d.targetRecipientPhotoPath])
+      );
+      const enriched = deliveries.map((d) => ({
+        ...d,
+        releasedByPhotoUrl: d.releasedByPhotoPath ? photoUrlByPath[d.releasedByPhotoPath] || null : null,
+        targetRecipientPhotoUrl: d.targetRecipientPhotoPath ? photoUrlByPath[d.targetRecipientPhotoPath] || null : null,
+      }));
+
+      return { success: true, data: enriched };
     } catch (error) {
       this.log('error', 'getMyCollectorDeliveries failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to load deliveries', data: [] };

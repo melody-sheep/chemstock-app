@@ -210,6 +210,7 @@ export default function SalesRepDashboardScreen() {
         <Header
           showProfileIcon={true}
           onProfilePress={() => navigation.navigate('SalesRepSettings')}
+          profilePhotoUrl={user?.profilePhotoUrl}
           title="Sales Rep Dashboard"
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('SalesRepLogs')}

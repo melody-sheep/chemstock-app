@@ -109,8 +109,17 @@ export default function BottomNavBar({
   onFabPress = null,
   fabIcon = 'grid',
   fabLabel = 'Menu',
+  hiddenKeys = [],
 }) {
   const insets = useSafeAreaInsets();
+  // Collector has no Stock/Reports screens (see ComingSoonScreen's
+  // ROLE_ROUTES) — passing hiddenKeys={['stock','reports']} drops those two
+  // slots for that role only; Manager/Sales Rep callers leave this unset and
+  // keep all 4 tabs. Each remaining tab keeps flex:1, so the row
+  // redistributes evenly and the FAB (a fixed middle slot, unaffected by
+  // either array's length) stays centered regardless.
+  const leftTabs = LEFT_TABS.filter((tab) => !hiddenKeys.includes(tab.key));
+  const rightTabs = RIGHT_TABS.filter((tab) => !hiddenKeys.includes(tab.key));
 
   return (
     <View
@@ -120,7 +129,7 @@ export default function BottomNavBar({
       ]}
     >
       <View style={styles.tabsRow}>
-        {LEFT_TABS.map((tab) => (
+        {leftTabs.map((tab) => (
           <TabButton key={tab.key} tab={tab} isActive={tab.key === activeTab} onPress={onTabPress} />
         ))}
 
@@ -133,7 +142,7 @@ export default function BottomNavBar({
           <Text style={[styles.label, { color: '#94a3b8' }]}>{fabLabel}</Text>
         </View>
 
-        {RIGHT_TABS.map((tab) => (
+        {rightTabs.map((tab) => (
           <TabButton key={tab.key} tab={tab} isActive={tab.key === activeTab} onPress={onTabPress} />
         ))}
       </View>
@@ -149,6 +158,7 @@ BottomNavBar.propTypes = {
   onFabPress: PropTypes.func,
   fabIcon: PropTypes.string,
   fabLabel: PropTypes.string,
+  hiddenKeys: PropTypes.arrayOf(PropTypes.oneOf(['dashboard', 'stock', 'reports', 'settings'])),
 };
 
 const styles = StyleSheet.create({

@@ -4,9 +4,12 @@ import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator,
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -78,11 +81,11 @@ export default function CollectorAcceptDeliveriesScreen() {
       <Header
         showBackButton
         backButtonText="Collector Dashboard"
-        title="Accept Deliveries"
         height={56}
         backgroundColor="#03045E"
         textColor="#FFFFFF"
       />
+      <SubScreenSecondaryHeader title="Accept Deliveries" syncStatus="online" />
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
@@ -102,9 +105,14 @@ export default function CollectorAcceptDeliveriesScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pendingRow}>
               {pending.map((delivery) => (
                 <View key={delivery.transactionId} style={styles.pendingCard}>
-                  <View style={styles.avatarCircle}>
-                    <Icon name="person" size={26} color="#94a3b8" />
-                  </View>
+                  <UserAvatar
+                    photoUrl={delivery.targetRecipientPhotoUrl}
+                    fallbackText={getInitials(delivery.targetRecipientName)}
+                    size={52}
+                    backgroundColor="#F1F3F6"
+                    fallbackTextColor={COLORS.primary}
+                    style={styles.avatarCircleMargin}
+                  />
                   <Text style={styles.pendingName} numberOfLines={1}>
                     {delivery.targetRecipientName || 'Sales Rep'}
                   </Text>
@@ -166,9 +174,13 @@ export default function CollectorAcceptDeliveriesScreen() {
                     onPress={() => handleReadyPress(delivery)}
                     activeOpacity={0.7}
                   >
-                    <View style={styles.avatarCircleSmall}>
-                      <Icon name="person" size={20} color="#94a3b8" />
-                    </View>
+                    <UserAvatar
+                      photoUrl={delivery.targetRecipientPhotoUrl}
+                      fallbackText={getInitials(delivery.targetRecipientName)}
+                      size={40}
+                      backgroundColor="#F1F3F6"
+                      fallbackTextColor={COLORS.primary}
+                    />
                     <View style={styles.readyTextCol}>
                       <Text style={styles.readyName} numberOfLines={1}>
                         {delivery.targetRecipientName || 'Sales Rep'}
@@ -249,13 +261,7 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
     alignItems: 'center',
   },
-  avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarCircleMargin: {
     marginBottom: SPACING.xs,
   },
   pendingName: {
@@ -332,14 +338,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E5E5',
     padding: SPACING.sm,
-  },
-  avatarCircleSmall: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   readyTextCol: { flex: 1 },
   readyName: {

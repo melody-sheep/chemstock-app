@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import CustomModal from '../../components/common/Modal';
@@ -16,6 +17,7 @@ import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 export default function RequestStockSR() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [searchText, setSearchText] = useState('');
   const [agent, setAgent] = useState(null);
   const [stock, setStock] = useState([]);
@@ -136,7 +138,7 @@ export default function RequestStockSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
           <Pressable onPress={handleBack} style={styles.iconButton}>
             <Icon name="arrowLeft" size={20} color="#FFFFFF" />
           </Pressable>

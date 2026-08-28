@@ -1,6 +1,7 @@
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
 import { debugLog } from '../utils/logger';
+import { resolveProfilePhotoUrls } from '../utils/profilePhoto';
 
 class AgentService extends BaseService {
     constructor() {
@@ -71,12 +72,21 @@ class AgentService extends BaseService {
                 }
             }
 
+            // Same batching idea for profile photos: resolve every account's
+            // storage path to a signed URL in one request instead of one per row.
+            const photoUrlByPath = await resolveProfilePhotoUrls(
+                accounts.map((a) => a.profile_photo_path)
+            );
+
             const enriched = accounts.map((account) => ({
                 ...account,
                 branchName: (account.branch_ids || [])
                     .map((id) => branchNameById[id])
                     .filter(Boolean)
                     .join(', '),
+                profilePhotoUrl: account.profile_photo_path
+                    ? photoUrlByPath[account.profile_photo_path] || null
+                    : null,
             }));
 
             return { success: true, data: enriched };

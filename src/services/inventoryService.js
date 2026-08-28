@@ -6,6 +6,7 @@ import { debugLog } from '../utils/logger';
 // File/Paths API needs a native module Expo Go doesn't ship yet.
 import * as FileSystem from 'expo-file-system/legacy';
 import { base64ToUint8Array } from '../utils/base64';
+import { resolveProfilePhotoUrls } from '../utils/profilePhoto';
 
 const SHIPMENT_BUCKET = 'shipment-media';
 
@@ -489,7 +490,14 @@ class InventoryService extends BaseService {
         throw new Error(error.message || 'Transaction not found or not assigned to you');
       }
 
-      return { success: true, data };
+      const photoUrlByPath = await resolveProfilePhotoUrls([data?.receivedByPhotoPath, data?.releasedByPhotoPath]);
+      const enrichedData = {
+        ...data,
+        receivedByPhotoUrl: data?.receivedByPhotoPath ? photoUrlByPath[data.receivedByPhotoPath] || null : null,
+        releasedByPhotoUrl: data?.releasedByPhotoPath ? photoUrlByPath[data.releasedByPhotoPath] || null : null,
+      };
+
+      return { success: true, data: enrichedData };
     } catch (error) {
       this.log('error', 'getTransactionByQrCodeForAgent failed', { error: error.message });
       return { success: false, message: error.message || 'Transaction not found or not assigned to you' };

@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
@@ -196,7 +197,8 @@ export default function CollectorDeliverStockScreen() {
     return (
       <View style={styles.container}>
         <StatusBar style="light" />
-        <Header showBackButton backButtonText="Back" title="Deliver Stock" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -208,7 +210,8 @@ export default function CollectorDeliverStockScreen() {
     return (
       <View style={styles.container}>
         <StatusBar style="light" />
-        <Header showBackButton backButtonText="Collector Dashboard" title="Deliver Stock" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <Header showBackButton backButtonText="Collector Dashboard" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
         <View style={styles.loadingWrap}>
           <Icon name="checkCircle" size={32} color={COLORS.success} weight="fill" />
           <Text style={styles.emptyText}>All deliveries in this trip are complete.</Text>
@@ -221,7 +224,8 @@ export default function CollectorDeliverStockScreen() {
     <>
       <StatusBar style="light" />
       <View style={styles.container}>
-        <Header showBackButton backButtonText="Back" title="Deliver Stock" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <StaticRouteMap

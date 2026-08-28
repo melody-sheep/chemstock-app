@@ -9,11 +9,13 @@ import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -221,9 +223,13 @@ export default function ReleaseStockConfirmScreen() {
               <Text style={styles.sectionTitle}>Recipients</Text>
               <View style={styles.recipientsCard}>
                 <View style={styles.recipientRow}>
-                  <View style={styles.recipientAvatar}>
-                    <Icon name="person" size={18} color={COLORS.primary} />
-                  </View>
+                  <UserAvatar
+                    photoUrl={recipient.profilePhotoUrl}
+                    fallbackText={getInitials(recipient.fullName)}
+                    size={36}
+                    backgroundColor={COLORS.primaryLight}
+                    fallbackTextColor={COLORS.primary}
+                  />
                   <View style={styles.recipientTextWrap}>
                     <Text style={styles.recipientName}>
                       {recipient.fullName} <Text style={styles.recipientRole}>(Collector)</Text>
@@ -233,9 +239,13 @@ export default function ReleaseStockConfirmScreen() {
                 </View>
                 {targetRecipient && (
                   <View style={styles.recipientRow}>
-                    <View style={styles.recipientAvatar}>
-                      <Icon name="person" size={18} color={COLORS.primary} />
-                    </View>
+                    <UserAvatar
+                      photoUrl={targetRecipient.profilePhotoUrl}
+                      fallbackText={getInitials(targetRecipient.fullName)}
+                      size={36}
+                      backgroundColor={COLORS.primaryLight}
+                      fallbackTextColor={COLORS.primary}
+                    />
                     <View style={styles.recipientTextWrap}>
                       <Text style={styles.recipientName}>
                         {targetRecipient.fullName} <Text style={styles.recipientRole}>(Sales Representative)</Text>
@@ -418,14 +428,6 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   recipientRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  recipientAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   recipientTextWrap: { flex: 1 },
   recipientName: {
     fontSize: TYPOGRAPHY.fontSize.sm,

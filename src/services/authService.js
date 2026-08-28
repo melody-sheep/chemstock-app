@@ -3,6 +3,7 @@ import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
 import { debugLog, logError } from '../utils/logger';
 import storage from '../utils/storage';
+import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 
 // Agents (Sales Rep/Collector) log in via a username+password_hash RPC, not
 // Supabase Auth, so there's no supabase.auth session to recover their
@@ -42,6 +43,16 @@ class AuthService extends BaseService {
       console.error('[ERROR] [AuthService] Branch fetch error:', error);
       return '';
     }
+  }
+
+  /**
+   * Resolves a profile photo's storage path into a short-lived signed URL —
+   * same bucket/TTL pattern as every other photo display in this app (e.g.
+   * ReturnStockVerifyScreen.js). Degrades to null on any failure so a
+   * missing/broken photo never blocks the rest of getCurrentUser().
+   */
+  async _resolveProfilePhotoUrl(storagePath) {
+    return resolveProfilePhotoUrl(storagePath);
   }
 
   /**
@@ -307,6 +318,7 @@ class AuthService extends BaseService {
           }
 
           const branchName = await this._fetchBranchNames(freshProfile.branch_ids);
+          const profilePhotoUrl = await this._resolveProfilePhotoUrl(freshProfile.profile_photo_path);
           const refreshedUser = {
             ...agentUser,
             username: freshProfile.username,
@@ -314,6 +326,7 @@ class AuthService extends BaseService {
             role: freshProfile.role,
             branchIds: freshProfile.branch_ids || [],
             branchName,
+            profilePhotoUrl,
           };
 
           debugLog('info', 'AuthService', 'Agent profile refreshed', { branchIds: refreshedUser.branchIds, branchName: refreshedUser.branchName });
@@ -328,11 +341,12 @@ class AuthService extends BaseService {
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('*, media:profile_media_id(storage_path)')
         .eq('id', session.user.id)
         .single();
 
       const branchName = await this._fetchBranchNames(profile?.branch_ids);
+      const profilePhotoUrl = await this._resolveProfilePhotoUrl(profile?.media?.storage_path);
 
       const user = {
         id: session.user.id,
@@ -342,6 +356,7 @@ class AuthService extends BaseService {
         role: profile?.role || null,
         branchIds: profile?.branch_ids || [],
         branchName,
+        profilePhotoUrl,
         isActivated: !!profile,
       };
 

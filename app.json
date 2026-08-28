@@ -47,6 +47,12 @@
           ]
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ChemStock needs access to your photos to set your profile picture."
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-sharing"
     ]
