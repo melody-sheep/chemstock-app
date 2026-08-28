@@ -2,7 +2,7 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: August 26, 2026 (end of Sales Rep Daily Reports/Discrepancies/Returns + Manager Reports & Returns/Alerts session — see §34-§40)
+Last updated: August 28, 2026 (end of UI polish/Edit Profile Picture/photos-in-lists session — see §41-§45)
 
 ---
 
@@ -53,6 +53,10 @@ Core idea: replace paper-based stock receiving/releasing/returns with QR scannin
 | Collector Accept Deliveries + Deliver Stock (accept custody via scan+photo, single/batch trip grouping, event-triggered checkpoints, per-leg finish, trip completion) | ✅ Done, **not yet live-tested end-to-end** | See §28 — first real functionality for the Collector role beyond being a pass-through recipient; Dashboard's stats/Active list/Recent Logs all real now too |
 | Sales Rep Dashboard Quick Stats wired (Total Items → Stocks screen, Pending Stock → new My Stock Requests screen) | ✅ Done, confirmed built (Aug 25) | See §30 |
 | Sales Rep Daily Reports (sold/return/discrepancy per product, FIFO batch accounting, auto-loss-filing for missed days) + Discrepancy resolution/Return Stock (photo-proof only, no QR) + Manager Reports & Returns (accept report/accept-reject return) + Manager Alerts & Discrepancies (branch-wide, sortable) + Manager Weekly/Monthly branch report (print/PDF/share) | ✅ Done, **multiple real bugs found & fixed live same day — see §35-§37; one more fix given, not yet confirmed run/retested — see §38** | See §34 — biggest single-session feature yet, first real backend for the capstone proposal's highest-priority "Stock Loss Tracking"/"Discrepancy Alert" requirements |
+| App-wide safe-area/status-bar overlap fix, Manager Reports-tab-from-Settings bug fix, header format standardization (arrow/back-text/icons/left-aligned title) across Manager/Sales Rep/Collector Stock/Reports/Settings, Collector's non-functional Stock/Reports bottom-nav tabs hidden | ✅ Done | See §41 |
+| Edit Profile screen (all 3 roles) — real, working profile picture (camera or gallery), shown on Header's Dashboard icon + own Settings avatar | ✅ Done, confirmed working | See §42 |
+| Real profile photos (with initials fallback, not the old "SP"/blank icon) for *other* users shown in lists — Manage Accounts, Release Stock recipient picker/confirm, Reports & Returns, Alerts, collector delivery screens, Receive Stock's source row | ✅ Done, **not yet live-tested by Jay** | See §43 |
+| Track Deliveries header format (blank navy bar + title/"Online" pill row below, matching Reports & Returns) — Manager, Sales Rep, and every collector delivery screen | ✅ Done, **not yet live-tested by Jay** | See §43 |
 | Everything else (geotagging beyond receiving/release, offline sync, QR-scan-to-receive validation against `receiving_batches`, dedicated Release Logs) | ⬜ Not started | Scoped for later sprints |
 
 **Known repo hygiene item — still unresolved across 5 sessions now:** stray 0-byte files `./,`, `admin-cli/console.log('❌`, `admin-cli/{` are still present. Trivial to delete, just keeps not happening.
@@ -609,3 +613,85 @@ Branch: **`jay`**, on top of commit `0717920` (a teammate's BottomActionBar/Sett
 5. `git status`/`git diff` — review and commit §34-§38's work once the above is verified.
 6. Carry-overs, still open: the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, a real dev build decision (Save-to-Gallery, offline sync), the 20 `npm audit` vulnerabilities flagged in §31.
 7. Natural next features once the above is solid: real geotagging/reconciliation beyond receiving/release, offline sync, QR-scan-to-receive validation against `receiving_batches`, and a dedicated Release Logs view — the last remaining unbuilt items from the proposal's original feature list.
+
+---
+
+## 41. What got built Aug 27 — safe-area fix, Manager Reports-tab bug, header format standardization
+
+Session opened with a full repo restudy against a fresh schema dump, then moved through a series of small, mostly-UI fixes before the session's main feature (§42).
+
+### Safe-area/status-bar overlap
+Jay reported content overlapping the phone's status bar (wifi/battery/clock) on multiple/most screens; asked to fix centrally. **Root cause**: `SafeAreaView` imported from `'react-native'` is a documented no-op on Android (iOS-only) — the correct one is from `'react-native-safe-area-context'`, which `App.js` already wraps the root in via `SafeAreaProvider`, just never actually used anywhere.
+- `src/components/common/Header.js` — added `useSafeAreaInsets()`; outer `View` now reserves `insets.top` via `paddingTop`/taller `height` (same `backgroundColor`, no white flash), inner `headerRow` keeps the original height so content isn't squeezed.
+- `src/components/common/ScreenContainer.js` — fixed the same wrong import (was unused anywhere in the app, fixed for correctness).
+- 13 screens with their own inline `topBar` (not using the shared `Header`) each got `useSafeAreaInsets()` + `height: 56 + insets.top, paddingTop: insets.top` on that bar: `SubmitReportSR`, `AlertsDiscrepanciesSR`, `ReturnStocksSR`, `ResolveDiscrepancyScreen`, `SalesRepReportsScreen`, `RequestStockSR`, `SalesRepStockScreen`, `SalesRepSettingsScreen`, `ReceiveStockSR`, `ManagerSettingsScreen`, `CollectorSettingsScreen`, `CollectorDeliveryDetailScreen`, `ReceiveStockTypeSR`.
+
+### Manager Reports-tab-from-Settings bug
+Jay: going Settings → Reports (bottom nav) showed "coming soon" instead of the real Reports screen. **Root cause, worth remembering**: every screen with a `BottomNavBar` defines its own separate `handleTabPress` — there is no shared implementation, so a routing fix on one screen doesn't propagate to copies elsewhere. `ManagerSettingsScreen.js` and `ManagerStockScreen.js` were both missing the `reports` branch (fell through to `ComingSoon`); added `navigation.navigate('ManagerReports')` to both. Sales Rep side already had this correctly everywhere.
+
+### Header format standardization (several rounds of Jay's iterative feedback)
+Ended on a stable pattern applied identically across all three roles' Stock/Reports/Settings screens: shared `Header` component, `titleAlign="left"`, no profile icon, role-appropriate right-side icon only where functionally meaningful (document icon on Stock screens, wired to the Logs screen), back-button arrow with no text label on sub-screens (Logs, etc.).
+- `Header.js` — `backButtonText` default changed `'Back'` → `null` (only renders if passed, confirmed via grep every existing caller already passed its own); new `titleAlign` prop (`'left'`/`'center'`, default `'center'`, backward-compatible) — title renders in the left section instead of center when set.
+- Manager: `ManagerStockScreen` ("Stock Inventory", document icon → Logs), `ManagerReportsScreen` ("Report Generation", no icons), `ManagerSettingsScreen` ("Settings", no icons, converted from inline topBar to shared `Header`), `StockLogsScreen` (back-button text removed).
+- Sales Rep: `SalesRepStockScreen`, `SalesRepReportsScreen`, `SalesRepSettingsScreen` converted to match Manager exactly (Stock's document icon was previously decorative/non-functional — now wired to `SalesRepLogs`); `SalesRepLogsScreen` back-button text removed.
+- Collector: `CollectorSettingsScreen` converted to match; `BottomNavBar.js` gained an opt-in `hiddenKeys` prop (default `[]`, filters `LEFT_TABS`/`RIGHT_TABS` per-caller without touching the shared constants) — `CollectorDashboardScreen`/`CollectorSettingsScreen` pass `hiddenKeys={['stock', 'reports']}` since neither tab is built for Collector.
+
+One self-correction worth remembering: "remove the arrow button" was initially over-applied (deleted the back-button *text* too, since `Header.js` bundled arrow+text as one atomic unit at the time) — Jay caught it, corrected to "not including the text." This is what motivated decoupling `backButtonText` from `showBackButton` in the fix above.
+
+## 42. What got built Aug 27 — Edit Profile Picture (Manager, Sales Rep, Collector)
+
+### The ask
+On all three roles' Settings screens: remove the (until-now dead) pencil edit icon next to the name/role/branch; tapping "Edit Profile" opens a new shared screen showing the photo centered, name/role/branch read-only below it — only the photo is editable. Once set, it should show everywhere the user's own profile icon appears. Explicit constraint: follow the existing DB structure, additions okay, no major overhaul.
+
+### Schema decision
+Reused the existing `media` table (already the app's "one row per uploaded photo" convention) rather than a new table — one nullable FK, `user_profiles.profile_media_id`. A photo change inserts a new `media` row and repoints the FK; the old row is left unreferenced (same pattern already accepted elsewhere in this app). SQL: `capstone_docs/sql/2026-08-27_profile_photo.sql`.
+- Storage: new `profile-photos/` path prefix in the existing `shipment-media` bucket (no new bucket), prefix-only-trust policies matching the existing `sr-acceptances/` pattern.
+- Two RPCs, the established agent-vs-manager asymmetric pattern (`p_agent_id`/`anon` vs `auth.uid()`/`authenticated`): `update_agent_profile_photo`, `update_manager_profile_photo`.
+- `get_agent_profile` extended with `profile_photo_path` (safe `CREATE OR REPLACE`, jsonb return type unchanged).
+- **RLS gap caught proactively before shipping** (same bug class as §38's `branches` table — silent empty result, no error): no existing `media` SELECT policy covered a Manager reading their own photo via the new `user_profiles.media:profile_media_id(...)` embed (every existing policy is scoped through a different parent table). Added a narrow new policy before presenting the SQL, specifically to avoid repeating §38's mistake.
+
+### Client
+- New `src/components/common/UserAvatar.js` — photo if set, else a generic icon fallback (extended in §43 with a second fallback mode).
+- New `src/services/profileService.js` — `uploadProfilePhoto` (mirrors the existing `uploadDiscrepancyPhoto` pattern exactly), `updateAgentProfilePhoto`/`updateManagerProfilePhoto`.
+- `authService.js` — new `_resolveProfilePhotoUrl(storagePath)` (signed URL, 300s TTL, degrades to `null` on any failure); both `getCurrentUser()` branches (agent and manager) resolve and attach `profilePhotoUrl` to the returned user. Deliberately did **not** touch `login()`'s agent branch (an undocumented existing RPC) since `getCurrentUser()` re-resolves fresh right after login anyway — a risk-reduction call made during implementation, not asked for explicitly.
+- New shared `src/screens/common/EditProfileScreen.js` — one screen for all three roles (role-agnostic, same precedent as `ComingSoonScreen.js`), centered large avatar with a camera-badge action sheet (Take Photo → existing `CameraCaptureModal`; Choose from Gallery → new `expo-image-picker` dependency, Jay's explicit choice over camera-only).
+- `Header.js` gained a `profilePhotoUrl` prop, rendering `UserAvatar` instead of a bare icon when set; the three Dashboard screens thread `user?.profilePhotoUrl` through.
+- All three Settings screens: pencil `editButton` removed, avatar swapped to `UserAvatar`, "Edit Profile" row repointed to `navigation.navigate('EditProfile')`.
+- New dependency `expo-image-picker` (confirmed absent before, asked via `AskUserQuestion` first); `app.json` gained its plugin block.
+
+## 43. What got built Aug 28 — real photos in list screens + Track Deliveries header format
+
+### The ask
+Jay noticed Manage Accounts showing plain initials ("SP") instead of a real photo for other users, and asked for the same real-photo treatment everywhere another user is named across the app (release stock, reports & returns, alerts & discrepancies, manager account, track deliveries, all three roles) — falling back to initials (not a blank icon) when no photo is set. Separately: make Track Deliveries use the same header format as Reports & Returns (blank navy bar, title + "Online" pill on a row below), and check the same on Sales Rep/Collector.
+
+### Design decision — minimize new RPC surface
+Rather than touching every list-fetching RPC, **only `get_my_agent_accounts()` needed a schema change** (added `profile_photo_path`, required `DROP FUNCTION`+recreate since it's `RETURNS TABLE`). Every other manager-side screen (`ManageReturnsScreen`, `ManagerAlertsScreen`) already receives an `agentId` from its own RPC — instead of touching three more RPCs, those two screens now additionally call the manager's own agent roster (`agentService.getMyAgentAccounts()`) once on load and build a local `{agentId: photoUrl}` lookup map client-side. Collector/Sales Rep screens run under `anon` (no session) and can't call that roster RPC, so their two dedicated RPCs — `get_my_collector_deliveries`, `get_transaction_by_qr_code_for_agent` — got photo path fields added directly (safe `CREATE OR REPLACE`, both already `RETURNS jsonb`); `get_my_collector_deliveries` also gained `releasedById` (the join already existed for the name, the id just wasn't selected). SQL: `capstone_docs/sql/2026-08-28_photos_in_lists.sql`.
+
+Since these RPCs are all `SECURITY DEFINER`, no new `media` RLS policy was needed here (unlike §42's PostgREST-embed case) — the function body bypasses RLS regardless.
+
+### New shared pieces
+- `src/utils/initials.js` — `getInitials(fullName)`, extracted from two screens that each had their own local copy.
+- `src/utils/profilePhoto.js` — `resolveProfilePhotoUrl`/`resolveProfilePhotoUrls` (batch, via Supabase's `createSignedUrls`, one request for a whole list instead of one per row); `authService.js`'s existing private resolver now just calls into this (dedup, no behavior change).
+- `UserAvatar.js` gained a `fallbackText` prop — when no photo, shows initials instead of the generic icon. Opt-in only, so the Header/own-Settings avatar (§42) is unaffected and still falls back to the generic icon.
+
+### Screens touched (Part 1 — photos)
+Manager: `ManageAccountsScreen`, `ReleaseStockRecipientScreen` (both agent/target-rep pickers, plus `toRecipientParam` now forwards `profilePhotoUrl`), `ReleaseStockConfirmScreen`, `ManageReturnsScreen` (Reports + Returns tabs), `ManagerAlertsScreen`. Collector: `CollectorDeliveryDetailScreen`, `CollectorTripReviewScreen` (recipient only — the collector's own truck-icon card is unchanged), `CollectorAcceptDeliveriesScreen` (both pending/ready card variants). Sales Rep: `ReceiveStockSR`'s source row (manager-or-collector who released the stock).
+
+Deliberately **not** touched: screens with no avatar UI at all today (adding new avatar elements where none exist was judged out of scope — the ask was fixing existing initials/icon circles, not introducing new ones), and the Sales Rep's own stock-screen card (that's the logged-in user's own avatar, already covered by §42).
+
+### Screens touched (Part 2 — Track Deliveries header format)
+Reused the existing shared `SubScreenSecondaryHeader` component (already used by `ReleaseStockConfirmScreen`, `RequestListSR`, etc.) rather than writing new UI: dropped the `title` prop from each screen's `Header`, added `<SubScreenSecondaryHeader title="..." syncStatus="online" />` right after it. Applied to: `TrackDeliveriesScreen` (Manager), `SalesRepTrackDeliveriesScreen`, `CollectorAcceptDeliveriesScreen`, `CollectorTripReviewScreen` (both loading and main states), `CollectorDeliverStockScreen` (all three return branches), `CollectorDeliveredStockScreen`. `CollectorDeliveryDetailScreen` was the one exception — it used a fully custom hand-rolled `topBar` (own safe-area-inset math, own "Online" pill) instead of the shared `Header`; rewritten to use `Header`+`SubScreenSecondaryHeader` like the others, dead `topBar`/`statusPill`/`statusDot`/`statusText`/`backButton` styles removed. One deliberate deviation from the written plan: its "Stock Accepted" success state now also shows the shared component's "Online" badge (the plan said "minus the pill," but the shared component has no way to omit it, and showing sync status there isn't wrong — judged not worth a one-off custom row just to omit it).
+
+**Verified**: all 132 `src/**/*.js` files pass a babel syntax check after every edit. **Not yet live-tested by Jay** — none of this has been run against a real device yet.
+
+## 44. Git / commit status (Aug 28)
+
+Branch: **`jay`**. Everything from §41-§43 is committed in a single commit, `8f6b8b4` ("visual bug fixes. Added a profile picture feature. Made sure that every client side fetces the profiles."), on top of `501a829`. Working tree clean as of session end.
+
+## 45. Suggested first steps in a new session
+
+1. **Nothing in §41-§43 has been live-tested yet** — this is the top priority. Run the two new SQL files if not already run (`2026-08-27_profile_photo.sql`, `2026-08-28_photos_in_lists.sql` — confirm both actually executed against Supabase, not just committed to the repo). Then: set a photo via Edit Profile for a Manager, a Sales Rep, and a Collector; confirm it shows on Edit Profile itself, the Settings avatar, and the Dashboard header icon for each. Confirm an agent who's set a photo shows it (not initials) in Manage Accounts, the Release Stock recipient picker, Reports & Returns, Alerts, and the relevant collector delivery screens; confirm one who hasn't shows initials, never a blank/broken image.
+2. Confirm Track Deliveries (all three roles) and the collector delivery screens render the new two-tier header correctly on a real device — this is the first time `CollectorDeliveryDetailScreen`'s custom topBar was replaced with the shared `Header`/`SubScreenSecondaryHeader` pair, worth a specific look.
+3. Confirm the safe-area fix (§41) actually resolved the original overlap complaint on Jay's own device across a few different screens, not just the ones with an inline `topBar` that got the explicit fix.
+4. Carry-overs, still open (unchanged from §40): the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, a real dev build decision (Save-to-Gallery, offline sync), the `npm audit` vulnerabilities flagged in §31.
+5. Natural next features once the above is solid: real geotagging/reconciliation beyond receiving/release, offline sync, QR-scan-to-receive validation against `receiving_batches`, and a dedicated Release Logs view.
