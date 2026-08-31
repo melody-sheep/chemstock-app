@@ -1,6 +1,6 @@
 // src/screens/common/EditProfileScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,16 +9,24 @@ import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import CustomModal from '../../components/common/Modal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
 import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { SHADOWS } from '../../styles/shadows';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
   sales_rep: 'Sales Representative',
   collector: 'Collector',
+};
+
+const ROLE_ICONS = {
+  manager: 'idCard',
+  sales_rep: 'users',
+  collector: 'truck',
 };
 
 /**
@@ -35,6 +43,9 @@ export default function EditProfileScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('+63 917 123 4567');
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [phoneDraft, setPhoneDraft] = useState('');
 
   const loadUser = useCallback(async () => {
     setIsLoading(true);
@@ -108,7 +119,20 @@ export default function EditProfileScreen() {
     }
   };
 
+  const handleEditPhone = () => {
+    setPhoneDraft(phoneNumber);
+    setIsEditingPhone(true);
+  };
+
+  const handleSavePhone = () => {
+    setPhoneNumber(phoneDraft.trim() || phoneNumber);
+    setIsEditingPhone(false);
+  };
+
+  const handleCancelPhone = () => setIsEditingPhone(false);
+
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || '';
+  const roleIcon = ROLE_ICONS[user?.role] || 'idCard';
 
   return (
     <>
@@ -128,10 +152,10 @@ export default function EditProfileScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <View style={styles.content}>
-            <View style={styles.avatarSection}>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.heroCard}>
               <View style={styles.avatarWrap}>
-                <UserAvatar photoUrl={user?.profilePhotoUrl} size={120} iconName="person" />
+                <UserAvatar photoUrl={user?.profilePhotoUrl} size={112} iconName="person" style={styles.avatarRing} />
                 <Pressable
                   style={styles.cameraBadge}
                   onPress={() => setIsSourceModalVisible(true)}
@@ -143,7 +167,7 @@ export default function EditProfileScreen() {
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
                     <View style={styles.cameraBadgeIcon}>
-                      <Text style={styles.cameraBadgeGlyph}>+</Text>
+                      <Icon name="camera" size={16} color="#FFFFFF" weight="fill" />
                     </View>
                   )}
                 </Pressable>
@@ -153,21 +177,142 @@ export default function EditProfileScreen() {
                 {user?.full_name || user?.username || ''}
               </Text>
               <Text style={styles.userRole}>{roleLabel}</Text>
-              <Text style={styles.userBranch} numberOfLines={1}>
-                {user?.branchName || 'No branch assigned'}
+
+              <Pressable
+                style={styles.changePhotoBtn}
+                onPress={() => setIsSourceModalVisible(true)}
+                disabled={isSaving}
+              >
+                <Text style={styles.changePhotoText}>Change Photo</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.sectionLabel}>Profile Information</Text>
+            <View style={styles.groupCard}>
+              <View style={styles.rowItem}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.rowIconWrap}>
+                    <Icon name="idCard" size={18} color="#03045E" />
+                  </View>
+                  <Text style={styles.rowLabel}>Full Name</Text>
+                </View>
+                <Text style={styles.rowValue} numberOfLines={1}>
+                  {user?.full_name || user?.username || '—'}
+                </Text>
+              </View>
+
+              <View style={styles.rowDivider} />
+
+              <View style={styles.rowItem}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.rowIconWrap}>
+                    <Icon name={roleIcon} size={18} color="#03045E" />
+                  </View>
+                  <Text style={styles.rowLabel}>Role</Text>
+                </View>
+                <Text style={styles.rowValue} numberOfLines={1}>{roleLabel}</Text>
+              </View>
+
+              <View style={styles.rowDivider} />
+
+              <View style={styles.rowItem}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.rowIconWrap}>
+                    <Icon name="location" size={18} color="#F04D59" />
+                  </View>
+                  <Text style={styles.rowLabel}>Branch</Text>
+                </View>
+                <Text style={styles.rowValue} numberOfLines={1}>
+                  {user?.branchName || 'No branch assigned'}
+                </Text>
+              </View>
+
+              <View style={styles.rowDivider} />
+
+              <View style={styles.rowItem}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.rowIconWrap}>
+                    <Icon name="phone" size={18} color="#03045E" />
+                  </View>
+                  {isEditingPhone ? (
+                    <TextInput
+                      style={styles.phoneInput}
+                      value={phoneDraft}
+                      onChangeText={setPhoneDraft}
+                      keyboardType="phone-pad"
+                      placeholder="Enter phone number"
+                      placeholderTextColor="#94a3b8"
+                      autoFocus
+                    />
+                  ) : (
+                    <Text style={styles.rowLabel}>Phone Number</Text>
+                  )}
+                </View>
+
+                {isEditingPhone ? (
+                  <View style={styles.phoneEditActions}>
+                    <Pressable
+                      style={styles.phoneActionBtn}
+                      onPress={handleCancelPhone}
+                      accessibilityLabel="Cancel phone number edit"
+                      accessibilityRole="button"
+                    >
+                      <Icon name="xCircle" size={18} color="#94a3b8" />
+                    </Pressable>
+                    <Pressable
+                      style={styles.phoneActionBtn}
+                      onPress={handleSavePhone}
+                      accessibilityLabel="Save phone number"
+                      accessibilityRole="button"
+                    >
+                      <Icon name="check" size={18} color={COLORS.success} weight="bold" />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={styles.phoneEditTrigger}
+                    onPress={handleEditPhone}
+                    accessibilityLabel="Edit phone number"
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.rowValue} numberOfLines={1}>{phoneNumber}</Text>
+                    <Icon name="notePencil" size={15} color="#03045E" />
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.noticeBox}>
+              <Icon name="lock" size={14} color="#94a3b8" />
+              <Text style={styles.noticeText}>
+                Name, role, and branch are managed by your administrator — only your phone number can be edited here.
               </Text>
             </View>
-          </View>
+
+            <View style={{ height: SPACING.xl }} />
+          </ScrollView>
         )}
       </View>
 
-      <CustomModal visible={isSourceModalVisible} onClose={() => setIsSourceModalVisible(false)} height={220}>
+      <CustomModal visible={isSourceModalVisible} onClose={() => setIsSourceModalVisible(false)} height={260}>
         <Text style={styles.modalTitle}>Change Profile Photo</Text>
+
         <Pressable style={styles.modalOption} onPress={handleTakePhoto}>
+          <View style={styles.modalOptionIconWrap}>
+            <Icon name="camera" size={18} color="#03045E" />
+          </View>
           <Text style={styles.modalOptionText}>Take Photo</Text>
+          <Icon name="arrowRight" size={16} color="#94a3b8" />
         </Pressable>
+
+        <View style={styles.rowDivider} />
+
         <Pressable style={styles.modalOption} onPress={handlePickFromGallery}>
+          <View style={styles.modalOptionIconWrap}>
+            <Icon name="grid" size={18} color="#03045E" />
+          </View>
           <Text style={styles.modalOptionText}>Choose from Gallery</Text>
+          <Icon name="arrowRight" size={16} color="#94a3b8" />
         </Pressable>
       </CustomModal>
 
@@ -187,16 +332,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING['2xl'],
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.lg,
   },
-  avatarSection: {
+  heroCard: {
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 16,
+    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.cardSoft,
   },
   avatarWrap: {
     position: 'relative',
     marginBottom: SPACING.md,
+  },
+  avatarRing: {
+    borderWidth: 3,
+    borderColor: COLORS.primaryLight,
   },
   cameraBadge: {
     position: 'absolute',
@@ -204,21 +360,14 @@ const styles = StyleSheet.create({
     right: 0,
   },
   cameraBadgeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: COLORS.primary,
     borderWidth: 3,
     borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cameraBadgeGlyph: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    lineHeight: 20,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
   },
   userName: {
     fontSize: 18,
@@ -232,11 +381,113 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
-  userBranch: {
+  changePhotoBtn: {
+    marginTop: SPACING.md,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 999,
+    backgroundColor: COLORS.primaryLight,
+  },
+  changePhotoText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  sectionLabel: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  groupCard: {
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    marginBottom: SPACING.md,
+    paddingHorizontal: 12,
+  },
+  rowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    gap: 10,
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+  rowIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    fontSize: 13,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  rowValue: {
+    flexShrink: 1,
+    textAlign: 'right',
     fontSize: 12,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: '#EEF2F7',
+  },
+  phoneEditTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    paddingVertical: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.primary,
+  },
+  phoneEditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  phoneActionBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 4,
   },
   modalTitle: {
     fontSize: 16,
@@ -246,13 +497,24 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
+  },
+  modalOptionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalOptionText: {
+    flex: 1,
     fontSize: 15,
-    color: '#03045E',
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
 });
