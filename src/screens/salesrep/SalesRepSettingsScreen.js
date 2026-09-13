@@ -58,6 +58,10 @@ export default function SalesRepSettingsScreen() {
     Alert.alert('Coming Soon', `${label} isn't built yet.`);
   };
 
+  const openLegalInfo = (type) => {
+    navigation.navigate('LegalInfo', { type, role: 'salesrep' });
+  };
+
   const handleLogout = () => setShowLogoutDialog(true);
 
   const handleConfirmLogout = async () => {
@@ -177,12 +181,24 @@ export default function SalesRepSettingsScreen() {
 
           <Text style={styles.sectionLabel}>About</Text>
           <View style={styles.groupCard}>
-            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Data Privacy Notice')}>
+            <Pressable style={styles.rowItem} onPress={() => openLegalInfo('faq')}>
+              <View style={styles.rowLeft}>
+                <View style={styles.rowIconWrap}>
+                  <Icon name="question" size={18} color="#03045E" />
+                </View>
+                <Text style={styles.rowLabel}>FAQ</Text>
+              </View>
+              <Icon name="arrowRight" size={16} color="#94a3b8" />
+            </Pressable>
+
+            <View style={styles.rowDivider} />
+
+            <Pressable style={styles.rowItem} onPress={() => openLegalInfo('legal')}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
                   <Icon name="document" size={18} color="#03045E" />
                 </View>
-                <Text style={styles.rowLabel}>Data Privacy Notice (RA 10173)</Text>
+                <Text style={styles.rowLabel}>Laws</Text>
               </View>
               <Icon name="arrowRight" size={16} color="#94a3b8" />
             </Pressable>

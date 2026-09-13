@@ -9,6 +9,7 @@ import QRCode from 'react-native-qrcode-svg';
 // this app (ReceiveStockPreviewScreen originally, now here).
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library/legacy';
+import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import Button from './Button';
 import { COLORS } from '../../constants/colors';
@@ -34,10 +35,13 @@ import { TYPOGRAPHY } from '../../styles/typography';
 export default function SaveableQRCode({ value, size = 200, showValueText = true, style = {} }) {
   const qrRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
 
-  const handleSaveToGallery = () => {
-    if (!qrRef.current) return;
-    setIsSaving(true);
+  const getQrAsset = () => new Promise((resolve, reject) => {
+    if (!qrRef.current) {
+      reject(new Error('QR not ready'));
+      return;
+    }
 
     qrRef.current.toDataURL(async (dataURL) => {
       try {
@@ -47,62 +51,161 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
         await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
-
-        try {
-          // Scoped to write-only + photo — the unscoped call requests
-          // photo+video+audio by default, and Expo Go's shared manifest
-          // doesn't declare audio access, which rejects the whole request.
-          const { status } = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
-          if (status !== 'granted') {
-            throw new Error('Photo permission not granted');
-          }
-          await MediaLibrary.createAssetAsync(fileUri);
-          Alert.alert('Saved', 'QR code saved to your photos.');
-          return;
-        } catch (mediaLibraryError) {
-          // Expected under Expo Go — MediaLibrary's full gallery-write
-          // access isn't available there.
-          console.warn('[WARN] [SaveableQRCode] MediaLibrary save failed:', mediaLibraryError);
-        }
-
-        if (Platform.OS === 'android') {
-          try {
-            const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-            if (permissions.granted) {
-              const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
-                permissions.directoryUri,
-                `chemstock-qr-${safeName}`,
-                'image/png'
-              );
-              await FileSystem.writeAsStringAsync(safUri, base64, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-              Alert.alert('Saved', 'QR code saved to the folder you selected.');
-              return;
-            }
-          } catch (safError) {
-            console.warn('[WARN] [SaveableQRCode] Storage Access Framework save failed, falling back to share:', safError);
-          }
-        }
-
-        // Last resort — sends the file to whatever app the user picks
-        // rather than saving it directly, so tell them that up front.
-        const canShare = await Sharing.isAvailableAsync();
-        if (!canShare) {
-          throw new Error('No save method available on this device');
-        }
-        Alert.alert(
-          'Direct Save Unavailable',
-          'Pick an app below to send the QR code to (e.g. Files) — it will not be saved automatically.',
-          [{ text: 'Continue', onPress: () => Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'Save QR Code' }) }]
-        );
+        resolve({ fileUri, dataURL, base64, safeName });
       } catch (error) {
-        console.error('[ERROR] [SaveableQRCode] Save to gallery failed:', error);
-        Alert.alert('Failed to Save', 'Could not save the QR code to your photos.');
-      } finally {
-        setIsSaving(false);
+        reject(error);
       }
     });
+  });
+
+  const handleSaveToGallery = async () => {
+    try {
+      setIsSaving(true);
+      const { fileUri, base64, safeName } = await getQrAsset();
+
+      try {
+        // Scoped to write-only + photo — the unscoped call requests
+        // photo+video+audio by default, and Expo Go's shared manifest
+        // doesn't declare audio access, which rejects the whole request.
+        const { status } = await MediaLibrary.requestPermissionsAsync(true, ['photo']);
+        if (status !== 'granted') {
+          throw new Error('Photo permission not granted');
+        }
+        await MediaLibrary.createAssetAsync(fileUri);
+        Alert.alert('Saved', 'QR code saved to your photos.');
+        return;
+      } catch (mediaLibraryError) {
+        // Expected under Expo Go — MediaLibrary's full gallery-write
+        // access isn't available there.
+        console.warn('[WARN] [SaveableQRCode] MediaLibrary save failed:', mediaLibraryError);
+      }
+
+      if (Platform.OS === 'android') {
+        try {
+          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+          if (permissions.granted) {
+            const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
+              permissions.directoryUri,
+              `chemstock-qr-${safeName}`,
+              'image/png'
+            );
+            await FileSystem.writeAsStringAsync(safUri, base64, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            Alert.alert('Saved', 'QR code saved to the folder you selected.');
+            return;
+          }
+        } catch (safError) {
+          console.warn('[WARN] [SaveableQRCode] Storage Access Framework save failed, falling back to share:', safError);
+        }
+      }
+
+      // Last resort — sends the file to whatever app the user picks
+      // rather than saving it directly, so tell them that up front.
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        throw new Error('No save method available on this device');
+      }
+      Alert.alert(
+        'Direct Save Unavailable',
+        'Pick an app below to send the QR code to (e.g. Files) — it will not be saved automatically.',
+        [{ text: 'Continue', onPress: () => Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'Save QR Code' }) }]
+      );
+    } catch (error) {
+      console.error('[ERROR] [SaveableQRCode] Save to gallery failed:', error);
+      Alert.alert('Failed to Save', 'Could not save the QR code to your photos.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    try {
+      setIsPrinting(true);
+      const { dataURL } = await getQrAsset();
+      const printHtml = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              * { box-sizing: border-box; }
+              body {
+                margin: 0;
+                background: #f3f4f6;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 36px 20px;
+                font-family: -apple-system, Helvetica, Arial, sans-serif;
+              }
+              .card {
+                width: min(92vw, 520px);
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 18px;
+                padding: 26px 18px 18px;
+                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+              }
+              .title {
+                text-align: center;
+                font-size: 30px;
+                font-weight: 700;
+                color: #0f172a;
+                margin-bottom: 18px;
+              }
+              .qr-wrap {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 12px;
+              }
+              .qr-wrap img {
+                width: 220px;
+                height: 220px;
+                object-fit: contain;
+                display: block;
+                border: 1px solid #e5e7eb;
+                background: #ffffff;
+              }
+              .code {
+                margin-top: 18px;
+                text-align: center;
+                font-size: 13px;
+                color: #374151;
+                letter-spacing: 0.4px;
+                word-break: break-all;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="title">ChemStock QR</div>
+              <div class="qr-wrap">
+                <img src="${dataURL}" alt="QR code" />
+              </div>
+              <div class="code">${value}</div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      await Print.printAsync({ html: printHtml });
+    } catch (error) {
+      console.warn('[WARN] [SaveableQRCode] Print failed, falling back to share:', error);
+      try {
+        const { fileUri } = await getQrAsset();
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'QR Code' });
+          return;
+        }
+      } catch (shareError) {
+        console.error('[ERROR] [SaveableQRCode] Share fallback failed:', shareError);
+      }
+      Alert.alert('Print Unavailable', 'This device could not open the print dialog. You can still save or share the QR code manually.');
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   return (
@@ -115,19 +218,34 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
           <Text style={styles.codeText}>{value}</Text>
         </View>
       )}
-      <Button
-        title={isSaving ? 'Saving…' : 'Save to Gallery'}
-        variant="fill"
-        accentColor={COLORS.success}
-        icon="trayDown"
-        iconSize={16}
-        onPress={handleSaveToGallery}
-        loading={isSaving}
-        disabled={isSaving}
-        height={40}
-        fontSize={14}
-        style={styles.saveButton}
-      />
+      <View style={styles.actionRow}>
+        <Button
+          title={isPrinting ? 'Printing…' : 'Print'}
+          variant="outline"
+          accentColor={COLORS.primary}
+          icon="document"
+          iconSize={16}
+          onPress={handlePrint}
+          loading={isPrinting}
+          disabled={isPrinting || isSaving}
+          height={40}
+          fontSize={14}
+          style={styles.printButton}
+        />
+        <Button
+          title={isSaving ? 'Saving…' : 'Save to Gallery'}
+          variant="fill"
+          accentColor={COLORS.success}
+          icon="trayDown"
+          iconSize={16}
+          onPress={handleSaveToGallery}
+          loading={isSaving}
+          disabled={isSaving || isPrinting}
+          height={40}
+          fontSize={14}
+          style={styles.saveButton}
+        />
+      </View>
     </View>
   );
 }
@@ -170,7 +288,15 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     letterSpacing: 0.5,
   },
-  saveButton: {
+  actionRow: {
     width: '100%',
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  printButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 1,
   },
 });
