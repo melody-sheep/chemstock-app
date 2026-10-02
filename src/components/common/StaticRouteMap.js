@@ -17,7 +17,7 @@ const FALLBACK_CENTER = { latitude: 8.4542, longitude: 124.6319 };
 // destination pins visible at once (one per still-undelivered leg), which
 // the single `destinationCoords` prop can't express. Existing callers
 // (Manager/SR Track Deliveries, both single-destination) are untouched.
-function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations }) {
+function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations, showZoomControl, showScale }) {
   const extraPoints = (destinations || []).map((d) => ({ latitude: d.latitude, longitude: d.longitude }));
   const points = [originCoords, destinationCoords, lastCheckpoint, ...extraPoints].filter(Boolean);
   const center = points[0] || FALLBACK_CENTER;
@@ -29,19 +29,29 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: 0; }
-    .leaflet-control-zoom { display: none; }
+    .leaflet-control-zoom { ${showZoomControl ? 'right: 8px !important; top: 8px !important;' : 'display: none;'} }
+    .leaflet-control-scale { ${showScale ? 'margin-bottom: 8px !important; margin-left: 8px !important;' : 'display: none;'} }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    var map = L.map('map', { zoomControl: false, dragging: true, scrollWheelZoom: false })
-      .setView([${center.latitude}, ${center.longitude}], 13);
+    var map = L.map('map', {
+      zoomControl: false,
+      dragging: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      scrollWheelZoom: true,
+      tap: true,
+      zoomSnap: 0.5,
+    }).setView([${center.latitude}, ${center.longitude}], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map);
+    ${showZoomControl ? "L.control.zoom({ position: 'topright' }).addTo(map);" : ''}
+    ${showScale ? "L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 100 }).addTo(map);" : ''}
 
     function dot(color) {
       return L.divIcon({
@@ -83,7 +93,18 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
       bounds.push([destination.latitude, destination.longitude]);
     }
     if (lastCheckpoint) {
-      L.marker([lastCheckpoint.latitude, lastCheckpoint.longitude], { icon: dot('#F4A825'), interactive: false }).addTo(map);
+      L.marker([lastCheckpoint.latitude, lastCheckpoint.longitude], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="position:relative;width:22px;height:22px;">' +
+            '<div style="position:absolute;top:-2px;left:-2px;width:26px;height:26px;border-radius:13px;background:rgba(244,168,37,0.25);"></div>' +
+            '<div style="position:absolute;top:4px;left:4px;width:14px;height:14px;border-radius:7px;background:#F4A825;border:2px solid #FFFFFF;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>' +
+            '</div>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+        interactive: false,
+      }).addTo(map);
       bounds.push([lastCheckpoint.latitude, lastCheckpoint.longitude]);
     }
     if (destinations) {
@@ -95,6 +116,24 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
       });
     }
 
+    var routePoints = [];
+    if (origin) routePoints.push([origin.latitude, origin.longitude]);
+    if (lastCheckpoint) routePoints.push([lastCheckpoint.latitude, lastCheckpoint.longitude]);
+    if (destinations) {
+      destinations.forEach(function (d) { routePoints.push([d.latitude, d.longitude]); });
+    } else if (destination) {
+      routePoints.push([destination.latitude, destination.longitude]);
+    }
+    if (routePoints.length > 1) {
+      L.polyline(routePoints, {
+        color: '#0085F9',
+        weight: 3,
+        opacity: 0.55,
+        dashArray: '1, 10',
+        lineCap: 'round',
+      }).addTo(map);
+    }
+
     if (bounds.length > 1) {
       map.fitBounds(bounds, { padding: [36, 36] });
     }
@@ -103,14 +142,26 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
 </html>`;
 }
 
-export default function StaticRouteMap({ originCoords, destinationCoords, lastCheckpoint, destinations, height = 180, style }) {
+export default function StaticRouteMap({
+  originCoords,
+  destinationCoords,
+  lastCheckpoint,
+  destinations,
+  height = 180,
+  style,
+  showZoomControl = false,
+  showScale = false,
+  fill = false,
+}) {
   return (
-    <View style={[styles.container, { height }, style]}>
+    <View style={[styles.container, fill ? styles.fill : { height }, style]}>
       <WebView
-        source={{ html: buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations }) }}
+        source={{ html: buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations, showZoomControl, showScale }) }}
         style={styles.webview}
         originWhitelist={['*']}
         scrollEnabled={false}
+        bounces={false}
+        overScrollMode="never"
       />
     </View>
   );
@@ -132,6 +183,9 @@ StaticRouteMap.propTypes = {
   ),
   height: PropTypes.number,
   style: PropTypes.oneOfType([PropTypes.object, PropTypes.number, PropTypes.array]),
+  showZoomControl: PropTypes.bool,
+  showScale: PropTypes.bool,
+  fill: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
@@ -142,5 +196,6 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     backgroundColor: COLORS.background,
   },
+  fill: { flex: 1 },
   webview: { flex: 1 },
 });

@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
@@ -28,6 +29,7 @@ const NEAR_THRESHOLD_METERS = 300;
 
 export default function CollectorDeliverStockScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const { tripId } = route.params || {};
 
@@ -227,39 +229,75 @@ export default function CollectorDeliverStockScreen() {
         <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
         <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.mapWrap}>
           <StaticRouteMap
+            fill
             originCoords={originCoords}
             lastCheckpoint={lastCheckpoint ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude } : collectorPosition}
             destinations={destinations}
-            height={220}
-            style={styles.map}
+            style={styles.mapFill}
+            showZoomControl
+            showScale
           />
 
-          <View style={styles.currentLocationHeaderRow}>
-            <Text style={styles.sectionLabel}>Current Location</Text>
-            <Pressable onPress={() => setIsCancelDialogVisible(true)}>
-              <Text style={styles.cancelLink}>Cancel Delivery</Text>
+          <View style={styles.topOverlayRow} pointerEvents="box-none">
+            <View style={styles.legendPill}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#0085F9' }]} />
+                <Text style={styles.legendText}>Start</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#F4A825' }]} />
+                <Text style={styles.legendText}>You</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendPin, { backgroundColor: '#E63946' }]} />
+                <Text style={styles.legendText}>Stop</Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.cancelPill} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
+              <Icon name="xCircle" size={14} color={COLORS.error} weight="fill" />
+              <Text style={styles.cancelPillText}>Cancel</Text>
             </Pressable>
           </View>
 
-          <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
+          {nearestLeg ? (
+            <View style={styles.distanceOverlay} pointerEvents="none">
+              {isNearAStop ? (
+                <View style={styles.nearBadge}>
+                  <Icon name="location" size={12} color={COLORS.success} weight="fill" />
+                  <Text style={styles.nearBadgeText}>Near {nearestLeg.label}</Text>
+                </View>
+              ) : nearestLeg.distanceLabel ? (
+                <View style={styles.nearBadge}>
+                  <Icon name="navigation" size={12} color={COLORS.textSecondary} weight="fill" />
+                  <Text style={styles.distanceBadgeText}>{nearestLeg.distanceLabel} to {nearestLeg.label}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
-          <View style={{ height: 8 }} />
+          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, SPACING.md) }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sectionLabel}>Current Location</Text>
 
-          {isNearAStop ? (
-            <Button
-              title={isFinishing ? 'Finishing…' : `Finish Delivery — ${nearestLeg.label}`}
-              variant="black"
-              onPress={handleFinishDelivery}
-              loading={isFinishing}
-            />
-          ) : (
-            <Button title="Go to Next Stop" variant="black" onPress={() => setIsCheckpointModalVisible(true)} />
-          )}
+            <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
+              <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
+            </ScrollView>
 
-          <View style={{ height: 24 }} />
-        </ScrollView>
+            {isNearAStop ? (
+              <Button
+                title={isFinishing ? 'Finishing…' : `Finish Delivery — ${nearestLeg.label}`}
+                variant="black"
+                onPress={handleFinishDelivery}
+                loading={isFinishing}
+              />
+            ) : (
+              <Button title="Go to Next Stop" variant="black" onPress={() => setIsCheckpointModalVisible(true)} />
+            )}
+          </View>
+        </View>
       </View>
 
       <CollectorUpdateCheckpointModal
@@ -286,14 +324,108 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl },
   emptyText: { fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium, textAlign: 'center' },
-  content: { padding: SPACING.lg, gap: SPACING.sm },
-  map: { marginBottom: SPACING.sm },
-  currentLocationHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+
+  mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
+  mapFill: { borderRadius: 0, borderWidth: 0 },
+
+  topOverlayRow: {
+    position: 'absolute',
+    top: SPACING.md,
+    left: SPACING.md,
+    right: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  legendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 9, height: 9, borderRadius: 5 },
+  legendPin: { width: 9, height: 9, borderRadius: 5, transform: [{ rotate: '45deg' }], borderBottomLeftRadius: 0 },
+  legendText: { fontSize: 10, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
+
+  cancelPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  cancelPillText: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+
+  distanceOverlay: {
+    position: 'absolute',
+    top: 56,
+    left: SPACING.md,
+    right: SPACING.md,
+    alignItems: 'flex-start',
+  },
+  nearBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  nearBadgeText: { fontSize: 11, color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  distanceBadgeText: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
+
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: SPACING.xs,
+  },
+  timelineScroll: { maxHeight: 140 },
   sectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  cancelLink: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
 });
