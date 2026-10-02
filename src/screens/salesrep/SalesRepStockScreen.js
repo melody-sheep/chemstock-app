@@ -1,6 +1,6 @@
 // src/screens/salesrep/SalesRepStockScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
@@ -9,6 +9,7 @@ import Header from '../../components/common/Header';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -70,47 +71,54 @@ export default function SalesRepStockScreen() {
   const lowStock = visibleStock.filter((row) => row.remaining_quantity < STOCK_HEALTHY_THRESHOLD);
   const totalUnits = currentStock.reduce((sum, row) => sum + row.remaining_quantity, 0);
 
-  const renderProductCard = (item) => (
-    <View key={item.id} style={styles.productCard}>
-      <View style={styles.thumbnailWrap}>
-        <View style={styles.thumbnail}>
-          <Icon name="package" size={22} color="#94a3b8" />
+  const renderProductCard = (item) => {
+    const catalogImage = PRODUCT_CATALOG.find((p) => p.code === item.product_code)?.image;
+    return (
+      <View key={item.id} style={styles.productCard}>
+        <View style={styles.thumbnailWrap}>
+          <View style={styles.thumbnail}>
+            {catalogImage ? (
+              <Image source={catalogImage} style={styles.thumbnailImage} resizeMode="contain" />
+            ) : (
+              <Icon name="package" size={22} color="#94a3b8" />
+            )}
+          </View>
+          <View style={styles.qtyBadge}>
+            <Text style={styles.qtyBadgeText}>{item.remaining_quantity} pcs</Text>
+          </View>
         </View>
-        <View style={styles.qtyBadge}>
-          <Text style={styles.qtyBadgeText}>{item.remaining_quantity} pcs</Text>
-        </View>
+
+        <Text style={styles.productName} numberOfLines={1}>{item.product_name}</Text>
+        {item.batch_number && <Text style={styles.productMeta} numberOfLines={1}>BN: {item.batch_number}</Text>}
+        <Text style={styles.productMeta} numberOfLines={1}>Code: {item.product_code}</Text>
+
+        {item.mfg_date && (
+          <View style={styles.dateRow}>
+            <Icon name="calendar" size={12} color="#03045E" />
+            <Text style={styles.dateText}>Mfg: {new Date(item.mfg_date).toLocaleDateString()}</Text>
+          </View>
+        )}
+        {item.exp_date && (
+          <View style={styles.dateRow}>
+            <Icon name="calendar" size={12} color="#F04D59" />
+            <Text style={styles.dateText}>Exp: {new Date(item.exp_date).toLocaleDateString()}</Text>
+          </View>
+        )}
+
+        {isNearExpiry(item.exp_date) ? (
+          <View style={styles.nearExpiryTag}>
+            <Icon name="warningTriangle" size={9} color="#B26400" />
+            <Text style={styles.nearExpiryText}>Near Expiry Batch</Text>
+          </View>
+        ) : (
+          <View style={styles.salableTag}>
+            <View style={styles.salableDot} />
+            <Text style={styles.salableText}>Salable</Text>
+          </View>
+        )}
       </View>
-
-      <Text style={styles.productName} numberOfLines={1}>{item.product_name}</Text>
-      {item.batch_number && <Text style={styles.productMeta} numberOfLines={1}>BN: {item.batch_number}</Text>}
-      <Text style={styles.productMeta} numberOfLines={1}>Code: {item.product_code}</Text>
-
-      {item.mfg_date && (
-        <View style={styles.dateRow}>
-          <Icon name="calendar" size={12} color="#03045E" />
-          <Text style={styles.dateText}>Mfg: {new Date(item.mfg_date).toLocaleDateString()}</Text>
-        </View>
-      )}
-      {item.exp_date && (
-        <View style={styles.dateRow}>
-          <Icon name="calendar" size={12} color="#F04D59" />
-          <Text style={styles.dateText}>Exp: {new Date(item.exp_date).toLocaleDateString()}</Text>
-        </View>
-      )}
-
-      {isNearExpiry(item.exp_date) ? (
-        <View style={styles.nearExpiryTag}>
-          <Icon name="warningTriangle" size={9} color="#B26400" />
-          <Text style={styles.nearExpiryText}>Near Expiry Batch</Text>
-        </View>
-      ) : (
-        <View style={styles.salableTag}>
-          <View style={styles.salableDot} />
-          <Text style={styles.salableText}>Salable</Text>
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   return (
     <>
@@ -406,6 +414,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
   },
   qtyBadge: {
     position: 'absolute',

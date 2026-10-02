@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorDeliveredStockScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -9,6 +9,7 @@ import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -101,7 +102,20 @@ export default function CollectorDeliveredStockScreen() {
             <View style={styles.itemsCard}>
               {(selectedDelivery.items || []).map((item, index) => (
                 <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                  <Text style={styles.itemName}>{item.productName}</Text>
+                  <View style={styles.itemIconWrap}>
+                    {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                      <Image
+                        source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                        style={styles.itemIconImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Icon name="package" size={16} color="#03045E" />
+                    )}
+                  </View>
+                  <View style={styles.itemTextWrap}>
+                    <Text style={styles.itemName}>{item.productName}</Text>
+                  </View>
                   <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
                 </View>
               ))}
@@ -146,8 +160,20 @@ const styles = StyleSheet.create({
   detailSubtitle: { marginTop: 2, marginBottom: SPACING.md, fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
   detailSectionLabel: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600', color: '#272632', marginBottom: SPACING.xs },
   itemsCard: { borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, backgroundColor: '#FFFFFF', overflow: 'hidden' },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', padding: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  itemRow: { flexDirection: 'row', alignItems: 'center', padding: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   itemRowFirst: { borderTopWidth: 0 },
+  itemIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+    overflow: 'hidden',
+  },
+  itemIconImage: { width: '100%', height: '100%' },
+  itemTextWrap: { flex: 1 },
   itemName: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
   itemMeta: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
 });

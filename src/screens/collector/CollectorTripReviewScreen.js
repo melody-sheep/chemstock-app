@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorTripReviewScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -12,6 +12,7 @@ import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -193,7 +194,20 @@ export default function CollectorTripReviewScreen() {
               <View style={styles.itemsCard}>
                 {(leg.items || []).map((item, index) => (
                   <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                    <Text style={styles.itemName}>{item.productName}</Text>
+                    <View style={styles.itemIconWrap}>
+                      {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                        <Image
+                          source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                          style={styles.itemIconImage}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <Icon name="package" size={16} color="#03045E" />
+                      )}
+                    </View>
+                    <View style={styles.itemTextWrap}>
+                      <Text style={styles.itemName}>{item.productName}</Text>
+                    </View>
                     <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
                   </View>
                 ))}
@@ -303,8 +317,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', padding: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  itemRow: { flexDirection: 'row', alignItems: 'center', padding: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
   itemRowFirst: { borderTopWidth: 0 },
+  itemIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+    overflow: 'hidden',
+  },
+  itemIconImage: { width: '100%', height: '100%' },
+  itemTextWrap: { flex: 1 },
   itemName: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
   itemMeta: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
