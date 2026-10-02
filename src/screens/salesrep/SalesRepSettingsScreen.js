@@ -12,6 +12,7 @@ import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { SHADOWS } from '../../styles/shadows';
 
 export default function SalesRepSettingsScreen() {
   const navigation = useNavigation();
@@ -81,14 +82,14 @@ export default function SalesRepSettingsScreen() {
           title="Settings"
           titleAlign="left"
           height={56}
-          backgroundColor="#03045E"
+          backgroundColor={COLORS.primary}
           textColor="#FFFFFF"
           paddingHorizontal={SPACING.md}
         />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.profileCard}>
-            <UserAvatar photoUrl={user?.profilePhotoUrl} size={56} iconName="person" style={styles.avatarWrap} />
+            <UserAvatar photoUrl={user?.profilePhotoUrl} size={60} iconName="person" style={styles.avatarWrap} />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>{repName}</Text>
               <Text style={styles.profileRole}>Sales Representative</Text>
@@ -243,30 +244,34 @@ export default function SalesRepSettingsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.lg,
     paddingBottom: 96,
   },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.cardSoft,
   },
   avatarWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
+    borderWidth: 3,
+    borderColor: COLORS.primaryLight,
   },
   profileInfo: {
     flex: 1,
@@ -305,10 +310,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   groupCard: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EAEFF5',
     borderRadius: 14,
-    marginBottom: 20,
+    marginBottom: SPACING.lg,
     paddingHorizontal: 12,
   },
   rowItem: {
@@ -375,8 +381,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FBDCDC',
     backgroundColor: '#FFF5F5',
-    borderRadius: 12,
-    height: 50,
+    borderRadius: 14,
+    height: 52,
     gap: 8,
   },
   logoutIcon: {
