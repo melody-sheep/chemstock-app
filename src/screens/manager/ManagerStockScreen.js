@@ -120,6 +120,7 @@ export default function ManagerStockScreen() {
         <StockBatchCard
           key={row.id}
           productName={row.product_name}
+          image={PRODUCT_CATALOG.find((p) => p.code === row.product_code)?.image}
           quantity={row.quantity}
           batchNumber={row.batch_number}
           expDate={row.exp_date}
@@ -131,7 +132,7 @@ export default function ManagerStockScreen() {
   const renderOutOfStockRow = () => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
       {outOfStockProducts.map((product) => (
-        <StockBatchCard key={product.code} productName={product.name} outOfStock />
+        <StockBatchCard key={product.code} productName={product.name} image={product.image} outOfStock />
       ))}
     </ScrollView>
   );
