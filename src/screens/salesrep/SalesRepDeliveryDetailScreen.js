@@ -1,14 +1,15 @@
 // src/screens/salesrep/SalesRepDeliveryDetailScreen.js
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import DeliveryTimeline from '../../components/common/DeliveryTimeline';
+import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -40,18 +41,47 @@ function getTimelineEntries(delivery) {
   ];
 }
 
+const COLLAPSED_SHEET_HEIGHT = 48;
+
 /**
  * SalesRepDeliveryDetailScreen - full-screen, hand-pannable/zoomable map
  * (same treatment as CollectorDeliverStockScreen) with the delivery's
- * status/legend floating over the top and a scrollable bottom sheet
- * (Delivered By, Items, Current Location) floating over the bottom —
- * the map itself stays interactive everywhere else on screen.
+ * status/legend floating over the top and a collapsible bottom sheet
+ * (Delivered By, Items, Current Location) that can be retracted down to a
+ * thin handle so the map behind it is fully visible edge-to-edge.
  */
 export default function SalesRepDeliveryDetailScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const { delivery } = route.params || {};
+
+  const [mapWrapHeight, setMapWrapHeight] = useState(0);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const sheetAnim = useRef(new Animated.Value(1)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      authService.getCurrentUser().then(setCurrentUser);
+    }, [])
+  );
+
+  const toggleDetails = () => {
+    const next = !isDetailsOpen;
+    setIsDetailsOpen(next);
+    Animated.timing(sheetAnim, {
+      toValue: next ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
+  const animatedSheetHeight = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [COLLAPSED_SHEET_HEIGHT, Math.max(expandedHeight, COLLAPSED_SHEET_HEIGHT)],
+  });
 
   if (!delivery) {
     return (
@@ -80,12 +110,14 @@ export default function SalesRepDeliveryDetailScreen() {
         />
         <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
 
-        <View style={styles.mapWrap}>
+        <View style={styles.mapWrap} onLayout={(e) => setMapWrapHeight(e.nativeEvent.layout.height)}>
           <StaticRouteMap
             fill
             originCoords={delivery.originGps}
             destinationCoords={delivery.destinationGps}
+            destinationLabel={`${currentUser?.full_name || currentUser?.username || 'You'} (You)`}
             lastCheckpoint={delivery.lastCheckpoint}
+            lastCheckpointLabel={`${delivery.collectorName || 'Collector'} (Collector)`}
             style={styles.mapFill}
             showZoomControl
             showScale
@@ -114,35 +146,56 @@ export default function SalesRepDeliveryDetailScreen() {
             </View>
           </View>
 
-          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, SPACING.md) }]}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.detailSubtitle}>{new Date(delivery.createdAt).toLocaleString()}</Text>
-
-            <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-              <Text style={styles.sectionLabel}>Delivered By</Text>
-              <View style={styles.metaCard}>
-                <View style={styles.metaRow}>
-                  <Icon name="person" size={16} color={COLORS.primary} />
-                  <Text style={styles.metaText}>{delivery.collectorName || 'Collector'} (Collector)</Text>
-                </View>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { height: animatedSheetHeight, paddingBottom: isDetailsOpen ? Math.max(insets.bottom, SPACING.md) : 0 },
+            ]}
+          >
+            <Pressable onPress={toggleDetails} style={styles.sheetHandleRow} hitSlop={8}>
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetToggleRow}>
+                <Text style={styles.sheetToggleText}>{isDetailsOpen ? 'Hide Details' : 'Show Details'}</Text>
+                <Icon
+                  name="caretDown"
+                  size={14}
+                  color={COLORS.textSecondary}
+                  style={{ transform: [{ rotate: isDetailsOpen ? '0deg' : '180deg' }] }}
+                />
               </View>
+            </Pressable>
 
-              <Text style={styles.sectionLabel}>Items</Text>
-              <View style={styles.itemsCard}>
-                {(delivery.items || []).map((item, index) => (
-                  <View key={`${item.productCode}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                    <Text style={styles.itemName}>{item.productName}</Text>
-                    <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
+            {isDetailsOpen && (
+              <>
+                <Text style={styles.detailSubtitle}>{new Date(delivery.createdAt).toLocaleString()}</Text>
+
+                <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.sectionLabel}>Delivered By</Text>
+                  <View style={styles.metaCard}>
+                    <View style={styles.metaRow}>
+                      <Icon name="person" size={16} color={COLORS.primary} />
+                      <Text style={styles.metaText}>{delivery.collectorName || 'Collector'} (Collector)</Text>
+                    </View>
                   </View>
-                ))}
-              </View>
 
-              <Text style={styles.sectionLabel}>Current Location</Text>
-              <DeliveryTimeline entries={getTimelineEntries(delivery)} />
+                  <Text style={styles.sectionLabel}>Items</Text>
+                  <View style={styles.itemsCard}>
+                    {(delivery.items || []).map((item, index) => (
+                      <View key={`${item.productCode}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                        <Text style={styles.itemName}>{item.productName}</Text>
+                        <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
+                      </View>
+                    ))}
+                  </View>
 
-              <View style={{ height: SPACING.md }} />
-            </ScrollView>
-          </View>
+                  <Text style={styles.sectionLabel}>Current Location</Text>
+                  <DeliveryTimeline entries={getTimelineEntries(delivery)} />
+
+                  <View style={{ height: SPACING.md }} />
+                </ScrollView>
+              </>
+            )}
+          </Animated.View>
         </View>
       </View>
     </>
@@ -215,26 +268,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '55%',
+    overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,
     paddingHorizontal: SPACING.lg,
-    gap: SPACING.xs,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 6,
   },
+  sheetHandleRow: { alignItems: 'center' },
   sheetHandle: {
-    alignSelf: 'center',
     width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#E0E0E0',
     marginBottom: SPACING.xs,
+  },
+  sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sheetToggleText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   detailSubtitle: {
     fontSize: TYPOGRAPHY.fontSize.xs,
