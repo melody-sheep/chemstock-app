@@ -1,6 +1,6 @@
 // src/components/common/StockBatchCard.js
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
@@ -22,6 +22,7 @@ const CARD_WIDTH = 152;
  */
 export default function StockBatchCard({
   productName,
+  image = null,
   quantity = null,
   batchNumber = null,
   expDate = null,
@@ -54,7 +55,11 @@ export default function StockBatchCard({
     <View style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}>
       <View style={styles.thumbWrap}>
         <View style={styles.thumbIconBg}>
-          <Icon name="boxPackage" size={36} />
+          {image ? (
+            <Image source={image} style={styles.thumbImage} resizeMode="contain" />
+          ) : (
+            <Icon name="boxPackage" size={36} />
+          )}
         </View>
 
         {expiryBadge && (
@@ -93,6 +98,7 @@ export default function StockBatchCard({
 
 StockBatchCard.propTypes = {
   productName: PropTypes.string.isRequired,
+  image: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
   quantity: PropTypes.number,
   batchNumber: PropTypes.string,
   expDate: PropTypes.string,
@@ -136,6 +142,10 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
   },
   badge: {
     position: 'absolute',

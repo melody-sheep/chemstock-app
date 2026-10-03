@@ -2,7 +2,7 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: August 28, 2026 (end of UI polish/Edit Profile Picture/photos-in-lists session — see §41-§45)
+Last updated: October 2, 2026 (end of product-catalog cleanup/real-photos session — see §46-§49)
 
 ---
 
@@ -695,3 +695,53 @@ Branch: **`jay`**. Everything from §41-§43 is committed in a single commit, `8
 3. Confirm the safe-area fix (§41) actually resolved the original overlap complaint on Jay's own device across a few different screens, not just the ones with an inline `topBar` that got the explicit fix.
 4. Carry-overs, still open (unchanged from §40): the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, a real dev build decision (Save-to-Gallery, offline sync), the `npm audit` vulnerabilities flagged in §31.
 5. Natural next features once the above is solid: real geotagging/reconciliation beyond receiving/release, offline sync, QR-scan-to-receive validation against `receiving_batches`, and a dedicated Release Logs view.
+
+---
+
+## 46. Session opened Oct 2 — restudy, and a real gap since §45 (Aug 28)
+
+Opened with a full repo re-study (same pattern as §27/§34 openers) rather than trusting this log as current, which was the right call: **real work landed between §45 (Aug 28) and today that this log never captured.** `git log` shows `feba99f` ("fixed edit profile UI and Camera scan QR UI"), `07d0f9f` ("Implement QR printing and FAQ Laws screens"), `9ab9e0a` ("updating modules"), `59f7100` ("changes from main branch and updated package.json") — all after `8f6b8b4` (§44's commit) and before this session. `capstone_docs/MD Folder/Next_Features_TODO.md` (dated Sept 12) independently confirms the Print-QR and FAQ/Laws work as done/in-progress, and `package.json` now shows several Expo modules (`expo-print`, `expo-sharing`, `expo-media-library` confirmed in active use, `react-native-webview`, `@react-native-community/datetimepicker`) and `expo ~57.0.22`/`react-native 0.86.3` (newer patch versions than §2's `~57.0.12`/`0.86.2`) that weren't accounted for here.
+
+**Not backfilled** — this session didn't do that work and doesn't have the session-by-session detail (what broke, what was decided, why) to log it accurately the way every other entry in this file does. If whoever built it wants it captured with real fidelity, either they should add it directly or a future session should reconstruct it from `git log -p` on those four commits. Noting the gap explicitly rather than silently leaving it invisible, same reasoning as every other "flag it, don't guess" moment in this log.
+
+One correction to §2 while here: `AGENTS.md` (checked into the repo) states Expo "HAS CHANGED" and says to read the **v56** versioned docs — checked its git history, that line is untouched since the very first scaffold commit (`create-expo-app`, before any real work started) and has never been updated even as the project moved to Expo 57. Treating it as stale boilerplate, not a real instruction; verify against v57 docs instead when an Expo API question comes up.
+
+## 47. What got built Oct 2 — stock catalog cleanup + real product photos across all 3 POVs
+
+### The ask
+Remove `HPDL`, `RSCS`, `BSCS`, `GSP` from the stock list, confirmed reflected across all three POVs. Separately, once Jay supplied real product photos: wire them in everywhere the catalog surfaces, also across all three POVs. `PCB` was dropped too, mid-session, once Jay flagged no photo existed for it.
+
+### Dimension recommendation (given before the photos arrived)
+Checked actual on-screen render sizes across the app before recommending anything, rather than guessing a number — `ProductChip` thumb 38×38, `ProductPickerList` suggestion thumb 32×32, `StockBatchCard` thumb 56×56, all square. Initial recommendation was 512×512px (retina-safe headroom); Jay pushed back asking for "not less than 40px," so landed on **128×128px square PNG, transparent background preferred** — crisp at 3x retina for the largest (56px) slot in-app, without being needlessly heavy for 19+ files.
+
+### What got built
+- `src/constants/productCatalog.js` — removed `HPDL`/`RSCS`/`BSCS`/`GSP`, then `PCB`. Added a `PRODUCT_IMAGES` lookup of 19 explicit `require()` calls (Metro needs a literal string per call, can't be generated in a loop) against `assets/product_images/<code>.png`, merged into `PRODUCT_CATALOG`'s existing `image` field (was `null` on every entry before — this is the "Stocks Photo" item from `Next_Features_TODO.md` §2, option (A), now done).
+- `StockBatchCard.js` — new optional `image` prop; renders the real photo when present, falls back to the existing `boxPackage` icon otherwise. Used by Manager's Stocks screen and Product Browser.
+- `ManagerStockScreen.js`, `ProductBrowserScreen.js` — wired `image` through at both `StockBatchCard` call sites (in-stock rows resolve it by `product_code` against the catalog; browse/out-of-stock rows already hold the full catalog object directly).
+- `SalesRepStockScreen.js` — `renderProductCard()` had no image support at all (plain `package` icon, no catalog import). Added the same catalog-lookup + image/icon-fallback pattern.
+- Collector side — none of `CollectorDeliveryDetailScreen.js`, `CollectorTripReviewScreen.js`, `CollectorDeliveredStockScreen.js` rendered a product visual before (`CollectorDeliveryDetailScreen` had a generic icon; the other two were bare text rows, no icon wrapper at all). Before touching these, confirmed `item.productCode` is already present on every item returned by `get_my_collector_deliveries`/`get_transaction_by_qr_code_for_agent` (per `capstone_docs/sql/2026-08-28_photos_in_lists.sql`, line-level `jsonb_build_object('productCode', td.product_code, ...)`) even though neither screen was reading it — so this was pure frontend wiring, no backend/SQL change needed. Added the same image/icon-fallback pattern to all three.
+- Already correct, no change needed: `ProductChip.js`, `ProductPickerList.js`, `RegisteredItemsList.js` (used during receiving/releasing flows) were already built to render `product.image` once it existed — they only needed the catalog populated.
+- Fixed in passing: `.gitignore`-adjacent issue did **not** recur here (that was the cloud-session repo, a separate codebase from this one) — not applicable to this branch, noting only so a future session doesn't go looking for it here.
+
+### Known gap, flagged to Jay, not resolved
+If any branch already has live `branch_inventory`/`sr_inventory` rows recorded under the 5 removed codes, those rows will still display in the stock lists — they're pulled from the database, not the catalog. Jay hasn't confirmed whether that's actually the case; no data was touched.
+
+### Q&A this session — APK size / paid APIs
+Jay asked whether the eventual APK build would be too heavy, or depends on a paid API that could break in production. Checked rather than guessed:
+- **No paid APIs anywhere** — grepped for `googleapis`/`mapbox`/API-key patterns (no hits), then read `StaticRouteMap.js` and `MapLocationPickerModal.js` directly: both already use Leaflet + OpenStreetMap tiles inside a WebView, and both components' own comments explain why — *"no Google Maps API key, so it can't crash a production APK build"* / *"that's exactly what broke before."* This was evidently a real incident in a session not covered by this log (see §46's gap) — someone already hit and fixed this exact concern.
+- **APK size** — no build was actually run (not possible from this session); gave a reasoned estimate (~25–45MB as a Play Store AAB, ~60–90MB as a universal APK) based on the installed dependency set, which is a normal footprint for this feature mix (camera, GPS, media library, QR, WebView, print/share). Flagged 4 dependencies in `package.json` that aren't imported anywhere in `src/` — `react-native-multistep`, `react-native-progress-steps`, `xmlbuilder`, `@expo/ngrok` — as a low-risk trim if Jay wants to shave weight. Not removed; Jay hadn't decided by session end.
+
+## 48. Git / commit status (Oct 2)
+
+Branch: **`jay`**. **Nothing from this session is committed.**
+- Modified: `src/components/common/StockBatchCard.js`, `src/constants/productCatalog.js`, `src/screens/collector/CollectorDeliveredStockScreen.js`, `src/screens/collector/CollectorDeliveryDetailScreen.js`, `src/screens/collector/CollectorTripReviewScreen.js`, `src/screens/manager/ManagerStockScreen.js`, `src/screens/manager/ProductBrowserScreen.js`, `src/screens/salesrep/SalesRepStockScreen.js`
+- Untracked: `assets/product_images/` (19 PNGs, Jay-supplied)
+
+## 49. Suggested first steps in a new session
+
+1. **Nothing from §47 has been live-tested beyond Jay's own confirmation that "it's now working"** mid-session (before the Collector-side and PCB-removal changes landed after that point) — worth a fresh look at the Collector screens and the final 19-product catalog specifically, since those were the last pieces wired up.
+2. `git status`/commit today's changes.
+3. Decide whether to remove the 4 unused dependencies flagged in §47 (`react-native-multistep`, `react-native-progress-steps`, `xmlbuilder`, `@expo/ngrok`).
+4. Confirm whether any branch has live inventory recorded under the 5 removed product codes (`HPDL`/`RSCS`/`BSCS`/`GSP`/`PCB`); clear it if so — flagged to Jay, not yet answered.
+5. **Worth doing soon**: backfill §46's documentation gap (Aug 28 → Oct 2: QR printing, FAQ/Laws content, Edit Profile/Camera Scan QR fixes, the dependency/Expo version bumps) from `git log -p`, so this log stays trustworthy as the single source of truth it's meant to be.
+6. Long-carried-over items, still unresolved (unchanged from §45): the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, a real dev build decision (Save-to-Gallery, offline sync), `npm audit` vulnerabilities from §31.

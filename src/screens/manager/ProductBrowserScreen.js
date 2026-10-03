@@ -116,13 +116,14 @@ export default function ProductBrowserScreen() {
         {agg ? (
           <StockBatchCard
             productName={product.name}
+            image={product.image}
             quantity={agg.totalQty}
             batchNumber={agg.earliestRow.batch_number}
             expDate={agg.earliestRow.exp_date}
             wireframe={wireframe}
           />
         ) : (
-          <StockBatchCard productName={product.name} outOfStock wireframe={wireframe} />
+          <StockBatchCard productName={product.name} image={product.image} outOfStock wireframe={wireframe} />
         )}
       </TouchableOpacity>
     );

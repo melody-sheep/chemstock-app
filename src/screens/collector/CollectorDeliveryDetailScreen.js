@@ -16,6 +16,7 @@ import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -207,7 +208,15 @@ export default function CollectorDeliveryDetailScreen() {
               >
                 <View style={styles.itemLeft}>
                   <View style={styles.itemIconWrap}>
-                    <Icon name="package" size={18} color="#03045E" />
+                    {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                      <Image
+                        source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                        style={styles.itemIconImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Icon name="package" size={18} color="#03045E" />
+                    )}
                   </View>
                   <View>
                     <Text style={styles.itemName}>{item.productName}</Text>
@@ -359,6 +368,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
+    overflow: 'hidden',
+  },
+  itemIconImage: {
+    width: '100%',
+    height: '100%',
   },
   itemName: { color: '#272632', fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   itemMeta: { color: '#555353', fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
