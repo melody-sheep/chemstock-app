@@ -18,6 +18,7 @@ import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
+import { debugLog } from '../../utils/logger';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -27,15 +28,27 @@ const SECONDARY_HEADER_HEIGHT = 100;
 
 // 2nd_header_img_salerep.png is 404x466 natively. Unlike the Manager
 // dashboard's illustration (flush against the edge), this one gets a 16px
-// margin on the right per spec, via SecondaryHeader's illustrationMarginRight.
+// flush to the right edge, same as the Manager dashboard.
 const HEADER_ILLUSTRATION_ASPECT_RATIO = 404 / 466;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
-const HEADER_ILLUSTRATION_MARGIN_RIGHT = 16;
+
+// Same branch label rule as ManagerDashboardScreen: "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
+const BRANCH_LABEL_CHARS = 4;
+const formatBranchLabel = (branchName) =>
+  branchName
+    .split(',')
+    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
+    .filter(Boolean)
+    .map((part) => {
+      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
+      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
+    })
+    .join(', ');
 
 const QUICK_STATS = [
   {
     key: 'totalItems',
-    icon: 'boxPackage',
+    icon: 'backpack',
     iconColor: COLORS.secondary,
     accentColor: COLORS.secondary,
     backgroundColor: '#EAF8FE',
@@ -88,41 +101,47 @@ export default function SalesRepDashboardScreen() {
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
 
-    const currentUser = await authService.getCurrentUser();
-    setUser(currentUser);
+    // try/finally so the skeletons always clear, even if a call throws.
+    // Without it, one failed request left the dashboard stuck loading.
+    try {
+      const currentUser = await authService.getCurrentUser();
+      setUser(currentUser);
 
-    const [inventoryResult, logsResult, requestsResult, deliveriesResult] = await Promise.all([
-      inventoryService.getSrInventory(currentUser?.id),
-      inventoryService.getSrActivityLogs(currentUser?.id, 3),
-      requestService.getMyStockRequests(currentUser?.id, 5),
-      inventoryService.getMyDeliveries(currentUser?.id, 10),
-    ]);
+      const [inventoryResult, logsResult, requestsResult, deliveriesResult] = await Promise.all([
+        inventoryService.getSrInventory(currentUser?.id),
+        inventoryService.getSrActivityLogs(currentUser?.id, 3),
+        requestService.getMyStockRequests(currentUser?.id, 5),
+        inventoryService.getMyDeliveries(currentUser?.id, 10),
+      ]);
 
-    if (inventoryResult.success) {
-      // remaining_quantity (current custody), not quantity (originally
-      // received) — see SalesRepStockScreen.js for the full explanation.
-      setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0));
+      if (inventoryResult.success) {
+        // remaining_quantity (current custody), not quantity (originally
+        // received) — see SalesRepStockScreen.js for the full explanation.
+        setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0));
+      }
+      const requests = requestsResult.success ? requestsResult.data : [];
+      setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);
+
+      const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
+        (d) => d.deliveryStatus === 'delivered'
+      );
+
+      // Merge accepted-stock logs with request status changes and completed
+      // incoming deliveries into one chronological feed, top 3 — same pattern
+      // getActivityLogs already uses to merge receiving+release on the
+      // Manager side.
+      const merged = [
+        ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
+        ...requests.map((req) => ({ ...req, logType: 'request' })),
+        ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
+      ];
+      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRecentLogs(merged.slice(0, 3));
+    } catch (error) {
+      debugLog('error', 'SalesRepDashboard', 'Failed to load dashboard', { error: error.message });
+    } finally {
+      setIsLoading(false);
     }
-    const requests = requestsResult.success ? requestsResult.data : [];
-    setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);
-
-    const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
-      (d) => d.deliveryStatus === 'delivered'
-    );
-
-    // Merge accepted-stock logs with request status changes and completed
-    // incoming deliveries into one chronological feed, top 3 — same pattern
-    // getActivityLogs already uses to merge receiving+release on the
-    // Manager side.
-    const merged = [
-      ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
-      ...requests.map((req) => ({ ...req, logType: 'request' })),
-      ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
-    ];
-    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    setRecentLogs(merged.slice(0, 3));
-
-    setIsLoading(false);
   }, []);
 
   useFocusEffect(
@@ -133,6 +152,7 @@ export default function SalesRepDashboardScreen() {
 
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+  const branchLabel = formatBranchLabel(branchName);
 
   const displayedStats = QUICK_STATS.map((stat) => {
     if (stat.key === 'totalItems') {
@@ -232,7 +252,6 @@ export default function SalesRepDashboardScreen() {
               height={SECONDARY_HEADER_HEIGHT}
               illustration={require('../../../assets/sales_rep_assets/2nd_header_img_salerep.png')}
               illustrationWidth={HEADER_ILLUSTRATION_WIDTH}
-              illustrationMarginRight={HEADER_ILLUSTRATION_MARGIN_RIGHT}
             >
               <View style={styles.secondaryContent}>
                 {isLoading ? (
@@ -251,7 +270,13 @@ export default function SalesRepDashboardScreen() {
                     <Text style={styles.statusText}>Online</Text>
                   </View>
 
-                  <View style={styles.statusGroup}>
+                  <TouchableOpacity
+                    style={[styles.statusGroup, styles.branchGroup]}
+                    onPress={() => navigation.navigate('EditProfile')}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open profile"
+                  >
                     <Icon
                       name="location"
                       size={16}
@@ -263,9 +288,11 @@ export default function SalesRepDashboardScreen() {
                     {isLoading ? (
                       <SkeletonBlock width={90} height={14} borderRadius={4} />
                     ) : (
-                      <Text style={styles.statusText}>{branchName}</Text>
+                      <Text style={[styles.statusText, styles.branchText]} numberOfLines={1} ellipsizeMode="tail">
+                        {branchLabel}
+                      </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
             </SecondaryHeader>
@@ -303,9 +330,9 @@ export default function SalesRepDashboardScreen() {
                     <TouchableOpacity
                       key={stat.key}
                       style={styles.statTouchable}
-                      onPress={() => navigation.navigate('SalesRepStock')}
+                      onPress={() => navigation.navigate('SalesRepBackpack')}
                       activeOpacity={0.7}
-                      accessibilityLabel="View my stock"
+                      accessibilityLabel="View my backpack"
                       accessibilityRole="button"
                     >
                       {card}
@@ -430,6 +457,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     gap: SPACING.sm,
+    width: '72%',
+  },
+  branchGroup: {
+    flexShrink: 1,
+  },
+  branchText: {
+    flexShrink: 1,
   },
   statusGroup: {
     flexDirection: 'row',

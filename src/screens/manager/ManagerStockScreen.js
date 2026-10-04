@@ -11,10 +11,12 @@ import StockBatchCard from '../../components/common/StockBatchCard';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import FilterSheet from '../../components/common/FilterSheet';
+import BranchSelector from '../../components/common/BranchSelector';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
 import { describeReceivingScan } from '../../utils/scanLookup';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { COLORS } from '../../constants/colors';
@@ -38,13 +40,20 @@ export default function ManagerStockScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
 
   const loadStock = useCallback(async () => {
     setIsLoading(true);
     const currentManager = await authService.getCurrentUser();
     setManager(currentManager);
 
+    // Each branch has its own storage, so the screen shows one branch at a time.
     const branchIds = currentManager?.branchIds || [];
+    const agentBranches = await requestService.getAgentBranches(branchIds);
+    setBranches(agentBranches);
+    setSelectedBranchId((prev) => prev ?? agentBranches[0]?.id ?? null);
+
     const result = await inventoryService.getBranchStock(branchIds);
     setStock(result.success ? result.data : []);
     setIsLoading(false);
@@ -99,20 +108,23 @@ export default function ManagerStockScreen() {
   // 2026-08-21 migration, needed to keep receiving/release logs from losing
   // their own history). A 0-qty row has nothing left to show as a batch
   // card in either "healthy" or "almost out" — it belongs in Out of Stock.
-  const healthyBatches = stock.filter(
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const branchStock = stock.filter((row) => row.branch_id === selectedBranchId);
+
+  const healthyBatches = branchStock.filter(
     (row) =>
       row.quantity >= STOCK_HEALTHY_THRESHOLD &&
       matchesQuery(row.product_name, row.product_code) &&
       matchesExpiryFilter(row)
   );
-  const lowStockBatches = stock.filter(
+  const lowStockBatches = branchStock.filter(
     (row) =>
       row.quantity > 0 &&
       row.quantity < STOCK_HEALTHY_THRESHOLD &&
       matchesQuery(row.product_name, row.product_code) &&
       matchesExpiryFilter(row)
   );
-  const stockedCodes = new Set(stock.filter((row) => row.quantity > 0).map((row) => row.product_code));
+  const stockedCodes = new Set(branchStock.filter((row) => row.quantity > 0).map((row) => row.product_code));
   const outOfStockProducts = PRODUCT_CATALOG.filter(
     (product) => !stockedCodes.has(product.code) && matchesQuery(product.name, product.code)
   );
@@ -159,7 +171,7 @@ export default function ManagerStockScreen() {
           <View style={styles.branchRow}>
             <View style={styles.branchTextCol}>
               <Text style={styles.branchName} numberOfLines={1}>
-                {manager?.branchName || 'No branch assigned'}
+                {selectedBranch?.name || 'No branch assigned'}
               </Text>
               <Text style={styles.branchSubtitle}>Branch Inventory</Text>
             </View>
@@ -169,6 +181,8 @@ export default function ManagerStockScreen() {
             </View>
           </View>
         </SecondaryHeader>
+
+        <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
 
         <View style={styles.searchRow}>
           <View style={styles.searchInputWrap}>

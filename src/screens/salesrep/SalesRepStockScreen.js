@@ -1,37 +1,61 @@
 // src/screens/salesrep/SalesRepStockScreen.js
+// Same layout as ManagerStockScreen (header, branch banner, search + filter,
+// three status sections with StockBatchCard rows). Reads branch inventory so a
+// Sales Rep sees the same stock as the Manager on the same branch.
 import React, { useCallback, useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Icon from '../../components/common/Icon';
-import Input from '../../components/common/Input';
 import Header from '../../components/common/Header';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import Input from '../../components/common/Input';
+import Icon from '../../components/common/Icon';
+import StockBatchCard from '../../components/common/StockBatchCard';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import FilterSheet from '../../components/common/FilterSheet';
+import BranchSelector from '../../components/common/BranchSelector';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { daysUntil } from '../../utils/formatters';
 
-function isNearExpiry(expDate) {
-  if (!expDate) return false;
-  return (new Date(expDate).getTime() - Date.now()) / 86400000 <= NEAR_EXPIRY_DAYS;
-}
+const BRANCH_HEADER_HEIGHT = 76;
+
+const EXPIRY_FILTER_OPTIONS = [
+  { key: 'all', label: 'All Batches' },
+  { key: 'nearExpiry', label: 'Near Expiry Only' },
+];
 
 export default function SalesRepStockScreen() {
   const navigation = useNavigation();
-  const [searchText, setSearchText] = useState('');
   const [agent, setAgent] = useState(null);
   const [stock, setStock] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [expiryFilter, setExpiryFilter] = useState('all');
+  const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
 
   const loadStock = useCallback(async () => {
     setIsLoading(true);
     const currentAgent = await authService.getCurrentUser();
     setAgent(currentAgent);
-    const result = await inventoryService.getSrInventory(currentAgent?.id);
+
+    // Each branch has its own storage, so the screen shows one branch at a time.
+    const agentBranches = await requestService.getAgentBranches(currentAgent?.branchIds || []);
+    setBranches(agentBranches);
+    setSelectedBranchId((prev) => prev ?? agentBranches[0]?.id ?? null);
+
+    const result = await inventoryService.getBranchStockForAgent(currentAgent?.id);
     setStock(result.success ? result.data : []);
     setIsLoading(false);
   }, []);
@@ -42,7 +66,6 @@ export default function SalesRepStockScreen() {
     }, [loadStock])
   );
 
-
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
       navigation.navigate('SalesRepDashboard');
@@ -52,78 +75,76 @@ export default function SalesRepStockScreen() {
       navigation.navigate('SalesRepReports');
     } else if (key === 'settings') {
       navigation.navigate('SalesRepSettings');
+    } else {
+      navigation.navigate('ComingSoon', { tabKey: key, role: 'salesrep' });
     }
   };
 
-  // remaining_quantity (not quantity) is what's actually still on hand —
-  // quantity stays fixed at the originally-received amount forever, while
-  // remaining_quantity is drained by daily-report submission and
-  // discrepancy resolution. A batch fully consumed by either of those
-  // (remaining_quantity 0) is no longer "in stock" and shouldn't render.
-  const currentStock = stock.filter((row) => row.remaining_quantity > 0);
+  const handleScanned = (qrCode) => {
+    setIsScannerVisible(false);
+    navigation.navigate('ReceiveStockSR', { initialQrCode: qrCode });
+  };
 
   const query = searchText.trim().toLowerCase();
-  const visibleStock = currentStock.filter((row) => {
-    if (!query) return true;
-    return row.product_name?.toLowerCase().includes(query) || row.product_code?.toLowerCase().includes(query);
-  });
-  const healthyStock = visibleStock.filter((row) => row.remaining_quantity >= STOCK_HEALTHY_THRESHOLD);
-  const lowStock = visibleStock.filter((row) => row.remaining_quantity < STOCK_HEALTHY_THRESHOLD);
-  const totalUnits = currentStock.reduce((sum, row) => sum + row.remaining_quantity, 0);
+  const matchesQuery = (name, code) =>
+    !query || name.toLowerCase().includes(query) || code.toLowerCase().includes(query);
 
-  const renderProductCard = (item) => {
-    const catalogImage = PRODUCT_CATALOG.find((p) => p.code === item.product_code)?.image;
-    return (
-      <View key={item.id} style={styles.productCard}>
-        <View style={styles.thumbnailWrap}>
-          <View style={styles.thumbnail}>
-            {catalogImage ? (
-              <Image source={catalogImage} style={styles.thumbnailImage} resizeMode="contain" />
-            ) : (
-              <Icon name="package" size={22} color="#94a3b8" />
-            )}
-          </View>
-          <View style={styles.qtyBadge}>
-            <Text style={styles.qtyBadgeText}>{item.remaining_quantity} pcs</Text>
-          </View>
-        </View>
-
-        <Text style={styles.productName} numberOfLines={1}>{item.product_name}</Text>
-        {item.batch_number && <Text style={styles.productMeta} numberOfLines={1}>BN: {item.batch_number}</Text>}
-        <Text style={styles.productMeta} numberOfLines={1}>Code: {item.product_code}</Text>
-
-        {item.mfg_date && (
-          <View style={styles.dateRow}>
-            <Icon name="calendar" size={12} color="#03045E" />
-            <Text style={styles.dateText}>Mfg: {new Date(item.mfg_date).toLocaleDateString()}</Text>
-          </View>
-        )}
-        {item.exp_date && (
-          <View style={styles.dateRow}>
-            <Icon name="calendar" size={12} color="#F04D59" />
-            <Text style={styles.dateText}>Exp: {new Date(item.exp_date).toLocaleDateString()}</Text>
-          </View>
-        )}
-
-        {isNearExpiry(item.exp_date) ? (
-          <View style={styles.nearExpiryTag}>
-            <Icon name="warningTriangle" size={9} color="#B26400" />
-            <Text style={styles.nearExpiryText}>Near Expiry Batch</Text>
-          </View>
-        ) : (
-          <View style={styles.salableTag}>
-            <View style={styles.salableDot} />
-            <Text style={styles.salableText}>Salable</Text>
-          </View>
-        )}
-      </View>
-    );
+  const matchesExpiryFilter = (row) => {
+    if (expiryFilter !== 'nearExpiry') return true;
+    const daysLeft = daysUntil(row.exp_date);
+    return daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
   };
+
+  // A batch fully released down to 0 persists in branch_inventory (never
+  // deleted, to keep the logs intact), so 0-qty rows belong in Out of Stock.
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const branchStock = stock.filter((row) => row.branch_id === selectedBranchId);
+
+  const healthyBatches = branchStock.filter(
+    (row) =>
+      row.quantity >= STOCK_HEALTHY_THRESHOLD &&
+      matchesQuery(row.product_name, row.product_code) &&
+      matchesExpiryFilter(row)
+  );
+  const lowStockBatches = branchStock.filter(
+    (row) =>
+      row.quantity > 0 &&
+      row.quantity < STOCK_HEALTHY_THRESHOLD &&
+      matchesQuery(row.product_name, row.product_code) &&
+      matchesExpiryFilter(row)
+  );
+  const stockedCodes = new Set(branchStock.filter((row) => row.quantity > 0).map((row) => row.product_code));
+  const outOfStockProducts = PRODUCT_CATALOG.filter(
+    (product) => !stockedCodes.has(product.code) && matchesQuery(product.name, product.code)
+  );
+
+  const renderBatchRow = (batches) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
+      {batches.map((row) => (
+        <StockBatchCard
+          key={row.id}
+          productName={row.product_name}
+          image={PRODUCT_CATALOG.find((p) => p.code === row.product_code)?.image}
+          quantity={row.quantity}
+          batchNumber={row.batch_number}
+          expDate={row.exp_date}
+        />
+      ))}
+    </ScrollView>
+  );
+
+  const renderOutOfStockRow = () => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
+      {outOfStockProducts.map((product) => (
+        <StockBatchCard key={product.code} productName={product.name} image={product.image} outOfStock />
+      ))}
+    </ScrollView>
+  );
 
   return (
     <>
       <StatusBar style="light" />
-      <View style={styles.screen}>
+      <View style={styles.container}>
         <Header
           title="Stock Inventory"
           titleAlign="left"
@@ -135,232 +156,177 @@ export default function SalesRepStockScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <View style={styles.bannerBar}>
-          <View>
-            <Text style={styles.bannerTitle}>My Handheld Stock</Text>
-            <Text style={styles.bannerSubtitle}>Personal Inventory</Text>
+        <SecondaryHeader height={BRANCH_HEADER_HEIGHT}>
+          <View style={styles.branchRow}>
+            <View style={styles.branchTextCol}>
+              <Text style={styles.branchName} numberOfLines={1}>
+                {selectedBranch?.name || 'No branch assigned'}
+              </Text>
+              <Text style={styles.branchSubtitle}>Branch Inventory</Text>
+            </View>
+            <View style={styles.onlinePill}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>Online</Text>
+            </View>
           </View>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
+        </SecondaryHeader>
+
+        <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputWrap}>
+            <Input icon="search" placeholder="Search products" value={searchText} onChangeText={setSearchText} />
           </View>
+          <TouchableOpacity
+            style={styles.filterButtonWrap}
+            onPress={() => setIsFilterSheetVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel="Filters"
+            accessibilityRole="button"
+          >
+            <Icon name="filter" size={20} color={COLORS.primary} />
+            {expiryFilter !== 'all' && <View style={styles.filterActiveDot} />}
+          </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.agentCard}>
-            <View style={styles.agentHeaderRow}>
-              <Text style={styles.agentHeaderText}>Branch: {agent?.branchName || '—'}</Text>
-            </View>
-
-            <View style={styles.agentBodyRow}>
-              <View style={styles.avatarWrap}>
-                <Icon name="person" size={28} color="#94a3b8" />
-              </View>
-              <View style={styles.agentInfo}>
-                <Text style={styles.agentName}>{agent?.full_name || agent?.username || ''}</Text>
-                <Text style={styles.agentRole}>
-                  {agent?.role === 'collector' ? 'Collector' : 'Sales Representative'}
-                </Text>
-              </View>
-              <Icon name="boxPackage" size={40} color="#03045E" />
-            </View>
-
-            <View style={styles.agentFooterRow}>
-              <Text style={styles.summaryText}>
-                {currentStock.length} batch{currentStock.length === 1 ? '' : 'es'}, {totalUnits} unit{totalUnits === 1 ? '' : 's'} on hand
-              </Text>
+        {expiryFilter !== 'all' && (
+          <View style={styles.activeFilterRow}>
+            <View style={styles.activeFilterChip}>
+              <Text style={styles.activeFilterChipText}>Near Expiry Only</Text>
+              <TouchableOpacity
+                onPress={() => setExpiryFilter('all')}
+                accessibilityLabel="Clear filter"
+                accessibilityRole="button"
+              >
+                <Icon name="xCircle" size={16} color={COLORS.primary} weight="fill" />
+              </TouchableOpacity>
             </View>
           </View>
+        )}
 
-          <View style={styles.searchRow}>
-            <View style={styles.searchInputWrap}>
-              <Input icon="search" placeholder="Search products" value={searchText} onChangeText={setSearchText} />
+        {isLoading ? (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
+            <View style={styles.skeletonCardRow}>
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
             </View>
-            <View style={styles.filterButtonWrap}>
-              <Icon name="filter" size={20} color={COLORS.primary} />
+            <SkeletonBlock
+              width={180}
+              height={18}
+              borderRadius={4}
+              style={[styles.skeletonSectionTitle, styles.sectionSpacing]}
+            />
+            <View style={styles.skeletonCardRow}>
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
+              <SkeletonBlock width={152} height={140} borderRadius={12} />
             </View>
-          </View>
-
-          {isLoading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
+          </ScrollView>
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
+              <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>
             </View>
-          ) : currentStock.length === 0 ? (
-            <View style={styles.loadingWrap}>
-              <Icon name="boxPackage" size={32} color={COLORS.textSecondary} />
-              <Text style={styles.emptyStateText}>No stock yet — accept a release to see it here.</Text>
+            {healthyBatches.length > 0 ? (
+              renderBatchRow(healthyBatches)
+            ) : (
+              <Text style={styles.emptyText}>No batches at healthy levels right now.</Text>
+            )}
+
+            <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
+              <View style={[styles.statusDot, { backgroundColor: COLORS.warning }]} />
+              <Text style={styles.sectionTitle}>Almost Out of Stock (Resupply Soon)</Text>
             </View>
-          ) : (
-            <>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>
-                <View style={[styles.statusDotSmall, { backgroundColor: '#22C55E' }]} />
-              </View>
-              <View style={styles.cardGrid}>
-                {healthyStock.length === 0 ? (
-                  <Text style={styles.emptyStateText}>None right now.</Text>
-                ) : (
-                  healthyStock.map(renderProductCard)
-                )}
-              </View>
+            {lowStockBatches.length > 0 ? (
+              renderBatchRow(lowStockBatches)
+            ) : (
+              <Text style={styles.emptyText}>Nothing running low right now.</Text>
+            )}
 
-              <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
-                <Text style={styles.sectionTitle}>Almost Out of Stock</Text>
-                <View style={[styles.statusDotSmall, { backgroundColor: '#FF7800' }]} />
-              </View>
-              <View style={styles.cardGrid}>
-                {lowStock.length === 0 ? (
-                  <Text style={styles.emptyStateText}>None right now.</Text>
-                ) : (
-                  lowStock.map(renderProductCard)
-                )}
-              </View>
-            </>
-          )}
+            <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
+              <View style={[styles.statusDot, { backgroundColor: COLORS.error }]} />
+              <Text style={styles.sectionTitle}>Out of Stock (Empty Shelves)</Text>
+            </View>
+            {outOfStockProducts.length > 0 ? (
+              renderOutOfStockRow()
+            ) : (
+              <Text style={styles.emptyText}>Every catalog product has stock on hand.</Text>
+            )}
 
-          <View style={{ height: 24 }} />
-        </ScrollView>
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        )}
 
-        <BottomNavBar activeTab="stock" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="stock" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
+
+      <FilterSheet
+        visible={isFilterSheetVisible}
+        onClose={() => setIsFilterSheetVisible(false)}
+        title="Filter Stock"
+        options={EXPIRY_FILTER_OPTIONS}
+        selectedKey={expiryFilter}
+        onSelect={setExpiryFilter}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  container: { flex: 1, backgroundColor: COLORS.background },
+  branchRow: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  bannerBar: {
-    backgroundColor: '#EAFBF8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#D3F5EE',
+    paddingHorizontal: SPACING.md,
   },
-  bannerTitle: {
-    color: '#272632',
-    fontSize: 19,
-    fontWeight: '700',
+  branchTextCol: { flexShrink: 1 },
+  branchName: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
   },
-  bannerSubtitle: {
-    color: '#555353',
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  branchSubtitle: {
     marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
-  statusPill: {
+  onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#B7FFD6',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#00FF6E',
+    gap: 4,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#00FF6E',
-    marginRight: 5,
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
   },
-  statusText: {
-    color: '#1D6A3A',
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 96,
-  },
-  agentCard: {
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 18,
-  },
-  agentHeaderRow: {
-    backgroundColor: '#03045E',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  agentHeaderText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-  agentBodyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  avatarWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  agentInfo: {
-    flex: 1,
-  },
-  agentName: {
-    fontSize: 15,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  agentRole: {
-    fontSize: 12,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 2,
-  },
-  agentFooterRow: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#EEF2F7',
-  },
-  summaryText: {
-    fontSize: 12,
-    color: '#555353',
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
-  },
-  loadingWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 8,
-  },
-  emptyStateText: {
-    fontSize: 12,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 16,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
   },
-  searchInputWrap: {
-    flex: 1,
-  },
+  searchInputWrap: { flex: 1, marginBottom: -SPACING.md },
   filterButtonWrap: {
     width: 44,
     height: 44,
@@ -371,131 +337,68 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#F7FEFF',
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  sectionSpacing: {
-    marginTop: 20,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  statusDotSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  cardGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  productCard: {
-    width: '47%',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    padding: 10,
-  },
-  thumbnailWrap: {
-    position: 'relative',
-    marginBottom: 8,
-  },
-  thumbnail: {
-    width: '100%',
-    height: 72,
-    borderRadius: 10,
-    backgroundColor: '#F1F3F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 10,
-  },
-  qtyBadge: {
+  filterActiveDot: {
     position: 'absolute',
     top: 6,
     right: 6,
-    backgroundColor: '#03045E',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.error,
   },
-  qtyBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '700',
+  activeFilterRow: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+  },
+  activeFilterChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '12',
+  },
+  activeFilterChipText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.primary,
+  },
+  skeletonSectionTitle: { marginBottom: SPACING.sm },
+  skeletonCardRow: { flexDirection: 'row', gap: SPACING.sm },
+  content: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: 96,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  sectionSpacing: { marginTop: SPACING.md },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-  productName: {
-    fontSize: 13,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
   },
-  productMeta: {
-    fontSize: 10,
-    color: '#555353',
+  cardRow: {
+    gap: SPACING.sm,
+    paddingRight: SPACING.sm,
+  },
+  emptyText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 2,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  dateText: {
-    fontSize: 10,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-  },
-  nearExpiryTag: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF1D6',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    gap: 3,
-  },
-  nearExpiryText: {
-    fontSize: 8,
-    color: '#B26400',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  salableTag: {
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#EAFBF2',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    gap: 4,
-  },
-  salableDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#22C55E',
-  },
-  salableText: {
-    fontSize: 8,
-    color: '#1E7A3A',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
 });

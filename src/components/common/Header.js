@@ -112,6 +112,7 @@ export default function Header({
                 iconColor={textColor}
                 iconWeight="fill"
                 backgroundColor="transparent"
+                glyphRatio={0.8}
               />
             </TouchableOpacity>
             {title && title !== '' && (

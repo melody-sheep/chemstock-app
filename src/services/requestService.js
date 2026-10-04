@@ -13,8 +13,8 @@ class RequestService extends BaseService {
    * auth.uid()-is-always-null caveat as every other agent action (see
    * inventoryService.getTransactionByQrCodeForAgent for the full reasoning).
    */
-  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items }) {
-    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, itemCount: items?.length });
+  async submitStockRequest({ agentId, branchId, latitude, longitude, deviceModel, deviceOs, items }) {
+    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, branchId, itemCount: items?.length });
 
     try {
       this.validateRequired(['agentId'], { agentId });
@@ -25,6 +25,7 @@ class RequestService extends BaseService {
         p_longitude: longitude ?? null,
         p_device_model: deviceModel ?? null,
         p_device_os: deviceOs ?? null,
+        p_branch_id: branchId ?? null,
         p_items: (items || []).map((item) => ({
           product_code: item.productCode,
           product_name: item.productName,
@@ -42,6 +43,23 @@ class RequestService extends BaseService {
       this.log('error', 'submitStockRequest failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to submit request' };
     }
+  }
+
+  /**
+   * The branches (id + name) a Sales Rep/Collector covers, for the branch picker
+   * on the request list. Degrades to an empty list if the lookup fails.
+   */
+  async getAgentBranches(branchIds) {
+    if (!branchIds || branchIds.length === 0) return [];
+
+    const { data, error } = await supabase.from('branches').select('id, name').in('id', branchIds);
+
+    if (error) {
+      console.error('[ERROR] [RequestService] Branch list error:', error);
+      return [];
+    }
+
+    return (data || []).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**

@@ -52,8 +52,9 @@ export default function SalesRepStockRequestsScreen() {
       <View style={styles.container}>
         <Header
           showBackButton
-          backButtonText="Sales Rep Dashboard"
+          backButtonText="Back"
           title="My Stock Requests"
+          titleAlign="left"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

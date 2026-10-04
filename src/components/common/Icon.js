@@ -41,6 +41,7 @@ import {
   Phone,
   Check,
   Question,
+  Backpack,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -184,6 +185,7 @@ const PHOSPHOR_ICONS = {
   phone: Phone,
   check: Check,
   question: Question,
+  backpack: Backpack,
 };
 
 const ICON_NAMES = [
@@ -195,7 +197,7 @@ const ICON_NAMES = [
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter', 'flash', 'flashOff',
   'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
   'phone', 'check',
-  'question',
+  'question', 'backpack',
   'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

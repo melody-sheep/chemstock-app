@@ -127,6 +127,33 @@ class InventoryService extends BaseService {
   }
 
   /**
+   * Branch stock for a Sales Rep/Collector (anon-key client, no auth session).
+   * Goes through get_branch_stock_for_agent because direct branch_inventory
+   * reads are authenticated-only and would silently return no rows.
+   */
+  async getBranchStockForAgent(agentId) {
+    debugLog('info', 'InventoryService', 'Fetching branch stock for agent', { agentId });
+
+    if (!agentId) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_branch_stock_for_agent', { p_agent_id: agentId });
+
+      if (error) {
+        console.error('[ERROR] [InventoryService] get_branch_stock_for_agent RPC error:', error);
+        throw new Error(error.message || 'Failed to load branch stock');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getBranchStockForAgent failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load branch stock', data: [] };
+    }
+  }
+
+  /**
    * Receiving transactions (one row per "Add New Batches" submission) for
    * the given branch(es), each with its line items, GPS, and photo metadata
    * embedded via the FK relationships — no separate queries/grouping needed.

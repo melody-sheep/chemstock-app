@@ -43,6 +43,7 @@ import AlertsDiscrepanciesSR from '../screens/salesrep/AlertsDiscrepanciesSR';
 import ReturnStocksSR from '../screens/salesrep/ReturnStocksSR';
 import ResolveDiscrepancyScreen from '../screens/salesrep/ResolveDiscrepancyScreen';
 import SalesRepStockScreen from '../screens/salesrep/SalesRepStockScreen';
+import SalesRepBackpackScreen from '../screens/salesrep/SalesRepBackpackScreen';
 import SalesRepStockRequestsScreen from '../screens/salesrep/SalesRepStockRequestsScreen';
 import SalesRepLogsScreen from '../screens/salesrep/SalesRepLogsScreen';
 import SalesRepTrackDeliveriesScreen from '../screens/salesrep/SalesRepTrackDeliveriesScreen';
@@ -113,6 +114,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ReturnStocksSR" component={ReturnStocksSR} />
         <Stack.Screen name="ResolveDiscrepancy" component={ResolveDiscrepancyScreen} />
         <Stack.Screen name="SalesRepStock" component={SalesRepStockScreen} options={{ animation: 'none' }} />
+        <Stack.Screen name="SalesRepBackpack" component={SalesRepBackpackScreen} />
         <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} />
         <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} />
         <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} />

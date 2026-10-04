@@ -34,6 +34,13 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 2. Log every bug in the table at the bottom: date, POV, screen, what happened, expected behavior.
 3. Fix in small batches per screen group, and tick the box only after the fix is confirmed on device.
 
+**Multi-branch (Oct 4):** a manager or rep can cover more than one branch, and each branch has its own storage. Screens show one branch at a time, and a batch or request goes to one branch.
+
+**Pending database actions (run in Supabase SQL editor, then test):**
+- [ ] `get_branch_stock_for_agent` — Sales Rep Stock and Request Stock show branch stock
+- [ ] `submit_stock_request` with `p_branch_id` — sending a request for a multi-branch rep
+- [ ] If "could not find the function … in the schema cache" appears: `NOTIFY pgrst, 'reload schema';`
+
 ### 1.1 Manager (priority now)
 
 **Dashboard & navigation**
@@ -42,12 +49,14 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 
 **Stock**
 - [ ] `ManagerStockScreen.js` — Healthy / Almost Out / Out of Stock buckets, search, near-expiry filter
+- [x] Branch selector on Stock — shows one branch's stock at a time (device check pending)
 - [ ] `ProductBrowserScreen.js` — catalog photos, out-of-stock dimming
 - [ ] `StockLogsScreen.js` — date filters, detail sheet, QR print/save, shipment photo loads
 
 **Receive stock**
 - [ ] `ReceiveStockScreen.js` / `AddNewBatchesScreen.js` — check whether items added in Add New Batches flow back into Receive Stock's scanned/queued list (noted as not connected in earlier logs)
 - [ ] `ReceiveStockPreviewScreen.js` — GPS gating, scroll-to-review gate, success screen (scroll fixed Oct 3)
+- [x] Multi-branch receive — manager picks the branch before Register; single-branch managers unchanged (device check pending)
 
 **Release stock**
 - [ ] `ReleaseStockMethodScreen`, `ReleaseStockRecipientScreen`, `ReleaseStockScanReviewScreen`, `ReleaseStockDeliveryScreen`, `ReleaseStockConfirmScreen` — step indicator spacing, recipient photos, success QR
@@ -56,7 +65,7 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 **Returns, alerts, reports**
 - [ ] `ManageReturnsScreen.js` / `ReturnStockVerifyScreen.js` — accept / reject, rejected request can be resubmitted
 - [ ] `ManagerAlertsScreen.js` — sort control, discrepancy resolution
-- [ ] `ManagerReportsScreen.js` — weekly / monthly Print, PDF, Share-to-Chat on a real device (never tested live)
+- [ ] `ManagerReportsScreen.js` — weekly / monthly Print, PDF, Share-to-Chat on a real device (never tested live). Open: defaults to the first branch; decide if reports show one branch or all.
 
 **Accounts & delivery tracking**
 - [ ] `ManageAccountsScreen.js` — role filter, avatars, Remove Account confirmation
@@ -75,6 +84,12 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 
 ### 1.2 Sales Rep (after Manager)
 - [ ] Dashboard, Stock, Logs, Request Stock, Request List, Submit Report, Alerts & Discrepancies, Resolve Discrepancy, Return Stock, Reports, Track Deliveries, Settings
+- **Discovery (Oct 4): multi-branch reps and managers.** A rep or manager can cover more than one branch (e.g. Iponan and Butuan). Each branch has its own storage, so stock is per branch, not one combined total. Implemented: a branch selector (`BranchSelector.js`) on Manager Stock, Sales Rep Stock, and Request Stock, so each screen shows one branch's stock. One request goes to one branch: switching branch with items in the request list asks first, then clears the list. The request list is fixed to the chosen branch. Still open: the manager assigning a rep to a single branch (separate topic, to be tackled later).
+- [ ] **Discovery (Oct 4): multi-branch Sales Reps can't send stock requests.** Clint (Iponan / CDO and Butuan) was blocked by `submit_stock_request`, which only accepted one branch. Business rule: a rep registered to a branch covers both branches. Fix in progress: the rep picks the branch on the request list, and the function takes `p_branch_id` (SQL pending run on the database). App side done in `RequestListSR.js` / `requestService.js`.
+- [ ] **Topic for later (not in scope now):** managers can assign a Sales Rep to one branch only, to override the multi-branch default. Needs a manager-side UI and a decision on how that affects the rep's stock view.
+- [ ] Request Stock popup redesign (image on the right, round +/− buttons, smaller Cancel/Save) — device check pending
+- [x] Decision: a request holds one branch. Switching branch with items in the list asks first, then clears it (device check pending)
+- [ ] Sales Rep Stock and Request Stock on branch stock (not personal backpack) — device check pending
 
 ### 1.3 Collector (after Sales Rep)
 - [ ] Dashboard, Accept Deliveries, Deliver Stock, Trip Review, Delivered Stock, Delivery Detail, Settings
@@ -115,6 +130,11 @@ Each entry: what was reported, the screen, and what was changed or still needs d
 | 20 | Oct 3 | Manager | Stock page section headers | Large gap above "In-Stocks" and weak section hierarchy | Fixed in code: tighter search spacing, larger section titles, bigger status dots. Device check pending. |
 | 21 | Oct 3 | All | Logging and debugging | No way to send the session's events and screen history for diagnosis | Added: screen-tagged log buffer, navigation and event logs, global error capture, and "Share Debug Log" in each Settings screen. Device check pending. |
 | 22 | Oct 3 | Manager | Release Stock → Step 2 product picker | Picker grid and layout needed a separate screen | Built: `ProductSelectScreen` (multi-select, Done returns the picks), shared `ProductGridTile`, `SearchDropdownField` with `onFieldPress`. Device check pending. |
+| 23 | Oct 4 | Sales Rep | Dashboard, Quick Stats "Total Items" | Tapped opened the branch stock, but the card is the rep's personal backpack | Fixed: new `SalesRepBackpackScreen` ("My Backpack", personal `sr_inventory`), backpack icon added to `Icon.js`. Device check pending. |
+| 24 | Oct 4 | Sales Rep | Stock and Request Stock | All products showed out of stock; anon-key agents can't read `branch_inventory` under RLS, so the query returned no rows silently | Fixed in code: `getBranchStockForAgent` → `get_branch_stock_for_agent` RPC. SQL to run on the database. Device check pending. |
+| 25 | Oct 4 | Sales Rep | Request Stock → Send Request | Blocked: "Your account is assigned to more than one branch", for a rep covering both branches | Fixed in code: `p_branch_id` sent; `submit_stock_request` updated SQL to run on the database (see discovery in §1.2). Device check pending. |
+| 26 | Oct 4 | Manager, Sales Rep | Stock and Request Stock, all branches | Stock from both branches was added into one total; a request could exceed the branch's stock; items vanished when switching branch | Fixed in code: `BranchSelector` on Manager Stock, Sales Rep Stock, and Request Stock filters to one branch; switching branch with items asks before clearing; request list fixed to the chosen branch. No new SQL. Device check pending. |
+| 27 | Oct 4 | Manager | Receive Stock → Receive and Generate QR | Batch was always registered to the manager's first branch, with no choice | Fixed in code: multi-branch managers choose the branch on the preview screen (`BranchSelector`); the button stays disabled until they do; the chosen branch is saved and shown on the receipt. Single-branch managers unchanged. No new SQL. Device check pending. |
 
 ---
 
@@ -190,6 +210,37 @@ Collector currently only **scans** QR codes (`QRScannerModal.js`) and never gene
 ### Backend / Database
 - [x] No backend or database changes required
 - [x] Android Expo bundle validation completed successfully
+
+---
+
+## 5. ⬜ After midterm — Branch management review (admin-cli)
+
+**Status:** not started. Review after midterm; do not change before then.
+
+**Why:** duplicate branches were created during rapid testing (e.g. "CDO" and "Cagayan de Oro Branch" are the same branch). Branch creation in `admin-cli` lacks checks.
+
+### Findings (from code review, Oct 4)
+- [ ] Typos and name variations create new branches (exact, case-insensitive match only)
+- [ ] No database unique constraint on branch name; create is not atomic, so simultaneous keys can duplicate a branch
+- [ ] Web form does not show existing branches or warn about near-matches
+- [ ] Duplicate names in the same form are not flagged
+- [ ] Inactive branches (`is_active`) are still matched and assignable
+- [ ] Name is put into `ilike` unescaped (`%` / `_` act as wildcards)
+- [ ] Location text is saved into the `city` column
+- [ ] No branch list, rename, deactivate, or merge in the admin tools
+
+### CDO duplicate clean-up (needs PM approval)
+- [ ] Confirm METRO is a separate branch from IPONAN BRANCH
+- [ ] Merge "Cagayan de Oro Branch" and "CDO" into one branch, renamed "Cagayan de Oro City"
+- [ ] Re-point `branch_inventory`, `receiving_batches`, `stock_requests`, `transactions`, `daily_reports`, `delivery_trips`, and the `branch_ids` arrays on `user_profiles` and `activation_keys`
+- [ ] Back up first; run in one transaction; then remove the old branch
+
+### Suggested fixes (in order)
+1. Pick existing branches from a list in the key form instead of typing names
+2. Normalise names before matching; warn on near-matches
+3. Add a unique constraint on branch name; make the create atomic
+4. Reject duplicate names within one form; ignore inactive branches
+5. Add a branch list page with rename and deactivate
 
 ---
 

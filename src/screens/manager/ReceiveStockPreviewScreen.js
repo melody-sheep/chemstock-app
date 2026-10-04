@@ -15,8 +15,10 @@ import { getItemsMissingDates } from '../../utils/batchItemValidation';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
 import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import BranchSelector from '../../components/common/BranchSelector';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import requestService from '../../services/requestService';
 import useScrolledToEnd from '../../hooks/useScrolledToEnd';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -37,6 +39,8 @@ export default function ReceiveStockPreviewScreen() {
   const [photoUri, setPhotoUri] = useState(route.params.photoUri);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
 
   const [manager, setManager] = useState(null);
   const [isLoadingManager, setIsLoadingManager] = useState(true);
@@ -52,7 +56,13 @@ export default function ReceiveStockPreviewScreen() {
   useEffect(() => {
     authService
       .getCurrentUser()
-      .then(setManager)
+      .then(async (currentManager) => {
+        setManager(currentManager);
+        const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+        setBranches(managerBranches);
+        // One branch is picked for the manager; several means they must choose.
+        if (managerBranches.length === 1) setSelectedBranchId(managerBranches[0].id);
+      })
       .catch((error) => {
         console.error('[ERROR] [ReceiveStockPreview] Failed to load manager:', error);
         setManager(null);
@@ -79,9 +89,11 @@ export default function ReceiveStockPreviewScreen() {
   const hasIncompleteDates = getItemsMissingDates(items).length > 0;
   const deviceLabel = getDeviceModel();
 
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
   const branchStatusText = isLoadingManager
     ? 'Loading branch…'
-    : manager?.branchName || 'No branch assigned to your account';
+    : selectedBranch?.name ||
+      (branches.length > 1 ? 'Choose the branch below' : 'No branch assigned to your account');
 
   const handleSetQty = (code, qty) => {
     setItems((prev) =>
@@ -139,9 +151,10 @@ export default function ReceiveStockPreviewScreen() {
     setIsSubmitting(true);
 
     try {
-      const branchId = manager.branchIds?.[0];
+      // The branch is chosen on this screen (or set automatically for one branch).
+      const branchId = selectedBranchId;
       if (!branchId) {
-        throw new Error('No branch is assigned to your account.');
+        throw new Error('Choose which branch this batch is for.');
       }
 
       const storagePath = await inventoryService.uploadShipmentPhoto(photoUri, manager.id);
@@ -215,7 +228,7 @@ export default function ReceiveStockPreviewScreen() {
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Branch</Text>
                 <Text style={styles.receiptValue} numberOfLines={1}>
-                  {manager?.branchName || '—'}
+                  {selectedBranch?.name || '—'}
                 </Text>
               </View>
               <View style={styles.receiptDivider} />
@@ -284,6 +297,13 @@ export default function ReceiveStockPreviewScreen() {
           onLayout={onLayout}
           scrollEventThrottle={16}
         >
+          {branches.length > 1 && (
+            <>
+              <Text style={styles.sectionTitle}>Receive into which branch?</Text>
+              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+            </>
+          )}
+
           <RegisteredItemsList
             items={items}
             onSetQty={handleSetQty}
@@ -360,6 +380,8 @@ export default function ReceiveStockPreviewScreen() {
                 ? 'Registering…'
                 : !hasReachedEnd
                 ? 'Scroll Down to Review'
+                : !selectedBranchId
+                ? 'Choose a Branch'
                 : !coords
                 ? locationError
                   ? 'Location Unavailable'
@@ -370,7 +392,13 @@ export default function ReceiveStockPreviewScreen() {
             onPress={handleReceiveAndGenerate}
             loading={isSubmitting}
             disabled={
-              isSubmitting || !manager || items.length === 0 || hasIncompleteDates || !hasReachedEnd || !coords
+              isSubmitting ||
+              !manager ||
+              !selectedBranchId ||
+              items.length === 0 ||
+              hasIncompleteDates ||
+              !hasReachedEnd ||
+              !coords
             }
           />
         </BottomActionBar>

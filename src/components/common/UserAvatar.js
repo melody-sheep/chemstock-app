@@ -23,6 +23,7 @@ export default function UserAvatar({
   backgroundColor = '#F1F3F6',
   fallbackText = null,
   fallbackTextColor = '#03045E',
+  glyphRatio = 0.55,
   style = {},
 }) {
   return (
@@ -40,7 +41,7 @@ export default function UserAvatar({
           {fallbackText}
         </Text>
       ) : (
-        <Icon name={iconName} size={Math.round(size * 0.55)} color={iconColor} weight={iconWeight} />
+        <Icon name={iconName} size={Math.round(size * glyphRatio)} color={iconColor} weight={iconWeight} />
       )}
     </View>
   );
@@ -55,6 +56,7 @@ UserAvatar.propTypes = {
   backgroundColor: PropTypes.string,
   fallbackText: PropTypes.string,
   fallbackTextColor: PropTypes.string,
+  glyphRatio: PropTypes.number,
   style: PropTypes.object,
 };
 
