@@ -4,13 +4,14 @@ import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Sha
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import * as Device from 'expo-device';
+import { getDeviceModel, getDeviceOs } from '../../utils/deviceInfo';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
+import { getItemsMissingDates } from '../../utils/batchItemValidation';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
 import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
@@ -75,8 +76,8 @@ export default function ReceiveStockPreviewScreen() {
   }, []);
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
-  const hasIncompleteDates = items.some((item) => !item.mfgDate || !item.expDate);
-  const deviceLabel = Device.modelName || 'Unknown device';
+  const hasIncompleteDates = getItemsMissingDates(items).length > 0;
+  const deviceLabel = getDeviceModel();
 
   const branchStatusText = isLoadingManager
     ? 'Loading branch…'
@@ -149,8 +150,8 @@ export default function ReceiveStockPreviewScreen() {
         branchId,
         latitude: coords?.latitude,
         longitude: coords?.longitude,
-        deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+        deviceModel: getDeviceModel(),
+        deviceOs: getDeviceOs(),
         storagePath,
         items,
       });
@@ -194,7 +195,10 @@ export default function ReceiveStockPreviewScreen() {
             textColor="#FFFFFF"
             paddingHorizontal={SPACING.md}
           />
-          <View style={styles.qrScreen}>
+          <ScrollView
+            contentContainerStyle={styles.qrScreen}
+            showsVerticalScrollIndicator={false}
+          >
             <Icon
               name="successCircle"
               size={64}
@@ -251,7 +255,7 @@ export default function ReceiveStockPreviewScreen() {
                 fontSize={14}
               />
             </View>
-          </View>
+          </ScrollView>
         </View>
       </>
     );
@@ -465,10 +469,11 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   qrScreen: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
+    paddingBottom: SPACING.xl,
     gap: SPACING.xs,
   },
   qrTitle: {

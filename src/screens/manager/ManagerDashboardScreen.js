@@ -14,6 +14,7 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
+import { describeReceivingScan } from '../../utils/scanLookup';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
@@ -29,6 +30,19 @@ const SECONDARY_HEADER_HEIGHT = 100;
 // the right edge if SECONDARY_HEADER_HEIGHT ever changes.
 const HEADER_ILLUSTRATION_ASPECT_RATIO = 344 / 400;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
+
+// "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
+const BRANCH_LABEL_CHARS = 4;
+const formatBranchLabel = (branchName) =>
+  branchName
+    .split(',')
+    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
+    .filter(Boolean)
+    .map((part) => {
+      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
+      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
+    })
+    .join(', ');
 
 const QUICK_STATS = [
   {
@@ -142,6 +156,7 @@ export default function ManagerDashboardScreen() {
 
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+  const branchLabel = formatBranchLabel(branchName);
 
   const displayedStats = QUICK_STATS.map((stat) => {
     if (stat.key === 'totalItems') {
@@ -190,9 +205,11 @@ export default function ManagerDashboardScreen() {
     }
   };
 
-  const handleScanned = (data) => {
+  const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);
-    Alert.alert('QR Scanned', `Code: ${data}\n\nMatching this against your received batches is coming soon.`);
+    const manager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, manager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
   };
 
   const handleScroll = Animated.event(
@@ -247,7 +264,13 @@ export default function ManagerDashboardScreen() {
                     <Text style={styles.statusText}>Online</Text>
                   </View>
 
-                  <View style={styles.statusGroup}>
+                  <TouchableOpacity
+                    style={[styles.statusGroup, styles.branchGroup]}
+                    onPress={() => navigation.navigate('EditProfile')}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open profile"
+                  >
                     <Icon
                       name="location"
                       size={16}
@@ -259,9 +282,11 @@ export default function ManagerDashboardScreen() {
                     {isLoading ? (
                       <SkeletonBlock width={90} height={14} borderRadius={4} />
                     ) : (
-                      <Text style={styles.statusText}>{branchName}</Text>
+                      <Text style={[styles.statusText, styles.branchText]} numberOfLines={1} ellipsizeMode="tail">
+                        {branchLabel}
+                      </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
             </SecondaryHeader>
@@ -427,6 +452,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     gap: SPACING.sm,
+    width: '72%',
+  },
+  branchGroup: {
+    flexShrink: 1,
+  },
+  branchText: {
+    flexShrink: 1,
   },
   statusGroup: {
     flexDirection: 'row',

@@ -27,6 +27,7 @@ export const COLORS = {
   // Border Colors
   border: '#CAF0F8',
   borderDark: '#00B4D8',
+  borderLight: '#E5E5E5',
 
   // Accent Colors - dashboard badges, category tags
   // (shares the palette already used in LoginScreen's animated text)

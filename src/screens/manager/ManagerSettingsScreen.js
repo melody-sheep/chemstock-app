@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 're
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
+import { shareDebugLog } from '../../utils/debugReport';
 import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -248,6 +249,10 @@ export default function ManagerSettingsScreen() {
             </View>
           </View>
 
+          <Pressable style={styles.debugButton} onPress={shareDebugLog} accessibilityRole="button">
+            <Text style={styles.debugText}>Share Debug Log</Text>
+          </Pressable>
+
           <Pressable style={styles.logoutButton} onPress={handleLogout}>
             <Icon name="arrowRight" size={18} color="#B91C1C" style={styles.logoutIcon} />
             <Text style={styles.logoutText}>Log Out</Text>
@@ -404,6 +409,18 @@ const styles = StyleSheet.create({
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+  },
+  debugButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  debugText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+    textDecorationLine: 'underline',
   },
   logoutButton: {
     flexDirection: 'row',

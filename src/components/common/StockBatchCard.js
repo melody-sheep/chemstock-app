@@ -10,7 +10,7 @@ import { SHADOWS } from '../../styles/shadows';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { daysUntil } from '../../utils/formatters';
 
-const CARD_WIDTH = 152;
+const CARD_WIDTH = 144;
 
 /**
  * StockBatchCard - one card per received batch (in-stock) or catalog
@@ -62,20 +62,20 @@ export default function StockBatchCard({
           )}
         </View>
 
-        {expiryBadge && (
-          <View style={[styles.badge, styles.badgeTopLeft, { backgroundColor: expiryBadge.bg }]}>
-            <Text style={[styles.badgeText, { color: expiryBadge.color }]} numberOfLines={1}>
-              {expiryBadge.label}
-            </Text>
-          </View>
-        )}
-
         {!outOfStock && (
           <View style={[styles.badge, styles.badgeTopRight, wireframe ? styles.wireframeBadge : styles.qtyBadge]}>
             <Text style={[styles.qtyBadgeText, wireframe && styles.wireframeBadgeText]}>{quantity} pcs</Text>
           </View>
         )}
       </View>
+
+      {expiryBadge && (
+        <View style={[styles.statusPill, { backgroundColor: expiryBadge.bg }]}>
+          <Text style={[styles.badgeText, { color: expiryBadge.color }]} numberOfLines={1}>
+            {expiryBadge.label}
+          </Text>
+        </View>
+      )}
 
       <Text style={styles.productName} numberOfLines={1}>
         {productName}
@@ -109,8 +109,8 @@ StockBatchCard.propTypes = {
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    borderRadius: 12,
-    borderWidth: 0.5,
+    borderRadius: 14,
+    borderWidth: 1,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
@@ -128,18 +128,18 @@ const styles = StyleSheet.create({
   },
   thumbWrap: {
     width: '100%',
-    height: 72,
-    borderRadius: 8,
+    height: 88,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   thumbIconBg: {
-    width: 56,
-    height: 56,
+    width: 60,
+    height: 60,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -154,9 +154,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     maxWidth: CARD_WIDTH - SPACING.sm * 2 - 4,
   },
-  badgeTopLeft: {
-    top: 4,
-    left: 4,
+  statusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 20,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    marginBottom: SPACING.xs,
   },
   badgeTopRight: {
     top: 4,
@@ -187,10 +190,11 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
   metaText: {
-    fontSize: 10,
+    marginTop: 2,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,

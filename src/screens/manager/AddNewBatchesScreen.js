@@ -17,6 +17,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { recordProductUsage } from '../../utils/productUsage';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { getItemsMissingDates } from '../../utils/batchItemValidation';
 
 const PLACEHOLDER_IMAGE = require('../../../assets/image/empty_box1.png');
 
@@ -106,7 +107,7 @@ export default function AddNewBatchesScreen() {
   };
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
-  const hasIncompleteDates = items.some((item) => !item.mfgDate || !item.expDate);
+  const hasIncompleteDates = getItemsMissingDates(items).length > 0;
   const isFormComplete = items.length > 0 && !!photoUri && !hasIncompleteDates;
 
   const handleSaveToPreview = () => {

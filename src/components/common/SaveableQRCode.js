@@ -51,7 +51,7 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
         await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        resolve({ fileUri, dataURL, base64, safeName });
+        resolve({ fileUri, base64, safeName });
       } catch (error) {
         reject(error);
       }
@@ -122,69 +122,82 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
   const handlePrint = async () => {
     try {
       setIsPrinting(true);
-      const { dataURL } = await getQrAsset();
+      const { base64 } = await getQrAsset();
       const printHtml = `
         <html>
           <head>
             <meta charset="utf-8" />
             <style>
+              @page { size: letter; margin: 0.6in; }
               * { box-sizing: border-box; }
               body {
                 margin: 0;
-                background: #f3f4f6;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 36px 20px;
-                font-family: -apple-system, Helvetica, Arial, sans-serif;
-              }
-              .card {
-                width: min(92vw, 520px);
                 background: #ffffff;
-                border: 1px solid #e5e7eb;
-                border-radius: 18px;
-                padding: 26px 18px 18px;
-                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+                color: #0f172a;
+                font-family: -apple-system, Helvetica, Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding-top: 48px;
+              }
+              .brand {
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 3px;
+                text-transform: uppercase;
+                color: #03045e;
               }
               .title {
-                text-align: center;
-                font-size: 30px;
+                margin-top: 8px;
+                font-size: 26px;
                 font-weight: 700;
-                color: #0f172a;
-                margin-bottom: 18px;
               }
-              .qr-wrap {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 12px;
+              .qr {
+                margin-top: 28px;
+                padding: 20px;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
               }
-              .qr-wrap img {
-                width: 220px;
-                height: 220px;
-                object-fit: contain;
+              .qr img {
+                width: 300px;
+                height: 300px;
                 display: block;
-                border: 1px solid #e5e7eb;
-                background: #ffffff;
+              }
+              .label {
+                margin-top: 28px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 1.5px;
+                text-transform: uppercase;
+                color: #64748b;
               }
               .code {
-                margin-top: 18px;
-                text-align: center;
-                font-size: 13px;
-                color: #374151;
-                letter-spacing: 0.4px;
+                margin-top: 6px;
+                font-family: Menlo, Consolas, monospace;
+                font-size: 18px;
+                font-weight: 700;
                 word-break: break-all;
+                text-align: center;
+              }
+              .footer {
+                margin-top: 36px;
+                padding-top: 16px;
+                border-top: 1px solid #e2e8f0;
+                width: 100%;
+                max-width: 420px;
+                text-align: center;
+                font-size: 12px;
+                color: #64748b;
               }
             </style>
           </head>
           <body>
-            <div class="card">
-              <div class="title">ChemStock QR</div>
-              <div class="qr-wrap">
-                <img src="${dataURL}" alt="QR code" />
-              </div>
-              <div class="code">${value}</div>
-            </div>
+            <div class="brand">ChemStock</div>
+            <div class="title">Batch QR Code</div>
+            <div class="qr"><img src="data:image/png;base64,${base64}" alt="QR code" /></div>
+            <div class="label">Batch code</div>
+            <div class="code">${value}</div>
+            <div class="footer">Scan with the ChemStock app to track this batch.</div>
           </body>
         </html>
       `;
@@ -210,40 +223,41 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
 
   return (
     <View style={[styles.card, style]}>
-      <View style={styles.qrPanel}>
+      <View style={styles.qrTile}>
         <QRCode value={value} size={size} getRef={(c) => (qrRef.current = c)} />
       </View>
       {showValueText && (
-        <View style={styles.codePill}>
+        <View style={styles.codeBlock}>
+          <Text style={styles.codeLabel}>Batch code</Text>
           <Text style={styles.codeText}>{value}</Text>
         </View>
       )}
-      <View style={styles.actionRow}>
-        <Button
-          title={isPrinting ? 'Printing…' : 'Print'}
-          variant="outline"
-          accentColor={COLORS.primary}
-          icon="document"
-          iconSize={16}
-          onPress={handlePrint}
-          loading={isPrinting}
-          disabled={isPrinting || isSaving}
-          height={40}
-          fontSize={14}
-          style={styles.printButton}
-        />
+      <View style={styles.actions}>
         <Button
           title={isSaving ? 'Saving…' : 'Save to Gallery'}
           variant="fill"
           accentColor={COLORS.success}
           icon="trayDown"
-          iconSize={16}
+          iconSize={18}
           onPress={handleSaveToGallery}
           loading={isSaving}
           disabled={isSaving || isPrinting}
-          height={40}
-          fontSize={14}
-          style={styles.saveButton}
+          height={48}
+          fontSize={15}
+          style={styles.fullWidth}
+        />
+        <Button
+          title={isPrinting ? 'Printing…' : 'Print QR Code'}
+          variant="outline"
+          accentColor={COLORS.primary}
+          icon="document"
+          iconSize={18}
+          onPress={handlePrint}
+          loading={isPrinting}
+          disabled={isPrinting || isSaving}
+          height={48}
+          fontSize={15}
+          style={styles.fullWidth}
         />
       </View>
     </View>
@@ -261,42 +275,40 @@ const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
     alignItems: 'center',
-    gap: SPACING.xs,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
+    gap: SPACING.lg,
+    padding: SPACING.lg,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.textWhite,
   },
-  qrPanel: {
-    padding: SPACING.sm,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
+  qrTile: {
+    padding: SPACING.md,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.background,
   },
-  codePill: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 6,
+  codeBlock: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  codeLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textTertiary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   codeText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
     letterSpacing: 0.5,
   },
-  actionRow: {
+  actions: {
     width: '100%',
-    flexDirection: 'row',
     gap: SPACING.sm,
   },
-  printButton: {
-    flex: 1,
-  },
-  saveButton: {
-    flex: 1,
+  fullWidth: {
+    width: '100%',
   },
 });

@@ -1,100 +1,88 @@
 // src/components/common/QRScannerModal.js
-import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useRef, useState } from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Icon from './Icon';
 import Button from './Button';
+import { logEvent } from '../../utils/logger';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-/**
- * QRScannerModal - full-screen camera in QR-scanning mode.
- * Fires onScanned(data) once per open (guarded by a ref, not state, so the
- * native camera event firing several times per second before the modal
- * closes can't queue up multiple callbacks).
- *
- * NOTE: this only decodes the QR — it does not yet check the scanned value
- * against receiving_batches.qr_code. That validation (and whatever should
- * happen on a real match) is a deliberate follow-up, not done here.
- */
-const FRAME_SIZE = 240;
+const FRAME_SIZE = 260;
+const CORNER_SIZE = 36;
+const CORNER_WIDTH = 4;
 
+// In-app QR scanner with a white corner frame, so it matches ChemStock rather than the
+// platform scanner UI (which draws its own branding and labels we can't change).
 export default function QRScannerModal({ visible, onClose, onScanned }) {
   const [permission, requestPermission] = useCameraPermissions();
   const hasScannedRef = useRef(false);
-  // Full physical window size (not the SafeAreaView-shrunk content box) so
-  // the frame's position below is computed against the real screen — see
-  // the comment above the overlay JSX for why that distinction matters.
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const frameTop = Math.round((windowHeight - FRAME_SIZE) / 2);
-  const frameLeft = Math.round((windowWidth - FRAME_SIZE) / 2);
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
-  useEffect(() => {
-    if (visible) hasScannedRef.current = false;
-  }, [visible]);
-
-  const handleBarcodeScanned = (result) => {
+  const handleBarcodeScanned = ({ data, type }) => {
     if (hasScannedRef.current) return;
     hasScannedRef.current = true;
-    onScanned(result.data);
+    logEvent('QRScanner', 'scanned', { type });
+    onScanned(data);
+    onClose();
+  };
+
+  const handleShow = () => {
+    hasScannedRef.current = false;
+    setIsTorchOn(false);
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onShow={handleShow} onRequestClose={onClose}>
       <View style={styles.container}>
         {permission?.granted ? (
-          <>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={handleBarcodeScanned}
-            />
-            {/*
-              Deliberately NOT flex-centered: a flex layout centers within
-              whatever box contains it, and both SafeAreaView's inset-shrunk
-              box and this plain View's box can end up shorter/taller than
-              the true physical screen depending on platform, so the "center
-              of the box" drifts from the "center of the screen" (that's why
-              this frame kept landing at the bottom, then the top). Instead
-              every piece below is placed with absolute top/left computed
-              from useWindowDimensions() — the real screen size — so the
-              frame always lands at the actual visual center.
-            */}
-            <View style={styles.overlay} pointerEvents="none">
-              <View style={[styles.mask, { top: 0, left: 0, right: 0, height: frameTop }]} />
-              <View style={[styles.mask, { top: frameTop + FRAME_SIZE, left: 0, right: 0, bottom: 0 }]} />
-              <View style={[styles.mask, { top: frameTop, left: 0, width: frameLeft, height: FRAME_SIZE }]} />
-              <View style={[styles.mask, { top: frameTop, left: frameLeft + FRAME_SIZE, right: 0, height: FRAME_SIZE }]} />
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            enableTorch={isTorchOn}
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={visible ? handleBarcodeScanned : undefined}
+          />
+        ) : null}
 
-              <View style={[styles.scanFrame, { top: frameTop, left: frameLeft }]}>
-                <View style={[styles.corner, styles.cornerTL]} />
-                <View style={[styles.corner, styles.cornerTR]} />
-                <View style={[styles.corner, styles.cornerBL]} />
-                <View style={[styles.corner, styles.cornerBR]} />
-              </View>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close scanner">
+            <Icon name="xCircle" size={28} color={COLORS.textWhite} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Scan QR Code</Text>
+          {permission?.granted ? (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setIsTorchOn((on) => !on)}
+              accessibilityRole="button"
+              accessibilityLabel={isTorchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
+            >
+              <Icon name={isTorchOn ? 'flash' : 'flashOff'} size={24} color={COLORS.textWhite} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.closeButton} />
+          )}
+        </View>
 
-              <Text style={[styles.hintText, { top: frameTop + FRAME_SIZE + SPACING.xl, left: 0, right: 0 }]}>
-                Point the camera at a batch QR code
-              </Text>
+        <View style={styles.centerArea}>
+          {permission?.granted ? (
+            <View style={styles.frame}>
+              <View style={[styles.corner, styles.topLeft]} />
+              <View style={[styles.corner, styles.topRight]} />
+              <View style={[styles.corner, styles.bottomLeft]} />
+              <View style={[styles.corner, styles.bottomRight]} />
             </View>
-            <SafeAreaView style={styles.topBar} pointerEvents="box-none">
-              <TouchableOpacity style={styles.closeButton} onPress={onClose} accessibilityLabel="Close scanner">
-                <Icon name="xCircle" size={28} color="#FFFFFF" weight="fill" />
-              </TouchableOpacity>
-            </SafeAreaView>
-          </>
-        ) : (
-          <SafeAreaView style={styles.permissionWrap}>
-            <Icon name="qrCode" size={40} color={COLORS.textSecondary} />
-            <Text style={styles.permissionText}>Camera access is required to scan QR codes.</Text>
-            <Button title="Grant Camera Access" onPress={requestPermission} style={styles.permissionButton} />
-            <Button title="Cancel" variant="outline" onPress={onClose} hasShadow={false} />
-          </SafeAreaView>
-        )}
+          ) : (
+            <View style={styles.permissionBox}>
+              <Text style={styles.permissionText}>ChemStock needs camera access to scan QR codes.</Text>
+              <Button title="Allow Camera" variant="fill" accentColor={COLORS.primary} onPress={requestPermission} height={44} />
+            </View>
+          )}
+        </View>
+
+        {permission?.granted && <Text style={styles.hint}>Align the QR code within the frame</Text>}
       </View>
     </Modal>
   );
@@ -107,90 +95,90 @@ QRScannerModal.propTypes = {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.textPrimary,
   },
-  mask: {
-    position: 'absolute',
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: SPACING['3xl'],
+    paddingHorizontal: SPACING.md,
   },
-  scanFrame: {
-    position: 'absolute',
+  closeButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textWhite,
+  },
+  centerArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frame: {
     width: FRAME_SIZE,
     height: FRAME_SIZE,
   },
   corner: {
     position: 'absolute',
-    width: 32,
-    height: 32,
-    borderColor: COLORS.secondary,
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
+    borderColor: COLORS.textWhite,
   },
-  cornerTL: {
+  topLeft: {
     top: 0,
     left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 16,
+    borderTopWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderTopLeftRadius: 12,
   },
-  cornerTR: {
+  topRight: {
     top: 0,
     right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 16,
+    borderTopWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderTopRightRadius: 12,
   },
-  cornerBL: {
+  bottomLeft: {
     bottom: 0,
     left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 16,
+    borderBottomWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderBottomLeftRadius: 12,
   },
-  cornerBR: {
+  bottomRight: {
     bottom: 0,
     right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 16,
+    borderBottomWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderBottomRightRadius: 12,
   },
-  hintText: {
-    position: 'absolute',
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#FFFFFF',
+  hint: {
+    paddingBottom: SPACING['3xl'],
     textAlign: 'center',
-    paddingHorizontal: SPACING.xl,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textWhite,
   },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    padding: SPACING.md,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  permissionBox: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  permissionWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.xl,
     gap: SPACING.md,
-    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.lg,
   },
   permissionText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textWhite,
     textAlign: 'center',
   },
-  permissionButton: { marginTop: SPACING.sm },
 });

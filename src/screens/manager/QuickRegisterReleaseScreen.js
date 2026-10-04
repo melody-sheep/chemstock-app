@@ -1,8 +1,8 @@
 // src/screens/manager/QuickRegisterReleaseScreen.js
-import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -11,11 +11,29 @@ import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import ProductPickerList from '../../components/common/ProductPickerList';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import { COLORS } from '../../constants/colors';
+import { logEvent } from '../../utils/logger';
+import {
+  getItemsMissingDates,
+  getItemsWithDateOrderError,
+  listItemNames,
+} from '../../utils/batchItemValidation';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
+
+// First reason the release can't proceed yet, or null when it can.
+function getBlockingReason(items, photoUri) {
+  if (items.length === 0) return 'Add at least one product to continue.';
+  const missingDates = getItemsMissingDates(items);
+  if (missingDates.length > 0) return `Set MFG and EXP dates for ${listItemNames(missingDates)}.`;
+  const dateOrderErrors = getItemsWithDateOrderError(items);
+  if (dateOrderErrors.length > 0) return `EXP must be after MFG for ${listItemNames(dateOrderErrors)}.`;
+  if (!photoUri) return 'Take the waybill/invoice photo to continue.';
+  return null;
+}
 
 export default function QuickRegisterReleaseScreen() {
   const navigation = useNavigation();
@@ -26,16 +44,48 @@ export default function QuickRegisterReleaseScreen() {
   const [items, setItems] = useState([]);
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+
+  const handleOpenCamera = () => {
+    setIsViewingPhoto(false);
+    setIsCameraVisible(true);
+  };
+
+  const handleViewPhoto = () => {
+    setIsViewingPhoto(true);
+    setIsCameraVisible(true);
+  };
+
+  const handleCloseCamera = () => {
+    setIsCameraVisible(false);
+    setIsViewingPhoto(false);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const picked = route.params?.pickedProducts;
+      if (picked?.length) {
+        setItems((prev) => {
+          const existingCodes = new Set(prev.map((item) => item.code));
+          const added = picked
+            .filter((product) => !existingCodes.has(product.code))
+            .map((product) => ({ ...product, registeredQty: 1, mfgDate: '', expDate: '' }));
+          logEvent('QuickRegisterRelease', 'productsAdded', { codes: added.map((p) => p.code) });
+          return [...prev, ...added];
+        });
+        navigation.setParams({ pickedProducts: undefined });
+      }
+    }, [route.params?.pickedProducts, navigation])
+  );
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
 
+  const blockingReason = getBlockingReason(items, photoUri);
+
   const handleNext = () => {
-    if (items.length === 0) {
-      Alert.alert('No Products Selected', 'Search and add at least one product before continuing.');
-      return;
-    }
-    if (!photoUri) {
-      Alert.alert('Photo Required', 'Take a photo of the waybill/invoice before continuing.');
+    if (blockingReason) {
+      logEvent('QuickRegisterRelease', 'nextBlocked', { reason: blockingReason });
+      Alert.alert('Almost There', blockingReason);
       return;
     }
     const params = {
@@ -63,7 +113,7 @@ export default function QuickRegisterReleaseScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56} backgroundColor={COLORS.error + '10'} borderColor={COLORS.error}>
+        <SecondaryHeader height={56}>
           <View style={styles.titleRow}>
             <Text style={styles.urgentPageTitle}>Urgent Release!</Text>
             <View style={styles.onlinePill}>
@@ -74,7 +124,10 @@ export default function QuickRegisterReleaseScreen() {
         </SecondaryHeader>
 
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: bottomActionBarHeight + SPACING.md + (blockingReason ? SPACING.xl : 0) },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -83,45 +136,44 @@ export default function QuickRegisterReleaseScreen() {
           <ProductPickerList
             items={items}
             onItemsChange={setItems}
+            onOpenPicker={() => navigation.navigate('ProductSelect', { alreadyAddedCodes: items.map((item) => item.code) })}
             queueTitle="Batches to Add"
             queueCardHeader="Session Queue"
           />
 
           <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
-          {photoUri ? (
-            <TouchableOpacity style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)} activeOpacity={0.7}>
-              <Image source={{ uri: photoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
-              <View style={styles.photoPreviewInfo}>
-                <Text style={styles.photoText}>Photo captured</Text>
-                <Text style={styles.photoRetakeText}>Tap to retake</Text>
-              </View>
-              <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.photoRow} onPress={() => setIsCameraVisible(true)} activeOpacity={0.7}>
-              <View style={styles.photoIconBox}>
-                <Icon name="camera" size={22} color={COLORS.error} />
-              </View>
-              <Text style={styles.photoText}>
-                Take Photo of Waybill/Invoice <Text style={styles.requiredAsterisk}>*</Text>
-              </Text>
-            </TouchableOpacity>
-          )}
+          <ShipmentProofRow
+            photoUri={photoUri}
+            onOpenCamera={handleOpenCamera}
+            onViewPhoto={photoUri ? handleViewPhoto : undefined}
+          />
 
-          <Text style={styles.summaryText}>
-            📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
-          </Text>
+          <View style={styles.summaryRow}>
+            <Icon name="package" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.summaryText}>
+              {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
+            </Text>
+          </View>
 
         </ScrollView>
 
         <BottomActionBar>
-          <Button title="Next" icon="arrowRight" iconPosition="right" onPress={handleNext} variant="black" />
+          {blockingReason && <Text style={styles.blockingHint}>{blockingReason}</Text>}
+          <Button
+            title="Next"
+            icon="arrowRight"
+            iconPosition="right"
+            onPress={handleNext}
+            disabled={blockingReason !== null}
+            variant="black"
+          />
         </BottomActionBar>
 
         <CameraCaptureModal
           visible={isCameraVisible}
-          onClose={() => setIsCameraVisible(false)}
+          onClose={handleCloseCamera}
           onCapture={setPhotoUri}
+          initialUri={isViewingPhoto ? photoUri : null}
         />
       </View>
     </>
@@ -141,7 +193,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.error,
+    color: COLORS.textPrimary,
   },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
@@ -151,64 +203,32 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.lg, gap: SPACING.md, paddingBottom: 48 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.md, paddingBottom: 48 },
+  blockingHint: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  photoRow: {
+  summaryRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.error + '40',
-    borderRadius: 12,
-    padding: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-  },
-  photoIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.error + '40',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: SPACING.xs,
   },
-  photoText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
-  },
-  photoPreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.success,
-    borderRadius: 12,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.success + '10',
-  },
-  photoPreviewThumb: { width: 44, height: 44, borderRadius: 8 },
-  photoPreviewInfo: { flex: 1 },
-  photoRetakeText: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  requiredAsterisk: { color: COLORS.error },
   summaryText: {
-    textAlign: 'center',
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
+    color: COLORS.textPrimary,
   },
 });

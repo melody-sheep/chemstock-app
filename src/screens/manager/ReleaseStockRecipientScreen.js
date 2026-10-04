@@ -210,12 +210,14 @@ export default function ReleaseStockRecipientScreen() {
             })}
           </View>
 
-          <Input
-            icon="search"
-            placeholder="Search by name..."
-            value={searchText}
-            onChangeText={setSearchText}
-          />
+          <View style={styles.searchWrap}>
+            <Input
+              icon="search"
+              placeholder="Search by name..."
+              value={searchText}
+              onChangeText={setSearchText}
+            />
+          </View>
 
           {isLoading ? (
             <View style={styles.loadingWrap}>
@@ -338,12 +340,12 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: 24 },
-  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm, marginBottom: SPACING.md },
+  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg, marginBottom: SPACING.md },
   roleCard: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
-    paddingVertical: SPACING.md,
+    gap: SPACING.xs,
+    paddingVertical: SPACING.lg,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E5E5',
@@ -408,12 +410,16 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  searchWrap: { marginTop: SPACING.lg },
   agentRow: { gap: SPACING.sm, paddingTop: SPACING.md, paddingRight: SPACING.sm },
   agentCard: {
     width: 92,
+    minHeight: 150,
     alignItems: 'center',
-    gap: 4,
-    padding: SPACING.sm,
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E5E5',

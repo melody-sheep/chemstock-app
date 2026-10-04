@@ -53,6 +53,13 @@ export default function ReceiveStockSR() {
 
   const handleBack = () => navigation.goBack();
 
+  useEffect(() => {
+    const initialQrCode = route.params?.initialQrCode;
+    if (!initialQrCode) return;
+    navigation.setParams({ initialQrCode: undefined });
+    handleScanned(initialQrCode);
+  }, [route.params?.initialQrCode]);
+
   const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);
     setIsLookingUp(true);

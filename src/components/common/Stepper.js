@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xs,
   },
   labelText: {
-    fontSize: 13,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textPrimary,

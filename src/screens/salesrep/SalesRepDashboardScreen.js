@@ -193,9 +193,9 @@ export default function SalesRepDashboardScreen() {
     }
   };
 
-  const handleScanned = (data) => {
+  const handleScanned = (qrCode) => {
     setIsScannerVisible(false);
-    Alert.alert('QR Scanned', `Code: ${data}\n\nMatching this against your assigned stock is coming soon.`);
+    navigation.navigate('ReceiveStockSR', { initialQrCode: qrCode });
   };
 
   const handleScroll = Animated.event(

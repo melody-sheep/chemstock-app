@@ -5,6 +5,9 @@ import { View, Text, ActivityIndicator, Alert } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, getFriendlyErrorMessage } from './src/services/supabaseClient';
 import { COLORS } from './src/constants/colors';
+import { installGlobalErrorHandler } from './src/utils/logger';
+
+installGlobalErrorHandler();
 
 export default function App() {
   const [isConnecting, setIsConnecting] = useState(true);

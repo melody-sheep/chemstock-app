@@ -1,17 +1,22 @@
 // src/screens/manager/ReleaseStockConfirmScreen.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import * as Device from 'expo-device';
+import { getDeviceModel, getDeviceOs } from '../../utils/deviceInfo';
+import QRSuccessView from '../../components/common/QRSuccessView';
+import ReleaseSummaryCard from '../../components/common/ReleaseSummaryCard';
+import PhotoProofCard from '../../components/common/PhotoProofCard';
+import ShipmentProofRow from '../../components/common/ShipmentProofRow';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { formatDateTime } from '../../utils/formatters';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
-import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
@@ -19,6 +24,8 @@ import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+
+const catalogImageFor = (code) => PRODUCT_CATALOG.find((product) => product.code === code)?.image;
 
 export default function ReleaseStockConfirmScreen() {
   const navigation = useNavigation();
@@ -49,11 +56,30 @@ export default function ReleaseStockConfirmScreen() {
   const [capturedAt] = useState(() => new Date());
   const [releasePhotoUri, setReleasePhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+
+  const handleOpenCamera = () => {
+    setIsViewingPhoto(false);
+    setIsCameraVisible(true);
+  };
+
+  const handleViewPhoto = () => {
+    setIsViewingPhoto(true);
+    setIsCameraVisible(true);
+  };
+
+  const handleCloseCamera = () => {
+    setIsCameraVisible(false);
+    setIsViewingPhoto(false);
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qrCode, setQrCode] = useState(null);
 
   const coords = isCollectorDelivery ? originCoords : selfCoords;
-  const photoUri = isCollectorDelivery ? deliveryPhotoUri : releasePhotoUri;
+  // Quick Register already captured the shipment/handover photo on step 2,
+  // so that one photo serves as the release proof too (no second capture).
+  const photoUri = isCollectorDelivery ? deliveryPhotoUri : isQuickRegister ? registerPhotoUri : releasePhotoUri;
+  const shipmentStoragePathRef = useRef(null);
 
   // Quick Register chains two writes: register the new stock, then release
   // it. If the release half fails after registration already succeeded,
@@ -86,11 +112,17 @@ export default function ReleaseStockConfirmScreen() {
     })();
   }, [isCollectorDelivery]);
 
-  const deviceLabel = [Device.modelName, Device.osName, Device.osVersion].filter(Boolean).join(' - ');
+  const deviceLabel = [getDeviceModel(), getDeviceOs()].filter(Boolean).join(' - ');
 
   const displayItems = isQuickRegister
-    ? registerItems.map((item) => ({ key: item.code, name: item.name, qty: item.registeredQty }))
-    : items.map((item) => ({ key: item.branchInventoryId, name: item.productName, qty: item.releaseQty }));
+    ? registerItems.map((item) => ({ key: item.code, name: item.name, qty: item.registeredQty, image: item.image }))
+    : items.map((item) => ({
+        key: item.branchInventoryId,
+        name: item.productName,
+        qty: item.releaseQty,
+        image: catalogImageFor(item.productCode),
+      }));
+
   const totalUnits = displayItems.reduce((sum, item) => sum + item.qty, 0);
 
   const handleConfirmRelease = async () => {
@@ -102,12 +134,13 @@ export default function ReleaseStockConfirmScreen() {
 
       if (isQuickRegister && !hasRegistered) {
         const registerStoragePath = await inventoryService.uploadShipmentPhoto(registerPhotoUri, manager.id);
+        shipmentStoragePathRef.current = registerStoragePath;
         const registerResult = await inventoryService.receiveStockBatch({
           branchId,
           latitude: coords?.latitude,
           longitude: coords?.longitude,
-          deviceModel: Device.modelName,
-          deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+          deviceModel: getDeviceModel(),
+          deviceOs: getDeviceOs(),
           storagePath: registerStoragePath,
           items: registerItems,
         });
@@ -138,15 +171,17 @@ export default function ReleaseStockConfirmScreen() {
         itemsToRelease = pendingReleaseItems;
       }
 
-      const releaseStoragePath = await inventoryService.uploadShipmentPhoto(photoUri, manager.id);
+      const releaseStoragePath = isQuickRegister
+        ? shipmentStoragePathRef.current
+        : await inventoryService.uploadShipmentPhoto(photoUri, manager.id);
       const releaseResult = await inventoryService.releaseStockBatch({
         branchId,
         recipientId: recipient.id,
         movementType,
         latitude: coords?.latitude,
         longitude: coords?.longitude,
-        deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+        deviceModel: getDeviceModel(),
+        deviceOs: getDeviceOs(),
         storagePath: releaseStoragePath,
         items: itemsToRelease,
         targetRecipientId: targetRecipient?.id,
@@ -186,16 +221,20 @@ export default function ReleaseStockConfirmScreen() {
         <StatusBar style="light" />
         <View style={styles.container}>
           <Header title="Stock Released" height={56} backgroundColor="#03045E" textColor="#FFFFFF" paddingHorizontal={SPACING.md} />
-          <View style={styles.qrScreen}>
-            <Icon name="checkCircle" size={40} color={COLORS.success} weight="fill" />
-            <Text style={styles.qrTitle}>Stock Released Successfully</Text>
-            <Text style={styles.qrSubtitle}>
-              {displayItems.length} item{displayItems.length === 1 ? '' : 's'}, {totalUnits} units to {recipient.fullName}
-              {isCollectorDelivery && targetRecipient ? ` for delivery to ${targetRecipient.fullName}` : ''}
-            </Text>
-            <SaveableQRCode value={qrCode} size={200} style={styles.qrCard} />
-            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
-          </View>
+          <QRSuccessView
+            title="Stock Released Successfully"
+            subtitle="Scan this code anytime to track the release."
+            qrValue={qrCode}
+            receipt={[
+              {
+                label: 'Recipient',
+                value: targetRecipient ? `${recipient.fullName} → ${targetRecipient.fullName}` : recipient.fullName,
+              },
+              { label: 'Items', value: `${displayItems.length} item${displayItems.length === 1 ? '' : 's'}, ${totalUnits} units` },
+              { label: 'Released', value: formatDateTime(capturedAt) },
+            ]}
+            onDone={handleDone}
+          />
         </View>
       </>
     );
@@ -257,20 +296,11 @@ export default function ReleaseStockConfirmScreen() {
               </View>
 
               <Text style={styles.sectionTitle}>Items to Release</Text>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTotal}>
-                  Total: {totalUnits} item{totalUnits === 1 ? '' : 's'} about to release
-                </Text>
-                <Text style={styles.summaryRecipient}>
-                  Recipient: {targetRecipient?.fullName || recipient.fullName} (via {recipient.fullName})
-                </Text>
-                {displayItems.map((item) => (
-                  <View key={item.key} style={styles.summaryRow}>
-                    <Text style={styles.summaryItemName}>{item.name}</Text>
-                    <Text style={styles.summaryItemQty}>Qty: {item.qty}</Text>
-                  </View>
-                ))}
-              </View>
+              <ReleaseSummaryCard
+                totalUnits={totalUnits}
+                recipientLine={`Recipient: ${targetRecipient?.fullName || recipient.fullName} (via ${recipient.fullName})`}
+                items={displayItems}
+              />
 
               <Text style={styles.sectionTitle}>Chain of Custody Evidence</Text>
               <View style={styles.custodyCard}>
@@ -301,33 +331,27 @@ export default function ReleaseStockConfirmScreen() {
           ) : (
             <>
               <Text style={styles.sectionTitle}>Summary</Text>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTotal}>
-                  Total: {totalUnits} item{totalUnits === 1 ? '' : 's'} about to release
-                </Text>
-                <Text style={styles.summaryRecipient}>Recipient: {recipient.fullName}</Text>
-                {displayItems.map((item) => (
-                  <View key={item.key} style={styles.summaryRow}>
-                    <Text style={styles.summaryItemName}>{item.name}</Text>
-                    <Text style={styles.summaryItemQty}>Qty: {item.qty}</Text>
-                  </View>
-                ))}
-              </View>
+              <ReleaseSummaryCard
+                totalUnits={totalUnits}
+                recipientLine={`Recipient: ${recipient.fullName}`}
+                items={displayItems}
+              />
 
-              <Text style={styles.sectionTitle}>Take Photo Proof</Text>
-              {releasePhotoUri ? (
-                <Image source={{ uri: releasePhotoUri }} style={styles.photoPreview} resizeMode="cover" />
-              ) : (
-                <Button
-                  title="Take Photo"
-                  icon="camera"
-                  variant="outline"
-                  onPress={() => setIsCameraVisible(true)}
+              <Text style={styles.sectionTitle}>{isQuickRegister ? 'Shipment Proof (Handover)' : 'Take Photo Proof'}</Text>
+              {!isQuickRegister && (
+                <ShipmentProofRow
+                  photoUri={photoUri}
+                  onOpenCamera={handleOpenCamera}
+                  onViewPhoto={photoUri ? handleViewPhoto : undefined}
+                  label="Take Photo of Handover"
                 />
               )}
-              {releasePhotoUri && (
-                <Button title="Retake Photo" variant="outline" onPress={() => setIsCameraVisible(true)} hasShadow={false} />
-              )}
+              <PhotoProofCard
+                photoUri={photoUri}
+                onView={isQuickRegister ? handleViewPhoto : handleOpenCamera}
+                fromLabel={`From ${manager?.full_name || manager?.username || 'you'} to`}
+                toName={recipient.fullName}
+              />
             </>
           )}
 
@@ -342,15 +366,15 @@ export default function ReleaseStockConfirmScreen() {
               </View>
             )}
             <View style={styles.metaRow}>
-              <Icon name="building" size={16} color={COLORS.primary} />
+              <Icon name="home" size={16} color={COLORS.primary} />
               <Text style={styles.metaText}>{manager?.branchName || 'Loading branch…'}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Icon name="package" size={16} color={COLORS.textSecondary} />
+              <Icon name="phone" size={16} color={COLORS.textSecondary} />
               <Text style={styles.metaText}>{deviceLabel || 'Unknown device'}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Icon name="calendar" size={16} color={COLORS.textSecondary} />
+              <Icon name="clock" size={16} color={COLORS.textSecondary} />
               <Text style={styles.metaText}>{capturedAt.toLocaleString()}</Text>
             </View>
           </View>
@@ -366,8 +390,9 @@ export default function ReleaseStockConfirmScreen() {
 
         <CameraCaptureModal
           visible={isCameraVisible}
-          onClose={() => setIsCameraVisible(false)}
-          onCapture={setReleasePhotoUri}
+          onClose={handleCloseCamera}
+          onCapture={isQuickRegister ? handleCloseCamera : setReleasePhotoUri}
+          initialUri={isViewingPhoto ? photoUri : null}
         />
       </View>
     </>
@@ -397,27 +422,6 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
-  },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: COLORS.accentOrange + '40',
-    borderRadius: 12,
-    backgroundColor: COLORS.accentOrange + '10',
-    padding: SPACING.md,
-    gap: 4,
-  },
-  summaryTotal: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  summaryRecipient: {
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
   },
   recipientsCard: {
     borderWidth: 1,
@@ -472,23 +476,6 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.error,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  summaryItemName: {
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
-  },
-  summaryItemQty: {
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
   photoPreview: {
     width: '100%',
     height: 160,
@@ -511,28 +498,4 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#272632',
   },
-  qrScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.xl,
-    gap: SPACING.sm,
-  },
-  qrTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-    textAlign: 'center',
-  },
-  qrSubtitle: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-  },
-  qrCard: { marginBottom: SPACING.xl },
-  doneButton: { width: '100%' },
 });

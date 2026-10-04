@@ -13,6 +13,7 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import FilterSheet from '../../components/common/FilterSheet';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
+import { describeReceivingScan } from '../../utils/scanLookup';
 import inventoryService from '../../services/inventoryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
@@ -77,9 +78,11 @@ export default function ManagerStockScreen() {
     }
   };
 
-  const handleScanned = (data) => {
+  const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);
-    Alert.alert('QR Scanned', `Code: ${data}\n\nMatching this against your received batches is coming soon.`);
+    const manager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, manager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
   };
 
   const query = searchText.trim().toLowerCase();
@@ -318,9 +321,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: SPACING.sm,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingTop: SPACING.sm,
   },
-  searchInputWrap: { flex: 1 },
+  searchInputWrap: { flex: 1, marginBottom: -SPACING.md },
   filterButtonWrap: {
     width: 44,
     height: 44,
@@ -364,23 +367,23 @@ const styles = StyleSheet.create({
   skeletonCardRow: { flexDirection: 'row', gap: SPACING.sm },
   content: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
+    paddingTop: SPACING.sm,
     paddingBottom: 96,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
-  sectionSpacing: { marginTop: SPACING.lg },
+  sectionSpacing: { marginTop: SPACING.md },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',

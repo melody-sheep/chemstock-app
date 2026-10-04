@@ -4,11 +4,11 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from './Icon';
+import DateChip from './DateChip';
 import SpotlightHint from './SpotlightHint';
 import QuantityStepper from './QuantityStepper';
 import { useItemDatePicker } from '../../hooks/useItemDatePicker';
 import { useFirstTimeHint } from '../../hooks/useFirstTimeHint';
-import { formatDisplayDate } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -113,36 +113,25 @@ export default function RegisteredItemsList({
                   <Text style={styles.itemName} numberOfLines={2}>
                     {item.name}
                   </Text>
-                  <Text style={styles.itemQtyText}>Qty: {item.registeredQty}</Text>
-
                   <View
                     ref={index === 0 ? firstDateGroupRef : null}
                     onLayout={index === 0 ? measureSpotlightTarget : undefined}
                     style={styles.dateStack}
                   >
-                    <TouchableOpacity
-                      style={styles.dateLine}
+                    <DateChip
+                      label="MFG"
+                      value={item.mfgDate}
                       onPress={() => datePicker.open(item.code, 'mfgDate')}
-                      activeOpacity={0.7}
                       accessibilityLabel={`Set ${item.name} manufacture date`}
-                      accessibilityRole="button"
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <Icon name="calendar" size={13} color={COLORS.primary} weight="fill" />
-                      <Text style={styles.dateLineText}>MFG: {formatDisplayDate(item.mfgDate) || 'Set date'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.dateLine}
+                    />
+                    <DateChip
+                      label="EXP"
+                      value={item.expDate}
                       onPress={() => datePicker.open(item.code, 'expDate')}
-                      activeOpacity={0.7}
                       accessibilityLabel={`Set ${item.name} expiration date`}
-                      accessibilityRole="button"
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <Icon name="calendar" size={13} color={COLORS.error} weight="fill" />
-                      <Text style={styles.dateLineText}>EXP: {formatDisplayDate(item.expDate) || 'Set date'}</Text>
-                    </TouchableOpacity>
+                    />
                   </View>
+
                 </View>
 
                 <TouchableOpacity
@@ -282,7 +271,8 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
-    paddingVertical: SPACING.sm,
+    paddingTop: SPACING.sm,
+    paddingBottom: 48,
     paddingLeft: SPACING.sm,
     paddingRight: 40,
   },
@@ -292,28 +282,9 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  itemQtyText: {
-    marginTop: 4,
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
-  },
   dateStack: {
     marginTop: SPACING.sm,
     gap: 4,
-  },
-  dateLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-  },
-  dateLineText: {
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
   },
   itemRemoveBtn: {
     position: 'absolute',

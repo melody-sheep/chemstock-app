@@ -1,6 +1,7 @@
 // src/navigation/AppNavigator.js
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { debugLog, setCurrentScreen } from '../utils/logger';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import ManagerActivationScreen from '../screens/auth/ManagerActivationScreen';
@@ -18,6 +19,7 @@ import ReleaseStockMethodScreen from '../screens/manager/ReleaseStockMethodScree
 import ReleaseStockScanReviewScreen from '../screens/manager/ReleaseStockScanReviewScreen';
 import ReleaseStockDeliveryScreen from '../screens/manager/ReleaseStockDeliveryScreen';
 import QuickRegisterReleaseScreen from '../screens/manager/QuickRegisterReleaseScreen';
+import ProductSelectScreen from '../screens/manager/ProductSelectScreen';
 import ReleaseStockConfirmScreen from '../screens/manager/ReleaseStockConfirmScreen';
 import ReleaseStockRequestReviewScreen from '../screens/manager/ReleaseStockRequestReviewScreen';
 import ManageReturnsScreen from '../screens/manager/ManageReturnsScreen';
@@ -54,10 +56,20 @@ import CollectorDeliveredStockScreen from '../screens/collector/CollectorDeliver
 import CollectorSettingsScreen from '../screens/collector/CollectorSettingsScreen';
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
+let currentRouteName = null;
+
+const trackCurrentScreen = () => {
+  const route = navigationRef.getCurrentRoute();
+  if (!route || route.name === currentRouteName) return;
+  currentRouteName = route.name;
+  setCurrentScreen(route.name);
+  debugLog('info', 'Navigation', `-> ${route.name}`, route.params ? { paramKeys: Object.keys(route.params) } : null);
+};
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={trackCurrentScreen} onStateChange={trackCurrentScreen}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ManagerActivation" component={ManagerActivationScreen} />
@@ -75,6 +87,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ReleaseStockScanReview" component={ReleaseStockScanReviewScreen} />
         <Stack.Screen name="ReleaseStockDelivery" component={ReleaseStockDeliveryScreen} />
         <Stack.Screen name="QuickRegisterRelease" component={QuickRegisterReleaseScreen} />
+        <Stack.Screen name="ProductSelect" component={ProductSelectScreen} />
         <Stack.Screen name="ReleaseStockConfirm" component={ReleaseStockConfirmScreen} />
         <Stack.Screen name="ReleaseStockRequestReview" component={ReleaseStockRequestReviewScreen} />
         <Stack.Screen name="ManageReturns" component={ManageReturnsScreen} />

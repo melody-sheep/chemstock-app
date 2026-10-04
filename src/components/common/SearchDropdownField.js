@@ -1,6 +1,7 @@
 // src/components/common/SearchDropdownField.js
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
+// Not every field is typed into: onFieldPress turns it into a tap target (e.g. opens a picker screen).
 import PropTypes from 'prop-types';
 import Input from './Input';
 import Icon from './Icon';
@@ -21,17 +22,28 @@ export default function SearchDropdownField({
   onButtonPress,
   buttonIcon = 'caretDown',
   showButtonDot = false,
+  onFieldPress,
 }) {
+  const input = (
+    <Input
+      icon="search"
+      placeholder={placeholder}
+      value={value}
+      onChangeText={onChangeText}
+      style={styles.fieldInFrame}
+    />
+  );
+
   return (
     <View style={styles.frame}>
       <View style={styles.inputWrap}>
-        <Input
-          icon="search"
-          placeholder={placeholder}
-          value={value}
-          onChangeText={onChangeText}
-          style={styles.fieldInFrame}
-        />
+        {onFieldPress ? (
+          <TouchableOpacity onPress={onFieldPress} activeOpacity={1} accessibilityRole="button">
+            <View pointerEvents="none">{input}</View>
+          </TouchableOpacity>
+        ) : (
+          input
+        )}
       </View>
       <TouchableOpacity
         style={styles.button}
@@ -54,6 +66,7 @@ SearchDropdownField.propTypes = {
   onButtonPress: PropTypes.func.isRequired,
   buttonIcon: PropTypes.string,
   showButtonDot: PropTypes.bool,
+  onFieldPress: PropTypes.func,
 };
 
 const styles = StyleSheet.create({
