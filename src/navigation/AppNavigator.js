@@ -27,6 +27,7 @@ import ReturnStockVerifyScreen from '../screens/manager/ReturnStockVerifyScreen'
 import ManagerAlertsScreen from '../screens/manager/ManagerAlertsScreen';
 import ManagerReportsScreen from '../screens/manager/ManagerReportsScreen';
 import TrackDeliveriesScreen from '../screens/manager/TrackDeliveriesScreen';
+import TrackDeliveryDetailScreen from '../screens/manager/TrackDeliveryDetailScreen';
 import AgentStockRequestScreen from '../screens/manager/AgentStockRequestScreen';
 import ManagerSettingsScreen from '../screens/manager/ManagerSettingsScreen';
 import ComingSoonScreen from '../screens/common/ComingSoonScreen';
@@ -45,6 +46,7 @@ import SalesRepStockScreen from '../screens/salesrep/SalesRepStockScreen';
 import SalesRepStockRequestsScreen from '../screens/salesrep/SalesRepStockRequestsScreen';
 import SalesRepLogsScreen from '../screens/salesrep/SalesRepLogsScreen';
 import SalesRepTrackDeliveriesScreen from '../screens/salesrep/SalesRepTrackDeliveriesScreen';
+import SalesRepDeliveryDetailScreen from '../screens/salesrep/SalesRepDeliveryDetailScreen';
 import SalesRepReportsScreen from '../screens/salesrep/SalesRepReportsScreen';
 import SalesRepSettingsScreen from '../screens/salesrep/SalesRepSettingsScreen';
 import CollectorDashboardScreen from '../screens/collector/CollectorDashboardScreen';
@@ -95,6 +97,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ManagerAlerts" component={ManagerAlertsScreen} />
         <Stack.Screen name="ManagerReports" component={ManagerReportsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="TrackDeliveries" component={TrackDeliveriesScreen} />
+        <Stack.Screen name="TrackDeliveryDetail" component={TrackDeliveryDetailScreen} />
         <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} />
         <Stack.Screen name="ManagerSettings" component={ManagerSettingsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="LegalInfo" component={LegalInfoScreen} options={{ animation: 'none' }} />
@@ -113,6 +116,7 @@ export default function AppNavigator() {
         <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} />
         <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} />
         <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} />
+        <Stack.Screen name="SalesRepDeliveryDetail" component={SalesRepDeliveryDetailScreen} />
         <Stack.Screen name="SalesRepReports" component={SalesRepReportsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="SalesRepSettings" component={SalesRepSettingsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="CollectorDashboard" component={CollectorDashboardScreen} options={{ animation: 'none' }} />

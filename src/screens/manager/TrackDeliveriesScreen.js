@@ -2,13 +2,10 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
-import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
-import StaticRouteMap from '../../components/common/StaticRouteMap';
-import DeliveryTimeline from '../../components/common/DeliveryTimeline';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
@@ -36,33 +33,11 @@ function getStatusPillTextStyle(status) {
   return styles.statusPillTextPending;
 }
 
-function getLastCheckpoint(delivery) {
-  const checkpoints = delivery.delivery_checkpoints || [];
-  if (checkpoints.length === 0) return null;
-  return checkpoints.reduce((latest, cp) =>
-    new Date(cp.created_at) > new Date(latest.created_at) ? cp : latest
-  );
-}
-
-// "Current Location" breadcrumb — the release moment (when the Collector's
-// involvement began) plus every checkpoint they've since logged, oldest
-// first. delivery_checkpoints comes back from the raw PostgREST embed in
-// no guaranteed order, so it's sorted here.
-function getTimelineEntries(delivery) {
-  const checkpoints = [...(delivery.delivery_checkpoints || [])].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-  return [
-    { key: 'origin', label: 'Picked up by Collector', createdAt: delivery.created_at },
-    ...checkpoints.map((cp, index) => ({ key: `cp-${index}`, label: cp.label, createdAt: cp.created_at })),
-  ];
-}
-
 export default function TrackDeliveriesScreen() {
+  const navigation = useNavigation();
   const [deliveries, setDeliveries] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDelivery, setSelectedDelivery] = useState(null);
 
   const loadDeliveries = useCallback(async () => {
     setIsLoading(true);
@@ -83,8 +58,6 @@ export default function TrackDeliveriesScreen() {
       loadDeliveries();
     }, [loadDeliveries])
   );
-
-  const closeDetail = () => setSelectedDelivery(null);
 
   return (
     <>
@@ -121,7 +94,7 @@ export default function TrackDeliveriesScreen() {
                 <TouchableOpacity
                   key={delivery.id}
                   style={styles.deliveryCard}
-                  onPress={() => setSelectedDelivery(delivery)}
+                  onPress={() => navigation.navigate('TrackDeliveryDetail', { delivery, collectorName, targetName })}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.deliveryIconBadge, isDelivered && styles.deliveryIconBadgeDelivered]}>
@@ -145,61 +118,6 @@ export default function TrackDeliveriesScreen() {
           </ScrollView>
         )}
       </View>
-
-      <CustomModal visible={!!selectedDelivery} onClose={closeDetail} height={600}>
-        {selectedDelivery && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.detailHeaderRow}>
-              <Text style={styles.detailTitle}>Delivery Details</Text>
-              <View style={[styles.statusPill, getStatusPillStyle(selectedDelivery.delivery_status)]}>
-                <Text style={[styles.statusPillText, getStatusPillTextStyle(selectedDelivery.delivery_status)]}>
-                  {getStatusLabel(selectedDelivery)}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.detailSubtitle}>{new Date(selectedDelivery.created_at).toLocaleString()}</Text>
-
-            <Text style={styles.detailSectionLabel}>Recipients</Text>
-            <View style={styles.metaCard}>
-              <View style={styles.metaRow}>
-                <Icon name="person" size={16} color={COLORS.primary} />
-                <Text style={styles.metaText}>
-                  {recipientNameById[selectedDelivery.received_by] || 'Collector'} (Collector)
-                </Text>
-              </View>
-              <View style={styles.metaRow}>
-                <Icon name="person" size={16} color={COLORS.primary} />
-                <Text style={styles.metaText}>
-                  {recipientNameById[selectedDelivery.target_recipient_id] || 'Sales Rep'} (Sales Representative)
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.detailSectionLabel}>Items</Text>
-            <View style={styles.itemsCard}>
-              {(selectedDelivery.transaction_details || []).map((item, index) => (
-                <View key={`${item.batch_number}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                  <Text style={styles.itemName}>{item.product_name}</Text>
-                  <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
-                </View>
-              ))}
-            </View>
-
-            <Text style={styles.detailSectionLabel}>Route</Text>
-            <StaticRouteMap
-              originCoords={selectedDelivery.origin_gps}
-              destinationCoords={selectedDelivery.destination_gps}
-              lastCheckpoint={getLastCheckpoint(selectedDelivery)}
-              height={180}
-              style={styles.map}
-            />
-            <Text style={styles.detailSectionLabel}>Current Location</Text>
-            <DeliveryTimeline entries={getTimelineEntries(selectedDelivery)} />
-
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        )}
-      </CustomModal>
     </>
   );
 }
@@ -272,72 +190,4 @@ const styles = StyleSheet.create({
   statusPillTextPending: { color: '#B26400' },
   statusPillTextInTransit: { color: COLORS.primary },
   statusPillTextDelivered: { color: '#1E7A3A' },
-  detailHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  detailTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  detailSubtitle: {
-    marginTop: 2,
-    marginBottom: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  detailSectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#272632',
-    marginBottom: SPACING.xs,
-  },
-  metaCard: {
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    padding: SPACING.sm,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  metaText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: '#272632',
-  },
-  itemsCard: {
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    marginBottom: SPACING.md,
-    overflow: 'hidden',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  itemRowFirst: { borderTopWidth: 0 },
-  itemName: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  itemMeta: {
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  map: { marginBottom: SPACING.xs },
 });

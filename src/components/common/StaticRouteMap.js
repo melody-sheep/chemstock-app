@@ -1,5 +1,5 @@
 // src/components/common/StaticRouteMap.js
-import React from 'react';
+import React, { useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import PropTypes from 'prop-types';
@@ -17,7 +17,17 @@ const FALLBACK_CENTER = { latitude: 8.4542, longitude: 124.6319 };
 // destination pins visible at once (one per still-undelivered leg), which
 // the single `destinationCoords` prop can't express. Existing callers
 // (Manager/SR Track Deliveries, both single-destination) are untouched.
-function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations, showZoomControl, showScale }) {
+function buildHtml({
+  originCoords,
+  destinationCoords,
+  lastCheckpoint,
+  destinations,
+  showZoomControl,
+  showScale,
+  originLabel,
+  destinationLabel,
+  lastCheckpointLabel,
+}) {
   const extraPoints = (destinations || []).map((d) => ({ latitude: d.latitude, longitude: d.longitude }));
   const points = [originCoords, destinationCoords, lastCheckpoint, ...extraPoints].filter(Boolean);
   const center = points[0] || FALLBACK_CENTER;
@@ -53,28 +63,83 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
     ${showZoomControl ? "L.control.zoom({ position: 'topright' }).addTo(map);" : ''}
     ${showScale ? "L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 100 }).addTo(map);" : ''}
 
+    // Full-screen map screens size this WebView via flex (fill prop), which
+    // settles into its final pixel size a beat after Leaflet first reads the
+    // container — without this, Leaflet caches the wrong (often 0-height)
+    // tile grid and renders blank/grey until some unrelated interaction
+    // forces a relayout. Re-measuring a few times after mount, plus on any
+    // window resize, covers both the fast and slow-layout cases.
+    window.addEventListener('resize', function () { map.invalidateSize(); });
+    [100, 300, 600, 1000].forEach(function (delay) {
+      setTimeout(function () { map.invalidateSize(); }, delay);
+    });
+
+    function formatCoord(point) {
+      if (!point) return '';
+      var lat = point.latitude, lng = point.longitude;
+      var latDir = lat >= 0 ? 'N' : 'S';
+      var lngDir = lng >= 0 ? 'E' : 'W';
+      return Math.abs(lat).toFixed(4) + '°' + latDir + ', ' + Math.abs(lng).toFixed(4) + '°' + lngDir;
+    }
+
+    function labelTagHtml(lines) {
+      var clean = (lines || []).filter(Boolean);
+      if (!clean.length) return '';
+      var rows = clean.map(function (line, i) {
+        var style = i === 0
+          ? 'font-size:12px;font-weight:700;color:#FFFFFF;'
+          : 'font-size:10px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px;';
+        return '<div style="' + style + 'white-space:nowrap;line-height:1.3;">' + line + '</div>';
+      }).join('');
+      return '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;' +
+        'white-space:nowrap;background:#272632;padding:6px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:center;">' +
+        rows + '</div>';
+    }
+
     function dot(color) {
       return L.divIcon({
         className: '',
-        html: '<div style="width:14px;height:14px;border-radius:7px;background:' + color + ';border:2px solid #FFFFFF;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
+        html: '<div style="width:20px;height:20px;border-radius:10px;background:' + color + ';border:3px solid #FFFFFF;box-shadow:0 2px 4px rgba(0,0,0,0.4);"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
       });
     }
 
-    function labeledPin(color, label) {
-      var labelHtml = label
-        ? '<div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#272632;color:#FFFFFF;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;">' + label + '</div>'
-        : '';
+    function labeledDot(color, lines) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="position:relative;width:20px;height:20px;">' +
+          labelTagHtml(lines) +
+          '<div style="width:20px;height:20px;border-radius:10px;background:' + color + ';border:3px solid #FFFFFF;box-shadow:0 2px 4px rgba(0,0,0,0.4);"></div>' +
+          '</div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+    }
+
+    function labeledPin(color, lines) {
       return L.divIcon({
         className: '',
         html:
-          '<div style="position:relative;width:18px;height:18px;">' +
-          labelHtml +
-          '<div style="width:18px;height:18px;border-radius:9px 9px 9px 0;background:' + color + ';border:2px solid #FFFFFF;transform:rotate(-45deg);box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>' +
+          '<div style="position:relative;width:26px;height:26px;">' +
+          labelTagHtml(lines) +
+          '<div style="width:26px;height:26px;border-radius:13px 13px 13px 0;background:' + color + ';border:3px solid #FFFFFF;transform:rotate(-45deg);box-shadow:0 2px 4px rgba(0,0,0,0.4);"></div>' +
           '</div>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 18],
+        iconSize: [26, 26],
+        iconAnchor: [13, 26],
+      });
+    }
+
+    function pulsingDot(color, lines) {
+      return L.divIcon({
+        className: '',
+        html: '<div style="position:relative;width:32px;height:32px;">' +
+          labelTagHtml(lines) +
+          '<div style="position:absolute;top:0;left:0;width:32px;height:32px;border-radius:16px;background:' + color + '40;"></div>' +
+          '<div style="position:absolute;top:6px;left:6px;width:20px;height:20px;border-radius:10px;background:' + color + ';border:3px solid #FFFFFF;box-shadow:0 2px 4px rgba(0,0,0,0.4);"></div>' +
+          '</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
       });
     }
 
@@ -83,35 +148,39 @@ function buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinatio
     var destination = ${destinationCoords ? JSON.stringify(destinationCoords) : 'null'};
     var lastCheckpoint = ${lastCheckpoint ? JSON.stringify(lastCheckpoint) : 'null'};
     var destinations = ${destinations && destinations.length ? JSON.stringify(destinations) : 'null'};
+    var originLabel = ${originLabel ? JSON.stringify(originLabel) : 'null'};
+    var destinationLabel = ${destinationLabel ? JSON.stringify(destinationLabel) : 'null'};
+    var lastCheckpointLabel = ${lastCheckpointLabel ? JSON.stringify(lastCheckpointLabel) : 'null'};
 
     if (origin) {
-      L.marker([origin.latitude, origin.longitude], { icon: dot('#0085F9'), interactive: false }).addTo(map);
+      var originLines = originLabel ? [originLabel, formatCoord(origin)] : null;
+      L.marker([origin.latitude, origin.longitude], {
+        icon: originLines ? labeledDot('#0085F9', originLines) : dot('#0085F9'),
+        interactive: false,
+      }).addTo(map);
       bounds.push([origin.latitude, origin.longitude]);
     }
     if (destination) {
-      L.marker([destination.latitude, destination.longitude], { icon: dot('#E63946'), interactive: false }).addTo(map);
+      var destinationLines = destinationLabel ? [destinationLabel, formatCoord(destination)] : null;
+      L.marker([destination.latitude, destination.longitude], {
+        icon: destinationLines ? labeledDot('#E63946', destinationLines) : dot('#E63946'),
+        interactive: false,
+      }).addTo(map);
       bounds.push([destination.latitude, destination.longitude]);
     }
     if (lastCheckpoint) {
+      var checkpointLines = [lastCheckpointLabel, lastCheckpoint.label, formatCoord(lastCheckpoint)].filter(Boolean);
       L.marker([lastCheckpoint.latitude, lastCheckpoint.longitude], {
-        icon: L.divIcon({
-          className: '',
-          html: '<div style="position:relative;width:22px;height:22px;">' +
-            '<div style="position:absolute;top:-2px;left:-2px;width:26px;height:26px;border-radius:13px;background:rgba(244,168,37,0.25);"></div>' +
-            '<div style="position:absolute;top:4px;left:4px;width:14px;height:14px;border-radius:7px;background:#F4A825;border:2px solid #FFFFFF;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>' +
-            '</div>',
-          iconSize: [22, 22],
-          iconAnchor: [11, 11],
-        }),
+        icon: pulsingDot('#F4A825', checkpointLines),
         interactive: false,
       }).addTo(map);
       bounds.push([lastCheckpoint.latitude, lastCheckpoint.longitude]);
     }
     if (destinations) {
       destinations.forEach(function (d) {
-        var label = [d.label, d.distanceLabel].filter(Boolean).join(' · ');
+        var lines = [[d.label, d.distanceLabel].filter(Boolean).join(' · '), formatCoord(d)];
         var color = d.delivered ? '#4c9f70' : '#E63946';
-        L.marker([d.latitude, d.longitude], { icon: labeledPin(color, label), interactive: false }).addTo(map);
+        L.marker([d.latitude, d.longitude], { icon: labeledPin(color, lines), interactive: false }).addTo(map);
         bounds.push([d.latitude, d.longitude]);
       });
     }
@@ -152,11 +221,41 @@ export default function StaticRouteMap({
   showZoomControl = false,
   showScale = false,
   fill = false,
+  originLabel,
+  destinationLabel,
+  lastCheckpointLabel,
 }) {
+  const webViewRef = useRef(null);
+
+  // Belt-and-suspenders for the Leaflet-in-WebView blank-tile bug: the
+  // in-page timers in buildHtml cover most cases, but a `fill` map whose
+  // container is resized by a sibling (an animating bottom sheet, a layout
+  // that settles late) needs invalidateSize() called again right when RN
+  // itself reports a new size — timers alone can't know about that.
+  const handleLayout = () => {
+    webViewRef.current?.injectJavaScript(
+      'if (window.map) { window.map.invalidateSize(); } true;'
+    );
+  };
+
   return (
-    <View style={[styles.container, fill ? styles.fill : { height }, style]}>
+    <View style={[styles.container, fill ? styles.fill : { height }, style]} onLayout={handleLayout}>
       <WebView
-        source={{ html: buildHtml({ originCoords, destinationCoords, lastCheckpoint, destinations, showZoomControl, showScale }) }}
+        ref={webViewRef}
+        source={{
+          html: buildHtml({
+            originCoords,
+            destinationCoords,
+            lastCheckpoint,
+            destinations,
+            showZoomControl,
+            showScale,
+            originLabel,
+            destinationLabel,
+            lastCheckpointLabel,
+          }),
+        }}
+        onLayout={handleLayout}
         style={styles.webview}
         originWhitelist={['*']}
         scrollEnabled={false}
@@ -186,6 +285,9 @@ StaticRouteMap.propTypes = {
   showZoomControl: PropTypes.bool,
   showScale: PropTypes.bool,
   fill: PropTypes.bool,
+  originLabel: PropTypes.string,
+  destinationLabel: PropTypes.string,
+  lastCheckpointLabel: PropTypes.string,
 };
 
 const styles = StyleSheet.create({

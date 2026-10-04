@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorDeliverStockScreen.js
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Animated, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,9 @@ import { TYPOGRAPHY } from '../../styles/typography';
 // a server-side gate. A bad fix or dead zone should never block marking a
 // real physical delivery done.
 const NEAR_THRESHOLD_METERS = 300;
+// Handle row + the always-visible Finish Delivery/Go to Next Stop button,
+// so collapsing the timeline/details never hides the primary action.
+const COLLAPSED_SHEET_HEIGHT = 150;
 
 export default function CollectorDeliverStockScreen() {
   const navigation = useNavigation();
@@ -42,6 +45,25 @@ export default function CollectorDeliverStockScreen() {
   const [isFinishing, setIsFinishing] = useState(false);
   const [isCancelDialogVisible, setIsCancelDialogVisible] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [mapWrapHeight, setMapWrapHeight] = useState(0);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const sheetAnim = useRef(new Animated.Value(1)).current;
+
+  const toggleDetails = () => {
+    const next = !isDetailsOpen;
+    setIsDetailsOpen(next);
+    Animated.timing(sheetAnim, {
+      toValue: next ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
+  const animatedSheetHeight = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [COLLAPSED_SHEET_HEIGHT, Math.max(expandedHeight, COLLAPSED_SHEET_HEIGHT)],
+  });
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -229,11 +251,16 @@ export default function CollectorDeliverStockScreen() {
         <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
         <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
 
-        <View style={styles.mapWrap}>
+        <View style={styles.mapWrap} onLayout={(e) => setMapWrapHeight(e.nativeEvent.layout.height)}>
           <StaticRouteMap
             fill
             originCoords={originCoords}
-            lastCheckpoint={lastCheckpoint ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude } : collectorPosition}
+            lastCheckpoint={
+              lastCheckpoint
+                ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude, label: lastCheckpoint.label }
+                : collectorPosition
+            }
+            lastCheckpointLabel={`${agent?.full_name || agent?.username || 'You'} (You)`}
             destinations={destinations}
             style={styles.mapFill}
             showZoomControl
@@ -278,13 +305,35 @@ export default function CollectorDeliverStockScreen() {
             </View>
           ) : null}
 
-          <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, SPACING.md) }]}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sectionLabel}>Current Location</Text>
+          <Animated.View
+            style={[
+              styles.bottomSheet,
+              { height: animatedSheetHeight, paddingBottom: Math.max(insets.bottom, SPACING.md) },
+            ]}
+          >
+            <View style={styles.sheetTopContent}>
+              <Pressable onPress={toggleDetails} style={styles.sheetHandleRow} hitSlop={8}>
+                <View style={styles.sheetHandle} />
+                <View style={styles.sheetToggleRow}>
+                  <Text style={styles.sheetToggleText}>{isDetailsOpen ? 'Hide Details' : 'Show Details'}</Text>
+                  <Icon
+                    name="caretDown"
+                    size={14}
+                    color={COLORS.textSecondary}
+                    style={{ transform: [{ rotate: isDetailsOpen ? '0deg' : '180deg' }] }}
+                  />
+                </View>
+              </Pressable>
 
-            <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
-              <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
-            </ScrollView>
+              {isDetailsOpen && (
+                <>
+                  <Text style={styles.sectionLabel}>Current Location</Text>
+                  <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
+                    <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
+                  </ScrollView>
+                </>
+              )}
+            </View>
 
             {isNearAStop ? (
               <Button
@@ -296,7 +345,7 @@ export default function CollectorDeliverStockScreen() {
             ) : (
               <Button title="Go to Next Stop" variant="black" onPress={() => setIsCheckpointModalVisible(true)} />
             )}
-          </View>
+          </Animated.View>
         </View>
       </View>
 
@@ -401,6 +450,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -413,15 +463,22 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
+  sheetTopContent: { flex: 1, gap: SPACING.sm },
+  sheetHandleRow: { alignItems: 'center' },
   sheetHandle: {
-    alignSelf: 'center',
     width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#E0E0E0',
     marginBottom: SPACING.xs,
   },
-  timelineScroll: { maxHeight: 140 },
+  sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sheetToggleText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  timelineScroll: { flex: 1 },
   sectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
