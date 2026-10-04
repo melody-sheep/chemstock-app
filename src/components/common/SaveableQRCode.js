@@ -1,5 +1,5 @@
 // src/components/common/SaveableQRCode.js
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import PropTypes from 'prop-types';
 import QRCode from 'react-native-qrcode-svg';
@@ -32,7 +32,10 @@ import { TYPOGRAPHY } from '../../styles/typography';
  *      resort, but only *sends* the image to whatever app is chosen; it
  *      does not itself save a copy anywhere on the device.
  */
-export default function SaveableQRCode({ value, size = 200, showValueText = true, style = {} }) {
+const SaveableQRCode = forwardRef(function SaveableQRCode(
+  { value, size = 200, showValueText = true, style = {} },
+  ref
+) {
   const qrRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -221,6 +224,22 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
     }
   };
 
+  // Shares the QR as an actual PNG image via the native share sheet, not a
+  // text message — the react-native-qrcode-svg ref this needs only exists
+  // inside this component, so screens that render their own "Share" button
+  // alongside <SaveableQRCode> call this through a ref instead of
+  // reimplementing the toDataURL/file-write dance themselves.
+  const handleShareAsImage = async () => {
+    const { fileUri } = await getQrAsset();
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) {
+      throw new Error('Sharing is not available on this device.');
+    }
+    await Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'Share QR Code' });
+  };
+
+  useImperativeHandle(ref, () => ({ shareAsImage: handleShareAsImage }));
+
   return (
     <View style={[styles.card, style]}>
       <View style={styles.qrTile}>
@@ -262,7 +281,9 @@ export default function SaveableQRCode({ value, size = 200, showValueText = true
       </View>
     </View>
   );
-}
+});
+
+export default SaveableQRCode;
 
 SaveableQRCode.propTypes = {
   value: PropTypes.string.isRequired,

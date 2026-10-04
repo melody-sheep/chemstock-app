@@ -1,5 +1,5 @@
 // src/screens/manager/ManageReturnsScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -10,13 +10,20 @@ import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
+import PhotoProofCard from '../../components/common/PhotoProofCard';
+import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import BranchSelector from '../../components/common/BranchSelector';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import agentService from '../../services/agentService';
+import requestService from '../../services/requestService';
 import { formatDisplayDate, formatRelativeTime } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
+
+const ALL_BRANCHES_ID = 'all';
 
 const TABS = [
   { key: 'reports', label: 'Reports' },
@@ -35,13 +42,19 @@ export default function ManageReturnsScreen() {
   const [reports, setReports] = useState([]);
   const [returnRequests, setReturnRequests] = useState([]);
   const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(ALL_BRANCHES_ID);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [reportPhotoUrl, setReportPhotoUrl] = useState(null);
+  const [isLoadingReportPhoto, setIsLoadingReportPhoto] = useState(false);
+  const [isViewingReportPhoto, setIsViewingReportPhoto] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    const [reportsResult, returnsResult, agentsResult] = await Promise.all([
+    const [manager, reportsResult, returnsResult, agentsResult] = await Promise.all([
+      authService.getCurrentUser(),
       reportService.getBranchDailyReports(50),
       reportService.getBranchReturnRequests(100),
       agentService.getMyAgentAccounts(),
@@ -53,6 +66,8 @@ export default function ManageReturnsScreen() {
         ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
         : {}
     );
+    const managerBranches = await requestService.getAgentBranches(manager?.branchIds || []);
+    setBranches(managerBranches);
     setIsLoading(false);
   }, []);
 
@@ -61,6 +76,27 @@ export default function ManageReturnsScreen() {
       loadData();
     }, [loadData])
   );
+
+  // Resolved on-demand per selected report (not eagerly for the whole
+  // list), same pattern as StockLogsScreen's shipment photo. null for an
+  // auto-filed report — there was no manual submission, so no photo exists.
+  useEffect(() => {
+    if (!selectedReport?.mediaPath) {
+      setReportPhotoUrl(null);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingReportPhoto(true);
+    reportService.getDailyReportPhotoUrl(selectedReport.mediaPath).then((url) => {
+      if (!cancelled) {
+        setReportPhotoUrl(url);
+        setIsLoadingReportPhoto(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReport]);
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -76,8 +112,14 @@ export default function ManageReturnsScreen() {
     }
   };
 
-  const pendingReports = reports.filter((r) => r.status === 'pending');
-  const reviewedReports = reports.filter((r) => r.status === 'accepted');
+  const branchFilterOptions =
+    branches.length > 1 ? [{ id: ALL_BRANCHES_ID, name: 'All Branches' }, ...branches] : branches;
+
+  const branchFilteredReports =
+    selectedBranchId === ALL_BRANCHES_ID ? reports : reports.filter((r) => r.branchId === selectedBranchId);
+
+  const pendingReports = branchFilteredReports.filter((r) => r.status === 'pending');
+  const reviewedReports = branchFilteredReports.filter((r) => r.status === 'accepted');
 
   const pendingReturns = returnRequests.filter((r) => r.status === 'pending');
   const confirmedReturns = returnRequests.filter((r) => r.status !== 'pending');
@@ -150,6 +192,15 @@ export default function ManageReturnsScreen() {
           </View>
         ) : activeTab === 'reports' ? (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {branchFilterOptions.length > 1 && (
+              <View style={styles.branchFilterWrap}>
+                <BranchSelector
+                  branches={branchFilterOptions}
+                  selectedId={selectedBranchId}
+                  onSelect={setSelectedBranchId}
+                />
+              </View>
+            )}
             {pendingReports.length === 0 && reviewedReports.length === 0 ? (
               <Text style={styles.emptyText}>No daily reports submitted yet.</Text>
             ) : (
@@ -310,14 +361,29 @@ export default function ManageReturnsScreen() {
         <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => {}} />
       </View>
 
-      <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height={560}>
+      <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height={640}>
         {selectedReport && (
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{selectedReport.agentName}</Text>
             <Text style={styles.modalSubtitle}>
+              {selectedReport.branchName ? `${selectedReport.branchName} · ` : ''}
               {formatDisplayDate(selectedReport.reportDate)}
               {selectedReport.isAutoFiled ? ' · Auto-filed (missed report)' : ''}
             </Text>
+
+            <Text style={styles.photoSectionLabel}>Handover Photo</Text>
+            {selectedReport.isAutoFiled ? (
+              <Text style={styles.noPhotoText}>No photo — this report was auto-filed for a missed day.</Text>
+            ) : isLoadingReportPhoto ? (
+              <View style={styles.photoLoadingWrap}>
+                <ActivityIndicator color={COLORS.primary} />
+              </View>
+            ) : (
+              <PhotoProofCard
+                photoUri={reportPhotoUrl}
+                onView={() => reportPhotoUrl && setIsViewingReportPhoto(true)}
+              />
+            )}
 
             <View style={styles.modalItemsList}>
               {(selectedReport.items || []).map((item) => (
@@ -347,6 +413,13 @@ export default function ManageReturnsScreen() {
           </ScrollView>
         )}
       </CustomModal>
+
+      <CameraCaptureModal
+        visible={isViewingReportPhoto}
+        onClose={() => setIsViewingReportPhoto(false)}
+        onCapture={() => {}}
+        initialUri={reportPhotoUrl}
+      />
     </>
   );
 }
@@ -440,6 +513,10 @@ const styles = StyleSheet.create({
     paddingBottom: 96,
     gap: SPACING.sm,
   },
+  branchFilterWrap: {
+    marginHorizontal: -SPACING.lg,
+    marginBottom: 14,
+  },
   sectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -532,8 +609,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 16,
   },
+  photoSectionLabel: {
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#272632',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noPhotoText: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  photoLoadingWrap: {
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalItemsList: {
     gap: 10,
+    marginTop: 16,
   },
   modalItemRow: {
     flexDirection: 'row',

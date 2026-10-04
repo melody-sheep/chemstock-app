@@ -13,6 +13,7 @@ import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import reportService from '../../services/reportService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 /**
  * Reached only from AlertsDiscrepanciesSR — resolves ONE discrepant report
@@ -116,7 +117,15 @@ export default function ResolveDiscrepancyScreen() {
           <View style={styles.itemCard}>
             <View style={styles.itemTopRow}>
               <View style={styles.thumbnail}>
-                <Icon name="package" size={26} color="#94a3b8" />
+                {PRODUCT_CATALOG.find((p) => p.code === reportItem.productCode)?.image ? (
+                  <Image
+                    source={PRODUCT_CATALOG.find((p) => p.code === reportItem.productCode).image}
+                    style={styles.thumbnailImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Icon name="package" size={26} color="#94a3b8" />
+                )}
               </View>
               <View style={styles.itemDetails}>
                 <Text style={styles.itemCode} numberOfLines={1}>{reportItem.productCode}</Text>
@@ -258,6 +267,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  thumbnailImage: {
+    width: '70%',
+    height: '70%',
   },
   itemDetails: {
     flex: 1,

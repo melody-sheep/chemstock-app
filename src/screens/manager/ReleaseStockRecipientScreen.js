@@ -10,9 +10,11 @@ import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
+import BranchSelector from '../../components/common/BranchSelector';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
+import requestService from '../../services/requestService';
 import { getInitials } from '../../utils/initials';
 import { ROLES } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
@@ -38,6 +40,8 @@ export default function ReleaseStockRecipientScreen() {
   const bottomActionBarHeight = useBottomActionBarHeight();
   const [manager, setManager] = useState(null);
   const [agents, setAgents] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeRole, setActiveRole] = useState(ROLES.SALES_REP);
   const [searchText, setSearchText] = useState('');
@@ -52,6 +56,13 @@ export default function ReleaseStockRecipientScreen() {
     ]);
     setManager(currentManager);
     setAgents(result.success ? result.data : []);
+
+    const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+    setBranches(managerBranches);
+    // One branch is picked for the manager; several means they must choose,
+    // same pattern as Receive Stock's "Receive into which branch?" (Figure 21).
+    setSelectedBranchId((prev) => prev || (managerBranches.length === 1 ? managerBranches[0].id : prev));
+
     setIsLoading(false);
   }, []);
 
@@ -61,15 +72,17 @@ export default function ReleaseStockRecipientScreen() {
     }, [loadData])
   );
 
-  const managerBranchIds = manager?.branchIds || [];
   const query = searchText.trim().toLowerCase();
 
   const isCollectorRole = activeRole === ROLES.COLLECTOR;
 
+  // Once a branch is chosen, recipients are scoped to that branch
+  // specifically — releasing from Branch A shouldn't offer an agent who
+  // only belongs to Branch B as a recipient.
   const visibleAgents = agents.filter((agent) => {
     if (agent.role !== activeRole) return false;
-    const sharesBranch = (agent.branch_ids || []).some((id) => managerBranchIds.includes(id));
-    if (!sharesBranch) return false;
+    if (!selectedBranchId) return false;
+    if (!(agent.branch_ids || []).includes(selectedBranchId)) return false;
     if (!query) return true;
     return agent.full_name?.toLowerCase().includes(query) || agent.username?.toLowerCase().includes(query);
   });
@@ -78,10 +91,11 @@ export default function ReleaseStockRecipientScreen() {
   // remote-release flow (Figure 27) has the manager pick the collector AND
   // the target Sales Rep the collector is delivering to, in the same step.
   // Independent of the active role tab/search box above, since it's always
-  // pulled from the Sales Rep pool.
+  // pulled from the Sales Rep pool, but still scoped to the chosen branch.
   const targetReps = agents.filter((agent) => {
     if (agent.role !== ROLES.SALES_REP) return false;
-    return (agent.branch_ids || []).some((id) => managerBranchIds.includes(id));
+    if (!selectedBranchId) return false;
+    return (agent.branch_ids || []).includes(selectedBranchId);
   });
 
   const prefillAgent = prefillRequest
@@ -121,7 +135,8 @@ export default function ReleaseStockRecipientScreen() {
     profilePhotoUrl: agent.profilePhotoUrl,
   });
 
-  const canProceed = isCollectorRole ? !!selectedAgent && !!selectedTargetRep : !!selectedAgent;
+  const canProceed =
+    !!selectedBranchId && (isCollectorRole ? !!selectedAgent && !!selectedTargetRep : !!selectedAgent);
 
   const handleNext = () => {
     if (!canProceed) return;
@@ -129,7 +144,7 @@ export default function ReleaseStockRecipientScreen() {
       recipient: toRecipientParam(selectedAgent),
       targetRecipient: isCollectorRole ? toRecipientParam(selectedTargetRep) : null,
       movementType: isCollectorRole ? 'collector' : 'direct',
-      branchId: managerBranchIds[0],
+      branchId: selectedBranchId,
     };
 
     if (prefillRequest) {
@@ -173,6 +188,13 @@ export default function ReleaseStockRecipientScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Stepper currentStep={1} labels={STEP_LABELS} />
+
+          {branches.length > 1 && (
+            <>
+              <Text style={styles.sectionTitle}>Release stock from which branch?</Text>
+              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+            </>
+          )}
 
           {prefillRequest && (
             <View style={styles.prefillBanner}>
@@ -340,6 +362,13 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: 24 },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+    marginTop: SPACING.lg,
+  },
   roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg, marginBottom: SPACING.md },
   roleCard: {
     flex: 1,

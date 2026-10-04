@@ -1,8 +1,9 @@
 // src/components/common/ActionCard.js
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
+import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -18,13 +19,14 @@ export default function ActionCard({
   title,
   onPress = null,
   style = {},
+  badgeCount = 0,
 }) {
   return (
     <TouchableOpacity
       style={[styles.card, style]}
       onPress={onPress}
       activeOpacity={0.7}
-      accessibilityLabel={title}
+      accessibilityLabel={badgeCount > 0 ? `${title}, ${badgeCount} pending` : title}
       accessibilityRole="button"
     >
       <Icon
@@ -36,6 +38,11 @@ export default function ActionCard({
         style={styles.icon}
       />
       <Text style={styles.title}>{title}</Text>
+      {badgeCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -47,6 +54,7 @@ ActionCard.propTypes = {
   title: PropTypes.string.isRequired,
   onPress: PropTypes.func,
   style: PropTypes.object,
+  badgeCount: PropTypes.number,
 };
 
 const styles = StyleSheet.create({
@@ -58,6 +66,26 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
   },
   icon: {
     marginRight: SPACING.sm,

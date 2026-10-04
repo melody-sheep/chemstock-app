@@ -1,6 +1,6 @@
 // src/screens/manager/ReceiveStockPreviewScreen.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Share, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -52,6 +52,7 @@ export default function ReceiveStockPreviewScreen() {
   const [registeredAt, setRegisteredAt] = useState(null);
   const bottomActionBarHeight = useBottomActionBarHeight();
   const { hasReachedEnd, onScroll, onContentSizeChange, onLayout } = useScrolledToEnd();
+  const qrRef = useRef(null);
 
   useEffect(() => {
     authService
@@ -188,11 +189,10 @@ export default function ReceiveStockPreviewScreen() {
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `ChemStock batch registered — ${items.length} item${items.length === 1 ? '' : 's'}, ${totalUnits} units.\nQR Code: ${qrCode}`,
-      });
+      await qrRef.current?.shareAsImage();
     } catch (error) {
       console.error('[ERROR] [ReceiveStockPreview] Share failed:', error);
+      Alert.alert('Share Failed', error.message || 'Could not share the QR code.');
     }
   };
 
@@ -222,7 +222,7 @@ export default function ReceiveStockPreviewScreen() {
             <Text style={styles.qrTitle}>Stock Registered Successfully</Text>
             <Text style={styles.qrSubtitle}>Scan this code anytime to track the batch.</Text>
 
-            <SaveableQRCode value={qrCode} size={150} style={styles.qrCard} />
+            <SaveableQRCode ref={qrRef} value={qrCode} size={150} style={styles.qrCard} />
 
             <View style={styles.receiptCard}>
               <View style={styles.receiptRow}>

@@ -16,6 +16,7 @@ import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import reportService from '../../services/reportService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
 import { debugLog } from '../../utils/logger';
@@ -84,6 +85,7 @@ export default function SalesRepDashboardScreen() {
   const [totalUnits, setTotalUnits] = useState(null);
   const [recentLogs, setRecentLogs] = useState([]);
   const [pendingRequestCount, setPendingRequestCount] = useState(null);
+  const [openDiscrepancyCount, setOpenDiscrepancyCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
@@ -107,11 +109,12 @@ export default function SalesRepDashboardScreen() {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);
 
-      const [inventoryResult, logsResult, requestsResult, deliveriesResult] = await Promise.all([
+      const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
         inventoryService.getSrInventory(currentUser?.id),
         inventoryService.getSrActivityLogs(currentUser?.id, 3),
         requestService.getMyStockRequests(currentUser?.id, 5),
         inventoryService.getMyDeliveries(currentUser?.id, 10),
+        reportService.getMyDiscrepancies(currentUser?.id, 50),
       ]);
 
       if (inventoryResult.success) {
@@ -120,20 +123,32 @@ export default function SalesRepDashboardScreen() {
         setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0));
       }
       const requests = requestsResult.success ? requestsResult.data : [];
-      setPendingRequestCount(requestsResult.success ? requests.filter((r) => r.status === 'pending').length : null);
+      // Same "not actually done until fulfilled" fix as the Manager
+      // dashboard — a request the manager has tapped Prepare on is
+      // 'accepted' but still outstanding from the Sales Rep's point of view
+      // until the stock is actually released to them.
+      setPendingRequestCount(
+        requestsResult.success
+          ? requests.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId)).length
+          : null
+      );
+
+      const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
+      setOpenDiscrepancyCount(discrepancies.filter((d) => d.resolutionStatus === 'open').length);
 
       const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
         (d) => d.deliveryStatus === 'delivered'
       );
 
-      // Merge accepted-stock logs with request status changes and completed
-      // incoming deliveries into one chronological feed, top 3 — same pattern
-      // getActivityLogs already uses to merge receiving+release on the
-      // Manager side.
+      // Merge accepted-stock logs with request status changes, completed
+      // incoming deliveries, and flagged discrepancies into one chronological
+      // feed, top 3 — same pattern getActivityLogs already uses to merge
+      // receiving+release on the Manager side.
       const merged = [
         ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
         ...requests.map((req) => ({ ...req, logType: 'request' })),
         ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
+        ...discrepancies.map((d) => ({ ...d, logType: 'discrepancy', createdAt: d.reportDate })),
       ];
       merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRecentLogs(merged.slice(0, 3));
@@ -171,6 +186,16 @@ export default function SalesRepDashboardScreen() {
   };
 
   const recentLogsDisplay = recentLogs.map((log) => {
+    if (log.logType === 'discrepancy') {
+      const isLoss = log.discrepancyType === 'loss';
+      return {
+        key: `discrepancy-${log.reportItemId}`,
+        icon: 'alertTriangle',
+        iconColor: COLORS.error,
+        text: `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
+        log,
+      };
+    }
     if (log.logType === 'delivery') {
       return {
         key: `delivery-${log.transactionId}`,
@@ -369,6 +394,7 @@ export default function SalesRepDashboardScreen() {
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
+                badgeCount={operation.key === 'alerts' ? openDiscrepancyCount : 0}
               />
             ))}
           </View>
@@ -384,11 +410,15 @@ export default function SalesRepDashboardScreen() {
                   icon={log.icon}
                   iconColor={log.iconColor}
                   text={log.text}
-                  onPress={() =>
-                    log.log.logType === 'delivery'
-                      ? navigation.navigate('SalesRepTrackDeliveries')
-                      : navigation.navigate('SalesRepLogs', { initialLog: log.log })
-                  }
+                  onPress={() => {
+                    if (log.log.logType === 'delivery') {
+                      navigation.navigate('SalesRepTrackDeliveries');
+                    } else if (log.log.logType === 'discrepancy') {
+                      navigation.navigate('AlertsDiscrepanciesSR');
+                    } else {
+                      navigation.navigate('SalesRepLogs', { initialLog: log.log });
+                    }
+                  }}
                 />
               ))
             ) : (

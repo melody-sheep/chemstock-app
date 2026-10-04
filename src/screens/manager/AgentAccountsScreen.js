@@ -6,8 +6,10 @@ import Header from '../../components/common/Header';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LogListItem from '../../components/common/LogListItem';
+import BranchSelector from '../../components/common/BranchSelector';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
+import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -26,9 +28,19 @@ export default function AgentAccountsScreen() {
   const [role, setRole] = useState('sales_rep');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdAccounts, setCreatedAccounts] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
 
   useEffect(() => {
-    authService.getCurrentUser().then(setManager);
+    authService.getCurrentUser().then(async (currentManager) => {
+      setManager(currentManager);
+      const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+      setBranches(managerBranches);
+      // Single-branch managers never see the picker — just assign that one
+      // branch automatically. Multi-branch managers must explicitly choose,
+      // same pattern as Release Stock's branch picker.
+      setSelectedBranchId((prev) => prev || (managerBranches.length === 1 ? managerBranches[0].id : prev));
+    });
   }, []);
 
   const resetForm = () => {
@@ -52,6 +64,10 @@ export default function AgentAccountsScreen() {
       Alert.alert('Password Mismatch', 'Passwords do not match.');
       return;
     }
+    if (branches.length > 1 && !selectedBranchId) {
+      Alert.alert('Missing Info', 'Please select which branch this account belongs to.');
+      return;
+    }
 
     setIsSubmitting(true);
     const result = await agentService.createAgentAccount({
@@ -59,7 +75,7 @@ export default function AgentAccountsScreen() {
       fullName: fullName.trim(),
       password,
       role,
-      branchIds: manager?.branchIds || [],
+      branchIds: selectedBranchId ? [selectedBranchId] : manager?.branchIds || [],
     });
     setIsSubmitting(false);
 
@@ -111,6 +127,13 @@ export default function AgentAccountsScreen() {
             ))}
           </View>
 
+          {branches.length > 1 && (
+            <View style={styles.branchSection}>
+              <Text style={styles.sectionLabel}>Assign to which branch?</Text>
+              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+            </View>
+          )}
+
           <Input
             label="Full Name"
             required
@@ -149,7 +172,7 @@ export default function AgentAccountsScreen() {
           <Button
             title={isSubmitting ? 'Creating...' : 'Create Account'}
             onPress={handleCreate}
-            disabled={isSubmitting}
+            disabled={isSubmitting || (branches.length > 1 && !selectedBranchId)}
             style={styles.submitButton}
           />
 
@@ -180,6 +203,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   createdTitle: { marginTop: SPACING.xl },
+  branchSection: { marginBottom: SPACING.md },
+  sectionLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
   roleToggleRow: {
     flexDirection: 'row',
     gap: SPACING.sm,

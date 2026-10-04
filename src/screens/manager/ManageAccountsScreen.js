@@ -10,6 +10,8 @@ import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import FilterSheet from '../../components/common/FilterSheet';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import CustomModal from '../../components/common/Modal';
+import Input from '../../components/common/Input';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
 import { getInitials } from '../../utils/initials';
@@ -31,7 +33,7 @@ const ROLE_DOT_COLOR = {
   [ROLES.COLLECTOR]: COLORS.accentPink,
 };
 
-function AgentCard({ account, onRemove }) {
+function AgentCard({ account, onMorePress }) {
   return (
     <View style={styles.card}>
       <UserAvatar
@@ -55,8 +57,8 @@ function AgentCard({ account, onRemove }) {
 
       <TouchableOpacity
         style={styles.moreButton}
-        onPress={() => onRemove(account)}
-        accessibilityLabel={`Remove ${account.full_name}`}
+        onPress={() => onMorePress(account)}
+        accessibilityLabel={`More actions for ${account.full_name}`}
         accessibilityRole="button"
       >
         <Icon name="moreVertical" size={20} color={COLORS.textSecondary} />
@@ -74,6 +76,10 @@ export default function ManageAccountsScreen() {
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState(null);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [accountToResetPassword, setAccountToResetPassword] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const loadAccounts = useCallback(async () => {
     setIsLoading(true);
@@ -100,6 +106,46 @@ export default function ManageAccountsScreen() {
 
   const handleRemovePress = (account) => {
     setAccountToRemove(account);
+  };
+
+  const handleMorePress = (account) => {
+    Alert.alert(account.full_name, `Username: ${account.username}`, [
+      { text: 'Reset Password', onPress: () => setAccountToResetPassword(account) },
+      { text: 'Remove Account', style: 'destructive', onPress: () => handleRemovePress(account) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const closeResetPasswordModal = () => {
+    setAccountToResetPassword(null);
+    setNewPassword('');
+    setConfirmNewPassword('');
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!accountToResetPassword || isResettingPassword) return;
+
+    if (newPassword.length < 4) {
+      Alert.alert('Weak Password', 'Password must be at least 4 characters.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      Alert.alert('Password Mismatch', 'Passwords do not match.');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    const result = await agentService.resetAgentPassword(accountToResetPassword.id, newPassword);
+    setIsResettingPassword(false);
+
+    if (!result.success) {
+      Alert.alert('Failed to Reset Password', result.message);
+      return;
+    }
+
+    const name = accountToResetPassword.full_name;
+    closeResetPasswordModal();
+    Alert.alert('Password Reset', `${name}'s password has been reset. Let them know their new password.`);
   };
 
   const handleConfirmRemove = async () => {
@@ -182,7 +228,7 @@ export default function ManageAccountsScreen() {
           ) : (
             <View style={styles.list}>
               {filteredAccounts.map((account) => (
-                <AgentCard key={account.id} account={account} onRemove={handleRemovePress} />
+                <AgentCard key={account.id} account={account} onMorePress={handleMorePress} />
               ))}
             </View>
           )}
@@ -224,6 +270,42 @@ export default function ManageAccountsScreen() {
         confirmLabel={isRemoving ? 'Removing…' : 'Remove Account'}
         height={340}
       />
+
+      <CustomModal visible={!!accountToResetPassword} onClose={closeResetPasswordModal} height={420}>
+        <Text style={styles.resetModalTitle}>
+          Reset Password{accountToResetPassword ? ` — ${accountToResetPassword.full_name}` : ''}
+        </Text>
+        <Text style={styles.resetModalSubtitle}>
+          This sets a brand-new password immediately. Let {accountToResetPassword?.full_name || 'the agent'} know
+          what it is — there's no way to view their old one.
+        </Text>
+
+        <Input
+          label="New Password"
+          required
+          placeholder="Enter new password"
+          secureTextEntry
+          value={newPassword}
+          onChangeText={setNewPassword}
+          autoCapitalize="none"
+        />
+        <Input
+          label="Confirm New Password"
+          required
+          placeholder="Confirm new password"
+          secureTextEntry
+          value={confirmNewPassword}
+          onChangeText={setConfirmNewPassword}
+          autoCapitalize="none"
+        />
+
+        <Button
+          title={isResettingPassword ? 'Resetting…' : 'Reset Password'}
+          onPress={handleConfirmResetPassword}
+          disabled={isResettingPassword}
+          style={styles.resetModalButton}
+        />
+      </CustomModal>
     </>
   );
 }
@@ -360,6 +442,24 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  resetModalTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+    marginBottom: SPACING.xs,
+  },
+  resetModalSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+    lineHeight: 18,
+  },
+  resetModalButton: {
+    marginTop: SPACING.sm,
   },
   bottomBar: {
     paddingHorizontal: SPACING.lg,

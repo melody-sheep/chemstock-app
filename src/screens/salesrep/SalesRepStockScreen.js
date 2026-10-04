@@ -128,6 +128,16 @@ export default function SalesRepStockScreen() {
           quantity={row.quantity}
           batchNumber={row.batch_number}
           expDate={row.exp_date}
+          onPress={() =>
+            navigation.navigate('StockBatchDetail', {
+              productName: row.product_name,
+              quantity: row.quantity,
+              batchNumber: row.batch_number,
+              expDate: row.exp_date,
+              mfgDate: row.mfg_date,
+              branchName: selectedBranch?.name,
+            })
+          }
         />
       ))}
     </ScrollView>

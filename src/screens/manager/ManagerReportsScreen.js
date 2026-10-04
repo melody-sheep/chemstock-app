@@ -90,7 +90,16 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
         <meta charset="utf-8" />
         <style>
           body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #272632; }
-          h1 { font-size: 20px; margin-bottom: 2px; }
+          .company-header { text-align: center; margin-bottom: 14px; }
+          .company-name { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+          .company-address { font-size: 11px; color: #555353; margin-top: 2px; }
+          .distributor-box { border-top: 1px solid #272632; border-bottom: 1px solid #272632; padding: 10px 0; margin-bottom: 14px; }
+          .distributor-row { display: flex; font-size: 12px; margin-bottom: 4px; }
+          .distributor-row:last-child { margin-bottom: 0; }
+          .distributor-label { font-weight: 700; width: 140px; flex-shrink: 0; }
+          .distributor-value { border-bottom: 1px solid #272632; flex: 1; padding-bottom: 1px; }
+          .bor-title { text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 18px; }
+          h1 { font-size: 16px; margin-bottom: 2px; }
           .subtitle { color: #555353; font-size: 12px; margin-bottom: 20px; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
           th, td { border: 1px solid #DBE4EE; padding: 8px 10px; font-size: 12px; text-align: left; }
@@ -105,6 +114,24 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
         </style>
       </head>
       <body>
+        <div class="company-header">
+          <div class="company-name">A AND AIMEE LABORATORIES</div>
+          <div class="company-address">Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna</div>
+        </div>
+
+        <div class="distributor-box">
+          <div class="distributor-row">
+            <span class="distributor-label">DISTRIBUTOR'S NAME</span>
+            <span class="distributor-value">${managerName || ''}</span>
+          </div>
+          <div class="distributor-row">
+            <span class="distributor-label">OFFICE</span>
+            <span class="distributor-value">${branchName || ''}</span>
+          </div>
+        </div>
+
+        <div class="bor-title">DISTRIBUTOR'S REPORT (BOR)</div>
+
         <h1>${branchName} — ${periodLabel} Stock Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>

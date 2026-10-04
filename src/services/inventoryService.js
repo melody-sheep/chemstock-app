@@ -311,7 +311,40 @@ class InventoryService extends BaseService {
         throw new Error(error.message || 'Failed to look up that QR code');
       }
 
-      return { success: true, data: data || null };
+      if (data) {
+        return { success: true, data };
+      }
+
+      // Not a receiving transaction's own QR — try matching a single batch's
+      // QR instead (printed/reprinted from the Stock tab's Batch Details
+      // screen, which encodes branch_inventory.batch_number rather than a
+      // receiving_batches.qr_code). Shaped to match the same { branch_id,
+      // branch_inventory: [...] } contract every caller of this function expects.
+      const { data: batchRow, error: batchError } = await supabase
+        .from('branch_inventory')
+        .select('id, branch_id, product_code, product_name, batch_number, quantity, mfg_date, exp_date')
+        .eq('batch_number', qrCode)
+        .in('branch_id', branchIds)
+        .maybeSingle();
+
+      if (batchError) {
+        console.error('[ERROR] [InventoryService] getReceivingBatchByQrCode batch_number fallback error:', batchError);
+        throw new Error(batchError.message || 'Failed to look up that QR code');
+      }
+
+      if (!batchRow) {
+        return { success: true, data: null };
+      }
+
+      return {
+        success: true,
+        data: {
+          id: batchRow.id,
+          branch_id: batchRow.branch_id,
+          qr_code: qrCode,
+          branch_inventory: [batchRow],
+        },
+      };
     } catch (error) {
       this.log('error', 'getReceivingBatchByQrCode failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to look up that QR code', data: null };

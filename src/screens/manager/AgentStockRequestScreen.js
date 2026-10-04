@@ -51,6 +51,12 @@ export default function AgentStockRequestScreen() {
     }, [loadRequests])
   );
 
+  const buildPrefillRequest = (request) => ({
+    requestId: request.requestId,
+    requestedBy: { id: request.requestedById, fullName: request.requestedByName },
+    items: request.items || [],
+  });
+
   const handlePrepare = async (request) => {
     if (busyRequestId) return;
     setBusyRequestId(request.requestId);
@@ -63,13 +69,15 @@ export default function AgentStockRequestScreen() {
       return;
     }
 
-    navigation.navigate('ReleaseStockRecipient', {
-      prefillRequest: {
-        requestId: request.requestId,
-        requestedBy: { id: request.requestedById, fullName: request.requestedByName },
-        items: request.items || [],
-      },
-    });
+    navigation.navigate('ReleaseStockRecipient', { prefillRequest: buildPrefillRequest(request) });
+  };
+
+  // Request is already 'accepted' (shown as "Preparing") from an earlier
+  // Prepare tap — the manager backed out of Release Stock before finishing
+  // it. accept_stock_request only allows 'pending' -> 'accepted', so it
+  // can't be called again here; just re-enter the same flow where they left off.
+  const handleContinue = (request) => {
+    navigation.navigate('ReleaseStockRecipient', { prefillRequest: buildPrefillRequest(request) });
   };
 
   const confirmDecline = async () => {
@@ -181,6 +189,15 @@ export default function AgentStockRequestScreen() {
                           variant="black"
                           onPress={() => handlePrepare(request)}
                           loading={isBusy}
+                          disabled={isBusy}
+                          style={styles.actionButton}
+                        />
+                      )}
+                      {displayStatus === 'preparing' && (
+                        <Button
+                          title="Continue"
+                          variant="black"
+                          onPress={() => handleContinue(request)}
                           disabled={isBusy}
                           style={styles.actionButton}
                         />

@@ -1,6 +1,6 @@
 // src/components/common/StockBatchCard.js
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
@@ -28,6 +28,7 @@ export default function StockBatchCard({
   expDate = null,
   outOfStock = false,
   wireframe = false,
+  onPress = null,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
@@ -50,9 +51,14 @@ export default function StockBatchCard({
   // grid, where stock status is the point — but silently, via opacity only.
   // No "Out of Stock" text label anywhere; the icon alone is enough.
   const isWireframeOutOfStock = outOfStock && wireframe;
+  const Container = onPress ? TouchableOpacity : View;
+  const containerProps = onPress ? { onPress, activeOpacity: 0.7 } : {};
 
   return (
-    <View style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}>
+    <Container
+      style={[styles.card, isWireframeOutOfStock && styles.cardMuted, wireframe && styles.wireframeCard]}
+      {...containerProps}
+    >
       <View style={styles.thumbWrap}>
         <View style={styles.thumbIconBg}>
           {image ? (
@@ -92,7 +98,7 @@ export default function StockBatchCard({
           </Text>
         </>
       )}
-    </View>
+    </Container>
   );
 }
 
@@ -104,6 +110,7 @@ StockBatchCard.propTypes = {
   expDate: PropTypes.string,
   outOfStock: PropTypes.bool,
   wireframe: PropTypes.bool,
+  onPress: PropTypes.func,
 };
 
 const styles = StyleSheet.create({

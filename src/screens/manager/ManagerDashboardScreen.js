@@ -18,6 +18,7 @@ import { describeReceivingScan } from '../../utils/scanLookup';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import reportService from '../../services/reportService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -84,6 +85,8 @@ export default function ManagerDashboardScreen() {
   const [recentLogs, setRecentLogs] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
   const [pendingRequestCount, setPendingRequestCount] = useState(null);
+  const [pendingReportCount, setPendingReportCount] = useState(0);
+  const [openDiscrepancyCount, setOpenDiscrepancyCount] = useState(0);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -112,37 +115,57 @@ export default function ManagerDashboardScreen() {
     setUser(currentUser);
 
     const branchIds = currentUser?.branchIds || [];
-    const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult] = await Promise.all([
-      inventoryService.getBranchStock(branchIds),
-      inventoryService.getActivityLogs(branchIds, 3),
-      agentService.getMyAgentAccounts(),
-      requestService.getBranchStockRequests(50),
-      inventoryService.getDeliveries(branchIds, 10),
-    ]);
+    const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult, reportsResult, discrepanciesResult] =
+      await Promise.all([
+        inventoryService.getBranchStock(branchIds),
+        inventoryService.getActivityLogs(branchIds, 3),
+        agentService.getMyAgentAccounts(),
+        requestService.getBranchStockRequests(50),
+        inventoryService.getDeliveries(branchIds, 10),
+        reportService.getBranchDailyReports(50),
+        reportService.getBranchDiscrepancies(200),
+      ]);
 
     if (stockResult.success) {
       setTotalUnits(stockResult.data.reduce((sum, row) => sum + row.quantity, 0));
     }
 
-    // Fold completed deliveries in as their own log type, same pattern as
-    // getActivityLogs' own receiving+release merge — re-sort by the real
-    // event time (delivered_at, not the release's created_at) and re-slice
-    // to the top 3 shown on the dashboard.
+    const reports = reportsResult.success ? reportsResult.data : [];
+    const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
+    setPendingReportCount(reports.filter((r) => r.status === 'pending').length);
+    setOpenDiscrepancyCount(discrepancies.filter((d) => d.resolutionStatus === 'open').length);
+
+    // Fold completed deliveries, report submissions, and flagged discrepancies
+    // in as their own log types, same pattern as getActivityLogs' own
+    // receiving+release merge — re-stamp each to a common `created_at` so the
+    // existing sort/slice logic below needs no further branching.
     const deliveredLogs = (deliveriesResult.success ? deliveriesResult.data : [])
       .filter((d) => d.delivery_status === 'delivered')
-      .map((d) => ({ ...d, logType: 'delivery' }));
-    const mergedLogs = [...(logsResult.success ? logsResult.data : []), ...deliveredLogs].sort((a, b) => {
-      const aTime = new Date(a.logType === 'delivery' ? a.delivered_at : a.created_at).getTime();
-      const bTime = new Date(b.logType === 'delivery' ? b.delivered_at : b.created_at).getTime();
-      return bTime - aTime;
-    });
+      .map((d) => ({ ...d, logType: 'delivery', created_at: d.delivered_at }));
+    const reportLogs = reports.map((r) => ({ ...r, logType: 'report', created_at: r.reportDate }));
+    const discrepancyLogs = discrepancies.map((d) => ({ ...d, logType: 'discrepancy', created_at: d.reportDate }));
+    const mergedLogs = [
+      ...(logsResult.success ? logsResult.data : []),
+      ...deliveredLogs,
+      ...reportLogs,
+      ...discrepancyLogs,
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setRecentLogs(mergedLogs.slice(0, 3));
 
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
     }
     if (requestsResult.success) {
-      setPendingRequestCount(requestsResult.data.filter((r) => r.status === 'pending').length);
+      // A request tapped "Prepare" is 'accepted' but not actually done until
+      // it's linked to a completed release (fulfilledTransactionId set) —
+      // same "preparing" derivation AgentStockRequestScreen uses. Counting
+      // only strict 'pending' here made the stat (and the Continue flow)
+      // drop a request the moment Prepare was tapped, even if the manager
+      // backed out before finishing the release.
+      setPendingRequestCount(
+        requestsResult.data.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId))
+          .length
+      );
     }
 
     setIsLoading(false);
@@ -176,6 +199,26 @@ export default function ManagerDashboardScreen() {
         icon: 'checkCircle',
         iconColor: COLORS.success,
         text: `Delivery to ${targetName} completed — ${formatRelativeTime(log.delivered_at)}`,
+        log,
+      };
+    }
+    if (log.logType === 'report') {
+      const productCount = (log.items || []).length;
+      return {
+        key: `report-${log.reportId}`,
+        icon: 'document',
+        iconColor: COLORS.secondary,
+        text: `${log.agentName || 'A sales rep'} submitted today's report (${productCount} product${productCount === 1 ? '' : 's'}) — ${formatRelativeTime(log.reportDate)}`,
+        log,
+      };
+    }
+    if (log.logType === 'discrepancy') {
+      const isLoss = log.discrepancyType === 'loss';
+      return {
+        key: `discrepancy-${log.reportItemId}`,
+        icon: 'alertTriangle',
+        iconColor: COLORS.error,
+        text: `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
     }
@@ -364,6 +407,13 @@ export default function ManagerDashboardScreen() {
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
+                badgeCount={
+                  operation.key === 'manageReturns'
+                    ? pendingReportCount
+                    : operation.key === 'alerts'
+                    ? openDiscrepancyCount
+                    : 0
+                }
               />
             ))}
           </View>
@@ -379,11 +429,17 @@ export default function ManagerDashboardScreen() {
                   icon={log.icon}
                   iconColor={log.iconColor}
                   text={log.text}
-                  onPress={() =>
-                    log.log.logType === 'delivery'
-                      ? navigation.navigate('TrackDeliveries')
-                      : navigation.navigate('StockLogs', { initialLog: log.log })
-                  }
+                  onPress={() => {
+                    if (log.log.logType === 'delivery') {
+                      navigation.navigate('TrackDeliveries');
+                    } else if (log.log.logType === 'report') {
+                      navigation.navigate('ManageReturns');
+                    } else if (log.log.logType === 'discrepancy') {
+                      navigation.navigate('ManagerAlerts');
+                    } else {
+                      navigation.navigate('StockLogs', { initialLog: log.log });
+                    }
+                  }}
                 />
               ))
             ) : (

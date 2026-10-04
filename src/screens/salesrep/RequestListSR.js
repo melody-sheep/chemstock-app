@@ -1,6 +1,6 @@
 // src/screens/salesrep/RequestListSR.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -11,6 +11,7 @@ import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -105,7 +106,6 @@ export default function RequestListSR() {
     try {
       const result = await requestService.submitStockRequest({
         agentId: agent.id,
-        branchId: selectedBranchId,
         latitude: coords?.latitude,
         longitude: coords?.longitude,
         deviceModel: Device.modelName,
@@ -167,6 +167,17 @@ export default function RequestListSR() {
             <View style={styles.itemsCard}>
               {items.map((item, index) => (
                 <View key={item.productCode} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                  <View style={styles.thumbnail}>
+                    {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                      <Image
+                        source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                        style={styles.thumbnailImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Icon name="boxPackage" size={22} color="#94a3b8" />
+                    )}
+                  </View>
                   <View style={styles.itemInfo}>
                     <Text style={styles.itemName}>{item.productName}</Text>
                     <Text style={styles.itemMeta}>Code: {item.productCode}</Text>
@@ -294,6 +305,18 @@ const styles = StyleSheet.create({
     borderTopColor: '#F0F0F0',
   },
   itemRowFirst: { borderTopWidth: 0 },
+  thumbnail: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#F1F3F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbnailImage: {
+    width: '70%',
+    height: '70%',
+  },
   itemInfo: { flex: 1 },
   itemName: {
     fontSize: TYPOGRAPHY.fontSize.sm,

@@ -33,6 +33,7 @@ import ManagerSettingsScreen from '../screens/manager/ManagerSettingsScreen';
 import ComingSoonScreen from '../screens/common/ComingSoonScreen';
 import EditProfileScreen from '../screens/common/EditProfileScreen';
 import LegalInfoScreen from '../screens/common/LegalInfoScreen';
+import StockBatchDetailScreen from '../screens/common/StockBatchDetailScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
 import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
 import ReceiveStockSR from '../screens/salesrep/ReceiveStockSR';
@@ -85,6 +86,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ReceiveStockPreview" component={ReceiveStockPreviewScreen} />
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="StockLogs" component={StockLogsScreen} />
+        <Stack.Screen name="StockBatchDetail" component={StockBatchDetailScreen} />
         <Stack.Screen name="ReleaseStockRecipient" component={ReleaseStockRecipientScreen} />
         <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} />
         <Stack.Screen name="ReleaseStockScanReview" component={ReleaseStockScanReviewScreen} />

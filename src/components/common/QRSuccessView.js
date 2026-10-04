@@ -1,6 +1,6 @@
 // src/components/common/QRSuccessView.js
-import React from 'react';
-import { View, Text, ScrollView, Share, Dimensions, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, ScrollView, Alert, Dimensions, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import Button from './Button';
@@ -10,8 +10,15 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 // Shared post-action success layout: check icon, title, the QR, a receipt card, then Share/Done.
-export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone, shareMessage }) {
-  const handleShare = () => Share.share({ message: shareMessage || qrValue });
+export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone }) {
+  const qrRef = useRef(null);
+  const handleShare = async () => {
+    try {
+      await qrRef.current?.shareAsImage();
+    } catch (error) {
+      Alert.alert('Share Failed', error.message || 'Could not share the QR code.');
+    }
+  };
   const halfButtonWidth = Math.floor((Dimensions.get('window').width - SPACING.lg * 2 - SPACING.sm) / 2);
 
   return (
@@ -20,7 +27,7 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
 
-      <SaveableQRCode value={qrValue} size={150} style={styles.qrCard} />
+      <SaveableQRCode ref={qrRef} value={qrValue} size={150} style={styles.qrCard} />
 
       <View style={styles.receiptCard}>
         {receipt.map((row, index) => (
@@ -69,11 +76,6 @@ QRSuccessView.propTypes = {
     PropTypes.shape({ label: PropTypes.string.isRequired, value: PropTypes.string.isRequired })
   ).isRequired,
   onDone: PropTypes.func.isRequired,
-  shareMessage: PropTypes.string,
-};
-
-QRSuccessView.defaultProps = {
-  shareMessage: undefined,
 };
 
 const styles = StyleSheet.create({

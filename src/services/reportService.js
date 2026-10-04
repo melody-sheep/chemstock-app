@@ -2,6 +2,12 @@
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
 import { debugLog } from '../utils/logger';
+// /legacy: same reason as inventoryService — the new default File/Paths
+// API needs a native module Expo Go doesn't ship yet.
+import * as FileSystem from 'expo-file-system/legacy';
+import { base64ToUint8Array } from '../utils/base64';
+
+const SHIPMENT_BUCKET = 'shipment-media';
 
 class ReportService extends BaseService {
   constructor() {
@@ -11,6 +17,67 @@ class ReportService extends BaseService {
   // ---------------------------------------------------------------------
   // Sales Rep-facing
   // ---------------------------------------------------------------------
+
+  /**
+   * Uploads a Sales Rep's mandatory daily-report handover photo. Agents are
+   * always `anon` (no Supabase Auth session), so this needs its own
+   * path-prefix-scoped storage policy rather than the per-manager-folder
+   * one — same pattern as inventoryService's uploadStockAcceptancePhoto /
+   * uploadDiscrepancyPhoto (2026-10-04_release_branch_photo_discrepancy_branch.sql).
+   * @returns {Promise<string>} the storage path (not a public URL)
+   */
+  async uploadDailyReportPhoto(uri, agentId) {
+    debugLog('info', 'ReportService', 'Uploading daily report photo', { agentId });
+
+    try {
+      this.validateRequired(['uri', 'agentId'], { uri, agentId });
+
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const bytes = base64ToUint8Array(base64);
+      const path = `sr-daily-reports/${agentId}/${Date.now()}.jpg`;
+
+      const { error } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .upload(path, bytes, { contentType: 'image/jpeg' });
+
+      if (error) {
+        console.error('[ERROR] [ReportService] Daily report photo upload failed:', error);
+        throw new Error(error.message || 'Failed to upload photo');
+      }
+
+      return path;
+    } catch (error) {
+      this.log('error', 'uploadDailyReportPhoto failed', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Resolves a daily report's handover photo into a short-lived signed URL.
+   * Returns null for an auto-filed report (no manual submission happened,
+   * so no photo was ever taken) — degrades gracefully, never throws.
+   */
+  async getDailyReportPhotoUrl(storagePath) {
+    if (!storagePath) return null;
+
+    try {
+      const { data, error } = await supabase.storage
+        .from(SHIPMENT_BUCKET)
+        .createSignedUrl(storagePath, 300);
+
+      if (error) {
+        console.error('[ERROR] [ReportService] getDailyReportPhotoUrl error:', error);
+        return null;
+      }
+
+      return data?.signedUrl || null;
+    } catch (error) {
+      this.log('error', 'getDailyReportPhotoUrl failed', { error: error.message });
+      return null;
+    }
+  }
 
   /**
    * Today's live in-custody-per-product breakdown + whether today's report
@@ -42,13 +109,14 @@ class ReportService extends BaseService {
   /**
    * Submits today's daily report. items: [{ productCode, soldQuantity, returnQuantity }]
    * for exactly every product currently in custody (all-or-nothing, enforced
-   * server-side).
+   * server-side). storagePath is the mandatory handover photo, already
+   * uploaded via uploadDailyReportPhoto — the RPC rejects a null/empty one.
    */
-  async submitDailyReport({ agentId, latitude, longitude, deviceModel, deviceOs, items }) {
+  async submitDailyReport({ agentId, latitude, longitude, deviceModel, deviceOs, storagePath, items }) {
     debugLog('info', 'ReportService', 'Submitting daily report', { agentId, itemCount: items?.length });
 
     try {
-      this.validateRequired(['agentId'], { agentId });
+      this.validateRequired(['agentId', 'storagePath'], { agentId, storagePath });
 
       const { data, error } = await supabase.rpc('submit_daily_report', {
         p_agent_id: agentId,
@@ -56,6 +124,7 @@ class ReportService extends BaseService {
         p_longitude: longitude ?? null,
         p_device_model: deviceModel ?? null,
         p_device_os: deviceOs ?? null,
+        p_storage_path: storagePath,
         p_items: (items || []).map((item) => ({
           product_code: item.productCode,
           sold_quantity: item.soldQuantity,

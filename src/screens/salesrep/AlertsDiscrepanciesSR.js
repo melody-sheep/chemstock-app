@@ -1,6 +1,6 @@
 // src/screens/salesrep/AlertsDiscrepanciesSR.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
@@ -44,7 +45,15 @@ export default function AlertsDiscrepanciesSR() {
       <View style={styles.itemTopRow}>
         <View style={styles.thumbnailWrap}>
           <View style={styles.thumbnail}>
-            <Icon name="package" size={26} color="#94a3b8" />
+            {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+              <Image
+                source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                style={styles.thumbnailImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Icon name="package" size={26} color="#94a3b8" />
+            )}
           </View>
           <View style={styles.warningIconWrap}>
             <Icon name="warningTriangle" size={16} color="#F04D59" weight="fill" />
@@ -109,7 +118,15 @@ export default function AlertsDiscrepanciesSR() {
       <View style={styles.itemTopRow}>
         <View style={styles.thumbnailWrap}>
           <View style={styles.thumbnail}>
-            <Icon name="package" size={26} color="#94a3b8" />
+            {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+              <Image
+                source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                style={styles.thumbnailImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Icon name="package" size={26} color="#94a3b8" />
+            )}
           </View>
           <View style={styles.settledIconWrap}>
             <Icon name="checkmark" size={13} color="#FFFFFF" weight="bold" />
@@ -342,6 +359,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbnailImage: {
+    width: '70%',
+    height: '70%',
   },
   warningIconWrap: {
     marginTop: 8,

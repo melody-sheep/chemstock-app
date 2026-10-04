@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
+import PhotoProofCard from '../../components/common/PhotoProofCard';
+import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
@@ -36,6 +38,9 @@ export default function SubmitReportSR() {
   const [figures, setFigures] = useState({}); // { [productCode]: { sold, returns } }
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photoUri, setPhotoUri] = useState(null);
+  const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isViewingPhoto, setIsViewingPhoto] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setIsLoading(true);
@@ -64,6 +69,23 @@ export default function SubmitReportSR() {
 
   const handleBack = () => navigation.goBack();
 
+  const handleOpenCamera = () => {
+    setIsViewingPhoto(false);
+    setIsCameraVisible(true);
+  };
+
+  const handleViewPhoto = () => {
+    setIsViewingPhoto(true);
+    setIsCameraVisible(true);
+  };
+
+  const handleCloseCamera = () => setIsCameraVisible(false);
+
+  const handleCaptured = (uri) => {
+    setPhotoUri(uri);
+    setIsCameraVisible(false);
+  };
+
   const updateFigure = (productCode, field, value) => {
     const digitsOnly = value.replace(/[^0-9]/g, '');
     setFigures((prev) => ({
@@ -86,6 +108,10 @@ export default function SubmitReportSR() {
   const handleFinalize = async () => {
     if (items.length === 0) {
       Alert.alert('Nothing to Report', 'You have no in-custody stock to report today.');
+      return;
+    }
+    if (!photoUri) {
+      Alert.alert('Photo Required', 'Take a handover photo before submitting your daily report.');
       return;
     }
 
@@ -111,12 +137,15 @@ export default function SubmitReportSR() {
         };
       });
 
+      const storagePath = await reportService.uploadDailyReportPhoto(photoUri, agent?.id);
+
       const result = await reportService.submitDailyReport({
         agentId: agent?.id,
         latitude: coords.latitude,
         longitude: coords.longitude,
         deviceModel: Device.modelName || null,
         deviceOs: Device.osName || null,
+        storagePath,
         items: reportItems,
       });
 
@@ -125,9 +154,32 @@ export default function SubmitReportSR() {
         return;
       }
 
+      const discrepantCount = items.reduce((count, item) => {
+        const f = figures[item.productCode] || {};
+        const discrepancy = computeDiscrepancy(f.sold, f.returns, item.inCustodyQuantity);
+        return discrepancy !== 0 ? count + 1 : count;
+      }, 0);
+
+      if (discrepantCount > 0) {
+        Alert.alert(
+          'Report Submitted — Discrepancy Found',
+          `Your daily report has been sent to your manager for review. ${discrepantCount} item${discrepantCount === 1 ? '' : 's'} had a discrepancy — resolve it under Alerts/Discrepancies.`,
+          [
+            { text: 'Later', onPress: () => navigation.goBack(), style: 'cancel' },
+            {
+              text: 'Resolve Now',
+              onPress: () => navigation.replace('AlertsDiscrepanciesSR'),
+            },
+          ]
+        );
+        return;
+      }
+
       Alert.alert('Report Submitted', 'Your daily report has been sent to your manager for review.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
+    } catch (error) {
+      Alert.alert('Submit Failed', error.message || 'Could not upload your handover photo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +217,20 @@ export default function SubmitReportSR() {
                   <Text style={styles.statusText}>Online</Text>
                 </View>
               </View>
+
+              {alreadySubmitted && (
+                <View style={styles.submittedBanner}>
+                  <View style={styles.submittedCheckCircle}>
+                    <Icon name="checkmark" size={16} color="#FFFFFF" weight="bold" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.submittedBannerTitle}>Report already submitted</Text>
+                    <Text style={styles.submittedBannerText}>
+                      You've already filed today's daily report. Come back tomorrow to submit the next one.
+                    </Text>
+                  </View>
+                </View>
+              )}
 
               <View style={styles.statsRow}>
                 <View style={styles.statCard}>
@@ -279,25 +345,44 @@ export default function SubmitReportSR() {
                   })}
                 </View>
               )}
+
+              {!alreadySubmitted && items.length > 0 && (
+                <View style={styles.photoSection}>
+                  <Text style={styles.photoSectionTitle}>Handover Photo</Text>
+                  <Text style={styles.photoSectionHint}>
+                    Required — a photo of your remaining stock on hand, taken at the time you file this report.
+                  </Text>
+                  <PhotoProofCard photoUri={photoUri} onView={photoUri ? handleViewPhoto : handleOpenCamera} />
+                </View>
+              )}
             </ScrollView>
 
             {!alreadySubmitted && items.length > 0 && (
               <View style={styles.footer}>
                 <Pressable
-                  style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
+                  style={[styles.primaryButton, (isSubmitting || !photoUri) && styles.primaryButtonDisabled]}
                   onPress={handleFinalize}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !photoUri}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Finalize & Submit Daily Report</Text>
+                    <Text style={styles.primaryButtonText}>
+                      {photoUri ? 'Finalize & Submit Daily Report' : 'Take a Handover Photo First'}
+                    </Text>
                   )}
                 </Pressable>
               </View>
             )}
           </>
         )}
+
+        <CameraCaptureModal
+          visible={isCameraVisible}
+          onClose={handleCloseCamera}
+          onCapture={handleCaptured}
+          initialUri={isViewingPhoto ? photoUri : null}
+        />
       </View>
     </>
   );
@@ -332,6 +417,53 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  submittedBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#DFFBE9',
+    borderWidth: 1,
+    borderColor: '#B7FFD6',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  submittedCheckCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submittedBannerTitle: {
+    fontSize: 13,
+    color: '#1D6A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  submittedBannerText: {
+    fontSize: 11,
+    color: '#1D6A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  photoSection: {
+    marginTop: 20,
+  },
+  photoSectionTitle: {
+    fontSize: 15,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  photoSectionHint: {
+    fontSize: 11,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+    marginBottom: 10,
+  },
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,

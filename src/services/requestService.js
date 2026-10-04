@@ -13,19 +13,22 @@ class RequestService extends BaseService {
    * auth.uid()-is-always-null caveat as every other agent action (see
    * inventoryService.getTransactionByQrCodeForAgent for the full reasoning).
    */
-  async submitStockRequest({ agentId, branchId, latitude, longitude, deviceModel, deviceOs, items }) {
-    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, branchId, itemCount: items?.length });
+  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items }) {
+    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, itemCount: items?.length });
 
     try {
       this.validateRequired(['agentId'], { agentId });
 
+      // No p_branch_id here — submit_stock_request derives the branch itself
+      // from the agent's own (single) branch_ids, since a Sales Rep/Collector
+      // always belongs to exactly one branch (unlike a Manager). Passing one
+      // doesn't match that RPC's signature and fails with a schema-cache error.
       const { data, error } = await supabase.rpc('submit_stock_request', {
         p_agent_id: agentId,
         p_latitude: latitude ?? null,
         p_longitude: longitude ?? null,
         p_device_model: deviceModel ?? null,
         p_device_os: deviceOs ?? null,
-        p_branch_id: branchId ?? null,
         p_items: (items || []).map((item) => ({
           product_code: item.productCode,
           product_name: item.productName,

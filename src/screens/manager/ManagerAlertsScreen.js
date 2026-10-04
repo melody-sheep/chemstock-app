@@ -9,25 +9,33 @@ import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
+import BranchSelector from '../../components/common/BranchSelector';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import agentService from '../../services/agentService';
+import requestService from '../../services/requestService';
 import { formatDisplayDate } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
+
+const ALL_BRANCHES_ID = 'all';
 
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
   const [alerts, setAlerts] = useState([]);
   const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState(ALL_BRANCHES_ID);
   const [isLoading, setIsLoading] = useState(true);
   const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
 
   const loadAlerts = useCallback(async () => {
     setIsLoading(true);
-    const [alertsResult, agentsResult] = await Promise.all([
+    const [manager, alertsResult, agentsResult] = await Promise.all([
+      authService.getCurrentUser(),
       reportService.getBranchDiscrepancies(200),
       agentService.getMyAgentAccounts(),
     ]);
@@ -37,6 +45,8 @@ export default function ManagerAlertsScreen() {
         ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
         : {}
     );
+    const managerBranches = await requestService.getAgentBranches(manager?.branchIds || []);
+    setBranches(managerBranches);
     setIsLoading(false);
   }, []);
 
@@ -60,7 +70,16 @@ export default function ManagerAlertsScreen() {
     }
   };
 
-  const sortedAlerts = [...alerts].sort((a, b) => {
+  // "All Branches" is only offered when there's actually more than one —
+  // BranchSelector itself renders nothing for a single-branch account, so
+  // prepending it only when branches.length > 1 keeps that same behavior.
+  const branchFilterOptions =
+    branches.length > 1 ? [{ id: ALL_BRANCHES_ID, name: 'All Branches' }, ...branches] : branches;
+
+  const branchFilteredAlerts =
+    selectedBranchId === ALL_BRANCHES_ID ? alerts : alerts.filter((a) => a.branchId === selectedBranchId);
+
+  const sortedAlerts = [...branchFilteredAlerts].sort((a, b) => {
     const diff = new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime();
     return sortNewestFirst ? -diff : diff;
   });
@@ -96,6 +115,16 @@ export default function ManagerAlertsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {branchFilterOptions.length > 1 && (
+              <View style={styles.branchFilterWrap}>
+                <BranchSelector
+                  branches={branchFilterOptions}
+                  selectedId={selectedBranchId}
+                  onSelect={setSelectedBranchId}
+                />
+              </View>
+            )}
+
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>All Alerts</Text>
               <View style={styles.alertDot} />
@@ -140,9 +169,18 @@ export default function ManagerAlertsScreen() {
                         />
 
                         <View style={styles.alertDetails}>
+                          <Text style={styles.alertAgentName} numberOfLines={1}>{alert.agentName}</Text>
                           <Text style={styles.alertCode} numberOfLines={1}>Code: {alert.productCode}</Text>
                           <Text style={styles.alertFullName} numberOfLines={1}>{alert.productName}</Text>
-                          <Text style={styles.alertMeta}>Date: {formatDisplayDate(alert.reportDate)}</Text>
+                          <View style={styles.alertMetaRow}>
+                            <Text style={styles.alertMeta}>{formatDisplayDate(alert.reportDate)}</Text>
+                            {alert.branchName && (
+                              <View style={styles.branchBadge}>
+                                <Icon name="building" size={10} color={COLORS.primary} />
+                                <Text style={styles.branchBadgeText} numberOfLines={1}>{alert.branchName}</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
 
                         <View style={styles.missingWrap}>
@@ -194,7 +232,10 @@ export default function ManagerAlertsScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={styles.modalTitle}>{selectedAlert.productCode}</Text>
             <Text style={styles.modalSubtitle}>{selectedAlert.productName}</Text>
-            <Text style={styles.modalMeta}>{selectedAlert.agentName} · {formatDisplayDate(selectedAlert.reportDate)}</Text>
+            <Text style={styles.modalMeta}>
+              {selectedAlert.agentName}
+              {selectedAlert.branchName ? ` · ${selectedAlert.branchName}` : ''} · {formatDisplayDate(selectedAlert.reportDate)}
+            </Text>
 
             <View style={styles.modalFiguresRow}>
               <View style={styles.modalFigureColumn}>
@@ -268,6 +309,10 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.lg,
     paddingBottom: 96,
   },
+  branchFilterWrap: {
+    marginHorizontal: -SPACING.lg,
+    marginBottom: 14,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,11 +379,18 @@ const styles = StyleSheet.create({
   alertDetails: {
     flex: 1,
   },
+  alertAgentName: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
   alertCode: {
     fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+    marginTop: 2,
   },
   alertFullName: {
     fontSize: 12,
@@ -346,11 +398,32 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
+  alertMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
   alertMeta: {
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 4,
+  },
+  branchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    maxWidth: 110,
+  },
+  branchBadgeText: {
+    fontSize: 9,
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   missingWrap: {
     alignItems: 'center',

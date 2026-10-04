@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
@@ -11,6 +11,7 @@ import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
+import reportService from '../../services/reportService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -82,6 +83,7 @@ function summarizeItems(items) {
 
 export default function StockLogsScreen() {
   const route = useRoute();
+  const navigation = useNavigation();
   const [logs, setLogs] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -95,10 +97,12 @@ export default function StockLogsScreen() {
     setIsLoading(true);
     const manager = await authService.getCurrentUser();
     const branchIds = manager?.branchIds || [];
-    const [logsResult, agentsResult, deliveriesResult] = await Promise.all([
+    const [logsResult, agentsResult, deliveriesResult, reportsResult, discrepanciesResult] = await Promise.all([
       inventoryService.getActivityLogs(branchIds, LOGS_LIMIT),
       agentService.getMyAgentAccounts(),
       inventoryService.getDeliveries(branchIds, LOGS_LIMIT),
+      reportService.getBranchDailyReports(LOGS_LIMIT),
+      reportService.getBranchDiscrepancies(200),
     ]);
 
     // Delivery-completed entries, tagged with their own logType and
@@ -110,9 +114,27 @@ export default function StockLogsScreen() {
       .filter((d) => d.delivery_status === 'delivered')
       .map((d) => ({ ...d, logType: 'delivery', created_at: d.delivered_at }));
 
-    const merged = [...(logsResult.success ? logsResult.data : []), ...deliveredLogs].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    // Daily report submissions and flagged discrepancies, same re-stamping
+    // trick — these are historical activity entries (every report/
+    // discrepancy, not just pending/open ones), so the ledger reads as a
+    // complete record same as receiving/release/delivery.
+    const reportLogs = (reportsResult.success ? reportsResult.data : []).map((r) => ({
+      ...r,
+      logType: 'report',
+      created_at: r.reportDate,
+    }));
+    const discrepancyLogs = (discrepanciesResult.success ? discrepanciesResult.data : []).map((d) => ({
+      ...d,
+      logType: 'discrepancy',
+      created_at: d.reportDate,
+    }));
+
+    const merged = [
+      ...(logsResult.success ? logsResult.data : []),
+      ...deliveredLogs,
+      ...reportLogs,
+      ...discrepancyLogs,
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     setLogs(merged);
 
     if (agentsResult.success) {
@@ -128,6 +150,17 @@ export default function StockLogsScreen() {
   );
 
   const openDetail = async (log) => {
+    // Reports/discrepancies already have full detail UI on their own
+    // screens — deep-link out instead of duplicating it in this modal.
+    if (log.logType === 'report') {
+      navigation.navigate('ManageReturns');
+      return;
+    }
+    if (log.logType === 'discrepancy') {
+      navigation.navigate('ManagerAlerts');
+      return;
+    }
+
     setSelectedLog(log);
     setPhotoUrl(null);
 
@@ -160,6 +193,12 @@ export default function StockLogsScreen() {
     if (log.logType === 'delivery') {
       const targetName = recipientNameById[log.target_recipient_id] || 'Sales Rep';
       return `Delivery Completed — ${targetName}`;
+    }
+    if (log.logType === 'report') {
+      return `Daily Report — ${log.agentName || 'Sales Rep'}`;
+    }
+    if (log.logType === 'discrepancy') {
+      return `Discrepancy Flagged — ${log.agentName || 'Sales Rep'}`;
     }
     return log.logType === 'release'
       ? `Stock Released${recipientNameById[log.received_by] ? ` — ${recipientNameById[log.received_by]}` : ''}`
@@ -211,27 +250,40 @@ export default function StockLogsScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log) => {
-              const items = getLogItems(log);
               const isRelease = log.logType === 'release';
               const isDelivery = log.logType === 'delivery';
+              const isReport = log.logType === 'report';
+              const isDiscrepancy = log.logType === 'discrepancy';
+              const logKey = log.id || log.reportId || log.reportItemId;
+              const metaText = isReport
+                ? `${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'} reported`
+                : isDiscrepancy
+                ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                : summarizeItems(getLogItems(log));
               return (
                 <TouchableOpacity
-                  key={`${log.logType}-${log.id}`}
+                  key={`${log.logType}-${logKey}`}
                   style={styles.logCard}
                   onPress={() => openDetail(log)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.logIconBadge, (isRelease || isDelivery) && styles.logIconBadgeRelease]}>
+                  <View
+                    style={[
+                      styles.logIconBadge,
+                      (isRelease || isDelivery) && styles.logIconBadgeRelease,
+                      isDiscrepancy && styles.logIconBadgeAlert,
+                    ]}
+                  >
                     <Icon
-                      name={isDelivery ? 'checkCircle' : isRelease ? 'trayUp' : 'trayDown'}
+                      name={isDiscrepancy ? 'alertTriangle' : isReport ? 'document' : isDelivery ? 'checkCircle' : isRelease ? 'trayUp' : 'trayDown'}
                       size={18}
-                      color={isRelease || isDelivery ? COLORS.success : COLORS.primary}
+                      color={isDiscrepancy ? COLORS.error : isRelease || isDelivery ? COLORS.success : COLORS.primary}
                       weight="duotone"
                     />
                   </View>
                   <View style={styles.logTextCol}>
                     <Text style={styles.logTitle}>{getTitle(log)}</Text>
-                    <Text style={styles.logMeta}>{summarizeItems(items)}</Text>
+                    <Text style={styles.logMeta}>{metaText}</Text>
                   </View>
                   <Text style={styles.logTime}>{formatRelativeTime(log.created_at)}</Text>
                 </TouchableOpacity>
@@ -391,6 +443,9 @@ const styles = StyleSheet.create({
   },
   logIconBadgeRelease: {
     backgroundColor: COLORS.success + '15',
+  },
+  logIconBadgeAlert: {
+    backgroundColor: COLORS.error + '15',
   },
   logTextCol: { flex: 1 },
   logTitle: {

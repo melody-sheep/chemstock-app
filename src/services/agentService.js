@@ -97,6 +97,30 @@ class AgentService extends BaseService {
         }
     }
 
+    async resetAgentPassword(agentId, newPassword) {
+        debugLog('info', 'AgentService', 'Resetting agent password', { agentId });
+
+        try {
+            this.validateRequired(['agentId', 'newPassword'], { agentId, newPassword });
+
+            const { error } = await supabase.rpc('reset_agent_password', {
+                p_agent_id: agentId,
+                p_new_password: newPassword,
+            });
+
+            if (error) {
+                console.error('[ERROR] [AgentService] Error resetting agent password:', error);
+                throw new Error(error.message || 'Failed to reset password');
+            }
+
+            return { success: true };
+
+        } catch (error) {
+            this.log('error', 'resetAgentPassword failed', { error: error.message });
+            return { success: false, message: error.message || 'Failed to reset password' };
+        }
+    }
+
     async deleteAgentAccount(agentId) {
         debugLog('info', 'AgentService', 'Deleting agent account', { agentId });
 

@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
@@ -11,6 +11,7 @@ import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import reportService from '../../services/reportService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -52,11 +53,13 @@ const REQUEST_STATUS_META = {
 function getLogKey(log) {
   if (log.logType === 'request') return `request-${log.requestId}`;
   if (log.logType === 'delivery') return `delivery-${log.transactionId}`;
+  if (log.logType === 'discrepancy') return `discrepancy-${log.reportItemId}`;
   return `acceptance-${log.acceptanceId}`;
 }
 
 export default function SalesRepLogsScreen() {
   const route = useRoute();
+  const navigation = useNavigation();
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -68,10 +71,11 @@ export default function SalesRepLogsScreen() {
   const loadLogs = useCallback(async () => {
     setIsLoading(true);
     const agent = await authService.getCurrentUser();
-    const [logsResult, requestsResult, deliveriesResult] = await Promise.all([
+    const [logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
       inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT),
       requestService.getMyStockRequests(agent?.id, LOGS_LIMIT),
       inventoryService.getMyDeliveries(agent?.id, LOGS_LIMIT),
+      reportService.getMyDiscrepancies(agent?.id, 200),
     ]);
 
     const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
@@ -82,6 +86,11 @@ export default function SalesRepLogsScreen() {
       ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
       ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
       ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
+      ...(discrepanciesResult.success ? discrepanciesResult.data : []).map((d) => ({
+        ...d,
+        logType: 'discrepancy',
+        createdAt: d.reportDate,
+      })),
     ];
     merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setLogs(merged);
@@ -95,6 +104,13 @@ export default function SalesRepLogsScreen() {
   );
 
   const openDetail = async (log) => {
+    // Discrepancies already have full detail/resolution UI on their own
+    // screen — deep-link out instead of duplicating it in this modal.
+    if (log.logType === 'discrepancy') {
+      navigation.navigate('AlertsDiscrepanciesSR');
+      return;
+    }
+
     setSelectedLog(log);
     setPhotoUrl(null);
 
@@ -129,6 +145,9 @@ export default function SalesRepLogsScreen() {
     }
     if (log.logType === 'delivery') {
       return `Delivery Arrived — ${log.collectorName || 'Collector'}`;
+    }
+    if (log.logType === 'discrepancy') {
+      return 'Discrepancy Flagged';
     }
     return log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
   };
@@ -177,40 +196,51 @@ export default function SalesRepLogsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {filteredLogs.map((log) => (
-              <TouchableOpacity
-                key={getLogKey(log)}
-                style={styles.logCard}
-                onPress={() => openDetail(log)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.logIconBadge}>
-                  <Icon
-                    name={
-                      log.logType === 'request'
-                        ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon
-                        : log.logType === 'delivery'
-                        ? 'checkCircle'
-                        : 'trayDown'
-                    }
-                    size={18}
-                    color={
-                      log.logType === 'request'
-                        ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor
-                        : log.logType === 'delivery'
-                        ? COLORS.success
-                        : COLORS.primary
-                    }
-                    weight="duotone"
-                  />
-                </View>
-                <View style={styles.logTextCol}>
-                  <Text style={styles.logTitle}>{getTitle(log)}</Text>
-                  <Text style={styles.logMeta}>{summarizeItems(log.items || [])}</Text>
-                </View>
-                <Text style={styles.logTime}>{formatRelativeTime(log.createdAt)}</Text>
-              </TouchableOpacity>
-            ))}
+            {filteredLogs.map((log) => {
+              const isDiscrepancy = log.logType === 'discrepancy';
+              return (
+                <TouchableOpacity
+                  key={getLogKey(log)}
+                  style={styles.logCard}
+                  onPress={() => openDetail(log)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.logIconBadge, isDiscrepancy && styles.logIconBadgeAlert]}>
+                    <Icon
+                      name={
+                        isDiscrepancy
+                          ? 'alertTriangle'
+                          : log.logType === 'request'
+                          ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon
+                          : log.logType === 'delivery'
+                          ? 'checkCircle'
+                          : 'trayDown'
+                      }
+                      size={18}
+                      color={
+                        isDiscrepancy
+                          ? COLORS.error
+                          : log.logType === 'request'
+                          ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor
+                          : log.logType === 'delivery'
+                          ? COLORS.success
+                          : COLORS.primary
+                      }
+                      weight="duotone"
+                    />
+                  </View>
+                  <View style={styles.logTextCol}>
+                    <Text style={styles.logTitle}>{getTitle(log)}</Text>
+                    <Text style={styles.logMeta}>
+                      {isDiscrepancy
+                        ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                        : summarizeItems(log.items || [])}
+                    </Text>
+                  </View>
+                  <Text style={styles.logTime}>{formatRelativeTime(log.createdAt)}</Text>
+                </TouchableOpacity>
+              );
+            })}
             <View style={{ height: 24 }} />
           </ScrollView>
         )}
@@ -374,6 +404,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logIconBadgeAlert: {
+    backgroundColor: COLORS.error + '15',
   },
   logTextCol: { flex: 1 },
   logTitle: {
