@@ -10,8 +10,12 @@ import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondary
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import MapLegend from '../../components/common/MapLegend';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
+import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
+import MapZoomControls from '../../components/common/MapZoomControls';
 import DeliveryTimeline from '../../components/common/DeliveryTimeline';
+import { buildTimelineEntries } from '../../utils/checkpointTimeline';
 import CollectorUpdateCheckpointModal from '../../components/common/CollectorUpdateCheckpointModal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
@@ -20,6 +24,16 @@ import { distanceInMeters, formatDistance } from '../../utils/distance';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { glassPanel } from '../../styles/glass';
+import { getInitials } from '../../utils/initials';
+import { getDeliveryParties } from '../../services/presenceService';
+
+// Marker colours match the markers StaticRouteMap draws for this screen.
+const MAP_LEGEND_ITEMS = [
+  { label: 'Start', color: '#0085F9', shape: 'dot' },
+  { label: 'You', color: '#F4A825', shape: 'dot' },
+  { label: 'Stop', color: '#E63946', shape: 'pin' },
+];
 
 // A stop is considered "reached" (Finish Delivery becomes available) within
 // this radius — advisory only, computed from a fresh GPS fix on focus, never
@@ -28,7 +42,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 const NEAR_THRESHOLD_METERS = 300;
 // Handle row + the always-visible Finish Delivery/Go to Next Stop button,
 // so collapsing the timeline/details never hides the primary action.
-const COLLAPSED_SHEET_HEIGHT = 150;
+const COLLAPSED_SHEET_HEIGHT = 112;
 
 export default function CollectorDeliverStockScreen() {
   const navigation = useNavigation();
@@ -47,6 +61,7 @@ export default function CollectorDeliverStockScreen() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const mapRef = useRef(null);
   const sheetAnim = useRef(new Animated.Value(1)).current;
 
   const toggleDetails = () => {
@@ -102,12 +117,31 @@ export default function CollectorDeliverStockScreen() {
   const lastCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
   const collectorPosition = currentPosition || (lastCheckpoint ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude } : null);
 
+  // Each stop's Sales Rep, with photo and online status, keyed by transaction.
+  // Loaded once per set of legs; a failed load just leaves plain stop markers.
+  const [partiesById, setPartiesById] = useState({});
+  const legKey = legs.map((leg) => leg.transactionId).join(',');
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all(
+        legs.map(async (leg) => [leg.transactionId, await getDeliveryParties(agent?.id, leg.transactionId)])
+      ).then((entries) => {
+        if (active) setPartiesById(Object.fromEntries(entries));
+      });
+      return () => {
+        active = false;
+      };
+    }, [agent?.id, legKey])
+  );
+
   const destinations = undeliveredLegs
     .filter((leg) => leg.destinationGps)
     .map((leg) => {
       const meters = collectorPosition ? distanceInMeters(collectorPosition, leg.destinationGps) : null;
       return {
         id: leg.transactionId,
+        avatar: partiesById[leg.transactionId]?.salesRep || undefined,
         label: leg.targetRecipientName || 'Sales Rep',
         latitude: leg.destinationGps.latitude,
         longitude: leg.destinationGps.longitude,
@@ -125,10 +159,11 @@ export default function CollectorDeliverStockScreen() {
 
   const isNearAStop = nearestLeg && nearestLeg._meters <= NEAR_THRESHOLD_METERS;
 
-  const timeline = [
-    ...(originCoords ? [{ key: 'origin', label: 'Trip Started', createdAt: legs[0]?.createdAt }] : []),
-    ...checkpoints.map((cp, index) => ({ key: `cp-${index}`, label: cp.label, createdAt: cp.createdAt })),
-  ];
+  const timeline = buildTimelineEntries({
+    originLabel: 'Trip Started',
+    originAt: legs[0]?.createdAt,
+    checkpoints,
+  });
 
   const handleLogCheckpoint = async (label) => {
     if (!agent || !tripId || isSubmittingCheckpoint) return;
@@ -222,7 +257,7 @@ export default function CollectorDeliverStockScreen() {
       <View style={styles.container}>
         <StatusBar style="light" />
         <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
-        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Deliver Stock" glass />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -235,7 +270,7 @@ export default function CollectorDeliverStockScreen() {
       <View style={styles.container}>
         <StatusBar style="light" />
         <Header showBackButton backButtonText="Collector Dashboard" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
-        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Deliver Stock" glass />
         <View style={styles.loadingWrap}>
           <Icon name="checkCircle" size={32} color={COLORS.success} weight="fill" />
           <Text style={styles.emptyText}>All deliveries in this trip are complete.</Text>
@@ -249,10 +284,10 @@ export default function CollectorDeliverStockScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         <Header showBackButton backButtonText="Back" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
-        <SubScreenSecondaryHeader title="Deliver Stock" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Deliver Stock" glass />
 
         <View style={styles.mapWrap} onLayout={(e) => setMapWrapHeight(e.nativeEvent.layout.height)}>
-          <StaticRouteMap
+          <StaticRouteMap ref={mapRef}
             fill
             originCoords={originCoords}
             lastCheckpoint={
@@ -261,29 +296,23 @@ export default function CollectorDeliverStockScreen() {
                 : collectorPosition
             }
             lastCheckpointLabel={`${agent?.full_name || agent?.username || 'You'} (You)`}
+            lastCheckpointAvatar={{
+              photoUrl: agent?.profilePhotoUrl || null,
+              initials: getInitials(agent?.full_name || agent?.username),
+            }}
             destinations={destinations}
-            style={styles.mapFill}
-            showZoomControl
-            showScale
+            style={styles.mapFill} showScale/>
+          <MapZoomControls
+            onZoomIn={() => mapRef.current?.zoomIn()}
+            onZoomOut={() => mapRef.current?.zoomOut()}
+            onRecenter={() => mapRef.current?.recenter()}
+            style={styles.zoomControls}
           />
 
-          <View style={styles.topOverlayRow} pointerEvents="box-none">
-            <View style={styles.legendPill}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#0085F9' }]} />
-                <Text style={styles.legendText}>Start</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#F4A825' }]} />
-                <Text style={styles.legendText}>You</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendPin, { backgroundColor: '#E63946' }]} />
-                <Text style={styles.legendText}>Stop</Text>
-              </View>
-            </View>
-
-            <Pressable style={styles.cancelPill} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
+          {/* Stacked on the left so it never sits over the map's zoom control (top right). */}
+          <View style={styles.topOverlayColumn} pointerEvents="box-none">
+            <MapLegend items={MAP_LEGEND_ITEMS} />
+            <Pressable style={[styles.cancelPill, glassPanel]} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
               <Icon name="xCircle" size={14} color={COLORS.error} weight="fill" />
               <Text style={styles.cancelPillText}>Cancel</Text>
             </Pressable>
@@ -327,7 +356,10 @@ export default function CollectorDeliverStockScreen() {
 
               {isDetailsOpen && (
                 <>
-                  <Text style={styles.sectionLabel}>Current Location</Text>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionLabel}>Current Location</Text>
+                    <DeliveryStatusPill status="in_transit" label="In Transit" />
+                  </View>
                   <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
                     <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
                   </ScrollView>
@@ -341,9 +373,17 @@ export default function CollectorDeliverStockScreen() {
                 variant="black"
                 onPress={handleFinishDelivery}
                 loading={isFinishing}
+                height={48}
+                fontSize={15}
               />
             ) : (
-              <Button title="Go to Next Stop" variant="black" onPress={() => setIsCheckpointModalVisible(true)} />
+              <Button
+                title="Go to Next Stop"
+                variant="black"
+                onPress={() => setIsCheckpointModalVisible(true)}
+                height={48}
+                fontSize={15}
+              />
             )}
           </Animated.View>
         </View>
@@ -377,53 +417,26 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapFill: { borderRadius: 0, borderWidth: 0 },
 
-  topOverlayRow: {
+  topOverlayColumn: {
     position: 'absolute',
     top: SPACING.md,
     left: SPACING.md,
-    right: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  legendPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    alignItems: 'flex-start',
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 9, height: 9, borderRadius: 5 },
-  legendPin: { width: 9, height: 9, borderRadius: 5, transform: [{ rotate: '45deg' }], borderBottomLeftRadius: 0 },
-  legendText: { fontSize: 10, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
-
   cancelPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    gap: SPACING.xs,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
   },
   cancelPillText: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
 
   distanceOverlay: {
     position: 'absolute',
-    top: 56,
+    top: 124,
     left: SPACING.md,
     right: SPACING.md,
     alignItems: 'flex-start',
@@ -445,13 +458,17 @@ const styles = StyleSheet.create({
   nearBadgeText: { fontSize: 11, color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   distanceBadgeText: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
 
+  zoomControls: { position: 'absolute', top: SPACING.md, right: SPACING.md },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bottomSheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.glassStrong,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,
@@ -464,7 +481,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   sheetTopContent: { flex: 1, gap: SPACING.sm },
-  sheetHandleRow: { alignItems: 'center' },
+  sheetHandleRow: { alignItems: "center", paddingBottom: SPACING.sm },
   sheetHandle: {
     width: 36,
     height: 4,

@@ -27,6 +27,8 @@ export default function AddNewBatchesScreen() {
   const [items, setItems] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
+  // GPS fix taken when the photo was captured, handed to the preview screen.
+  const [photoCoords, setPhotoCoords] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
   const bottomActionBarHeight = useBottomActionBarHeight();
@@ -92,8 +94,10 @@ export default function AddNewBatchesScreen() {
     );
   };
 
-  const handlePhotoCaptured = (uri) => {
+  const handlePhotoCaptured = (uri, coords) => {
     setPhotoUri(uri);
+    // Keep the previous fix if this shot didn't get one (still locating).
+    if (coords) setPhotoCoords(coords);
   };
 
   const handleOpenCamera = () => {
@@ -123,7 +127,7 @@ export default function AddNewBatchesScreen() {
       Alert.alert('Photo Required', 'Take a photo of the waybill/invoice before saving.');
       return;
     }
-    navigation.navigate('ReceiveStockPreview', { items, photoUri });
+    navigation.navigate('ReceiveStockPreview', { items, photoUri, coords: photoCoords });
   };
 
   return (

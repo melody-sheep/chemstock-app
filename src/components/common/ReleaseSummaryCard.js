@@ -1,6 +1,6 @@
 // src/components/common/ReleaseSummaryCard.js
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
@@ -9,33 +9,54 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 const PLACEHOLDER_IMAGE = require('../../../assets/image/empty_box1.png');
 
-// Orange release summary: total + recipient header with a collapse toggle, then one row per product.
+// Only the chevron animates, and only briefly. The list itself opens and
+// closes instantly so the header never feels like it's lagging behind a tap.
+const CHEVRON_DURATION_MS = 150;
+
+// Orange release summary: total + recipient header (the whole header toggles
+// the list), then one row per product.
 export default function ReleaseSummaryCard({ totalUnits, recipientLine, items }) {
   const [isOpen, setIsOpen] = useState(true);
+  // 1 = open (chevron points down), 0 = closed (chevron points right).
+  const chevronProgress = useRef(new Animated.Value(1)).current;
   const itemCount = items.length;
+
+  const toggle = () => {
+    const nextOpen = !isOpen;
+    setIsOpen(nextOpen);
+    Animated.timing(chevronProgress, {
+      toValue: nextOpen ? 1 : 0,
+      duration: CHEVRON_DURATION_MS,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const chevronRotation = chevronProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-90deg', '0deg'],
+  });
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconBox}>
-          <Icon name="trayDown" size={22} color={COLORS.accentOrange} />
-        </View>
+      <TouchableOpacity
+        style={[styles.header, isOpen && styles.headerOpen]}
+        onPress={toggle}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={isOpen ? 'Collapse summary' : 'Expand summary'}
+        accessibilityState={{ expanded: isOpen }}
+      >
+        <Icon name="trayDown" size={22} color={COLORS.accentOrange} />
         <View style={styles.headerText}>
           <Text style={styles.total}>
             Total: <Text style={styles.totalStrong}>{totalUnits} item{totalUnits === 1 ? '' : 's'}</Text> about to release
           </Text>
           <Text style={styles.recipient}>{recipientLine}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.toggle}
-          onPress={() => setIsOpen((open) => !open)}
-          accessibilityRole="button"
-          accessibilityLabel={isOpen ? 'Collapse summary' : 'Expand summary'}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
+        <Animated.View style={{ transform: [{ rotate: chevronRotation }] }}>
           <Icon name="caretDown" size={16} color={COLORS.accentOrange} />
-        </TouchableOpacity>
-      </View>
+        </Animated.View>
+      </TouchableOpacity>
 
       {isOpen && (
         <View style={styles.body}>
@@ -69,7 +90,7 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: COLORS.accentOrange,
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: COLORS.textWhite,
   },
@@ -80,13 +101,11 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     backgroundColor: COLORS.accentOrange + '1A',
   },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.textWhite,
+  // A divider under the header only while the list is open, so the header and
+  // the rows read as two separate levels.
+  headerOpen: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.accentOrange + '33',
   },
   headerText: {
     flex: 1,
@@ -107,16 +126,6 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
-  },
-  toggle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.accentOrange,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.textWhite,
   },
   body: {
     paddingHorizontal: SPACING.md,

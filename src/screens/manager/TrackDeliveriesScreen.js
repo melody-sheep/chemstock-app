@@ -37,6 +37,7 @@ export default function TrackDeliveriesScreen() {
   const navigation = useNavigation();
   const [deliveries, setDeliveries] = useState([]);
   const [recipientNameById, setRecipientNameById] = useState({});
+  const [recipientPhotoById, setRecipientPhotoById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
   const loadDeliveries = useCallback(async () => {
@@ -49,6 +50,7 @@ export default function TrackDeliveriesScreen() {
     setDeliveries(deliveriesResult.success ? deliveriesResult.data : []);
     if (agentsResult.success) {
       setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
+      setRecipientPhotoById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl || null])));
     }
     setIsLoading(false);
   }, []);
@@ -70,7 +72,7 @@ export default function TrackDeliveriesScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <SubScreenSecondaryHeader title="Track Deliveries" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Track Deliveries" />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -94,7 +96,15 @@ export default function TrackDeliveriesScreen() {
                 <TouchableOpacity
                   key={delivery.id}
                   style={styles.deliveryCard}
-                  onPress={() => navigation.navigate('TrackDeliveryDetail', { delivery, collectorName, targetName })}
+                  onPress={() =>
+                    navigation.navigate('TrackDeliveryDetail', {
+                      delivery,
+                      collectorName,
+                      targetName,
+                      collectorPhotoUrl: recipientPhotoById[delivery.received_by] || null,
+                      targetPhotoUrl: recipientPhotoById[delivery.target_recipient_id] || null,
+                    })
+                  }
                   activeOpacity={0.7}
                 >
                   <View style={[styles.deliveryIconBadge, isDelivered && styles.deliveryIconBadgeDelivered]}>

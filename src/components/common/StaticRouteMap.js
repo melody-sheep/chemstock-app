@@ -1,9 +1,10 @@
 // src/components/common/StaticRouteMap.js
-import React, { useRef } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
+import { ICONS } from './Icon';
 
 const FALLBACK_CENTER = { latitude: 8.4542, longitude: 124.6319 };
 
@@ -27,6 +28,8 @@ function buildHtml({
   originLabel,
   destinationLabel,
   lastCheckpointLabel,
+  lastCheckpointAvatar,
+  destinationAvatar,
 }) {
   const extraPoints = (destinations || []).map((d) => ({ latitude: d.latitude, longitude: d.longitude }));
   const points = [originCoords, destinationCoords, lastCheckpoint, ...extraPoints].filter(Boolean);
@@ -130,6 +133,32 @@ function buildHtml({
       });
     }
 
+    function escapeAttr(text) {
+      return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    // A person on the map: their profile photo (or initials) in a ring of the
+    // role colour, with a small map-pin badge so it reads as a location.
+    function avatarMarker(avatar, color, lines) {
+      var base = lines || [];
+      var tagLines = base.slice(0, 1).concat(avatar.statusLabel ? [avatar.statusLabel] : [], base.slice(1));
+      var inner = avatar.photoUrl
+        ? '<img src="' + escapeAttr(avatar.photoUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;" />'
+        : '<span style="font:600 13px -apple-system,Roboto,sans-serif;color:#03045E;">' + escapeAttr(avatar.initials || '?') + '</span>';
+      return L.divIcon({
+        className: '',
+        html: '<div style="position:relative;width:48px;height:48px;">' +
+          (avatar.online === null || avatar.online === undefined ? '' : '<div style="position:absolute;top:0;right:0;width:12px;height:12px;border-radius:6px;border:2px solid #FFFFFF;z-index:2;background:' + (avatar.online ? '#4c9f70' : '#dc3545') + ';"></div>') +
+          labelTagHtml(tagLines) +
+          '<div style="position:absolute;top:0;left:0;width:44px;height:44px;border-radius:22px;border:3px solid ' + color + ';background:#E0E7FF;overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.3);">' + inner + '</div>' +
+          '<div style="position:absolute;right:0;bottom:0;width:18px;height:18px;border-radius:9px;background:' + color + ';border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;">' +
+          '<svg width="10" height="10" viewBox="0 0 256 256"><path fill="#FFFFFF" d="' + PIN_PATH + '"/></svg></div>' +
+          '</div>',
+        iconSize: [48, 48],
+        iconAnchor: [22, 22],
+      });
+    }
+
     function pulsingDot(color, lines) {
       return L.divIcon({
         className: '',
@@ -143,6 +172,12 @@ function buildHtml({
       });
     }
 
+    window.mapCommand = function (command) {
+      if (command === 'zoomIn') map.zoomIn();
+      else if (command === 'zoomOut') map.zoomOut();
+      else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    };
+    var PIN_PATH = ${JSON.stringify(ICONS.mapPinFill.svg)};
     var bounds = [];
     var origin = ${originCoords ? JSON.stringify(originCoords) : 'null'};
     var destination = ${destinationCoords ? JSON.stringify(destinationCoords) : 'null'};
@@ -151,6 +186,8 @@ function buildHtml({
     var originLabel = ${originLabel ? JSON.stringify(originLabel) : 'null'};
     var destinationLabel = ${destinationLabel ? JSON.stringify(destinationLabel) : 'null'};
     var lastCheckpointLabel = ${lastCheckpointLabel ? JSON.stringify(lastCheckpointLabel) : 'null'};
+    var lastCheckpointAvatar = ${lastCheckpointAvatar ? JSON.stringify(lastCheckpointAvatar) : 'null'};
+    var destinationAvatar = ${destinationAvatar ? JSON.stringify(destinationAvatar) : 'null'};
 
     if (origin) {
       var originLines = originLabel ? [originLabel, formatCoord(origin)] : null;
@@ -162,16 +199,19 @@ function buildHtml({
     }
     if (destination) {
       var destinationLines = destinationLabel ? [destinationLabel, formatCoord(destination)] : null;
-      L.marker([destination.latitude, destination.longitude], {
-        icon: destinationLines ? labeledDot('#E63946', destinationLines) : dot('#E63946'),
-        interactive: false,
-      }).addTo(map);
+      var destinationIcon = destinationAvatar
+        ? avatarMarker(destinationAvatar, '#E63946', destinationLines)
+        : destinationLines ? labeledDot('#E63946', destinationLines) : dot('#E63946');
+      L.marker([destination.latitude, destination.longitude], { icon: destinationIcon, interactive: false }).addTo(map);
       bounds.push([destination.latitude, destination.longitude]);
     }
     if (lastCheckpoint) {
       var checkpointLines = [lastCheckpointLabel, lastCheckpoint.label, formatCoord(lastCheckpoint)].filter(Boolean);
+      var checkpointIcon = lastCheckpointAvatar
+        ? avatarMarker(lastCheckpointAvatar, '#F4A825', checkpointLines)
+        : pulsingDot('#F4A825', checkpointLines);
       L.marker([lastCheckpoint.latitude, lastCheckpoint.longitude], {
-        icon: pulsingDot('#F4A825', checkpointLines),
+        icon: checkpointIcon,
         interactive: false,
       }).addTo(map);
       bounds.push([lastCheckpoint.latitude, lastCheckpoint.longitude]);
@@ -180,7 +220,7 @@ function buildHtml({
       destinations.forEach(function (d) {
         var lines = [[d.label, d.distanceLabel].filter(Boolean).join(' · '), formatCoord(d)];
         var color = d.delivered ? '#4c9f70' : '#E63946';
-        L.marker([d.latitude, d.longitude], { icon: labeledPin(color, lines), interactive: false }).addTo(map);
+        L.marker([d.latitude, d.longitude], { icon: d.avatar ? avatarMarker(d.avatar, color, lines) : labeledPin(color, lines), interactive: false }).addTo(map);
         bounds.push([d.latitude, d.longitude]);
       });
     }
@@ -193,25 +233,56 @@ function buildHtml({
     } else if (destination) {
       routePoints.push([destination.latitude, destination.longitude]);
     }
+    // Dashed route made only of arrowheads. The colour blends from the
+    // collector (orange) at the start of the route to the Sales Rep (red) at the end.
+    function mixHex(a, b, t) {
+      var pa = [1, 3, 5].map(function (i) { return parseInt(a.substr(i, 2), 16); });
+      var pb = [1, 3, 5].map(function (i) { return parseInt(b.substr(i, 2), 16); });
+      return '#' + pa.map(function (v, i) {
+        return Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0');
+      }).join('');
+    }
+    function arrowIcon(color, rotationDeg) {
+      return L.divIcon({
+        className: '',
+        html: '<svg width="10" height="10" viewBox="0 0 10 10" style="transform:rotate(' + rotationDeg + 'deg);display:block;">' +
+          '<path d="M5 0 L10 10 L5 7.5 L0 10 Z" fill="' + color + '"/></svg>',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5],
+      });
+    }
+    function drawDashedRoute(points) {
+      var stepsPerLeg = 30; // more steps = arrows closer together
+      var legs = points.length - 1;
+      for (var i = 0; i < legs; i++) {
+        var a = points[i], b = points[i + 1];
+        // Bearing from north, clockwise: the arrow is drawn pointing up, so this is its rotation.
+        var bearing = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+        for (var k = 0; k < stepsPerLeg; k += 2) {
+          // Arrows sit on the even steps, so they form the dashed line by themselves.
+          var t0 = k / stepsPerLeg, t1 = (k + 1) / stepsPerLeg;
+          var p0 = [a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0];
+          var p1 = [a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1];
+          var progress = (i + (t0 + t1) / 2) / legs;
+          var color = mixHex('#F4A825', '#E63946', progress);
+          var mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+          L.marker(mid, { icon: arrowIcon(color, bearing), interactive: false, zIndexOffset: -1000 }).addTo(map);
+        }
+      }
+    }
     if (routePoints.length > 1) {
-      L.polyline(routePoints, {
-        color: '#0085F9',
-        weight: 3,
-        opacity: 0.55,
-        dashArray: '1, 10',
-        lineCap: 'round',
-      }).addTo(map);
+      drawDashedRoute(routePoints);
     }
 
     if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [36, 36] });
+      map.fitBounds(bounds, { padding: [48, 96] });
     }
   </script>
 </body>
 </html>`;
 }
 
-export default function StaticRouteMap({
+const StaticRouteMap = forwardRef(function StaticRouteMap({
   originCoords,
   destinationCoords,
   lastCheckpoint,
@@ -224,8 +295,21 @@ export default function StaticRouteMap({
   originLabel,
   destinationLabel,
   lastCheckpointLabel,
-}) {
+  lastCheckpointAvatar,
+  destinationAvatar,
+}, ref) {
   const webViewRef = useRef(null);
+
+  // Lets the screen drive the map (zoom buttons live in React Native, not in Leaflet).
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => sendMapCommand('zoomIn'),
+    zoomOut: () => sendMapCommand('zoomOut'),
+    recenter: () => sendMapCommand('recenter'),
+  }));
+
+  const sendMapCommand = (command) => {
+    webViewRef.current?.injectJavaScript(`window.mapCommand && window.mapCommand('${command}'); true;`);
+  };
 
   // Belt-and-suspenders for the Leaflet-in-WebView blank-tile bug: the
   // in-page timers in buildHtml cover most cases, but a `fill` map whose
@@ -253,6 +337,8 @@ export default function StaticRouteMap({
             originLabel,
             destinationLabel,
             lastCheckpointLabel,
+            lastCheckpointAvatar,
+            destinationAvatar,
           }),
         }}
         onLayout={handleLayout}
@@ -264,7 +350,7 @@ export default function StaticRouteMap({
       />
     </View>
   );
-}
+});
 
 StaticRouteMap.propTypes = {
   originCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
@@ -272,6 +358,7 @@ StaticRouteMap.propTypes = {
   lastCheckpoint: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
   destinations: PropTypes.arrayOf(
     PropTypes.shape({
+      avatar: PropTypes.shape({ photoUrl: PropTypes.string, initials: PropTypes.string, online: PropTypes.bool, statusLabel: PropTypes.string }),
       id: PropTypes.string,
       label: PropTypes.string,
       latitude: PropTypes.number,
@@ -288,6 +375,9 @@ StaticRouteMap.propTypes = {
   originLabel: PropTypes.string,
   destinationLabel: PropTypes.string,
   lastCheckpointLabel: PropTypes.string,
+  // { photoUrl, initials } — draws the person's photo marker instead of a dot.
+  lastCheckpointAvatar: PropTypes.shape({ photoUrl: PropTypes.string, initials: PropTypes.string, online: PropTypes.bool, statusLabel: PropTypes.string }),
+  destinationAvatar: PropTypes.shape({ photoUrl: PropTypes.string, initials: PropTypes.string, online: PropTypes.bool, statusLabel: PropTypes.string }),
 };
 
 const styles = StyleSheet.create({
@@ -301,3 +391,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   webview: { flex: 1 },
 });
+
+export default StaticRouteMap;

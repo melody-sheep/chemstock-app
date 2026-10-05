@@ -91,6 +91,18 @@ export default function ReleaseStockConfirmScreen() {
   const [pendingReleaseItems, setPendingReleaseItems] = useState(null);
   const [receivingQrCode, setReceivingQrCode] = useState(null);
 
+  // Branch name for the transaction card. Resolved from the branch chosen in
+  // step 1 (branchId), since a multi-branch manager has no single branchName.
+  const [branchName, setBranchName] = useState(null);
+
+  useEffect(() => {
+    if (!manager || !branchId) return;
+    requestService.getAgentBranches(manager.branchIds || []).then((list) => {
+      const match = list.find((b) => b.id === branchId);
+      setBranchName(match?.name || 'Branch unavailable');
+    });
+  }, [manager, branchId]);
+
   useEffect(() => {
     authService.getCurrentUser().then(setManager);
 
@@ -367,7 +379,7 @@ export default function ReleaseStockConfirmScreen() {
             )}
             <View style={styles.metaRow}>
               <Icon name="home" size={16} color={COLORS.primary} />
-              <Text style={styles.metaText}>{manager?.branchName || 'Loading branch…'}</Text>
+              <Text style={styles.metaText}>{branchName ?? 'Loading branch…'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Icon name="phone" size={16} color={COLORS.textSecondary} />
@@ -407,7 +419,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.xs,
     padding: SPACING.sm,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: COLORS.success + '12',
   },
   recoveryText: {
@@ -426,7 +438,7 @@ const styles = StyleSheet.create({
   recipientsCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,
@@ -454,7 +466,7 @@ const styles = StyleSheet.create({
   custodyCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,
@@ -464,7 +476,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.xs,
     padding: SPACING.sm,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.error + '30',
     backgroundColor: COLORS.error + '0D',
@@ -479,13 +491,13 @@ const styles = StyleSheet.create({
   photoPreview: {
     width: '100%',
     height: 160,
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
   },
   metaCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,

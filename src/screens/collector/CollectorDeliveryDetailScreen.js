@@ -120,7 +120,7 @@ export default function CollectorDeliveryDetailScreen() {
         <StatusBar style="light" />
         <View style={styles.screen}>
           <Header height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
-          <SubScreenSecondaryHeader title="Stock Accepted" syncStatus="online" />
+          <SubScreenSecondaryHeader title="Stock Accepted" />
           <View style={styles.successWrap}>
             <Icon name="checkCircle" size={48} color={COLORS.success} weight="fill" />
             <Text style={styles.successTitle}>Stock Accepted Successfully</Text>
@@ -140,7 +140,7 @@ export default function CollectorDeliveryDetailScreen() {
       <StatusBar style="light" />
       <View style={styles.screen}>
         <Header showBackButton height={56} backgroundColor="#03045E" textColor="#FFFFFF" onBackPress={handleBack} />
-        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivery Details" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.listTitle}>Stock Transfer Information</Text>

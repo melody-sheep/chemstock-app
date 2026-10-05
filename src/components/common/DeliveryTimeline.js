@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { formatRelativeTime } from '../../utils/formatters';
+import { formatCheckpointTime } from '../../utils/formatters';
 
 /**
  * "Current Location" breadcrumb — a vertical dot/line list of a Collector
@@ -28,7 +28,7 @@ export default function DeliveryTimeline({ entries, emptyText = 'No location upd
             </View>
             <View style={styles.textWrap}>
               <Text style={styles.label}>{entry.label}</Text>
-              <Text style={styles.time}>{formatRelativeTime(entry.createdAt)}</Text>
+              <Text style={styles.time}>{formatCheckpointTime(entry.createdAt)}</Text>
             </View>
           </View>
         ))

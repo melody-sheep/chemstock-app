@@ -117,7 +117,7 @@ export default function Input({
 
   return (
     <View style={styles.container}>
-      {label && (
+      {!!label && (
         <View style={styles.labelContainer}>
           <Text style={styles.labelText}>
             {label}
@@ -194,7 +194,7 @@ export default function Input({
         )}
       </View>
       
-      {errorMessage && (
+      {!!errorMessage && (
         <View style={styles.errorRow}>
           <Text style={styles.errorText}>{errorMessage}</Text>
         </View>

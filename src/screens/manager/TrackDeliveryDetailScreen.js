@@ -1,5 +1,6 @@
 // src/screens/manager/TrackDeliveryDetailScreen.js
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, ScrollView, Pressable, Animated, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -8,26 +9,27 @@ import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
+import MapZoomControls from '../../components/common/MapZoomControls';
+import { getInitials } from '../../utils/initials';
+import { getPresence, describePresence } from '../../services/presenceService';
+import MapLegend from '../../components/common/MapLegend';
+import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
+
+// Marker colours match the markers StaticRouteMap draws for this screen.
+const MAP_LEGEND_ITEMS = [
+  { label: 'Start', color: '#0085F9', shape: 'dot' },
+  { label: 'Collector', color: '#F4A825', shape: 'dot' },
+  { label: 'Sales Rep', color: '#E63946', shape: 'dot' },
+];
 import DeliveryTimeline from '../../components/common/DeliveryTimeline';
+import { buildTimelineEntries } from '../../utils/checkpointTimeline';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-
 const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
 
 function getStatusLabel(delivery) {
   return STATUS_LABELS[delivery.delivery_status] || STATUS_LABELS.not_delivered;
-}
-
-function getStatusPillStyle(status) {
-  if (status === 'delivered') return styles.statusPillDelivered;
-  if (status === 'in_transit') return styles.statusPillInTransit;
-  return styles.statusPillPending;
-}
-function getStatusPillTextStyle(status) {
-  if (status === 'delivered') return styles.statusPillTextDelivered;
-  if (status === 'in_transit') return styles.statusPillTextInTransit;
-  return styles.statusPillTextPending;
 }
 
 function getLastCheckpoint(delivery) {
@@ -38,18 +40,14 @@ function getLastCheckpoint(delivery) {
   );
 }
 
-// "Current Location" breadcrumb — the release moment (when the Collector's
-// involvement began) plus every checkpoint they've since logged, oldest
-// first. delivery_checkpoints comes back from the raw PostgREST embed in
-// no guaranteed order, so it's sorted here.
+// "Current Location" breadcrumb: the release moment plus every checkpoint.
+// The raw PostgREST embed uses snake_case fields, so they're mapped here.
 function getTimelineEntries(delivery) {
-  const checkpoints = [...(delivery.delivery_checkpoints || [])].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-  return [
-    { key: 'origin', label: 'Picked up by Collector', createdAt: delivery.created_at },
-    ...checkpoints.map((cp, index) => ({ key: `cp-${index}`, label: cp.label, createdAt: cp.created_at })),
-  ];
+  return buildTimelineEntries({
+    originLabel: 'Picked up by Collector',
+    originAt: delivery.created_at,
+    checkpoints: (delivery.delivery_checkpoints || []).map((cp) => ({ label: cp.label, createdAt: cp.created_at })),
+  });
 }
 
 const COLLAPSED_SHEET_HEIGHT = 48;
@@ -67,10 +65,25 @@ export default function TrackDeliveryDetailScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const route = useRoute();
-  const { delivery, collectorName, targetName } = route.params || {};
+  const { delivery, collectorName, targetName, collectorPhotoUrl, targetPhotoUrl } = route.params || {};
 
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const [presenceById, setPresenceById] = useState({});
+
+  // Who is online right now. Refreshed each time the screen is shown.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      getPresence([delivery?.received_by, delivery?.target_recipient_id]).then((map) => {
+        if (active) setPresenceById(map);
+      });
+      return () => {
+        active = false;
+      };
+    }, [delivery?.received_by, delivery?.target_recipient_id])
+  );
+  const mapRef = useRef(null);
   const sheetAnim = useRef(new Animated.Value(1)).current;
 
   const toggleDetails = () => {
@@ -94,7 +107,7 @@ export default function TrackDeliveryDetailScreen() {
       <View style={styles.screen}>
         <StatusBar style="light" />
         <Header showBackButton height={56} backgroundColor={COLORS.primary} textColor="#FFFFFF" />
-        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivery Details" glass />
         <View style={styles.loadingWrap}>
           <Text style={styles.emptyText}>Delivery not found.</Text>
         </View>
@@ -117,42 +130,37 @@ export default function TrackDeliveryDetailScreen() {
           textColor="#FFFFFF"
           onBackPress={() => navigation.goBack()}
         />
-        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivery Details" glass />
 
         <View style={styles.mapWrap} onLayout={(e) => setMapWrapHeight(e.nativeEvent.layout.height)}>
-          <StaticRouteMap
+          <StaticRouteMap ref={mapRef}
             fill
             originCoords={delivery.origin_gps}
             destinationCoords={delivery.destination_gps}
             destinationLabel={`${resolvedTargetName} (Sales Rep)`}
             lastCheckpoint={getLastCheckpoint(delivery)}
             lastCheckpointLabel={`${resolvedCollectorName} (Collector)`}
-            style={styles.mapFill}
-            showZoomControl
-            showScale
+            lastCheckpointAvatar={{
+              photoUrl: collectorPhotoUrl || null,
+              initials: getInitials(resolvedCollectorName),
+              ...describePresence(presenceById[delivery?.received_by]),
+            }}
+            destinationAvatar={{
+              photoUrl: targetPhotoUrl || null,
+              initials: getInitials(resolvedTargetName),
+              ...describePresence(presenceById[delivery?.target_recipient_id]),
+            }}
+            style={styles.mapFill} showScale/>
+          <MapZoomControls
+            onZoomIn={() => mapRef.current?.zoomIn()}
+            onZoomOut={() => mapRef.current?.zoomOut()}
+            onRecenter={() => mapRef.current?.recenter()}
+            style={styles.zoomControls}
           />
 
-          <View style={styles.topOverlayRow} pointerEvents="box-none">
-            <View style={styles.legendPill}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#0085F9' }]} />
-                <Text style={styles.legendText}>Start</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#F4A825' }]} />
-                <Text style={styles.legendText}>Collector</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#E63946' }]} />
-                <Text style={styles.legendText}>Sales Rep</Text>
-              </View>
-            </View>
+          <View style={styles.topOverlayColumn} pointerEvents="box-none">
+            <MapLegend items={MAP_LEGEND_ITEMS} />
 
-            <View style={[styles.statusPill, getStatusPillStyle(delivery.delivery_status)]}>
-              <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.delivery_status)]}>
-                {getStatusLabel(delivery)}
-              </Text>
-            </View>
           </View>
 
           <Animated.View
@@ -178,8 +186,11 @@ export default function TrackDeliveryDetailScreen() {
               <>
                 <Text style={styles.detailSubtitle}>{new Date(delivery.created_at).toLocaleString()}</Text>
 
-                <ScrollView style={styles.detailScroll} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.sectionLabel}>Recipients</Text>
+                <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionLabel}>Recipients</Text>
+                    <DeliveryStatusPill status={delivery.delivery_status} label={getStatusLabel(delivery)} />
+                  </View>
                   <View style={styles.metaCard}>
                     <View style={styles.metaRow}>
                       <Icon name="person" size={16} color={COLORS.primary} />
@@ -227,73 +238,15 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapFill: { borderRadius: 0, borderWidth: 0 },
 
-  topOverlayRow: {
+  topOverlayColumn: {
     position: 'absolute',
     top: SPACING.md,
     left: SPACING.md,
-    right: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  legendPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    alignItems: 'flex-start',
   },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendDot: { width: 9, height: 9, borderRadius: 5 },
-  legendText: { fontSize: 10, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
 
-  statusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  statusPillPending: { backgroundColor: '#FFF1D6' },
-  statusPillInTransit: { backgroundColor: '#E3F2FF' },
-  statusPillDelivered: { backgroundColor: '#EAFBF2' },
-  statusPillText: {
-    fontSize: 10,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-  },
-  statusPillTextPending: { color: '#B26400' },
-  statusPillTextInTransit: { color: COLORS.primary },
-  statusPillTextDelivered: { color: '#1E7A3A' },
-
-  bottomSheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  sheetHandleRow: { alignItems: 'center' },
+  sheetHandleRow: { alignItems: "center", paddingBottom: SPACING.sm },
   sheetHandle: {
     width: 36,
     height: 4,
@@ -314,6 +267,28 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING.xs,
   },
+  zoomControls: { position: 'absolute', top: SPACING.md, right: SPACING.md },
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+    backgroundColor: COLORS.glassStrong,
+    borderWidth: 1,
+    borderColor: COLORS.glassBorder,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  detailContent: { gap: SPACING.md, paddingBottom: SPACING.md },
   detailScroll: { flex: 1 },
   sectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,

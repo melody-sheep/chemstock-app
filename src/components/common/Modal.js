@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -17,11 +18,12 @@ export default function CustomModal({
   visible,
   onClose,
   children,
-  height = 467,
+  height = 467, // pass 'auto' to size the sheet to its content
   backgroundColor = '#FFFFFF',
   closeOnBackdropPress = true,
   backdropOpacity = 0.2,
 }) {
+  const insets = useSafeAreaInsets();
   const handleBackdropPress = () => {
     if (closeOnBackdropPress) {
       onClose();
@@ -42,7 +44,8 @@ export default function CustomModal({
               style={[
                 styles.modalContainer,
                 {
-                  height: height,
+                  ...(height === 'auto' ? {} : { height }),
+                  paddingBottom: Math.max(insets.bottom, SPACING.lg),
                   backgroundColor: backgroundColor,
                 },
               ]}

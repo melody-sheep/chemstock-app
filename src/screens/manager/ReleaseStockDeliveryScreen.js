@@ -1,6 +1,6 @@
 // src/screens/manager/ReleaseStockDeliveryScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -12,6 +12,11 @@ import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import MapLocationPickerModal from '../../components/common/MapLocationPickerModal';
+import PhotoProofCard from '../../components/common/PhotoProofCard';
+import { getDeviceModel } from '../../utils/deviceInfo';
+import { formatCoordinates, formatDateTime } from '../../utils/formatters';
+import authService from '../../services/authService';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -22,10 +27,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 // screen entirely and go straight to ReleaseStockConfirm, unchanged.
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Verify handover details'];
 
-function formatAddress(place) {
-  if (!place) return null;
-  return [place.name, place.street, place.subregion || place.city].filter(Boolean).join(', ');
-}
+import { formatPlace as formatAddress } from '../../utils/formatPlace';
 
 export default function ReleaseStockDeliveryScreen() {
   const navigation = useNavigation();
@@ -37,13 +39,37 @@ export default function ReleaseStockDeliveryScreen() {
   const [originCoords, setOriginCoords] = useState(null);
   const [originAddress, setOriginAddress] = useState(null);
   const [originError, setOriginError] = useState(null);
+  // The manager's profile, for the photo/initials on the map's origin marker.
+  const [manager, setManager] = useState(null);
+
+  useEffect(() => {
+    authService.getCurrentUser().then(setManager);
+  }, []);
 
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [destinationAddress, setDestinationAddress] = useState(null);
   const [isMapVisible, setIsMapVisible] = useState(false);
 
   const [deliveryPhotoUri, setDeliveryPhotoUri] = useState(null);
+  const [photoCapturedAt, setPhotoCapturedAt] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+
+  const handlePhotoCaptured = (uri) => {
+    setDeliveryPhotoUri(uri);
+    setPhotoCapturedAt(new Date());
+  };
+
+  // Opens the camera on the existing photo (review + retake), or on a fresh shot.
+  const handleViewPhoto = () => {
+    setIsViewingPhoto(true);
+    setIsCameraVisible(true);
+  };
+
+  const handleTakePhoto = () => {
+    setIsViewingPhoto(false);
+    setIsCameraVisible(true);
+  };
 
   useEffect(() => {
     (async () => {
@@ -171,17 +197,34 @@ export default function ReleaseStockDeliveryScreen() {
 
           <Text style={styles.sectionTitle}>Take Photo Proof</Text>
           {deliveryPhotoUri ? (
-            <TouchableOpacity style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)} activeOpacity={0.7}>
-              <Image source={{ uri: deliveryPhotoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
-              <View style={styles.photoPreviewInfo}>
-                <Text style={styles.photoText}>Photo captured</Text>
-                <Text style={styles.photoRetakeText}>Tap to retake</Text>
+            <>
+              <PhotoProofCard
+                photoUri={deliveryPhotoUri}
+                onView={handleViewPhoto}
+                fromLabel={`From ${manager?.full_name || manager?.username || 'you'} to`}
+                toName={recipient?.fullName}
+              />
+              <View style={styles.metaCard}>
+                <View style={styles.metaRow}>
+                  <Icon name="location" size={16} color={COLORS.error} />
+                  <Text style={styles.metaText}>
+                    {originCoords ? formatCoordinates(originCoords.latitude, originCoords.longitude) : originError || 'Locating…'}
+                  </Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Icon name="package" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.metaText}>{getDeviceModel()}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Icon name="calendar" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.metaText}>{formatDateTime(photoCapturedAt)}</Text>
+                </View>
               </View>
-              <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
-            </TouchableOpacity>
+              <Text style={styles.photoHintText}>Tap the photo to view or retake it</Text>
+            </>
           ) : (
             <>
-              <Button title="Take Photo" icon="camera" variant="outline" onPress={() => setIsCameraVisible(true)} />
+              <Button title="Take Photo" icon="camera" variant="outline" onPress={handleTakePhoto} />
               <Text style={styles.photoHintText}>Photo will include timestamp, GPS, and device info</Text>
             </>
           )}
@@ -205,13 +248,16 @@ export default function ReleaseStockDeliveryScreen() {
         onClose={() => setIsMapVisible(false)}
         onConfirm={handleConfirmDestination}
         originCoords={originCoords}
+        originAvatarUrl={manager?.profilePhotoUrl || null}
+        originInitials={getInitials(manager?.full_name || manager?.username)}
         initialCoords={destinationCoords}
       />
 
       <CameraCaptureModal
         visible={isCameraVisible}
         onClose={() => setIsCameraVisible(false)}
-        onCapture={setDeliveryPhotoUri}
+        onCapture={handlePhotoCaptured}
+        initialUri={isViewingPhoto ? deliveryPhotoUri : null}
       />
     </>
   );
@@ -253,7 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: SPACING.sm,
     padding: SPACING.md,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.success + '40',
     backgroundColor: COLORS.success + '10',
@@ -278,7 +324,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
     minHeight: 96,
     padding: SPACING.md,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: '#757575',
@@ -305,30 +351,22 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.primary,
   },
-  photoPreviewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
+  // Capture metadata under the photo card, same rows as the Receive Stock preview.
+  metaCard: {
     borderWidth: 1,
-    borderColor: COLORS.success,
-    borderRadius: 12,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.success + '10',
+    borderColor: COLORS.borderLight,
+    borderRadius: 8,
+    backgroundColor: COLORS.textWhite,
+    padding: SPACING.md,
+    gap: SPACING.sm,
   },
-  photoPreviewThumb: { width: 44, height: 44, borderRadius: 8 },
-  photoPreviewInfo: { flex: 1 },
-  photoText: {
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  metaText: {
+    flex: 1,
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
-  },
-  photoRetakeText: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
+    color: COLORS.textPrimary,
   },
   photoHintText: {
     fontSize: TYPOGRAPHY.fontSize.xs,

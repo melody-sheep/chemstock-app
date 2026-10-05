@@ -62,7 +62,7 @@ export default function SalesRepTrackDeliveriesScreen() {
           backgroundColor={COLORS.primary}
           textColor="#FFFFFF"
         />
-        <SubScreenSecondaryHeader title="Track Deliveries" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Track Deliveries" />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>

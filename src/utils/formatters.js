@@ -72,3 +72,22 @@ export function formatDateTime(date) {
   const timePart = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   return `${datePart} | ${timePart}`;
 }
+
+/** Clock time only, e.g. "2:10 PM". */
+export function formatClockTime(timestampMs) {
+  if (!timestampMs) return '';
+  return new Date(timestampMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+/**
+ * Clock time first, then age: "2:10 PM · 12m ago". The clock time is what
+ * people read off a delivery record; the age shows how stale it is.
+ */
+export function formatCheckpointTime(isoString) {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '';
+  const clock = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const age = formatRelativeTime(isoString);
+  return age ? `${clock} · ${age}` : clock;
+}

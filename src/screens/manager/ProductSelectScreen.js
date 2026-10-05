@@ -62,7 +62,7 @@ export default function ProductSelectScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SubScreenSecondaryHeader title="Select Products" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Select Products" />
 
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}

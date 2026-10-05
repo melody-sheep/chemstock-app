@@ -1,8 +1,9 @@
 // src/screens/manager/ManagerDashboardScreen.js
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, Animated, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -80,15 +81,7 @@ const MAIN_OPERATIONS = [
 
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
-  const [user, setUser] = useState(null);
-  const [totalUnits, setTotalUnits] = useState(null);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [recipientNameById, setRecipientNameById] = useState({});
-  const [pendingRequestCount, setPendingRequestCount] = useState(null);
-  const [pendingReportCount, setPendingReportCount] = useState(0);
-  const [openDiscrepancyCount, setOpenDiscrepancyCount] = useState(0);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
   // clamped to [0, header height], so the header slides in lockstep with the
@@ -108,11 +101,12 @@ export default function ManagerDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true);
-
+  // Returns the full dashboard snapshot. A request that fails keeps its value
+  // from the previous snapshot instead of blanking the card.
+  const loadDashboardData = async (previous) => {
     const currentUser = await authService.getCurrentUser();
-    setUser(currentUser);
+    // A different account must never see the last account's numbers.
+    const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
     const branchIds = currentUser?.branchIds || [];
     const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult, reportsResult, discrepanciesResult] =
@@ -126,14 +120,8 @@ export default function ManagerDashboardScreen() {
         reportService.getBranchDiscrepancies(200),
       ]);
 
-    if (stockResult.success) {
-      setTotalUnits(stockResult.data.reduce((sum, row) => sum + row.quantity, 0));
-    }
-
     const reports = reportsResult.success ? reportsResult.data : [];
     const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
-    setPendingReportCount(reports.filter((r) => r.status === 'pending').length);
-    setOpenDiscrepancyCount(discrepancies.filter((d) => d.resolutionStatus === 'open').length);
 
     // Fold completed deliveries, report submissions, and flagged discrepancies
     // in as their own log types, same pattern as getActivityLogs' own
@@ -150,32 +138,42 @@ export default function ManagerDashboardScreen() {
       ...reportLogs,
       ...discrepancyLogs,
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    setRecentLogs(mergedLogs.slice(0, 3));
-
-    if (agentsResult.success) {
-      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
-    }
-    if (requestsResult.success) {
+    return {
+      user: currentUser,
+      totalUnits: stockResult.success
+        ? stockResult.data.reduce((sum, row) => sum + row.quantity, 0)
+        : prev?.totalUnits ?? null,
+      pendingReportCount: reportsResult.success
+        ? reports.filter((r) => r.status === 'pending').length
+        : prev?.pendingReportCount ?? 0,
+      openDiscrepancyCount: discrepanciesResult.success
+        ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
+        : prev?.openDiscrepancyCount ?? 0,
+      recentLogs: mergedLogs.slice(0, 3),
+      recipientNameById: agentsResult.success
+        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name]))
+        : prev?.recipientNameById ?? {},
       // A request tapped "Prepare" is 'accepted' but not actually done until
       // it's linked to a completed release (fulfilledTransactionId set) —
       // same "preparing" derivation AgentStockRequestScreen uses. Counting
       // only strict 'pending' here made the stat (and the Continue flow)
       // drop a request the moment Prepare was tapped, even if the manager
       // backed out before finishing the release.
-      setPendingRequestCount(
-        requestsResult.data.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId))
-          .length
-      );
-    }
+      pendingRequestCount: requestsResult.success
+        ? requestsResult.data.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId))
+            .length
+        : prev?.pendingRequestCount ?? null,
+    };
+  };
 
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-    }, [loadDashboardData])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
+  const user = snapshot?.user ?? null;
+  const totalUnits = snapshot?.totalUnits ?? null;
+  const recentLogs = snapshot?.recentLogs ?? [];
+  const recipientNameById = snapshot?.recipientNameById ?? {};
+  const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
+  const pendingReportCount = snapshot?.pendingReportCount ?? 0;
+  const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
 
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';

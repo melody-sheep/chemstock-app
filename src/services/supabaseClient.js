@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { markOnline, markOffline } from './connectionStatus';
 
 // ============================================
 // Supabase credentials
@@ -10,7 +11,22 @@ const SUPABASE_ANON_KEY = 'sb_publishable_bVHYEZwnhL6Hh894mfIuWg_-ecxTXcK';
 // ============================================
 // Initialize Supabase Client
 // ============================================
+// Every request goes through this wrapper, so the app always knows whether the
+// server is reachable (see connectionStatus.js). A network failure surfaces as
+// a TypeError from fetch; it's rethrown unchanged so callers behave as before.
+const trackedFetch = async (input, init) => {
+  try {
+    const response = await fetch(input, init);
+    markOnline();
+    return response;
+  } catch (error) {
+    if (error instanceof TypeError) markOffline();
+    throw error;
+  }
+};
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: trackedFetch },
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

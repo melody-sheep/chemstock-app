@@ -192,7 +192,12 @@ export default function ReleaseStockRecipientScreen() {
           {branches.length > 1 && (
             <>
               <Text style={styles.sectionTitle}>Release stock from which branch?</Text>
-              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+              <BranchSelector
+                branches={branches}
+                selectedId={selectedBranchId}
+                onSelect={setSelectedBranchId}
+                edgePadding={SPACING.md}
+              />
             </>
           )}
 

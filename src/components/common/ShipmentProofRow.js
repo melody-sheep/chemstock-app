@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   viewBox: {
     width: 56,
     height: 56,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     alignItems: 'center',

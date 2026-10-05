@@ -16,6 +16,7 @@ import {
   NavigationArrow,
   Users,
   House,
+  MagnifyingGlass,
   Bookmark,
   GearSix,
   SquaresFour,
@@ -76,6 +77,15 @@ export const ICONS = {
   peopleGroup: {
     viewBox: '0 0 24 24',
     svg: 'M9.877 10.508Q9 9.63 9 8.385t.877-2.123T12 5.385t2.123.877T15 8.385t-.877 2.123t-2.123.877t-2.123-.877M5 18.616v-1.647q0-.619.36-1.158q.361-.54.97-.838q1.416-.679 2.834-1.018q1.417-.34 2.836-.34t2.837.34t2.832 1.018q.61.298.97.838q.361.539.361 1.158v1.646zm1-1h12v-.647q0-.332-.215-.625q-.214-.292-.593-.494q-1.234-.598-2.546-.916T12 14.616t-2.646.318t-2.546.916q-.38.202-.593.494Q6 16.637 6 16.97zm7.413-7.819Q14 9.21 14 8.385t-.587-1.413T12 6.385t-1.412.587T10 8.385t.588 1.412t1.412.588t1.413-.588M12 17.616',
+  },
+  // Phosphor "regular" MapPin, as raw path data. Shared with the map picker,
+  // which draws it inside its WebView (React Native icons can't render there).
+  mapPin: {
+    svg: 'M128 64a40 40 0 1 0 40 40 40 40 0 0 0-40-40m0 64a24 24 0 1 1 24-24 24 24 0 0 1-24 24m0-112a88.1 88.1 0 0 0-88 88c0 31.4 14.51 64.68 42 96.25a254.2 254.2 0 0 0 41.45 38.3 8 8 0 0 0 9.18 0 254.2 254.2 0 0 0 41.37-38.3c27.45-31.57 42-64.85 42-96.25a88.1 88.1 0 0 0-88-88m0 206c-16.53-13-72-60.75-72-118a72 72 0 0 1 144 0c0 57.23-55.47 105-72 118',
+  },
+  // Phosphor "fill" MapPin — the solid pin, used for the destination marker.
+  mapPinFill: {
+    svg: 'M128 16a88.1 88.1 0 0 0-88 88c0 75.3 80 132.17 83.41 134.55a8 8 0 0 0 9.18 0C136 236.17 216 179.3 216 104a88.1 88.1 0 0 0-88-88m0 56a32 32 0 1 1-32 32 32 32 0 0 1 32-32',
   },
 };
 
@@ -160,6 +170,7 @@ const PHOSPHOR_ICONS = {
   navigation: NavigationArrow,
   users: Users,
   home: House,
+  search: MagnifyingGlass,
   bookmark: Bookmark,
   settings: GearSix,
   grid: SquaresFour,
@@ -189,14 +200,14 @@ const PHOSPHOR_ICONS = {
 };
 
 const ICON_NAMES = [
-  'warningTriangle', 'user', 'key', 'checkmark',
+  'warningTriangle', 'user', 'key', 'checkmark', 'mapPin', 'mapPinFill',
   'checkmarkCircle', 'send', 'arrowLeft', 'arrowRight', 'building',
   'profile', 'document', 'notification', 'location',
   'package', 'person', 'trayDown', 'trayUp', 'checkCircle', 'returns',
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter', 'flash', 'flashOff',
   'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
-  'phone', 'check',
+  'phone', 'check', 'search',
   'question', 'backpack',
   'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',

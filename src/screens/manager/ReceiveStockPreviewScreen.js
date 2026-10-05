@@ -13,9 +13,9 @@ import Icon from '../../components/common/Icon';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import { getItemsMissingDates } from '../../utils/batchItemValidation';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
-import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import BranchSelector from '../../components/common/BranchSelector';
+import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
@@ -44,7 +44,9 @@ export default function ReceiveStockPreviewScreen() {
 
   const [manager, setManager] = useState(null);
   const [isLoadingManager, setIsLoadingManager] = useState(true);
-  const [coords, setCoords] = useState(null);
+  // Seeded with the fix taken on the camera screen, so this screen doesn't
+  // locate the device again and make the manager wait.
+  const [coords, setCoords] = useState(route.params.coords || null);
   const [locationError, setLocationError] = useState(null);
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,6 +73,8 @@ export default function ReceiveStockPreviewScreen() {
       .finally(() => setIsLoadingManager(false));
 
     (async () => {
+      // Already have a fix from the camera step — no need to locate again.
+      if (route.params.coords) return;
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
@@ -94,7 +98,7 @@ export default function ReceiveStockPreviewScreen() {
   const branchStatusText = isLoadingManager
     ? 'Loading branch…'
     : selectedBranch?.name ||
-      (branches.length > 1 ? 'Choose the branch below' : 'No branch assigned to your account');
+      (branches.length > 1 ? 'Choose a branch above' : 'No branch assigned to your account');
 
   const handleSetQty = (code, qty) => {
     setItems((prev) =>
@@ -110,13 +114,9 @@ export default function ReceiveStockPreviewScreen() {
     setItems((prev) => prev.filter((item) => item.code !== code));
   };
 
-  const handlePhotoCaptured = (uri) => {
+  const handlePhotoCaptured = (uri, newCoords) => {
     setPhotoUri(uri);
-  };
-
-  const handleOpenCamera = () => {
-    setIsViewingPhoto(false);
-    setIsCameraVisible(true);
+    if (newCoords) setCoords(newCoords);
   };
 
   const handleViewPhoto = () => {
@@ -297,10 +297,23 @@ export default function ReceiveStockPreviewScreen() {
           onLayout={onLayout}
           scrollEventThrottle={16}
         >
-          {branches.length > 1 && (
+          {/* Heading shows straight away; chips appear once branches load. */}
+          {(isLoadingManager || branches.length > 1) && (
             <>
               <Text style={styles.sectionTitle}>Receive into which branch?</Text>
-              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+              {isLoadingManager ? (
+                <View style={styles.branchSkeletonRow}>
+                  <SkeletonBlock width={130} height={36} borderRadius={20} />
+                  <SkeletonBlock width={150} height={36} borderRadius={20} />
+                </View>
+              ) : (
+                <BranchSelector
+                  branches={branches}
+                  selectedId={selectedBranchId}
+                  onSelect={setSelectedBranchId}
+                  edgePadding={SPACING.lg}
+                />
+              )}
             </>
           )}
 
@@ -310,13 +323,6 @@ export default function ReceiveStockPreviewScreen() {
             onDateChange={handleDateChange}
             onRemove={handleRemoveItem}
             sectionTitle="Registered Items"
-          />
-
-          <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
-          <ShipmentProofRow
-            photoUri={photoUri}
-            onOpenCamera={handleOpenCamera}
-            onViewPhoto={photoUri ? handleViewPhoto : undefined}
           />
 
           <Text style={styles.sectionTitle}>Photo Proof</Text>
@@ -354,7 +360,7 @@ export default function ReceiveStockPreviewScreen() {
               </Text>
             </View>
             <View style={styles.metaRow}>
-              <Icon name="building" size={16} color={COLORS.primary} />
+              <Icon name="home" size={20} color={COLORS.primary} />
               <Text style={styles.metaText}>{branchStatusText}</Text>
             </View>
             <View style={styles.metaRow}>
@@ -561,5 +567,10 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
+  },
+  branchSkeletonRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    paddingTop: SPACING.sm,
   },
 });

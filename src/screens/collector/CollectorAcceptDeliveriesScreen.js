@@ -85,7 +85,7 @@ export default function CollectorAcceptDeliveriesScreen() {
         backgroundColor="#03045E"
         textColor="#FFFFFF"
       />
-      <SubScreenSecondaryHeader title="Accept Deliveries" syncStatus="online" />
+      <SubScreenSecondaryHeader title="Accept Deliveries" />
 
       {isLoading ? (
         <View style={styles.loadingWrap}>

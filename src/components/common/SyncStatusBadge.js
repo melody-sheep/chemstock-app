@@ -2,19 +2,29 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import { formatClockTime } from '../../utils/formatters';
+import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
- * SyncStatusBadge - small dot + label showing connection/sync state.
- * Only 'online' is used today; 'offline' is reserved for once local
- * SQLite offline sync (Sprint 5) lands and queued writes need surfacing.
+ * SyncStatusBadge - green dot "Online", or red dot with the last time the app
+ * reached the server. With no `status` prop it follows the live connection
+ * state; pass `status` to force a fixed state (e.g. in a preview).
  */
-export default function SyncStatusBadge({ status = 'online' }) {
-  const isOnline = status === 'online';
+export default function SyncStatusBadge({ status }) {
+  const live = useConnectionStatus();
+  const online = status ? status === 'online' : live.online;
+
+  const label = online ? 'Online' : `Offline · last online ${formatClockTime(live.lastOnlineAt)}`;
+  const color = online ? COLORS.success : COLORS.error;
+
   return (
     <View style={styles.container}>
-      <View style={[styles.dot, isOnline ? styles.dotOnline : styles.dotOffline]} />
-      <Text style={styles.label}>{isOnline ? 'Online' : 'Offline Sync'}</Text>
+      <View style={[styles.dot, { backgroundColor: color }]} />
+      <Text style={[styles.label, !online && { color }]} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -27,26 +37,18 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    flexShrink: 1,
   },
   dot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    borderWidth: 2,
-  },
-  dotOnline: {
-    backgroundColor: '#B7FFD6',
-    borderColor: '#00FF6E',
-  },
-  dotOffline: {
-    backgroundColor: '#FFE0B2',
-    borderColor: '#FF9800',
   },
   label: {
-    fontSize: 14,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: '#555353',
+    color: COLORS.textSecondary,
   },
 });

@@ -53,7 +53,7 @@ export default function CollectorDeliveredStockScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <SubScreenSecondaryHeader title="Delivered Stock" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivered Stock" />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>

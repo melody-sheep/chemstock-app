@@ -1,6 +1,7 @@
 // src/services/authService.js
 import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
+import { setPresenceIdentity } from './presenceService';
 import { debugLog, logError } from '../utils/logger';
 import storage from '../utils/storage';
 import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
@@ -11,6 +12,12 @@ import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 // screens/focus events instead — see login()'s agent branch and
 // getCurrentUser()'s fallback below.
 const AGENT_SESSION_KEY = 'chemstock_agent_session';
+
+// getCurrentUser() costs several round trips (session, profile, branch names,
+// photo URL, and for agents an RPC), and nearly every screen calls it on
+// focus. A result this recent is reused; login and logout clear it.
+const CURRENT_USER_TTL_MS = 60 * 1000;
+let currentUserCache = null;
 
 class AuthService extends BaseService {
   constructor() {
@@ -60,6 +67,7 @@ class AuthService extends BaseService {
    * @param {Object} credentials - { username, password }
    */
   async login(credentials) {
+    currentUserCache = null;
     debugLog('info', 'AuthService', 'Login attempt', {
       username: credentials.username
     });
@@ -249,6 +257,8 @@ class AuthService extends BaseService {
    */
 
   async logout() {
+    currentUserCache = null;
+    setPresenceIdentity(null);
     debugLog('info', 'AuthService', 'Logout');
 
     try {
@@ -275,6 +285,24 @@ class AuthService extends BaseService {
    * Get current authenticated user
    */
   async getCurrentUser() {
+    if (currentUserCache && Date.now() - currentUserCache.fetchedAt < CURRENT_USER_TTL_MS) {
+      debugLog('debug', 'Cache', 'Current user reused', { ageMs: Date.now() - currentUserCache.fetchedAt });
+      return currentUserCache.user;
+    }
+    const startedAt = Date.now();
+    const user = await this._loadCurrentUser();
+    setPresenceIdentity(user?.id);
+    debugLog('info', 'Cache', 'Current user loaded from server', { ms: Date.now() - startedAt });
+    currentUserCache = { user, fetchedAt: Date.now() };
+    return user;
+  }
+
+  /** Forget the cached current user, e.g. after the profile is edited. */
+  clearCurrentUserCache() {
+    currentUserCache = null;
+  }
+
+  async _loadCurrentUser() {
     debugLog('info', 'AuthService', 'Fetching current user');
 
     try {

@@ -1,8 +1,9 @@
 // src/screens/salesrep/SalesRepDashboardScreen.js
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -19,7 +20,6 @@ import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
-import { debugLog } from '../../utils/logger';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -80,13 +80,7 @@ const MAIN_OPERATIONS = [
 
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
-  const [user, setUser] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
-  const [totalUnits, setTotalUnits] = useState(null);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [pendingRequestCount, setPendingRequestCount] = useState(null);
-  const [openDiscrepancyCount, setOpenDiscrepancyCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
@@ -100,70 +94,65 @@ export default function SalesRepDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true);
+  // Returns the full dashboard snapshot. A request that fails keeps its value
+  // from the previous snapshot instead of blanking the card.
+  const loadDashboardData = async (previous) => {
+    const currentUser = await authService.getCurrentUser();
+    // A different account must never see the last account's numbers.
+    const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
-    // try/finally so the skeletons always clear, even if a call throws.
-    // Without it, one failed request left the dashboard stuck loading.
-    try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
+      inventoryService.getSrInventory(currentUser?.id),
+      inventoryService.getSrActivityLogs(currentUser?.id, 3),
+      requestService.getMyStockRequests(currentUser?.id, 5),
+      inventoryService.getMyDeliveries(currentUser?.id, 10),
+      reportService.getMyDiscrepancies(currentUser?.id, 50),
+    ]);
 
-      const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
-        inventoryService.getSrInventory(currentUser?.id),
-        inventoryService.getSrActivityLogs(currentUser?.id, 3),
-        requestService.getMyStockRequests(currentUser?.id, 5),
-        inventoryService.getMyDeliveries(currentUser?.id, 10),
-        reportService.getMyDiscrepancies(currentUser?.id, 50),
-      ]);
+    const requests = requestsResult.success ? requestsResult.data : [];
+    const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
+    const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
+      (d) => d.deliveryStatus === 'delivered'
+    );
 
-      if (inventoryResult.success) {
-        // remaining_quantity (current custody), not quantity (originally
-        // received) — see SalesRepStockScreen.js for the full explanation.
-        setTotalUnits(inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0));
-      }
-      const requests = requestsResult.success ? requestsResult.data : [];
-      // Same "not actually done until fulfilled" fix as the Manager
-      // dashboard — a request the manager has tapped Prepare on is
-      // 'accepted' but still outstanding from the Sales Rep's point of view
+    // Merge accepted-stock logs with request status changes, completed
+    // incoming deliveries, and flagged discrepancies into one chronological
+    // feed, top 3 — same pattern getActivityLogs already uses to merge
+    // receiving+release on the Manager side.
+    const merged = [
+      ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
+      ...requests.map((req) => ({ ...req, logType: 'request' })),
+      ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
+      ...discrepancies.map((d) => ({ ...d, logType: 'discrepancy', createdAt: d.reportDate })),
+    ];
+    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return {
+      user: currentUser,
+      // remaining_quantity (current custody), not quantity (originally
+      // received) — see SalesRepStockScreen.js for the full explanation.
+      totalUnits: inventoryResult.success
+        ? inventoryResult.data.reduce((sum, row) => sum + row.remaining_quantity, 0)
+        : prev?.totalUnits ?? null,
+      // Same "not actually done until fulfilled" rule as the Manager
+      // dashboard: a request tapped Prepare is still outstanding for the rep
       // until the stock is actually released to them.
-      setPendingRequestCount(
-        requestsResult.success
-          ? requests.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId)).length
-          : null
-      );
+      pendingRequestCount: requestsResult.success
+        ? requests.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId)).length
+        : prev?.pendingRequestCount ?? null,
+      openDiscrepancyCount: discrepanciesResult.success
+        ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
+        : prev?.openDiscrepancyCount ?? 0,
+      recentLogs: merged.slice(0, 3),
+    };
+  };
 
-      const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
-      setOpenDiscrepancyCount(discrepancies.filter((d) => d.resolutionStatus === 'open').length);
-
-      const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
-        (d) => d.deliveryStatus === 'delivered'
-      );
-
-      // Merge accepted-stock logs with request status changes, completed
-      // incoming deliveries, and flagged discrepancies into one chronological
-      // feed, top 3 — same pattern getActivityLogs already uses to merge
-      // receiving+release on the Manager side.
-      const merged = [
-        ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
-        ...requests.map((req) => ({ ...req, logType: 'request' })),
-        ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
-        ...discrepancies.map((d) => ({ ...d, logType: 'discrepancy', createdAt: d.reportDate })),
-      ];
-      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setRecentLogs(merged.slice(0, 3));
-    } catch (error) {
-      debugLog('error', 'SalesRepDashboard', 'Failed to load dashboard', { error: error.message });
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-    }, [loadDashboardData])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  const user = snapshot?.user ?? null;
+  const totalUnits = snapshot?.totalUnits ?? null;
+  const recentLogs = snapshot?.recentLogs ?? [];
+  const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
+  const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
 
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';

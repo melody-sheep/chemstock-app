@@ -25,18 +25,34 @@ export default function ConfirmationDialog({
   description,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
-  height = 300,
+  height = 'auto',
 }) {
   return (
     <CustomModal visible={visible} onClose={onCancel} height={height}>
       <View style={styles.iconWrap}>
-        <Icon name={icon} size={32} color={COLORS.error} />
+        <View style={styles.iconCircle}>
+          <Icon name={icon} size={22} color={COLORS.error} />
+        </View>
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.description}>{description}</Text>
 
-      <Button title={confirmLabel} variant="black" onPress={onConfirm} style={styles.confirmButton} />
-      <Button title={cancelLabel} variant="outline" onPress={onCancel} hasShadow={false} />
+      <Button
+        title={confirmLabel}
+        variant="black"
+        onPress={onConfirm}
+        height={44}
+        fontSize={15}
+        style={styles.confirmButton}
+      />
+      <Button
+        title={cancelLabel}
+        variant="outline"
+        onPress={onCancel}
+        height={44}
+        fontSize={15}
+        hasShadow={false}
+      />
     </CustomModal>
   );
 }
@@ -50,7 +66,7 @@ ConfirmationDialog.propTypes = {
   description: PropTypes.string.isRequired,
   confirmLabel: PropTypes.string,
   cancelLabel: PropTypes.string,
-  height: PropTypes.number,
+  height: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf(['auto'])]),
 };
 
 const styles = StyleSheet.create({
@@ -58,8 +74,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.error + '1A',
+  },
   title: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.error,
@@ -72,8 +96,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: SPACING.lg,
+    lineHeight: 18,
+    marginBottom: SPACING.md,
   },
   confirmButton: {
     marginBottom: SPACING.sm,

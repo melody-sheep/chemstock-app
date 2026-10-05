@@ -28,6 +28,13 @@ export const COLORS = {
   border: '#CAF0F8',
   borderDark: '#00B4D8',
   borderLight: '#E5E5E5',
+  borderNeutral: '#757575', // Grey outline for inputs and neutral chips
+
+  // Glass surfaces for floating map controls (translucent, light border)
+  glassSurface: 'rgba(255, 255, 255, 0.78)',
+  glassBorder: 'rgba(255, 255, 255, 0.7)',
+  // Stronger glass for headers and bottom sheets, which must stay readable over the map
+  glassStrong: 'rgba(255, 255, 255, 0.92)',
 
   // Accent Colors - dashboard badges, category tags
   // (shares the palette already used in LoginScreen's animated text)

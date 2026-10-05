@@ -26,6 +26,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [previewUri, setPreviewUri] = useState(initialUri);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const cameraRef = useRef(null);
 
   // Metadata only exists for a photo taken *this* session — re-opening the
@@ -49,6 +50,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
   const handleClose = () => {
     setPreviewUri(null);
     setIsCameraReady(false);
+    setIsTorchOn(false);
     onClose();
   };
 
@@ -82,9 +84,12 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
   const handleRetake = () => setPreviewUri(null);
 
   const handleUsePhoto = () => {
-    onCapture(previewUri);
+    // Pass the GPS fix taken with this shot, so screens after the camera can
+    // reuse it instead of locating the device again (null if still locating).
+    onCapture(previewUri, previewCoords);
     setPreviewUri(null);
     setIsCameraReady(false);
+    setIsTorchOn(false);
     onClose();
   };
 
@@ -151,11 +156,23 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                 ref={cameraRef}
                 style={styles.camera}
                 facing="back"
+                enableTorch={isTorchOn}
                 onCameraReady={() => setIsCameraReady(true)}
               />
               <View style={styles.topBar}>
                 <TouchableOpacity style={styles.closeButton} onPress={handleClose} accessibilityLabel="Close camera">
                   <Icon name="xCircle" size={28} color="#FFFFFF" weight="fill" />
+                </TouchableOpacity>
+              </View>
+              {/* Flashlight, same control as the QR scanner's top bar. */}
+              <View style={styles.torchBar}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setIsTorchOn((on) => !on)}
+                  accessibilityRole="button"
+                  accessibilityLabel={isTorchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
+                >
+                  <Icon name={isTorchOn ? 'flash' : 'flashOff'} size={24} color={COLORS.textWhite} />
                 </TouchableOpacity>
               </View>
               <View style={styles.bottomBar}>
@@ -208,6 +225,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: SPACING.md,
     left: SPACING.md,
+  },
+  torchBar: {
+    position: 'absolute',
+    top: SPACING.md,
+    right: SPACING.md,
   },
   closeButton: {
     width: 40,

@@ -1,5 +1,6 @@
 // src/screens/collector/CollectorTripReviewScreen.js
 import React, { useCallback, useState } from 'react';
+import { getDeliveryParties } from '../../services/presenceService';
 import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -118,6 +119,23 @@ export default function CollectorTripReviewScreen() {
 
   const handleTrack = () => navigation.navigate('CollectorDeliverStock', { tripId });
 
+  // Each leg's Sales Rep, with a photo. The leg data has no photo of its own.
+  const [partiesById, setPartiesById] = useState({});
+  const legKey = legs.map((leg) => leg.transactionId).join(',');
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all(
+        legs.map(async (leg) => [leg.transactionId, await getDeliveryParties(agent?.id, leg.transactionId)])
+      ).then((entries) => {
+        if (active) setPartiesById(Object.fromEntries(entries));
+      });
+      return () => {
+        active = false;
+      };
+    }, [agent?.id, legKey])
+  );
+
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -129,7 +147,7 @@ export default function CollectorTripReviewScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivery Details" />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -150,7 +168,7 @@ export default function CollectorTripReviewScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <SubScreenSecondaryHeader title="Delivery Details" syncStatus="online" />
+        <SubScreenSecondaryHeader title="Delivery Details" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionLabel}>Collector</Text>
@@ -180,7 +198,7 @@ export default function CollectorTripReviewScreen() {
               </View>
               <View style={styles.personCard}>
                 <UserAvatar
-                  photoUrl={leg.targetRecipientPhotoUrl}
+                  photoUrl={partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl}
                   fallbackText={getInitials(leg.targetRecipientName)}
                   size={40}
                   backgroundColor="#F1F3F6"
@@ -239,6 +257,8 @@ export default function CollectorTripReviewScreen() {
                 onPress={() => setIsCancelDialogVisible(true)}
                 disabled={tripStatus === 'completed'}
                 style={styles.actionButton}
+                height={44}
+                fontSize={15}
               />
               <Button
                 title="Track Delivery"
@@ -246,6 +266,8 @@ export default function CollectorTripReviewScreen() {
                 onPress={handleTrack}
                 disabled={tripStatus === 'completed'}
                 style={styles.actionButton}
+                height={44}
+                fontSize={15}
               />
             </View>
           ) : (
@@ -345,6 +367,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   noticeText: { flex: 1, fontSize: 11, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
-  buttonRow: { flexDirection: 'row', gap: SPACING.sm },
-  actionButton: { flex: 1 },
+  buttonRow: { flexDirection: 'column', gap: SPACING.sm },
+  actionButton: { width: '100%' },
 });
