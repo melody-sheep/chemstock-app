@@ -1,834 +1,321 @@
-# 📁 COMPLETE UPDATED PROJECT STRUCTURE
+# 📁 CHEMSTOCK-MOBILE — PROJECT STRUCTURE
 
-*Last synced to actual filesystem: August 2026 (Sprint 1 — Manager Dashboard build). Excludes `node_modules/`, `.git/`, `.expo/`, and other build artifacts.*
+*Last synced to the filesystem: October 6, 2026. Excludes `node_modules/`, `.git/`, `.expo/`, and build output.*
 
-```markdown
-📱 CHEMSTOCK-MOBILE/
+```
+📱 chemstock-mobile/
 │
-├── 🤖 .claude/
-│   ├── settings.json                                 # Claude AI configuration
-│   └── settings.local.json                           # 🆕 Local Claude overrides (gitignored)
+├── 🤖 .claude/                                   # Claude Code settings
 │
-├── 🚫 .expo/                                         # Expo build cache (excluded)
+├── 📁 admin-cli/                                 # 🔐 Super Admin tool (Express + web UI)
+│   ├── .env                                      # ⚠️ Supabase service key — NEVER commit
+│   ├── .gitignore
+│   ├── index.js                                  # CLI entry — starts server and opens browser
+│   ├── server.js                                 # Express API: keys, activation, audit logs
+│   ├── install.bat                               # Windows installer
+│   ├── package.json / package-lock.json
+│   ├── config/
+│   │   └── supabase.js                           # Service-role Supabase client
+│   ├── utils/
+│   │   ├── crypto.js                             # Secure activation-code generator
+│   │   ├── rateLimiter.js                        # express-rate-limit rules
+│   │   └── auditLogger.js                        # Audit trail for key actions
+│   └── web-ui/
+│       ├── index.html                            # Dashboard page
+│       ├── style.css
+│       └── script.js
 │
-├── 📦 .git/                                          # Git version control
+├── 🎨 assets/
+│   ├── image/
+│   │   ├── chemstock_png.png                     # App logo
+│   │   └── empty_box1.png                        # Empty-state image
+│   ├── product_images/                           # 19 bundled product photos (Oct 2)
+│   ├── sales_rep_assets/                         # Sales Rep header illustration
+│   ├── android-icon-*.png                        # Adaptive icon (background, foreground, monochrome)
+│   ├── favicon.png · icon.png · splash-icon.png
 │
-├── 📁 admin-cli/                                     🔐 ADMIN CLI TOOL
-│   ├── .env                                          # ⚠️ Supabase credentials (DON'T COMMIT!)
-│   ├── .gitignore                                    # CLI-specific gitignore
-│   ├── index.js                                      # CLI entry point - launches web UI
-│   ├── server.js                                     # Express server for web UI
-│   ├── package.json                                  # CLI dependencies
-│   ├── package-lock.json                             # Locked dependencies
-│   ├── install.bat                                   # Windows installer
-│   ├── node_modules/                                 # CLI dependencies (excluded)
-│   ├── 📁 config/
-│   │   └── supabase.js                               # Supabase client with service role
-│   ├── 📁 utils/
-│   │   ├── crypto.js                                 # Secure random code generator
-│   │   ├── rateLimiter.js                            # Rate limiting middleware
-│   │   └── auditLogger.js                            # Audit logging service
-│   └── 📁 web-ui/                                    # Web dashboard UI
-│       ├── index.html                                # Main dashboard page
-│       ├── style.css                                 # Material Design styles
-│       └── script.js                                 # Dashboard logic
+├── 📚 capstone_docs/
+│   ├── [PROPOSAL] ChemStock.pdf                  # Capstone proposal (ERD, DFD, Figma refs)
+│   ├── proposal.txt                              # Text extract of the proposal (untracked)
+│   ├── ChemStock_Sprint_Roadmap.pdf
+│   ├── sql/                                      # Database migrations, run in Supabase, in date order
+│   │   ├── 2026-08-18_branch_wide_stock_visibility.sql
+│   │   ├── 2026-08-19_agent_account_removal_and_branch_ids.sql
+│   │   ├── 2026-08-20_release_stock.sql
+│   │   ├── 2026-08-21_fix_release_stock_data_loss.sql
+│   │   ├── 2026-08-23_collector_release_delivery.sql
+│   │   ├── 2026-08-23_sr_receive_stock.sql
+│   │   ├── 2026-08-23_track_deliveries.sql
+│   │   ├── 2026-08-24_sr_track_deliveries.sql
+│   │   ├── 2026-08-24_stock_requests.sql
+│   │   ├── 2026-08-25_collector_delivery_trips.sql
+│   │   ├── 2026-08-25_sr_delivery_checkpoint_timeline.sql
+│   │   ├── 2026-08-26_sr_daily_reports_and_returns.sql
+│   │   ├── 2026-08-26b_fix_sr_report_backlog_date_scope.sql
+│   │   ├── 2026-08-26c_agent_profile_refresh.sql
+│   │   ├── 2026-08-27_profile_photo.sql
+│   │   ├── 2026-08-28_photos_in_lists.sql
+│   │   ├── 2026-10-04_release_branch_photo_discrepancy_branch.sql
+│   │   ├── 2026-10-05_daily_report_media_policy_fix.sql     # ⏳ not confirmed run
+│   │   ├── 2026-10-05_reset_agent_password.sql              # ⏳ not confirmed run
+│   │   ├── 2026-10-06_presence_last_seen.sql                # ✅ run
+│   │   └── 2026-10-06b_delivery_parties.sql                 # ✅ run
+│   └── MD Folder/
+│       ├── Alther_TODO_October.md                # 📋 Living task list, status summary, sweep log
+│       ├── ChemStock_Sprint_Roadmap.md           # Sprint plan
+│       ├── Jay_Sprint1.1.md                      # Session notes (Jay)
+│       └── alther_development.md                 # Session notes (Alther)
 │
-├── 🎨 assets/                                         # STATIC ASSETS
-│   ├── 🖼️ image/
-│   │   ├── chemstock_png.png                         # App logo
-│   │   └── empty_box1.png                            # Empty state image
-│   ├── android-icon-background.png                   # Android adaptive icon bg
-│   ├── android-icon-foreground.png                   # Android adaptive icon fg
-│   ├── android-icon-monochrome.png                   # Android monochrome icon
-│   ├── favicon.png                                   # Web favicon
-│   ├── icon.png                                      # App icon
-│   └── splash-icon.png                                # Splash screen icon
-│
-├── 📚 capstone_docs/                                  🆕 CAPSTONE DOCUMENTATION
-│   ├── [PROPOSAL] ChemStock.pdf                       # Full capstone proposal (Figma refs, ERD, DFD)
-│   ├── ChemStock_Sprint_Roadmap.pdf                   # Sprint roadmap (PDF twin)
-│   └── 📁 MD Folder/
-│       ├── ChemStock_Sprint_Roadmap.md                # Sprint roadmap - living doc, update per sprint
-│       └── Jay_Sprint1.1.md                           # Session handoff notes (read first each session)
-│
-├── 📁 src/                                            MAIN SOURCE CODE
+├── 📁 src/                                       # MAIN SOURCE (161 JS files, ~34,600 lines)
 │   │
-│   ├── 📄 container.js                               DEPENDENCY INJECTION CONTAINER
-│   │   # Singleton pattern for service management
-│   │   # Registers: authService, activationService
+│   ├── container.js                              # DI container (service registration)
 │   │
-│   ├── 🧩 components/                                 REUSABLE UI COMPONENTS
+│   ├── components/
+│   │   ├── common/                               # ✅ 49 shared components
+│   │   │   ├── ActionCard.js                     # Dashboard menu tile (icon + title, badge count)
+│   │   │   ├── AnimatedTextDot.js                # Animated text (login)
+│   │   │   ├── BottomActionBar.js                # Fixed bottom action area
+│   │   │   ├── BottomNavBar.js                   # Bottom tab bar + center FAB
+│   │   │   ├── BranchSelector.js                 # Branch chip row (edge-to-edge option)
+│   │   │   ├── Button.js                         # Button variants
+│   │   │   ├── CameraCaptureModal.js             # Photo capture + flashlight + GPS fix
+│   │   │   ├── Card.js
+│   │   │   ├── CollectorUpdateCheckpointModal.js # Collector checkpoint form
+│   │   │   ├── ConfirmationDialog.js             # Confirm dialog (sized to content)
+│   │   │   ├── ConnectionPill.js                 # Online / offline pill
+│   │   │   ├── DateChip.js                       # MFG / EXP date chip
+│   │   │   ├── DeliveryStatusPill.js             # Pending / In Transit / Delivered pill
+│   │   │   ├── DeliveryTimeline.js               # Checkpoint timeline ("Current Location")
+│   │   │   ├── FilterSheet.js                    # Filter bottom sheet
+│   │   │   ├── Header.js                         # App header (back, profile, doc/bell icons)
+│   │   │   ├── Icon.js                           # Icon set: hand-drawn SVGs + Phosphor components
+│   │   │   ├── Input.js                          # Form input
+│   │   │   ├── KeyboardWrapper.js
+│   │   │   ├── LogListItem.js                    # Activity log row
+│   │   │   ├── MapLegend.js                      # Map legend (glass pill)
+│   │   │   ├── MapLocationPickerModal.js         # Pin destination: search, insight, far-pin check
+│   │   │   ├── MapZoomControls.js                # Glass zoom and recenter column
+│   │   │   ├── Modal.js                          # Bottom sheet (safe-area aware)
+│   │   │   ├── PhotoProofCard.js                 # Photo preview + metadata rows
+│   │   │   ├── ProductChip.js
+│   │   │   ├── ProductGridTile.js
+│   │   │   ├── ProductPickerList.js
+│   │   │   ├── QRScannerModal.js                 # In-app QR scanner with flashlight
+│   │   │   ├── QRSuccessView.js                  # Post-registration QR screen
+│   │   │   ├── QuantityStepper.js                # − / + quantity control
+│   │   │   ├── RegisteredItemsList.js
+│   │   │   ├── ReleaseSummaryCard.js             # Items-to-release card (whole header toggles)
+│   │   │   ├── SaveableQRCode.js                 # QR with Save / Print / Share
+│   │   │   ├── ScreenContainer.js
+│   │   │   ├── SearchDropdownField.js
+│   │   │   ├── SecondaryHeader.js                # Info bar under the main header (glass option)
+│   │   │   ├── SelectedProductsRow.js
+│   │   │   ├── ShipmentProofRow.js               # Handover photo row
+│   │   │   ├── SpotlightHint.js
+│   │   │   ├── StatCard.js                       # Quick-stat tile
+│   │   │   ├── StaticRouteMap.js                 # Leaflet map in WebView (routes, arrows, avatars)
+│   │   │   ├── Stepper.js                        # Step indicator
+│   │   │   ├── StockBatchCard.js
+│   │   │   ├── SubScreenSecondaryHeader.js
+│   │   │   ├── SuccessFrame.js                   # Success toast
+│   │   │   ├── SyncStatusBadge.js                # Header Online / Offline badge
+│   │   │   ├── UserAvatar.js                     # Photo or initials avatar
+│   │   │   └── WarningSection.js
 │   │   │
-│   │   ├── 📸 camera/                                 (empty - future QR scanning)
-│   │   ├── 📦 inventory/                              (empty - future inventory)
-│   │   ├── 🗺️ maps/                                   (empty - future GPS tracking)
-│   │   ├── 📱 qr/                                     (empty - future QR generation)
-│   │   │
-│   │   ├── 🔧 common/                                 ✅ 17 REUSABLE COMPONENTS
-│   │   │   ├── ActionCard.js                          # 🆕 Grid tile (icon badge + title) for menu grids
-│   │   │   ├── AnimatedTextDot.js                     # Animated text cycling (login)
-│   │   │   ├── BottomNavBar.js                        # 🆕 Fixed bottom tab bar + floating center FAB
-│   │   │   ├── Button.js                              # Button with variants + PropTypes
-│   │   │   ├── Card.js                                # Card container component
-│   │   │   ├── Header.js                              # 🔄 App header: back button, profile icon,
-│   │   │   │                                          #    centered/left title, online status, doc/bell icons
-│   │   │   ├── Icon.js                                # 🔄 Icon system: 9 hand-traced SVGs +
-│   │   │   │                                          #    Phosphor components (supports weight="fill" etc.)
-│   │   │   ├── Input.js                               # Form input with validation
-│   │   │   ├── KeyboardWrapper.js                     # Keyboard avoidance wrapper
-│   │   │   ├── LogListItem.js                         # 🆕 Icon badge + text row for activity logs
-│   │   │   ├── Modal.js                               # Bottom sheet modal
-│   │   │   ├── ScreenContainer.js                     # Screen wrapper with 16px margins
-│   │   │   ├── SecondaryHeader.js                     # 🆕 Full-width info bar below main Header
-│   │   │   │                                          #    (has optional right-side illustration slot)
-│   │   │   ├── StatCard.js                            # 🆕 Quick-stat tile (icon badge, value, label)
-│   │   │   ├── Stepper.js                             # Step indicator with connected line
-│   │   │   ├── SuccessFrame.js                        # Success toast overlay
-│   │   │   └── WarningSection.js                      # Warning section with red theme
-│   │   │
-│   │   └── 🎯 ui/                                     ⚠️ 3 STUBS - NOT IMPLEMENTED (0 bytes each)
-│   │       ├── Divider.js                             # ⚠️ Empty file
-│   │       ├── LoadingSpinner.js                      # ⚠️ Empty file
-│   │       └── Logo.js                                # ⚠️ Empty file
+│   │   └── ui/                                   # ✅ Loading and skeleton components
+│   │       ├── SkeletonBlock.js
+│   │       ├── SkeletonCard.js
+│   │       ├── Divider.js                        # ⚠️ Empty stub
+│   │       ├── LoadingSpinner.js                 # ⚠️ Empty stub
+│   │       └── Logo.js                           # ⚠️ Empty stub
 │   │
-│   ├── 📋 constants/                                  APP CONSTANTS
-│   │   ├── colors.js                                  ✅ SINGLE SOURCE for ALL colors
-│   │   │   # 🔄 Added accent palette (accentGold/Pink/Purple/Orange/Blue) for dashboard badges
-│   │   └── roles.js                                   # User role constants
-│   │       # manager, salesrep, collector — ⚠️ note: no underscore, doesn't match
-│   │       # 'sales_rep' used elsewhere (LoginScreen, DB) - unresolved naming inconsistency
+│   ├── constants/
+│   │   ├── colors.js                             # ✅ All colour tokens (incl. glass tokens)
+│   │   ├── inventory.js                          # Inventory constants
+│   │   ├── legalContent.js                       # FAQ and Laws text
+│   │   ├── productCatalog.js                     # Product codes, names, bundled images
+│   │   ├── roles.js                              # ⚠️ 'salesrep' here; DB and screens use 'sales_rep'
+│   │   └── savedPlaces.js                        # Offline place list for map search (empty)
 │   │
-│   ├── 🔄 contexts/                                   (empty - using hooks instead of Context)
+│   ├── hooks/
+│   │   ├── useActivation.js                      # Activation ViewModel
+│   │   ├── useAuth.js                            # Auth ViewModel
+│   │   ├── useCachedFocusLoader.js               # Screen data cache: skeleton only on first load
+│   │   ├── useConnectionStatus.js                # Live connection state
+│   │   ├── useFirstTimeHint.js
+│   │   ├── useItemDatePicker.js
+│   │   ├── useKeyboard.js
+│   │   ├── useRippleAnimation.js
+│   │   └── useScrolledToEnd.js                   # Scroll-to-review gate
 │   │
-│   ├── 🪝 hooks/                                      ✅ 3 CUSTOM HOOKS (MVVM Pattern)
-│   │   ├── useActivation.js                           # Activation ViewModel
-│   │   │   # 🔄 Now includes completeSetup() - wires register + activate_manager RPC
-│   │   ├── useAuth.js                                 # Auth ViewModel
-│   │   └── useKeyboard.js                             # Keyboard visibility tracker
+│   ├── navigation/
+│   │   ├── AppNavigator.js                       # Root navigator (all screens)
+│   │   └── AuthStack.js                          # Auth-only stack
 │   │
-│   ├── 🧭 navigation/                                 NAVIGATION CONFIGURATION
-│   │   ├── AppNavigator.js                            # 🔄 Root navigator - Login, ManagerActivation,
-│   │   │                                              #    ManagerDashboard
-│   │   └── AuthStack.js                               # Authentication stack (not currently used by
-│   │       │                                          #    AppNavigator - see note below)
+│   ├── screens/
+│   │   ├── auth/                                 # 2 screens
+│   │   │   ├── LoginScreen.js
+│   │   │   └── ManagerActivationScreen.js
+│   │   ├── common/                               # 3 shared screens
+│   │   │   ├── ComingSoonScreen.js
+│   │   │   ├── EditProfileScreen.js
+│   │   │   ├── LegalInfoScreen.js                # FAQ and Laws
+│   │   │   └── StockBatchDetailScreen.js         # Batch QR, reprint
+│   │   ├── manager/                              # 26 screens
+│   │   │   ├── ManagerDashboardScreen.js         # Stats, operations grid, recent logs
+│   │   │   ├── ManagerStockScreen.js             # Stock by branch
+│   │   │   ├── ManagerSettingsScreen.js
+│   │   │   ├── AddNewBatchesScreen.js            # Add products to a receiving batch
+│   │   │   ├── ProductBrowserScreen.js
+│   │   │   ├── ProductSelectScreen.js            # Multi-select products
+│   │   │   ├── ReceiveStockScreen.js
+│   │   │   ├── ReceiveStockPreviewScreen.js      # Branch choice, review, QR
+│   │   │   ├── QuickRegisterReleaseScreen.js     # Urgent release
+│   │   │   ├── ReleaseStockMethodScreen.js       # Direct or via collector
+│   │   │   ├── ReleaseStockRecipientScreen.js    # Branch and recipient
+│   │   │   ├── ReleaseStockScanReviewScreen.js
+│   │   │   ├── ReleaseStockRequestReviewScreen.js
+│   │   │   ├── ReleaseStockDeliveryScreen.js     # Pin destination, photo
+│   │   │   ├── ReleaseStockConfirmScreen.js      # Summary and QR
+│   │   │   ├── StockLogsScreen.js                # Logs with filters
+│   │   │   ├── TrackDeliveriesScreen.js
+│   │   │   ├── TrackDeliveryDetailScreen.js      # Map, timeline, person status
+│   │   │   ├── ManageAccountsScreen.js           # Reset password, remove account
+│   │   │   ├── AgentAccountsScreen.js            # Create Sales Rep / Collector
+│   │   │   ├── AgentStockRequestScreen.js        # Request queue
+│   │   │   ├── ManageReturnsScreen.js            # Returns and daily reports
+│   │   │   ├── ReturnStockVerifyScreen.js
+│   │   │   ├── ManagerAlertsScreen.js            # Discrepancies
+│   │   │   └── ManagerReportsScreen.js           # Weekly and monthly reports
+│   │   ├── salesrep/                             # 17 screens
+│   │   │   ├── SalesRepDashboardScreen.js
+│   │   │   ├── SalesRepStockScreen.js            # Branch stock
+│   │   │   ├── SalesRepBackpackScreen.js         # Personal stock (sr_inventory)
+│   │   │   ├── SalesRepLogsScreen.js
+│   │   │   ├── SalesRepSettingsScreen.js
+│   │   │   ├── SalesRepReportsScreen.js
+│   │   │   ├── SalesRepTrackDeliveriesScreen.js
+│   │   │   ├── SalesRepDeliveryDetailScreen.js   # Collector photo and status on map
+│   │   │   ├── SalesRepStockRequestsScreen.js
+│   │   │   ├── ReceiveStockTypeSR.js
+│   │   │   ├── ReceiveStockSR.js                 # Accept release by QR
+│   │   │   ├── RequestStockSR.js
+│   │   │   ├── RequestListSR.js
+│   │   │   ├── SubmitReportSR.js                 # Daily report with handover photo
+│   │   │   ├── AlertsDiscrepanciesSR.js
+│   │   │   ├── ResolveDiscrepancyScreen.js
+│   │   │   └── ReturnStocksSR.js
+│   │   └── collector/                            # 7 screens
+│   │       ├── CollectorDashboardScreen.js
+│   │       ├── CollectorAcceptDeliveriesScreen.js
+│   │       ├── CollectorTripReviewScreen.js      # Trip summary, Sales Rep photos
+│   │       ├── CollectorDeliverStockScreen.js    # Live route map, checkpoints, finish stop
+│   │       ├── CollectorDeliveryDetailScreen.js
+│   │       ├── CollectorDeliveredStockScreen.js
+│   │       └── CollectorSettingsScreen.js
 │   │
-│   ├── 📺 screens/                                    APP SCREENS
-│   │   │
-│   │   ├── 🔐 auth/                                   ✅ 2 AUTH SCREENS
-│   │   │   ├── LoginScreen.js                         # 🔄 Login - routes by role to ManagerDashboard
-│   │   │   │                                          #    (Sales Rep/Collector dashboards still TODO)
-│   │   │   └── ManagerActivationScreen.js             # 🔄 Activation + account setup - now wired to
-│   │   │                                              #    real authService.register + activate_manager
-│   │   │
-│   │   ├── 📦 collector/                              (empty - future collector dashboard)
-│   │   ├── 🔄 common/                                 (empty - future common screens)
-│   │   ├── 👔 manager/                                ✅ 1 SCREEN
-│   │   │   └── ManagerDashboardScreen.js              # 🆕 Header, SecondaryHeader (welcome/status),
-│   │   │                                              #    Quick Stats, Main Operation grid, Recent
-│   │   │                                              #    Logs, BottomNavBar
-│   │   └── 💼 salesrep/                               (empty - future sales rep dashboard)
+│   ├── services/                                 # ✅ 12 services (API layer)
+│   │   ├── BaseService.js                        # Base class: errors, logging
+│   │   ├── supabaseClient.js                     # Supabase client
+│   │   ├── connectionStatus.js                   # Online / offline from request results
+│   │   ├── authService.js                        # Login, session, current user (cached 60 s)
+│   │   ├── activationService.js                  # Manager activation (RPC)
+│   │   ├── agentService.js                       # Sales Rep and Collector accounts
+│   │   ├── inventoryService.js                   # Receive, release, trips, batches
+│   │   ├── requestService.js                     # Stock requests
+│   │   ├── reportService.js                      # Daily reports, discrepancies
+│   │   ├── deliveryService.js                    # Checkpoints
+│   │   ├── presenceService.js                    # Last-seen, delivery parties
+│   │   └── profileService.js                     # Profile photo
 │   │
-│   ├── 🔌 services/                                   ✅ 4 API SERVICES (OOP Pattern)
-│   │   ├── activationService.js                       # 🔄 activateManager() now calls the
-│   │   │                                              #    activate_manager Postgres RPC (atomic)
-│   │   ├── authService.js                             # 🔄 login()/getCurrentUser() now fetch
-│   │   │                                              #    user_profiles + branch names
-│   │   ├── BaseService.js                             # Abstract base class
-│   │   └── supabaseClient.js                          # Supabase client config
+│   ├── styles/
+│   │   ├── colors.js                             # (see constants/)
+│   │   ├── glass.js                              # Shared glass panel style
+│   │   ├── globalStyles.js                       # ⚠️ Uses COLORS.backgroundWhite, which is not defined
+│   │   ├── shadows.js
+│   │   ├── spacing.js                            # xs(4) sm(8) md(16) lg(24) xl(32) 2xl(40) 3xl(48)
+│   │   └── typography.js                         # Inter font scale
 │   │
-│   ├── 🎨 styles/                                     STYLE CONSTANTS
-│   │   ├── globalStyles.js                            # ⚠️ References COLORS.backgroundWhite,
-│   │   │                                              #    which doesn't exist in colors.js
-│   │   ├── spacing.js                                 ✅ xs(4) sm(8) md(16) lg(24) xl(32) 2xl(40) 3xl(48)...
-│   │   └── typography.js                              ✅ Inter font configuration
-│   │
-│   ├── 📝 types/                                      (empty - TypeScript types)
-│   │
-│   └── 🛠️ utils/                                      ⚠️ 2 OF 4 ARE EMPTY STUBS
-│       ├── logger.js                                  # Centralized logging
-│       ├── storage.js                                 # ⚠️ Empty file - not implemented
-│       ├── validationStrategies.js                    # Strategy pattern validation
-│       └── validators.js                              # ⚠️ Empty file - not implemented
+│   └── utils/                                    # ✅ 17 utilities
+│       ├── base64.js
+│       ├── batchItemValidation.js                # MFG / EXP and photo checks
+│       ├── checkpointTimeline.js                 # Shared timeline builder (all roles)
+│       ├── debugReport.js                        # Share debug log
+│       ├── deviceInfo.js                         # Device model and OS
+│       ├── distance.js                           # Straight-line distance
+│       ├── formatPlace.js                        # Address formatting
+│       ├── formatters.js                         # Relative time, coordinates, dates
+│       ├── initials.js
+│       ├── landmarkUsage.js
+│       ├── logger.js                             # Central logging (debugLog)
+│       ├── productUsage.js
+│       ├── profilePhoto.js                       # Signed photo URLs
+│       ├── scanLookup.js                         # QR lookup
+│       ├── storage.js                            # AsyncStorage wrapper
+│       ├── validationStrategies.js               # Validation strategies
+│       └── validators.js
 │
-├── 📄 TO_DO_TASK.md                                   # Task tracking document
-├── 📄 AGENTS.md                                       # AI agent instructions (Expo v57 docs note)
-├── 📄 CLAUDE.md                                       # Claude AI instructions (imports AGENTS.md)
-├── 📄 README.md                                       # Project documentation
-├── 📄 supabase_schema_structure(DONT_DELETE).txt      # Supabase schema backup (predates branches/
-│                                                       # user_profiles/activate_manager RPC - stale)
-├── 📄 project_structure(DONT_DELETE).txt              # This file
-├── 📄 .gitignore                                      # Git ignore rules
-├── ⚠️ test.env                                        # 🆕 Local file at root, NOT tracked by git
-│                                                       #    (matches *.env gitignore pattern) - confirm
-│                                                       #    with the team whether it's meant to be here
+├── 📄 App.js                                     # Entry: fonts, connection check, navigator
+├── 🔌 index.js                                   # registerRootComponent(App)
+├── ⚙️ app.json                                   # Expo configuration
+├── 📦 package.json                               # Expo ~57, React 19.2, React Native 0.85
+├── 📦 package-lock.json
+├── 📄 AGENTS.md                                  # Agent instructions (Expo docs note)
+├── 📄 CLAUDE.md                                  # Imports AGENTS.md
+├── 📄 README.md                                  # Project overview
+├── 📄 TO_DO_TASK.md                              # ⚠️ Older task list — see the MD Folder version
+├── 📄 supabase_schema_structure(DONT_DELETE).txt # Schema snapshot (see note below)
+├── 📄 project_structure(DONT_DELETE).txt         # This file
+├── 📄 LICENSE                                    # MIT
+├── 📄 .gitignore
+├── ⚠️ test.env                                   # Local file, not tracked — confirm with the team
+├── ⚠️ expo-export/                               # Export output — not part of the source
 │
-├── 📱 App.js                                          # Main app entry (fonts, connection check)
-├── ⚙️ app.json                                        # Expo app configuration
-├── 🔌 index.js                                        # App entry point
-├── 📜 LICENSE                                         # MIT License
-├── 📦 package.json                                    # Dependencies (Expo ~57, React 19, RN 0.85)
-└── 📦 package-lock.json                               # Locked dependencies
-```
-
-**Known repo hygiene issue (unresolved):** three stray 0-byte files from an old broken terminal paste are still present and not tracked in the tree above since they're clutter, not real project files: `./,`, `admin-cli/console.log('❌`, `admin-cli/{`. Safe to delete whenever someone gets to it.
-
-
-## 📊 UPDATED FILE COUNT SUMMARY
-
-| Category | Count | Files |
-|----------|-------|-------|
-| **Admin CLI** | 14 | index.js, server.js, package.json, package-lock.json, .env, .gitignore, install.bat, supabase.js, crypto.js, rateLimiter.js, auditLogger.js, web-ui/index.html, web-ui/style.css, web-ui/script.js |
-| **Capstone Docs** | 4 | [PROPOSAL] ChemStock.pdf, ChemStock_Sprint_Roadmap.pdf, ChemStock_Sprint_Roadmap.md, Jay_Sprint1.1.md |
-| **Components (common)** | 17 | ActionCard, AnimatedTextDot, BottomNavBar, Button, Card, Header, Icon, Input, KeyboardWrapper, LogListItem, Modal, ScreenContainer, SecondaryHeader, StatCard, Stepper, SuccessFrame, WarningSection |
-| **Components (ui)** | 3 | Divider, LoadingSpinner, Logo — ⚠️ all empty stubs |
-| **Constants** | 2 | colors, roles |
-| **Hooks** | 3 | useActivation, useAuth, useKeyboard |
-| **Navigation** | 2 | AppNavigator, AuthStack |
-| **Screens (auth)** | 2 | LoginScreen, ManagerActivationScreen |
-| **Screens (manager)** | 1 | ManagerDashboardScreen |
-| **Services** | 4 | activationService, authService, BaseService, supabaseClient |
-| **Styles** | 3 | globalStyles, spacing, typography |
-| **Utils** | 4 | logger, storage (empty), validationStrategies, validators (empty) |
-| **Root Files** | 3 | container.js, App.js, index.js |
-| **Total Files Tracked** | **58** | ✅ All files accounted for (excludes node_modules, .git, .expo) |
-
-
-## 🚀 MEMBER GUIDELINES - REUSABLE COMPONENTS & ARCHITECTURE
-
-### ⚠️ IMPORTANT: BEFORE YOU CODE, READ THIS!
-
-This project follows strict **OOP (Object-Oriented Programming)** and **SOLID Principles**. All code must adhere to the architecture below.
-
-
-### ✅ 1. ALWAYS USE REUSABLE COMPONENTS
-
-**NEVER create new components when you can reuse existing ones.**
-
-#### Component Library:
-
-| Component | Purpose | Location |
-|-----------|---------|----------|
-| **Button** | All buttons (primary, outline, danger) | `src/components/common/Button.js` |
-| **Input** | All form inputs with validation | `src/components/common/Input.js` |
-| **Card** | All card containers | `src/components/common/Card.js` |
-| **Header** | All app headers (back button, profile icon, doc/bell icons) | `src/components/common/Header.js` |
-| **SecondaryHeader** | Full-width info bar below the main Header, optional illustration slot | `src/components/common/SecondaryHeader.js` |
-| **Icon** | All icons — 9 hand-traced SVGs + Phosphor components (`weight` prop) | `src/components/common/Icon.js` |
-| **Modal** | All bottom sheets/modals | `src/components/common/Modal.js` |
-| **ScreenContainer** | All screen wrappers | `src/components/common/ScreenContainer.js` |
-| **Stepper** | Step indicator with connected line | `src/components/common/Stepper.js` |
-| **SuccessFrame** | Success toast overlay (fades after 3s) | `src/components/common/SuccessFrame.js` |
-| **WarningSection** | Warning section with red theme | `src/components/common/WarningSection.js` |
-| **StatCard** | Dashboard quick-stat tile (icon badge, value, label) | `src/components/common/StatCard.js` |
-| **ActionCard** | Dashboard menu grid tile (icon badge + title) | `src/components/common/ActionCard.js` |
-| **LogListItem** | Activity log row (icon badge + text) | `src/components/common/LogListItem.js` |
-| **BottomNavBar** | Fixed bottom tab bar + floating center FAB | `src/components/common/BottomNavBar.js` |
-| **LoadingSpinner** | ⚠️ Empty stub, not implemented yet | `src/components/ui/LoadingSpinner.js` |
-| **Divider** | ⚠️ Empty stub, not implemented yet | `src/components/ui/Divider.js` |
-
-#### ❌ DON'T DO THIS:
-```javascript
-// WRONG - Creating a custom button in a screen
-<TouchableOpacity style={styles.customButton}>
-  <Text>Submit</Text>
-</TouchableOpacity>
-```
-
-#### ✅ DO THIS:
-```javascript
-// CORRECT - Using reusable Button component
-import Button from '../../components/common/Button';
-
-<Button title="Submit" onPress={handleSubmit} variant="primary" />
-```
-
-
-### ✅ 2. OOP & SOLID PRINCIPLES - MANDATORY
-
-| Principle | Rule | Example |
-|-----------|------|---------|
-| **SRP** | One file = One responsibility | Screen = UI only, Hook = Logic, Service = API |
-| **OCP** | Extend, don't modify | Services extend BaseService |
-| **LSP** | Subtypes must be substitutable | All services can be mocked |
-| **ISP** | Small, focused interfaces | authService, activationService |
-| **DIP** | Depend on abstractions | Use container.js for DI |
-| **DRY** | Don't repeat yourself | colors.js, typography.js |
-| **KISS** | Keep it simple | Screens < 350 lines |
-| **YAGNI** | You ain't gonna need it | No premature code |
-
-
-### ✅ 3. DEPENDENCY INJECTION - MANDATORY
-
-**Always use container.js for service injection:**
-
-```javascript
-// ❌ WRONG - Direct import
-import authService from '../services/authService';
-
-// ✅ CORRECT - Use container
-import container from '../container';
-const authService = container.get('authService');
-```
-
-
-### ✅ 4. SCREEN ARCHITECTURE - MANDATORY
-
-**Screens MUST follow this pattern:**
-
-```
-Screen.js
-  ├── UI Only (JSX)
-  ├── Uses Hooks for logic
-  └── Uses Services for API
-```
-
-**Screen Structure:**
-```javascript
-export default function MyScreen() {
-  // 1. Hooks (useAuth, useActivation, etc.)
-  const { user, login } = useAuth();
-  
-  // 2. UI State (local state only)
-  const [localState, setLocalState] = useState();
-  
-  // 3. Handlers (call hooks)
-  const handleSubmit = () => { login(data); };
-  
-  // 4. Render (UI only)
-  return (
-    <ScreenContainer>
-      <Header />
-      <Input />
-      <Button />
-    </ScreenContainer>
-  );
-}
-```
-
-
-### ✅ 5. SERVICE ARCHITECTURE - MANDATORY
-
-**All services MUST extend BaseService:**
-
-```javascript
-// ✅ CORRECT
-import { BaseService } from './BaseService';
-
-class MyService extends BaseService {
-  constructor() {
-    super('MyService');
-  }
-  
-  async myMethod() {
-    return this.handleRequest(async () => {
-      // API call
-    });
-  }
-}
-```
-
-
-### ✅ 6. HOOKS ARCHITECTURE - MANDATORY
-
-**Hooks MUST implement MVVM ViewModel pattern:**
-
-```javascript
-// ✅ CORRECT
-class MyViewModel {
-  constructor(service) {
-    this.service = service;
-    this.state = {};
-  }
-  
-  async doSomething() {
-    // Logic here
-  }
-}
-
-export function useMyFeature() {
-  const viewModel = useRef(new MyViewModel(service));
-  // Return state and methods
-}
-```
-
-
-### ✅ 7. CONSTANTS - SINGLE SOURCE OF TRUTH
-
-| Constant File | Used For |
-|---------------|----------|
-| `colors.js` | ALL colors in the app |
-| `spacing.js` | ALL spacing values |
-| `typography.js` | ALL font styles |
-| `roles.js` | ALL user roles |
-
-**NEVER hardcode colors, spacing, or fonts:**
-
-```javascript
-// ❌ WRONG
-<Text style={{ color: '#FF0000', fontSize: 16 }}>
-
-// ✅ CORRECT
-import { COLORS } from '../constants/colors';
-import { TYPOGRAPHY } from '../styles/typography';
-<Text style={{ color: COLORS.error, fontSize: TYPOGRAPHY.fontSize.base }}>
-```
-
-
-### ✅ 8. VALIDATION - STRATEGY PATTERN
-
-**Use validationStrategies.js for ALL validation:**
-
-```javascript
-// ❌ WRONG
-if (!email || !email.includes('@')) { // Invalid }
-
-// ✅ CORRECT
-import { EmailValidationStrategy } from '../utils/validationStrategies';
-const emailStrategy = new EmailValidationStrategy();
-if (!emailStrategy.validate(email)) {
-  // Error handling
-}
-```
-
-
-### ✅ 9. LOGGING - CENTRALIZED
-
-**Use logger.js for ALL console logs:**
-
-```javascript
-// ❌ WRONG
-console.log('User logged in');
-
-// ✅ CORRECT
-import { debugLog } from '../utils/logger';
-debugLog('info', 'MyComponent', 'User logged in', { userId });
-```
-
-
-### ✅ 10. TESTING - MANDATORY
-
-**Every service MUST have a test file:**
-
-```
-src/services/__tests__/
-├── activationService.test.js
-├── authService.test.js
-└── BaseService.test.js
-```
-
-
-## 🔒 SECURITY PRINCIPLES IMPLEMENTED
-
-| Principle | Implementation | Status |
-|-----------|----------------|--------|
-| **Least Privilege** | RLS policies restrict data access | ✅ Configured |
-| **Defense in Depth** | Multiple layers of validation | ✅ |
-| **Input Validation** | validationStrategies.js validates all inputs | ✅ |
-| **SQL Injection Prevention** | Supabase parameterized queries | ✅ |
-| **Authentication** | JWT-based authentication | ✅ |
-| **Authorization** | Role-based access control | ✅ |
-| **Secure Storage** | AsyncStorage for tokens | ✅ |
-| **CORS** | Admin CLI configured with CORS | ✅ |
-| **Environment Variables** | Sensitive data in .env | ✅ |
-| **Error Handling** | No sensitive info in errors | ✅ |
-| **Rate Limiting** | express-rate-limit middleware | ✅ DONE! |
-| **Audit Trail** | auditLogger.js tracks all activations | ✅ DONE! |
-| **Audit Logs UI** | Admin dashboard audit logs view | ✅ DONE! |
-| **Session Management** | Token refresh, session persistence | ✅ |
-| **Secret Scanning** | GitHub Push Protection enabled | ✅ DONE! |
-| **Pre-commit Hook** | Blocks .env, .pem, .key, secrets | ✅ DONE! |
-| **.gitignore** | Comprehensive security exclusions | ✅ DONE! |
-| **HTTPS** | Production requires HTTPS | ⚠️ PENDING |
-
-
-## 🛡️ CRITICAL WARNINGS - DETAILED
-
-### ⚠️ WARNING 1: RLS IS DISABLED ON activation_keys
-```
-🔴 SEVERITY: CRITICAL
-📍 LOCATION: Supabase Database - activation_keys table
-📋 DESCRIPTION: Row Level Security (RLS) is currently disabled on the activation_keys table.
-                  This means ANYONE with API access can read/modify activation codes.
-
-🔧 FIX: Run in Supabase SQL Editor:
-   ALTER TABLE activation_keys ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "Users can read their own activation keys" ON activation_keys
-     FOR SELECT USING (auth.uid() = user_id);
-   CREATE POLICY "Admins can manage activation keys" ON activation_keys
-     FOR ALL USING (auth.role() = 'admin');
-
-⏰ DEADLINE: Before Production Deployment (🔴 URGENT)
-📌 STATUS: ⬜ PENDING - Development mode (okay for now but FIX BEFORE PRODUCTION)
-⚠️ RISK: Unauthorized access to activation codes, potential security breach
-```
-
-### ⚠️ WARNING 2: Service Role Key in .env (Development)
-```
-🔴 SEVERITY: HIGH
-📍 LOCATION: admin-cli/.env
-📋 DESCRIPTION: Service role key is stored in plain text .env file in development.
-                  This key has FULL database access and bypasses all RLS policies.
-
-🔧 FIX: 
-   1. Ensure admin-cli/.env is in .gitignore (✅ VERIFIED)
-   2. In production, use secure environment variables:
-      - AWS Secrets Manager
-      - Vercel Environment Variables
-      - GitHub Secrets (for CI/CD)
-      - Docker secrets
-   3. Never hardcode in source code
-
-⏰ DEADLINE: Before Production Deployment
-📌 STATUS: ✅ VERIFIED - .env is properly gitignored and NOT committed
-⚠️ RISK: If exposed, an attacker could DELETE ALL data
-```
-
-### ⚠️ WARNING 3: Missing profiles Table
-```
-🔴 SEVERITY: HIGH
-📍 LOCATION: Supabase Database
-📋 DESCRIPTION: The 'profiles' table does not exist in the database.
-                  This table is required for:
-                  - User profile storage
-                  - Role-based access control
-                  - User metadata (name, role, branch)
-
-🔧 FIX: Create profiles table with proper schema:
-   CREATE TABLE profiles (
-     id UUID REFERENCES auth.users(id) PRIMARY KEY,
-     email TEXT NOT NULL,
-     full_name TEXT,
-     role TEXT NOT NULL DEFAULT 'sales_rep',
-     branch_id TEXT,
-     branch_name TEXT,
-     phone TEXT,
-     avatar_url TEXT,
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-   );
-   ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
-⏰ DEADLINE: Before User Testing (🔴 URGENT)
-📌 STATUS: ⬜ PENDING - Next task!
-⚠️ RISK: Users cannot be properly created or managed without profiles
-```
-
-### ⚠️ WARNING 4: Missing handle_new_user() Trigger
-```
-🟡 SEVERITY: HIGH
-📍 LOCATION: Supabase Database - Auth Triggers
-📋 DESCRIPTION: No trigger to automatically create profile records when new users sign up.
-                  This means profiles table will never be populated automatically.
-
-🔧 FIX: Create trigger function and trigger:
-   CREATE OR REPLACE FUNCTION public.handle_new_user()
-   RETURNS TRIGGER AS $$
-   BEGIN
-     INSERT INTO public.profiles (id, email, full_name, role, created_at, updated_at)
-     VALUES (
-       NEW.id,
-       NEW.email,
-       COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
-       COALESCE(NEW.raw_user_meta_data->>'role', 'sales_rep'),
-       NOW(),
-       NOW()
-     );
-     RETURN NEW;
-   END;
-   $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-   CREATE TRIGGER on_auth_user_created
-     AFTER INSERT ON auth.users
-     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
-⏰ DEADLINE: Before User Testing
-📌 STATUS: ⬜ PENDING
-⚠️ RISK: New users won't have profiles, causing errors in app
-```
-
-### ⚠️ WARNING 5: Missing validate_activation_code() Function
-```
-🟡 SEVERITY: MEDIUM
-📍 LOCATION: Supabase Database
-📋 DESCRIPTION: No database function to validate activation codes securely.
-                  Currently validation is handled in application code only.
-
-🔧 FIX: Create function in Supabase SQL Editor:
-   CREATE OR REPLACE FUNCTION validate_activation_code(p_code TEXT)
-   RETURNS TABLE(
-     valid BOOLEAN,
-     message TEXT,
-     branch_id TEXT,
-     branch_name TEXT
-   ) LANGUAGE plpgsql SECURITY DEFINER AS $$
-   DECLARE
-     v_key RECORD;
-   BEGIN
-     SELECT * INTO v_key FROM activation_keys 
-     WHERE code = p_code AND used = false;
-     
-     IF NOT FOUND THEN
-       RETURN QUERY SELECT false, 'Invalid activation code', NULL::TEXT, NULL::TEXT;
-       RETURN;
-     END IF;
-     
-     IF v_key.expires_at IS NOT NULL AND v_key.expires_at < NOW() THEN
-       RETURN QUERY SELECT false, 'Activation code expired', NULL::TEXT, NULL::TEXT;
-       RETURN;
-     END IF;
-     
-     RETURN QUERY SELECT true, 'Code is valid', v_key.branch_id, v_key.branch_name;
-   END;
-   $$;
-
-⏰ DEADLINE: Before User Testing
-📌 STATUS: ⬜ PENDING
-⚠️ RISK: Less secure validation, potential SQL injection in app code
-```
-
-### ⚠️ WARNING 6: Missing Custom JWT Claims
-```
-🟡 SEVERITY: MEDIUM
-📍 LOCATION: Supabase Auth - JWT Configuration
-📋 DESCRIPTION: No custom JWT claims for role-based authentication.
-                  Role information is not embedded in the JWT token.
-
-🔧 FIX: Create function to add custom claims:
-   CREATE OR REPLACE FUNCTION get_user_role(p_email TEXT)
-   RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
-   DECLARE
-     v_role TEXT;
-   BEGIN
-     SELECT role INTO v_role FROM profiles WHERE email = p_email;
-     RETURN COALESCE(v_role, 'sales_rep');
-   END;
-   $$;
-
-   -- Then add custom claims in auth trigger
-   -- Use Supabase's raw_user_meta_data to store role
-
-⏰ DEADLINE: Before User Testing
-📌 STATUS: ⬜ PENDING
-⚠️ RISK: Role checks will require additional database queries
-```
-
-### ⚠️ WARNING 7: Missing Email Templates
-```
-🟡 SEVERITY: MEDIUM
-📍 LOCATION: Supabase Auth - Email Templates
-📋 DESCRIPTION: No custom email templates for:
-                  - Email confirmation
-                  - Password reset
-                  - Magic link login
-                  - Activation confirmation
-
-🔧 FIX: Configure in Supabase Dashboard:
-   Settings → Authentication → Email Templates
-   Customize templates for your brand
-
-⏰ DEADLINE: Before User Testing
-📌 STATUS: ⬜ PENDING
-⚠️ RISK: Generic Supabase emails will be sent to users
-```
-
-### ⚠️ WARNING 8: Old Exposed Keys Still Active
-```
-🔴 SEVERITY: CRITICAL
-📍 LOCATION: Supabase API Keys
-📋 DESCRIPTION: Old exposed ANON and SERVICE_ROLE keys are still active in Supabase.
-                  These keys were exposed in previous commits and are publicly known.
-
-🔧 FIX: 
-   1. ✅ NEW keys created and deployed
-   2. ⬜ Delete/Revoke old keys in Supabase Dashboard:
-      - Settings → API → Previously used keys
-      - Click three dots → Revoke on old anon key
-      - Click three dots → Revoke on old service_role key
-
-⏰ DEADLINE: IMMEDIATELY! (🔴 CRITICAL)
-📌 STATUS: ⬜ PENDING - Must complete immediately!
-⚠️ RISK: Old keys can still be used to access your database!
-```
-
-### ⚠️ WARNING 9: API Keys in Git History
-```
-🔴 SEVERITY: HIGH
-📍 LOCATION: Git Repository History
-📋 DESCRIPTION: Old API keys are still in Git history even though they've been removed.
-                  Anyone with access to the repo can view them.
-
-🔧 FIX: Remove from Git history using BFG Repo-Cleaner:
-   1. Download BFG: https://rtyley.github.io/bfg-repo-cleaner/
-   2. java -jar bfg.jar --delete-files ".env" --delete-files "admin-cli/.env"
-   3. git push --force
-
-⏰ DEADLINE: ASAP
-📌 STATUS: ⬜ PENDING - GitHub push protection now active
-⚠️ RISK: Historical exposure of keys
-```
-
-
-## ✅ ACTION ITEMS CHECKLIST - UPDATED
-
-### 🔴 PRIORITY 1 - CRITICAL (Do Immediately!)
-
-- [ ] **REVOKE OLD KEYS** in Supabase Dashboard (old anon and service_role)
-- [ ] **VERIFY NEW KEYS** are working in all files
-- [ ] **CLEAN GIT HISTORY** of exposed keys (use BFG Repo-Cleaner)
-- [ ] **ENABLE RLS** on activation_keys table (with policies)
-- [ ] **CREATE** profiles table
-- [ ] **CREATE** handle_new_user() trigger for auto-profile creation
-
-### 🟡 PRIORITY 2 - HIGH (Before User Testing)
-
-- [ ] **CREATE** validate_activation_code() function in database
-- [ ] **ADD** custom JWT claims for role-based auth
-- [ ] **CONFIGURE** email templates in Supabase
-- [ ] **IMPLEMENT** activation transaction
-- [ ] **ADD** unit tests for all services
-- [ ] **ADD** integration tests
-
-### 🟢 PRIORITY 3 - MEDIUM (During Development)
-
-- [ ] **ADD** ESLint configuration
-- [ ] **ADD** PropTypes validation
-- [ ] **ADD** TypeScript types (optional)
-- [ ] **ADD** CI/CD pipeline
-- [ ] **ENABLE** HTTPS in production
-- [ ] **IMPLEMENT** rate limiting in mobile app
-
-### ✅ ALREADY COMPLETED
-
-- [x] Rate Limiting - `rateLimiter.js`
-- [x] Audit Logging - `auditLogger.js`
-- [x] Audit Logs UI - Admin dashboard
-- [x] Security Headers - XSS, X-Frame protection
-- [x] SQL Injection Prevention - Parameterized queries
-- [x] XSS Protection - escapeHtml() function
-- [x] RLS on activation_audit_log
-- [x] RLS on activation_keys
-- [x] CORS Configuration
-- [x] Environment Variables - .env
-- [x] GitHub Push Protection - Enabled
-- [x] Pre-commit Hook - Blocks secrets
-- [x] .gitignore - Comprehensive exclusions
-- [x] NEW Supabase Keys - Created and deployed
-- [x] Updated supabaseClient.js with new publishable key
-- [x] Updated admin-cli/config/supabase.js
-- [x] Updated App.js - Removed profiles check
-- [x] LoginScreen keyboard fix - Dynamic bottom sheet with useKeyboard
-- [x] ManagerActivationScreen keyboard fix - softwareKeyboardLayoutMode: "pan"
-- [x] Stepper component - Connected line with dots on both ends
-- [x] SuccessFrame component - Toast overlay that fades after 3s
-- [x] WarningSection component - Red themed warning section
-
-
-## 📋 CODE REVIEW CHECKLIST
-
-When submitting code for review, ensure:
-
-- [ ] All components are reusable (not screen-specific)
-- [ ] Uses container.js for dependency injection
-- [ ] Extends BaseService for all services
-- [ ] Uses validationStrategies.js for validation
-- [ ] Uses logger.js for logging
-- [ ] No hardcoded colors, spacing, or fonts
-- [ ] Screens < 350 lines
-- [ ] PropTypes defined for all components
-- [ ] Documentation comments added
-- [ ] Passes all tests
-- [ ] No .env files in commit
-- [ ] No hardcoded credentials
-- [ ] Pre-commit hook ran successfully
-
-
-## 🎯 FINAL NOTE TO ALL MEMBERS
-
-### ✅ WHAT'S BEEN COMPLETED (ALL SECURITY FEATURES!)
-
-1. ✅ **Rate Limiting** - `rateLimiter.js` with express-rate-limit
-2. ✅ **Audit Logging** - `auditLogger.js` tracks all activations
-3. ✅ **Audit Logs UI** - Admin dashboard audit logs view
-4. ✅ **Security Headers** - XSS, X-Frame, Content-Type protection
-5. ✅ **SQL Injection Prevention** - Supabase parameterized queries
-6. ✅ **XSS Protection** - escapeHtml() function
-7. ✅ **RLS on activation_audit_log** - Database level security
-8. ✅ **RLS on activation_keys** - Database level security
-9. ✅ **CORS Configuration** - Configured for dev/prod
-10. ✅ **Environment Variables** - .env for sensitive data
-11. ✅ **GitHub Push Protection** - Enabled and active
-12. ✅ **Pre-commit Hook** - Blocks .env, .pem, .key, secrets
-13. ✅ **.gitignore** - Comprehensive security exclusions
-14. ✅ **NEW Supabase Keys** - Created and deployed
-15. ✅ **Updated Service Files** - All using new keys
-16. ✅ **LoginScreen keyboard fix** - Dynamic bottom sheet with useKeyboard
-17. ✅ **ManagerActivationScreen keyboard fix** - softwareKeyboardLayoutMode: "pan"
-18. ✅ **Stepper component** - Connected line with dots on both ends
-19. ✅ **SuccessFrame component** - Toast overlay that fades after 3s
-20. ✅ **WarningSection component** - Red themed warning section
-
-### ⬜ WHAT'S PENDING (CRITICAL - ACT NOW!)
-
-1. 🔴 **REVOKE OLD SUPABASE KEYS** - DO THIS NOW!
-2. 🔴 **CLEAN GIT HISTORY** - Remove exposed keys from history
-3. 🔴 **CREATE profiles table** - Next task!
-4. 🔴 **CREATE handle_new_user() trigger** - Auto-create profiles
-5. 🟡 **CREATE validate_activation_code() function** - Secure activation
-6. 🟡 **ADD custom JWT claims** - Role-based auth
-7. 🟡 **CONFIGURE email templates** - Activation emails
-
-### 🚀 NEXT TASK
-
-**Immediate:** 
-1. Revoke old Supabase keys in dashboard
-2. Create profiles table
-3. Create handle_new_user() trigger
-
-**Then:** Continue developing the app features!
-
----
-
-**⚠️ DO NOT IGNORE THE WARNINGS!** 
-Security is not optional. All production security features must be completed before launch. The old keys MUST be revoked to prevent unauthorized access.
-
----
-
-**📊 PROJECT STATUS: 88% COMPLETE** 🎉
-**🔴 SECURITY STATUS: 60% COMPLETE** (Old keys MUST be revoked!)
+└── ⚠️ Stray files (0 bytes, from a broken paste — safe to delete):
+      ,                                            # repo root
+      admin-cli/console.log('❌                     # admin-cli
+      admin-cli/{                                 # admin-cli
 ```
 
 ---
 
-## 📋 NEW FILES ADDED TO STRUCTURE
+## 📊 SUMMARY
 
-| File | Path | Description |
-|------|------|-------------|
-| `Stepper.js` | `src/components/common/Stepper.js` | Step indicator with connected line, dots on both ends |
-| `SuccessFrame.js` | `src/components/common/SuccessFrame.js` | Success toast overlay that fades after 3 seconds |
-| `WarningSection.js` | `src/components/common/WarningSection.js` | Warning section with red icon, red text, smaller description |
-
----
-
-## 📋 NEW FILES ADDED TO STRUCTURE (Sprint 1 — Manager Dashboard build)
-
-| File | Path | Description |
-|------|------|--------------|
-| `SecondaryHeader.js` | `src/components/common/SecondaryHeader.js` | Full-width info bar below the main Header; optional right-side illustration slot |
-| `StatCard.js` | `src/components/common/StatCard.js` | Quick-stat tile (icon badge, value, label) |
-| `ActionCard.js` | `src/components/common/ActionCard.js` | Menu grid tile (icon badge + title) |
-| `LogListItem.js` | `src/components/common/LogListItem.js` | Activity log row (icon badge + text) |
-| `BottomNavBar.js` | `src/components/common/BottomNavBar.js` | Fixed 4-tab bottom bar with floating center FAB |
-| `ManagerDashboardScreen.js` | `src/screens/manager/ManagerDashboardScreen.js` | First manager dashboard screen — was previously an empty folder |
-
-**Also updated (not new files, but meaningfully changed this sprint):**
-- `Header.js` — added `showProfileIcon`, `showDocumentIcon`, `showNotificationIcon`, and a configurable `paddingHorizontal`
-- `Icon.js` — added `profile`, `document`, `notification`, `location`, `package`, `person`, `trayDown`, `trayUp`, `checkCircle`, `returns`, `warning`, `navigation`, `users`, `home`, `bookmark`, `settings`, `grid` (all real Phosphor components, verified against the installed package source, supporting `weight="fill"` etc.)
-- `colors.js` — added an accent palette (`accentGold`, `accentPink`, `accentPurple`, `accentOrange`, `accentBlue`) for dashboard badges
-- `authService.js` — `login()`/`getCurrentUser()` now fetch the `user_profiles` row and look up branch name(s) from a `branches` table
-- `activationService.js` — `activateManager()` now calls an `activate_manager` Postgres RPC instead of separate sequential writes
-
-**⚠️ Codebase-wide note:** this project runs **React 19** (`package.json`), which removed support for `Component.defaultProps` on function components — it's silently ignored. Components written before this was known (most of the original component library) happen to survive because they *also* declare defaults as ES6 parameters in the destructuring; new components should use ES6 default parameters only, not `.defaultProps`.
+| Area | Count | Notes |
+|------|-------|-------|
+| JavaScript files in `src/` | 161 | About 34,600 lines |
+| Screens | 55 | Manager 26 · Sales Rep 17 · Collector 7 · Common 3 · Auth 2 |
+| Shared components | 49 | `components/common/` |
+| Services | 12 | Extend `BaseService` |
+| Hooks | 9 | MVVM view-models plus UI hooks |
+| Utilities | 17 | Some still placeholders (see below) |
+| SQL migrations | 21 | Run in date order in Supabase |
 
 ---
 
-**Project structure updated successfully!** 🚀
+## 🏗️ ARCHITECTURE
+
+| Layer | Location | Responsibility |
+|-------|----------|----------------|
+| UI | `screens/`, `components/` | Layout and rendering only |
+| Logic | `hooks/` | View-model state and actions |
+| Data | `services/` | Supabase calls, extend `BaseService` |
+| Database rules | `capstone_docs/sql/` | Row-level security and RPCs (`SECURITY DEFINER`) |
+| Shared style | `constants/colors.js`, `styles/` | Single source for colours, spacing, type |
+
+**Patterns in use**
+- **Shared components first:** map legend, glass panel, zoom controls, timeline, confirm dialog, and status pills are each defined once.
+- **Constants as the source of truth:** no hard-coded colours, spacing, or fonts in new code.
+- **Caching:** `authService` caches the current user for 60 s; `useCachedFocusLoader` caches screen data.
+- **Agents use the anon key:** Sales Reps and Collectors aren't Supabase Auth users, so their data comes through `SECURITY DEFINER` RPCs that check the caller's role and ID.
+
+---
+
+## ⚠️ KNOWN ISSUES AND STALE ITEMS
+
+- `constants/roles.js` uses `'salesrep'`, but the database and screens use `'sales_rep'`. Pick one and update both.
+- `styles/globalStyles.js` references `COLORS.backgroundWhite`, which doesn't exist.
+- `components/ui/Divider.js`, `LoadingSpinner.js`, and `Logo.js` are empty stubs. `storage.js` and `validators.js` are not yet used.
+- `TO_DO_TASK.md` and `supabase_schema_structure(DONT_DELETE).txt` are older snapshots. The TODO in `capstone_docs/MD Folder/` and the SQL folder are the current sources.
+- `expo-export/` and `test.env` are not part of the source. Confirm with the team before tracking or deleting them.
+- Three stray 0-byte files are listed above. Delete them when convenient.
