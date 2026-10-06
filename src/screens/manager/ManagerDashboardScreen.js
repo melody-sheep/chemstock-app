@@ -20,6 +20,7 @@ import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
+import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -109,7 +110,7 @@ export default function ManagerDashboardScreen() {
     const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
     const branchIds = currentUser?.branchIds || [];
-    const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult, reportsResult, discrepanciesResult] =
+    const [stockResult, logsResult, agentsResult, requestsResult, deliveriesResult, reportsResult, discrepanciesResult, notificationsResult] =
       await Promise.all([
         inventoryService.getBranchStock(branchIds),
         inventoryService.getActivityLogs(branchIds, 3),
@@ -118,6 +119,7 @@ export default function ManagerDashboardScreen() {
         inventoryService.getDeliveries(branchIds, 10),
         reportService.getBranchDailyReports(50),
         reportService.getBranchDiscrepancies(200),
+        notificationService.getMyNotifications(),
       ]);
 
     const reports = reportsResult.success ? reportsResult.data : [];
@@ -163,6 +165,9 @@ export default function ManagerDashboardScreen() {
         ? requestsResult.data.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId))
             .length
         : prev?.pendingRequestCount ?? null,
+      notificationCount: notificationsResult.success
+        ? notificationsResult.unreadCount
+        : prev?.notificationCount ?? 0,
     };
   };
 
@@ -174,6 +179,7 @@ export default function ManagerDashboardScreen() {
   const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
   const pendingReportCount = snapshot?.pendingReportCount ?? 0;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
+  const notificationCount = snapshot?.notificationCount ?? 0;
 
   const managerName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
@@ -270,6 +276,8 @@ export default function ManagerDashboardScreen() {
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('StockLogs')}
           showNotificationIcon={true}
+          onNotificationPress={() => navigation.navigate('Notifications')}
+          notificationCount={notificationCount}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

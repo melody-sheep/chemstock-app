@@ -14,6 +14,7 @@ import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -41,6 +42,7 @@ export default function CollectorDashboardScreen() {
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as the other dashboards — see
@@ -61,8 +63,12 @@ export default function CollectorDashboardScreen() {
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
 
-    const result = await deliveryService.getMyCollectorDeliveries(currentUser?.id);
+    const [result, notificationsResult] = await Promise.all([
+      deliveryService.getMyCollectorDeliveries(currentUser?.id),
+      notificationService.getMyNotifications(currentUser?.id),
+    ]);
     const all = result.success ? result.data : [];
+    setNotificationCount(notificationsResult.unreadCount || 0);
 
     setPendingCount(all.filter((d) => d.stage === 'pending_pickup').length);
 
@@ -151,6 +157,8 @@ export default function CollectorDashboardScreen() {
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('CollectorDeliveredStock')}
           showNotificationIcon={true}
+          onNotificationPress={() => navigation.navigate('Notifications')}
+          notificationCount={notificationCount}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
