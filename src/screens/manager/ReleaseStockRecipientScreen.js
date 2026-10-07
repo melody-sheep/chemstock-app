@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
@@ -16,6 +17,7 @@ import agentService from '../../services/agentService';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
 import { getInitials } from '../../utils/initials';
+import { formatClockTime } from '../../utils/formatters';
 import { ROLES } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -31,6 +33,7 @@ const ROLE_TABS = [
 export default function ReleaseStockRecipientScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const connection = useConnectionStatus();
   // Set when this screen was reached via "Prepare" on a Sales Rep's stock
   // request (AgentStockRequestScreen) — pre-fills the requester as recipient
   // and skips the manual scan/quick-register choice entirely, since the
@@ -177,8 +180,10 @@ export default function ReleaseStockRecipientScreen() {
           <View style={styles.titleRow}>
             <Text style={styles.pageTitle}>Give Out Stock</Text>
             <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
+                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              </Text>
             </View>
           </View>
         </SecondaryHeader>
@@ -196,7 +201,7 @@ export default function ReleaseStockRecipientScreen() {
                 branches={branches}
                 selectedId={selectedBranchId}
                 onSelect={setSelectedBranchId}
-                edgePadding={SPACING.md}
+                edgePadding={0}
               />
             </>
           )}
@@ -366,6 +371,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
+  onlineTextOffline: { color: COLORS.warning },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: 24 },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,

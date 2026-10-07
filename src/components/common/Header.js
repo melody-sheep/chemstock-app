@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Icon from './Icon';
 import UserAvatar from './UserAvatar';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import { formatClockTime } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -49,6 +51,7 @@ export default function Header({
 }) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const connection = useConnectionStatus();
 
   const handleBackPress = () => {
     try {
@@ -144,9 +147,9 @@ export default function Header({
       <View style={styles.rightSection}>
         {showOnlineStatus && (
           <View style={styles.onlineContainer}>
-            <View style={styles.onlineDot} />
-            <Text style={[styles.onlineText, { color: textColor }]}>
-              Online
+            <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+            <Text style={[styles.onlineText, { color: textColor }, !connection.online && styles.onlineTextOffline]}>
+              {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
             </Text>
           </View>
         )}
@@ -289,6 +292,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     marginRight: SPACING.xs,
   },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
+  onlineTextOffline: { color: COLORS.warning },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

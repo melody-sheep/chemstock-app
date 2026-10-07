@@ -3,6 +3,7 @@ import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, Image, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -18,7 +19,7 @@ import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { formatRelativeTime } from '../../utils/formatters';
+import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
 
 // Same layout/spec as ManagerDashboardScreen and SalesRepDashboardScreen —
 // this constant intentionally matches theirs so the collapsing header
@@ -38,6 +39,7 @@ const MAIN_OPERATIONS = [
 
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
+  const connection = useConnectionStatus();
   const [user, setUser] = useState(null);
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
@@ -190,8 +192,10 @@ export default function CollectorDashboardScreen() {
                   <Text style={styles.statusText}>Status</Text>
 
                   <View style={styles.statusGroup}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.statusText}>Online</Text>
+                    <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+                    <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
+                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                    </Text>
                   </View>
 
                   <View style={styles.statusGroup}>
@@ -394,12 +398,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#00FF6E',
   },
+  onlineDotOffline: {
+    backgroundColor: '#FFE6AD',
+    borderColor: COLORS.warning,
+  },
   statusText: {
     fontSize: 14,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#555353',
   },
+  onlineTextOffline: { color: COLORS.warning },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

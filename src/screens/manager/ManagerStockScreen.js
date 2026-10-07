@@ -1,13 +1,16 @@
 // src/screens/manager/ManagerStockScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import StockBatchCard from '../../components/common/StockBatchCard';
+import StockSectionHeader from '../../components/common/StockSectionHeader';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import FilterSheet from '../../components/common/FilterSheet';
@@ -22,48 +25,55 @@ import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inven
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil } from '../../utils/formatters';
+import { daysUntil, formatClockTime } from '../../utils/formatters';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
 const EXPIRY_FILTER_OPTIONS = [
-  { key: 'all', label: 'All Batches' },
-  { key: 'nearExpiry', label: 'Near Expiry Only' },
+  { key: 'all', label: 'All Batches', description: 'Show every batch, regardless of expiry', icon: 'grid' },
+  { key: 'nearExpiry', label: 'Near Expiry Only', description: 'Only batches expiring soon', icon: 'warningTriangle' },
 ];
+
+// Returns the full stock snapshot. A request that fails keeps its value from
+// the previous snapshot instead of blanking the screen — same pattern the
+// dashboards already use.
+const loadStockData = async (previous) => {
+  const currentManager = await authService.getCurrentUser();
+  const prev = previous?.manager?.id === currentManager?.id ? previous : null;
+
+  // Each branch has its own storage, so the screen shows one branch at a time.
+  const branchIds = currentManager?.branchIds || [];
+  const agentBranches = await requestService.getAgentBranches(branchIds);
+  const result = await inventoryService.getBranchStock(branchIds);
+
+  return {
+    manager: currentManager,
+    branches: agentBranches,
+    stock: result.success ? result.data : prev?.stock ?? [],
+  };
+};
 
 export default function ManagerStockScreen() {
   const navigation = useNavigation();
-  const [manager, setManager] = useState(null);
-  const [stock, setStock] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const connection = useConnectionStatus();
+  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock', loadStockData);
+  const manager = snapshot?.manager ?? null;
+  const branches = snapshot?.branches ?? [];
+  const stock = snapshot?.stock ?? [];
   const [searchText, setSearchText] = useState('');
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
-  const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
 
-  const loadStock = useCallback(async () => {
-    setIsLoading(true);
-    const currentManager = await authService.getCurrentUser();
-    setManager(currentManager);
-
-    // Each branch has its own storage, so the screen shows one branch at a time.
-    const branchIds = currentManager?.branchIds || [];
-    const agentBranches = await requestService.getAgentBranches(branchIds);
-    setBranches(agentBranches);
-    setSelectedBranchId((prev) => prev ?? agentBranches[0]?.id ?? null);
-
-    const result = await inventoryService.getBranchStock(branchIds);
-    setStock(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadStock();
-    }, [loadStock])
-  );
+  // Defaults to the first branch exactly once, when branches first arrive —
+  // a manual pick is never overwritten by a background refresh. Kept out of
+  // the cached snapshot itself since it's interaction state, not server data.
+  useEffect(() => {
+    if (!selectedBranchId && branches.length > 0) {
+      setSelectedBranchId(branches[0].id);
+    }
+  }, [branches, selectedBranchId]);
 
   const handleDocumentPress = () => {
     navigation.navigate('StockLogs');
@@ -186,44 +196,59 @@ export default function ManagerStockScreen() {
               <Text style={styles.branchSubtitle}>Branch Inventory</Text>
             </View>
             <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
+                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              </Text>
             </View>
           </View>
         </SecondaryHeader>
 
-        <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+        <View style={styles.stockHeaderStatic}>
+          <BranchSelector
+            branches={branches}
+            selectedId={selectedBranchId}
+            onSelect={setSelectedBranchId}
+            edgePadding={SPACING.md}
+          />
 
-        <View style={styles.searchRow}>
-          <View style={styles.searchInputWrap}>
-            <Input icon="search" placeholder="Search products" value={searchText} onChangeText={setSearchText} />
-          </View>
-          <TouchableOpacity
-            style={styles.filterButtonWrap}
-            onPress={handleFilterPress}
-            activeOpacity={0.7}
-            accessibilityLabel="Filters"
-            accessibilityRole="button"
-          >
-            <Icon name="filter" size={20} color={COLORS.primary} />
-            {expiryFilter !== 'all' && <View style={styles.filterActiveDot} />}
-          </TouchableOpacity>
-        </View>
-
-        {expiryFilter !== 'all' && (
-          <View style={styles.activeFilterRow}>
-            <View style={styles.activeFilterChip}>
-              <Text style={styles.activeFilterChipText}>Near Expiry Only</Text>
-              <TouchableOpacity
-                onPress={() => setExpiryFilter('all')}
-                accessibilityLabel="Clear filter"
-                accessibilityRole="button"
-              >
-                <Icon name="xCircle" size={16} color={COLORS.primary} weight="fill" />
-              </TouchableOpacity>
+          <View style={styles.searchRow}>
+            <View style={styles.searchInputWrap}>
+              <Input
+                icon="search"
+                placeholder="Search products"
+                value={searchText}
+                onChangeText={setSearchText}
+                height={40}
+              />
             </View>
+            <TouchableOpacity
+              style={styles.filterButtonWrap}
+              onPress={handleFilterPress}
+              activeOpacity={0.7}
+              accessibilityLabel="Filters"
+              accessibilityRole="button"
+            >
+              <Icon name="filter" size={18} color={COLORS.primary} />
+              {expiryFilter !== 'all' && <View style={styles.filterActiveDot} />}
+            </TouchableOpacity>
           </View>
-        )}
+
+          {expiryFilter !== 'all' && (
+            <View style={styles.activeFilterRow}>
+              <View style={styles.activeFilterChip}>
+                <Text style={styles.activeFilterChipText}>Near Expiry Only</Text>
+                <TouchableOpacity
+                  onPress={() => setExpiryFilter('all')}
+                  accessibilityLabel="Clear filter"
+                  accessibilityRole="button"
+                >
+                  <Icon name="xCircle" size={16} color={COLORS.primary} weight="fill" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
 
         {isLoading ? (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -245,30 +270,35 @@ export default function ManagerStockScreen() {
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
-              <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>
-            </View>
+            <StockSectionHeader
+              dotColor={COLORS.success}
+              label="In-Stock"
+              tooltip="These products have healthy stock levels — no action needed."
+            />
             {healthyBatches.length > 0 ? (
               renderBatchRow(healthyBatches)
             ) : (
               <Text style={styles.emptyText}>No batches at healthy levels right now.</Text>
             )}
 
-            <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
-              <View style={[styles.statusDot, { backgroundColor: COLORS.warning }]} />
-              <Text style={styles.sectionTitle}>Almost Out of Stock (Resupply Soon)</Text>
-            </View>
+            <StockSectionHeader
+              dotColor={COLORS.warning}
+              label="Almost Out"
+              tooltip="These products are running low — plan to resupply soon."
+              style={styles.sectionSpacing}
+            />
             {lowStockBatches.length > 0 ? (
               renderBatchRow(lowStockBatches)
             ) : (
               <Text style={styles.emptyText}>Nothing running low right now.</Text>
             )}
 
-            <View style={[styles.sectionHeaderRow, styles.sectionSpacing]}>
-              <View style={[styles.statusDot, { backgroundColor: COLORS.error }]} />
-              <Text style={styles.sectionTitle}>Out of Stock (Empty Shelves)</Text>
-            </View>
+            <StockSectionHeader
+              dotColor={COLORS.error}
+              label="Out of Stock"
+              tooltip="These products have no stock left on the shelf."
+              style={styles.sectionSpacing}
+            />
             {outOfStockProducts.length > 0 ? (
               renderOutOfStockRow()
             ) : (
@@ -340,6 +370,16 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
+  onlineTextOffline: { color: COLORS.warning },
+  // Static now (the scroll-hide version was pulled after three attempts
+  // never worked right) — the bottom border is what visually separates it
+  // from the stock cards below instead.
+  stockHeaderStatic: {
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEFF5',
+  },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -349,9 +389,9 @@ const styles = StyleSheet.create({
   },
   searchInputWrap: { flex: 1, marginBottom: -SPACING.md },
   filterButtonWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     borderWidth: 0.5,
     borderColor: '#757575',
     alignItems: 'center',
@@ -394,24 +434,7 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.sm,
     paddingBottom: 96,
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
   sectionSpacing: { marginTop: SPACING.md },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
   cardRow: {
     gap: SPACING.sm,
     paddingRight: SPACING.sm,

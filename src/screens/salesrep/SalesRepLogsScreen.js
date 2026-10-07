@@ -1,8 +1,9 @@
 // src/screens/salesrep/SalesRepLogsScreen.js
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
@@ -57,51 +58,54 @@ function getLogKey(log) {
   return `acceptance-${log.acceptanceId}`;
 }
 
+// Returns the full logs snapshot. If every sub-fetch failed (e.g. fully
+// offline), keeps the previous merged list entirely rather than rebuilding
+// from a mix of fresh-but-empty pieces.
+const loadLogsData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agentId === agent?.id ? previous : null;
+  const [logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
+    inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT),
+    requestService.getMyStockRequests(agent?.id, LOGS_LIMIT),
+    inventoryService.getMyDeliveries(agent?.id, LOGS_LIMIT),
+    reportService.getMyDiscrepancies(agent?.id, 200),
+  ]);
+
+  const allFailed =
+    !logsResult.success && !requestsResult.success && !deliveriesResult.success && !discrepanciesResult.success;
+  if (allFailed && prev) {
+    return prev;
+  }
+
+  const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
+    (d) => d.deliveryStatus === 'delivered'
+  );
+
+  const merged = [
+    ...(logsResult.success ? logsResult.data : prev?.logs ?? []).map((log) => ({ ...log, logType: 'acceptance' })),
+    ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
+    ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
+    ...(discrepanciesResult.success ? discrepanciesResult.data : []).map((d) => ({
+      ...d,
+      logType: 'discrepancy',
+      createdAt: d.reportDate,
+    })),
+  ];
+  merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return { agentId: agent?.id, logs: merged };
+};
+
 export default function SalesRepLogsScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const [logs, setLogs] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-logs', loadLogsData);
+  const logs = snapshot?.logs ?? [];
   const [selectedLog, setSelectedLog] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
-
-  const loadLogs = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const [logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
-      inventoryService.getSrActivityLogs(agent?.id, LOGS_LIMIT),
-      requestService.getMyStockRequests(agent?.id, LOGS_LIMIT),
-      inventoryService.getMyDeliveries(agent?.id, LOGS_LIMIT),
-      reportService.getMyDiscrepancies(agent?.id, 200),
-    ]);
-
-    const deliveredIncoming = (deliveriesResult.success ? deliveriesResult.data : []).filter(
-      (d) => d.deliveryStatus === 'delivered'
-    );
-
-    const merged = [
-      ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
-      ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
-      ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
-      ...(discrepanciesResult.success ? discrepanciesResult.data : []).map((d) => ({
-        ...d,
-        logType: 'discrepancy',
-        createdAt: d.reportDate,
-      })),
-    ];
-    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    setLogs(merged);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadLogs();
-    }, [loadLogs])
-  );
 
   const openDetail = async (log) => {
     // Discrepancies already have full detail/resolution UI on their own

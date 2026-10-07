@@ -4,15 +4,28 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, Alert } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, getFriendlyErrorMessage } from './src/services/supabaseClient';
+import authService from './src/services/authService';
 import { COLORS } from './src/constants/colors';
 import { installGlobalErrorHandler } from './src/utils/logger';
 
 installGlobalErrorHandler();
 
+// Where each role lands when a persisted session is found on launch. The
+// session itself was already being persisted (authService.js's
+// AGENT_SESSION_KEY, supabaseClient.js's persistSession) — nothing ever
+// read it back on app start, so every restart forced a fresh login even
+// with a valid session sitting in storage. This is the fix for that.
+const DASHBOARD_ROUTE_BY_ROLE = {
+  manager: 'ManagerDashboard',
+  sales_rep: 'SalesRepDashboard',
+  collector: 'CollectorDashboard',
+};
+
 export default function App() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('');
+  const [initialRouteName, setInitialRouteName] = useState(null);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -44,10 +57,28 @@ export default function App() {
         console.error('❌ [App] Unexpected error:', err.message);
         setConnectionError(err.message);
       } finally {
+        // Check for an already-logged-in session regardless of how the
+        // connection test above went — restoring a Manager's Supabase
+        // session or a cached agent session both read from local storage,
+        // no live request required.
+        await resolveExistingSession();
         setIsConnecting(false);
       }
     };
-    
+
+    const resolveExistingSession = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        const routeName = user?.role ? DASHBOARD_ROUTE_BY_ROLE[user.role] : null;
+        if (routeName) {
+          console.log('✅ [App] Existing session found, skipping Login:', user.role);
+          setInitialRouteName(routeName);
+        }
+      } catch (err) {
+        console.warn('⚠️ [App] No existing session to restore:', err.message);
+      }
+    };
+
     const testRLSPolicies = async () => {
       try {
         // Test reading from activation_keys
@@ -140,7 +171,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AppNavigator />
+      <AppNavigator initialRouteName={initialRouteName || 'Login'} />
     </SafeAreaProvider>
   );
 }

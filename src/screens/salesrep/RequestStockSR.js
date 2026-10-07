@@ -8,6 +8,7 @@ import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, Pressable, 
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
@@ -24,7 +25,7 @@ import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inven
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil } from '../../utils/formatters';
+import { daysUntil, formatClockTime } from '../../utils/formatters';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -35,6 +36,7 @@ const EXPIRY_FILTER_OPTIONS = [
 
 export default function RequestStockSR() {
   const navigation = useNavigation();
+  const connection = useConnectionStatus();
   const [agent, setAgent] = useState(null);
   const [stock, setStock] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -255,13 +257,20 @@ export default function RequestStockSR() {
               <Text style={styles.branchSubtitle}>Branch Inventory</Text>
             </View>
             <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
+                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              </Text>
             </View>
           </View>
         </SecondaryHeader>
 
-        <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={handleSelectBranch} />
+        <BranchSelector
+          branches={branches}
+          selectedId={selectedBranchId}
+          onSelect={handleSelectBranch}
+          edgePadding={SPACING.md}
+        />
 
         <View style={styles.searchRow}>
           <View style={styles.searchInputWrap}>
@@ -465,12 +474,14 @@ const styles = StyleSheet.create({
   },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  onlineTextOffline: { color: COLORS.warning },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',

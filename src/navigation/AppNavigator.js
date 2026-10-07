@@ -72,10 +72,10 @@ const trackCurrentScreen = () => {
   debugLog('info', 'Navigation', `-> ${route.name}`, route.params ? { paramKeys: Object.keys(route.params) } : null);
 };
 
-export default function AppNavigator() {
+export default function AppNavigator({ initialRouteName = 'Login' }) {
   return (
     <NavigationContainer ref={navigationRef} onReady={trackCurrentScreen} onStateChange={trackCurrentScreen}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ManagerActivation" component={ManagerActivationScreen} />
         <Stack.Screen name="ManagerDashboard" component={ManagerDashboardScreen} options={{ animation: 'none' }} />

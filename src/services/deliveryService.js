@@ -113,7 +113,7 @@ class DeliveryService extends BaseService {
    * Logs an event-triggered location checkpoint (Shopee-style, not live
    * GPS) — fans out to every still-in-transit leg of the trip server-side.
    */
-  async logDeliveryCheckpoint({ agentId, tripId, latitude, longitude, label }) {
+  async logDeliveryCheckpoint({ agentId, tripId, latitude, longitude, label, capturedAt }) {
     debugLog('info', 'DeliveryService', 'Logging delivery checkpoint', { agentId, tripId, label });
 
     try {
@@ -125,6 +125,10 @@ class DeliveryService extends BaseService {
         p_latitude: latitude ?? null,
         p_longitude: longitude ?? null,
         p_label: label,
+        // The device's own capture time, not when the RPC happens to run —
+        // matters once this can be queued offline and sent later. Falls
+        // back to the server's now() if omitted (2026-10-08 migration).
+        p_captured_at: capturedAt ?? null,
       });
 
       if (error) {

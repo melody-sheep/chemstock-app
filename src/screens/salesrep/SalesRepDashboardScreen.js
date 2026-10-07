@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet }
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -20,7 +21,7 @@ import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
-import { formatRelativeTime } from '../../utils/formatters';
+import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -81,6 +82,7 @@ const MAIN_OPERATIONS = [
 
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
+  const connection = useConnectionStatus();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
@@ -289,8 +291,10 @@ export default function SalesRepDashboardScreen() {
                   <Text style={styles.statusText}>Status</Text>
 
                   <View style={styles.statusGroup}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.statusText}>Online</Text>
+                    <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+                    <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
+                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                    </Text>
                   </View>
 
                   <TouchableOpacity
@@ -506,12 +510,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#00FF6E',
   },
+  onlineDotOffline: {
+    backgroundColor: '#FFE6AD',
+    borderColor: COLORS.warning,
+  },
   statusText: {
     fontSize: 14,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#555353',
   },
+  onlineTextOffline: { color: COLORS.warning },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

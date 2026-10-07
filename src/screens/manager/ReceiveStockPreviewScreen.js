@@ -311,7 +311,7 @@ export default function ReceiveStockPreviewScreen() {
                   branches={branches}
                   selectedId={selectedBranchId}
                   onSelect={setSelectedBranchId}
-                  edgePadding={SPACING.lg}
+                  edgePadding={0}
                 />
               )}
             </>

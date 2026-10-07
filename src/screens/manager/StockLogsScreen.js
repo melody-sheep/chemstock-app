@@ -1,8 +1,9 @@
 // src/screens/manager/StockLogsScreen.js
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
@@ -81,29 +82,28 @@ function summarizeItems(items) {
   return `${totalUnits} unit${totalUnits === 1 ? '' : 's'} · ${items.length} product${items.length === 1 ? '' : 's'}`;
 }
 
-export default function StockLogsScreen() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const [logs, setLogs] = useState([]);
-  const [recipientNameById, setRecipientNameById] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
-  const [dateFilter, setDateFilter] = useState('all');
-  const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
+// Returns the full logs snapshot. If every sub-fetch failed (e.g. fully
+// offline), keeps the previous merged list entirely rather than rebuilding
+// from a mix of fresh-but-empty pieces — the point of caching this at all is
+// to not quietly lose data the screen already had.
+const loadLogsData = async (previous) => {
+  const manager = await authService.getCurrentUser();
+  const prev = previous?.managerId === manager?.id ? previous : null;
+  const branchIds = manager?.branchIds || [];
+  const [logsResult, agentsResult, deliveriesResult, reportsResult, discrepanciesResult] = await Promise.all([
+    inventoryService.getActivityLogs(branchIds, LOGS_LIMIT),
+    agentService.getMyAgentAccounts(),
+    inventoryService.getDeliveries(branchIds, LOGS_LIMIT),
+    reportService.getBranchDailyReports(LOGS_LIMIT),
+    reportService.getBranchDiscrepancies(200),
+  ]);
 
-  const loadLogs = useCallback(async () => {
-    setIsLoading(true);
-    const manager = await authService.getCurrentUser();
-    const branchIds = manager?.branchIds || [];
-    const [logsResult, agentsResult, deliveriesResult, reportsResult, discrepanciesResult] = await Promise.all([
-      inventoryService.getActivityLogs(branchIds, LOGS_LIMIT),
-      agentService.getMyAgentAccounts(),
-      inventoryService.getDeliveries(branchIds, LOGS_LIMIT),
-      reportService.getBranchDailyReports(LOGS_LIMIT),
-      reportService.getBranchDiscrepancies(200),
-    ]);
+  const allFailed =
+    !logsResult.success && !agentsResult.success && !deliveriesResult.success &&
+    !reportsResult.success && !discrepanciesResult.success;
+  if (allFailed && prev) {
+    return prev;
+  }
 
     // Delivery-completed entries, tagged with their own logType and
     // stamped with delivered_at as their `created_at` so every existing
@@ -129,25 +129,33 @@ export default function StockLogsScreen() {
       created_at: d.reportDate,
     }));
 
-    const merged = [
-      ...(logsResult.success ? logsResult.data : []),
-      ...deliveredLogs,
-      ...reportLogs,
-      ...discrepancyLogs,
-    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    setLogs(merged);
+  const merged = [
+    ...(logsResult.success ? logsResult.data : prev?.logs ?? []),
+    ...deliveredLogs,
+    ...reportLogs,
+    ...discrepancyLogs,
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    if (agentsResult.success) {
-      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
-    }
-    setIsLoading(false);
-  }, []);
+  return {
+    managerId: manager?.id,
+    logs: merged,
+    recipientNameById: agentsResult.success
+      ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name]))
+      : prev?.recipientNameById ?? {},
+  };
+};
 
-  useFocusEffect(
-    useCallback(() => {
-      loadLogs();
-    }, [loadLogs])
-  );
+export default function StockLogsScreen() {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
+  const logs = snapshot?.logs ?? [];
+  const recipientNameById = snapshot?.recipientNameById ?? {};
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const [dateFilter, setDateFilter] = useState('all');
+  const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
 
   const openDetail = async (log) => {
     // Reports/discrepancies already have full detail UI on their own

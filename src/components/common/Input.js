@@ -38,6 +38,7 @@ export default function Input({
   onFocus = null,
   onBlur = null,
   style = null,
+  height = 44,
 }) {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -126,7 +127,7 @@ export default function Input({
         </View>
       )}
       
-      <View style={[styles.inputWrapper, errorMessage ? styles.inputError : null, isFocused && styles.inputFocused, style]}>
+      <View style={[styles.inputWrapper, { height }, errorMessage ? styles.inputError : null, isFocused && styles.inputFocused, style]}>
         {icon && (
           <TouchableOpacity
             style={styles.iconLeft}
@@ -224,6 +225,7 @@ Input.propTypes = {
   onFocus: PropTypes.func,
   onBlur: PropTypes.func,
   style: PropTypes.object,
+  height: PropTypes.number,
 };
 
 const styles = StyleSheet.create({

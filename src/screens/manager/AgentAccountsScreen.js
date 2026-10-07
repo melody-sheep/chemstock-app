@@ -130,7 +130,12 @@ export default function AgentAccountsScreen() {
           {branches.length > 1 && (
             <View style={styles.branchSection}>
               <Text style={styles.sectionLabel}>Assign to which branch?</Text>
-              <BranchSelector branches={branches} selectedId={selectedBranchId} onSelect={setSelectedBranchId} />
+              <BranchSelector
+                branches={branches}
+                selectedId={selectedBranchId}
+                onSelect={setSelectedBranchId}
+                edgePadding={0}
+              />
             </View>
           )}
 

@@ -13,6 +13,7 @@ import MapZoomControls from '../../components/common/MapZoomControls';
 import { getInitials } from '../../utils/initials';
 import { getPresence, describePresence } from '../../services/presenceService';
 import MapLegend from '../../components/common/MapLegend';
+import ConnectionPill from '../../components/common/ConnectionPill';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
 
 // Marker colours match the markers StaticRouteMap draws for this screen.
@@ -160,7 +161,7 @@ export default function TrackDeliveryDetailScreen() {
 
           <View style={styles.topOverlayColumn} pointerEvents="box-none">
             <MapLegend items={MAP_LEGEND_ITEMS} />
-
+            <ConnectionPill />
           </View>
 
           <Animated.View

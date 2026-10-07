@@ -11,6 +11,9 @@ import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
+import outboxService from '../../services/outboxService';
+import { getConnectionStatus } from '../../services/connectionStatus';
+import useOutbox from '../../hooks/useOutbox';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -38,6 +41,7 @@ export default function RequestListSR() {
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const { pendingCount, retryNow } = useOutbox('stock_request');
   // Chosen on Request Stock, so this list only ever sends to that branch.
   const selectedBranchId = route.params?.branchId || null;
   const branchName = route.params?.branchName || '';
@@ -103,18 +107,51 @@ export default function RequestListSR() {
     }
     setIsSubmitting(true);
 
-    try {
-      const result = await requestService.submitStockRequest({
-        agentId: agent.id,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
-        items,
-      });
+    const requestPayload = {
+      agentId: agent.id,
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      deviceModel: Device.modelName,
+      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+      items,
+      // Required for multi-branch agents (e.g. Clint: Iponan + Butuan) —
+      // this screen already shows "Sending to {branchName}", it just
+      // wasn't being sent to the server. See 2026-10-08c SQL.
+      branchId: selectedBranchId,
+    };
 
-      if (!result.success) {
-        throw new Error(result.message);
+    try {
+      // Already known offline — don't even attempt the live call. No photo
+      // on this flow, so there's nothing to persist beyond the payload.
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('stock_request', requestPayload);
+        Alert.alert(
+          'Saved — Will Send Later',
+          "You're offline. Your stock request is saved on this device and will send automatically once you're back online.",
+          [{ text: 'OK', onPress: () => navigation.navigate('SalesRepDashboard') }]
+        );
+        return;
+      }
+
+      try {
+        const result = await requestService.submitStockRequest(requestPayload);
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+      } catch (liveError) {
+        // A failure that leaves us offline is a network problem, not a real
+        // rejection — queue it instead of showing an error. Anything else
+        // (still online) is a genuine failure, handled below as before.
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('stock_request', requestPayload);
+          Alert.alert(
+            'Saved — Will Send Later',
+            "Connection dropped mid-submit. Your stock request is saved on this device and will send automatically once you're back online.",
+            [{ text: 'OK', onPress: () => navigation.navigate('SalesRepDashboard') }]
+          );
+          return;
+        }
+        throw liveError;
       }
 
       setIsSent(true);
@@ -154,6 +191,25 @@ export default function RequestListSR() {
         <SubScreenSecondaryHeader title="Request List" />
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {pendingCount > 0 && (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingIconCircle}>
+                <Icon name="clock" size={14} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingBannerTitle}>
+                  Pending — {pendingCount} waiting to sync
+                </Text>
+                <Text style={styles.pendingBannerText}>
+                  Saved on this device. Sends automatically once you're back online.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={retryNow} style={styles.pendingRetryButton}>
+                <Text style={styles.pendingRetryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.sectionTitle}>Sending to {branchName || 'branch'}</Text>
 
           <Text style={styles.sectionTitle}>Requested Items</Text>
@@ -268,6 +324,48 @@ export default function RequestListSR() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.md },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF1D6',
+    borderWidth: 1,
+    borderColor: '#F2C94C',
+    borderRadius: 14,
+    padding: 12,
+  },
+  pendingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#B26400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingBannerTitle: {
+    fontSize: 13,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  pendingBannerText: {
+    fontSize: 11,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  pendingRetryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#B26400',
+  },
+  pendingRetryText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
