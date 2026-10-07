@@ -3,6 +3,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import PropTypes from 'prop-types';
 import QRCode from 'react-native-qrcode-svg';
+import { captureRef } from 'react-native-view-shot';
 // /legacy: the new default APIs (File/Paths, Asset.create()) need native
 // modules Expo Go doesn't ship yet ("...Next"), while /legacy is backed by
 // the modules Expo Go has always bundled — same reasoning as elsewhere in
@@ -37,9 +38,25 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
   ref
 ) {
   const qrRef = useRef(null);
+  const brandedCardRef = useRef(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  // Captures the hidden branded card below (CHEMSTOCK header, title, QR,
+  // batch code, footer) instead of the bare QR — this is what every
+  // Save/Share path shares now, so the file that lands on someone's phone
+  // or in a chat always identifies itself, same copy as handlePrint's HTML.
+  const getBrandedCardAsset = async () => {
+    if (!brandedCardRef.current) {
+      throw new Error('QR not ready');
+    }
+    const fileUri = await captureRef(brandedCardRef, { format: 'png', quality: 1 });
+    const safeName = value.replace(/[^a-zA-Z0-9-_]/g, '_');
+    return { fileUri, safeName };
+  };
+
+  // Bare-QR-only asset — still needed for handlePrint's embedded <img>,
+  // which builds its own full-page branded layout in HTML/CSS directly.
   const getQrAsset = () => new Promise((resolve, reject) => {
     if (!qrRef.current) {
       reject(new Error('QR not ready'));
@@ -64,7 +81,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
   const handleSaveToGallery = async () => {
     try {
       setIsSaving(true);
-      const { fileUri, base64, safeName } = await getQrAsset();
+      const { fileUri, safeName } = await getBrandedCardAsset();
 
       try {
         // Scoped to write-only + photo — the unscoped call requests
@@ -87,6 +104,9 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
         try {
           const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
           if (permissions.granted) {
+            const base64 = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
             const safUri = await FileSystem.StorageAccessFramework.createFileAsync(
               permissions.directoryUri,
               `chemstock-qr-${safeName}`,
@@ -209,7 +229,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
     } catch (error) {
       console.warn('[WARN] [SaveableQRCode] Print failed, falling back to share:', error);
       try {
-        const { fileUri } = await getQrAsset();
+        const { fileUri } = await getBrandedCardAsset();
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(fileUri, { mimeType: 'image/png', dialogTitle: 'QR Code' });
@@ -230,7 +250,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
   // alongside <SaveableQRCode> call this through a ref instead of
   // reimplementing the toDataURL/file-write dance themselves.
   const handleShareAsImage = async () => {
-    const { fileUri } = await getQrAsset();
+    const { fileUri } = await getBrandedCardAsset();
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) {
       throw new Error('Sharing is not available on this device.');
@@ -242,6 +262,25 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
 
   return (
     <View style={[styles.card, style]}>
+      {/* Off-screen (opacity 0, absolutely positioned so it doesn't affect
+          layout) — captured by getBrandedCardAsset() for Save/Share.
+          collapsable={false} is required on Android or view-shot can
+          capture a blank/flattened view. */}
+      <View style={styles.offscreenWrap} pointerEvents="none">
+        <View ref={brandedCardRef} collapsable={false} style={styles.brandedCard}>
+          <Text style={styles.brandedBrand}>CHEMSTOCK</Text>
+          <Text style={styles.brandedTitle}>Batch QR Code</Text>
+          <View style={styles.brandedQrTile}>
+            <QRCode value={value} size={180} />
+          </View>
+          <Text style={styles.brandedLabel}>Batch code</Text>
+          <Text style={styles.brandedCode}>{value}</Text>
+          <View style={styles.brandedFooterWrap}>
+            <Text style={styles.brandedFooter}>Scan with the ChemStock app to track this batch.</Text>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.qrTile}>
         <QRCode value={value} size={size} getRef={(c) => (qrRef.current = c)} />
       </View>
@@ -331,5 +370,65 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
+  },
+  offscreenWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    opacity: 0,
+  },
+  brandedCard: {
+    width: 320,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+  },
+  brandedBrand: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 3,
+    color: '#03045E',
+  },
+  brandedTitle: {
+    marginTop: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  brandedQrTile: {
+    marginTop: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+  },
+  brandedLabel: {
+    marginTop: 28,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color: '#64748B',
+  },
+  brandedCode: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  brandedFooterWrap: {
+    marginTop: 36,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    width: '100%',
+    alignItems: 'center',
+  },
+  brandedFooter: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
   },
 });

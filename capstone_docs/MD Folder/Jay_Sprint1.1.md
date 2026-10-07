@@ -2,7 +2,7 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: October 5, 2026 (end of multi-branch manager features + QR/notification/account-management session — see §50-§59)
+Last updated: October 6, 2026 (branded-QR-share + notification system shipped and confirmed working; offline write-outbox fully planned but not yet built — see §60-§65)
 
 ---
 
@@ -828,3 +828,94 @@ Branch: **`jay`**. **Nothing from §50-§57 is committed.**
 5. Carry-overs, still open (unchanged from §49): the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, the 4 unused dependencies flagged in §47, confirming no live inventory exists under the 5 removed product codes, backfilling §46's Aug 28 → Oct 2 documentation gap.
 6. If offline support (§57) becomes a real requirement, start with the Tier 3 write-outbox for daily reports/discrepancy-resolution/stock-request submission — it's the one piece of that discussion actually worth building, and was scoped but not implemented this session.
 6. Long-carried-over items, still unresolved (unchanged from §45): the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, a real dev build decision (Save-to-Gallery, offline sync), `npm audit` vulnerabilities from §31.
+
+---
+
+## 60. Session opened Oct 6 — restudy confirmed a teammate's merge landed overnight
+
+Before touching anything, read through `git log` rather than trusting this file as current (same discipline as every prior session opener) and found real work that happened between sessions: `c9a709d` ("Delivery maps, release flow, and live presence", authored by Alther/`melody-sheep`, also Claude-assisted) landed on top of this session's own `fb4069d` commit — 50 files, +2073/-649. Read through it properly rather than trusting the commit message:
+
+- **A real presence system** — `touch_presence`/`get_presence` RPCs, `user_profiles.last_seen_at`, SQL: `capstone_docs/sql/2026-10-06_presence_last_seen.sql`. `get_delivery_parties` RPC + new `presenceService.js` resolve the Collector/Sales Rep pair on one delivery with live online/last-seen status for the map, SQL: `2026-10-06b_delivery_parties.sql`.
+- **`useCachedFocusLoader.js`** — a new generic hook: shows the last successful result instantly on revisit, refreshes quietly in the background, only shows a loading skeleton when there's truly nothing cached yet. Both Manager and Sales Rep dashboards were refactored onto it (state now lives in one `snapshot` object instead of separate `useState` calls per field). **Verified this session's own badge counts, the `fulfilledTransactionId` pending-request fix, and the report/discrepancy ledger entries from §54/§56 all survived the refactor intact** — just moved into the new snapshot shape.
+- A global `fetch` wrapper in `supabaseClient.js` (`connectionStatus.js`) that tracks real online/offline reachability, plus `authService.getCurrentUser()` now caches for 60s (fixes a flagged "account lookup repeated on every screen" issue).
+- A map/UI polish pass: shared `MapLegend`/`MapZoomControls`, dashed gradient route arrows, glass-panel styling, delivery-party photo markers.
+- **Gap noted, not fixed this session**: a new `ConnectionPill.js` component (the real online/offline indicator) exists but isn't imported anywhere — the static hardcoded "Online" pills scattered across the app are presumably still showing a fake always-on status rather than the new real signal.
+
+## 61. What got built — branded QR share/save (all Share and Save to Gallery buttons)
+
+Jay wanted the QR "Share" output to match a specific branded card format (CHEMSTOCK header, "Batch QR Code" title, the QR, "BATCH CODE" + value, a footer line) instead of sharing a bare QR, applied everywhere a Share option exists.
+
+- New dependency: `react-native-view-shot`.
+- `SaveableQRCode.js` now renders a second, off-screen branded card View (same copy `handlePrint`'s existing HTML template already used — confirmed by reading that template first rather than guessing new copy) and captures it via `captureRef` into a PNG. `handleSaveToGallery`, `handleShareAsImage`, and `handlePrint`'s own share-fallback path all switched from the old bare-QR asset to this branded one. `handlePrint` itself untouched (it already produces the same branding in its own HTML/PDF medium).
+- Scope check done before touching anything: `shareAsImage()` (built last session) is called from exactly 2 places (`ReceiveStockPreviewScreen.js`, `QRSuccessView.js`) — both route through `SaveableQRCode`, so one fix covers every Share button in the app, and Save to Gallery for free (same generated asset).
+
+## 62. What got built — full in-app notification system (7 triggers)
+
+Jay asked for notifications covering: stock request submitted/resolved, daily report submitted, return/discrepancy request submitted/resolved, a delivery assigned to a Collector, and delivery status updates — plus a badge on each role's notification bell, a shared notification list screen, tap-to-navigate, and "Mark all as read." He also asked this be free on a real APK and pop up even when the app is closed.
+
+**Researched before building, not assumed**: confirmed via web search that Expo Go on Android hasn't supported remote push since SDK 53 (this project is on SDK 57) — a dev-client build is required to test that specific behavior, separate from cost. Used `AskUserQuestion` to let Jay decide the scope rather than guessing: **he chose to build the full in-app system now, with real OS push explicitly deferred as a separate follow-up** (architecture already decided for when that happens: client-side push-send right after each action's own RPC succeeds, not a Supabase Edge Function — zero new backend infrastructure, matching how this app has never used a custom server for its main flows).
+
+### Correctness approach for the 10 patched RPCs
+Each of the 7 events hooks into an *existing* action RPC via `CREATE OR REPLACE` (same signature, so safe) plus a trailing call to a new `_notify()` helper. Since `CREATE OR REPLACE` needs the complete function body and several of these functions had been patched across multiple earlier dated migration files, a background agent first reconstructed the exact, current, latest body of all 10 functions by reading every `capstone_docs/sql/*.sql` file that ever touched each one (not just the original) — catching real gotchas before they became bugs: `submit_daily_report` has no `v_branch_id` scalar (only the array, `v_branch_ids[1]` used directly), `release_stock_batch` has two different recipient-shaped params (`p_recipient_id` vs `p_target_recipient_id`), and neither `start_delivery_trip` nor `finish_delivery_leg` previously read `target_recipient_id` at all (both needed it added purely to notify). Every addition is a nested `DECLARE/BEGIN/END` block appended before the function's own `RETURN`, so no existing variable name is touched. SQL: `capstone_docs/sql/2026-10-06c_notifications_system.sql` — **confirmed run and working by Jay.**
+
+### Schema and client
+- New `public.notifications` table (RLS enabled, no policies — access only through RPCs, same pattern as `stock_request_items`), a `_notify()` insert helper (not granted to clients, internal-only), and 3 RPCs (`get_my_notifications`, `mark_notification_read`, `mark_all_notifications_read`) using the same optional-`p_agent_id`-defaults-to-`auth.uid()` pattern Alther's `touch_presence` established in §60.
+- New `src/services/notificationService.js` wrapping the 3 RPCs.
+- `Header.js` gained a `notificationCount` prop — a small numeric badge on the (previously completely dead/unwired) bell icon.
+- All three dashboards (`ManagerDashboardScreen.js`, `SalesRepDashboardScreen.js`, `CollectorDashboardScreen.js`) fetch unread count alongside their existing data and wire `onNotificationPress`/`notificationCount` into `Header` for the first time — Manager/SalesRep via the new `snapshot` pattern from §60, Collector via a plain added `Promise.all` call since it hadn't been migrated to `useCachedFocusLoader` yet.
+- New shared screen `src/screens/common/NotificationsScreen.js` (route `Notifications`, registered in `AppNavigator.js`) — list with per-type icon/color, unread highlighting, "Mark all as read," tap marks read (optimistic update, RPC fires in background) and deep-links via the notification's own `navTarget`/`navParams`.
+
+## 63. Git / commit status (Oct 6)
+
+Branch: **`jay`**. **Nothing from §61-§62 is committed.**
+- Modified: `package.json` (new `react-native-view-shot` dependency), `src/components/common/Header.js`, `SaveableQRCode.js`, `src/navigation/AppNavigator.js`, `src/screens/collector/CollectorDashboardScreen.js`, `src/screens/manager/ManagerDashboardScreen.js`, `src/screens/salesrep/SalesRepDashboardScreen.js`.
+- Untracked: `src/screens/common/NotificationsScreen.js`, `src/services/notificationService.js`, `capstone_docs/sql/2026-10-06c_notifications_system.sql` (confirmed run).
+
+## 64. Suggested first steps in a new session
+
+1. Confirm the branded QR card (§61) actually looks right on-device across all 4 render sites (batch registration, the tap-a-stock-card QR screen, both Logs screens' QR detail view) — built and parse-verified this session but worth a final visual check, especially `react-native-view-shot`'s Android `collapsable={false}` behavior on a real device vs. whatever was used to confirm "it's working."
+2. Exercise all 7 notification triggers end to end if that hasn't been done for every single one yet: stock request submit + accept + decline, daily report submit, return/discrepancy request submit + accept + reject, release-to-collector, start-trip + finish-leg. Confirm the right *other* role gets notified each time, the bell badge updates on next focus, tapping deep-links correctly, and "Mark all as read" zeroes the badge.
+3. `git status`/`git diff` — review and commit §61-§62's work once the above is verified.
+4. Decide on real OS push notifications (§62) whenever ready — the architecture is already chosen (client-side send after each RPC succeeds), scope is `expo-notifications` + `expo-constants` + a `push_tokens` table + registration RPC + wiring a push-send call into the same 7 trigger points. Testing "pops up with the app closed" will require a dev-client build at that point, not Expo Go.
+5. Pick up the `ConnectionPill.js` gap flagged in §60 if real online/offline status matters before submission — the tracking infrastructure already exists, it's just not wired into any screen yet.
+6. Carry-overs, still open (unchanged from §59): the two SQL files from §55/§56 if still unconfirmed, the three stray 0-byte files, direct-Supabase-vs-Express-API decision never written into `AGENTS.md`, `capstone_docs/proposal.txt` keep/gitignore decision, `useActivation.js`'s dead duplicate `return`, the 4 unused dependencies flagged in §47, the Tier 3 offline write-outbox from §57 if offline support becomes a real requirement.
+
+---
+
+## 65. Planned, not yet started — offline write-outbox for 4 flows (full design ready to pick up)
+
+Later the same day, Jay confirmed §64's punch list items 1 and 2 (QR card + all 7 notification triggers) were tested and working, and that the two SQL files from §55/§56 were run — so §61/§62 are now verified, not just built. He's committing that work himself (not done through this session). With the foundation confirmed solid, he asked to move to the Tier 3 offline write-outbox scoped back in §57 — but asked to **plan it now and build it later**, not implement immediately. Full research + design pass done via `EnterPlanMode` so the plan doesn't have to be re-derived from scratch next time; recorded here verbatim rather than only in the ephemeral plan-mode scratch file.
+
+### What changed from §57's original sketch, after actually reading the code
+1. **`@react-native-community/netinfo` is very likely unnecessary.** §57 assumed it would be needed; a teammate's recent commit already added `connectionStatus.js`/`useConnectionStatus.js` (see §60) — a reactive online/offline tracker driven off real Supabase request outcomes via a wrapped `fetch` in `supabaseClient.js` (`markOnline()`/`markOffline()` on every request, synchronously readable via `getConnectionStatus()`, subscribable via `subscribeConnectionStatus()`). Since this wrapped `fetch` is the Supabase client's `global.fetch`, it covers Storage photo uploads too, not just RPC calls — enough to drive the whole outbox with zero new dependencies.
+2. **A real correctness gap exists today that the outbox design has to route around, not inherit**: confirmed by reading all 5 target screens — none of them distinguish a genuine network failure from a real server-side rejection; every service method merges both into the same generic `{success: false, message}`/thrown `Error`. Naively queuing on *any* failure would silently queue-and-silently-retry a real rejection (e.g. a discrepancy resolution someone else already resolved) instead of showing it to the user. Fix: check `getConnectionStatus().online` *before* attempting (skip straight to queueing if already known-offline) and re-check it immediately *after* a failure — only queue when the status is actually `false` (the fetch wrapper updates it synchronously as part of the same failed request, so this is reliable); otherwise show the existing error alert exactly as today, unchanged.
+
+### Scope — confirmed still correct after reading the actual code (unchanged from §57)
+1. Sales Rep daily report submission — `SubmitReportSR.js` → `reportService.uploadDailyReportPhoto` + `submitDailyReport` (two separate network calls: photo upload throws on failure, the RPC itself swallows to `{success, message}`).
+2. Discrepancy-resolution/return request submission — `ResolveDiscrepancyScreen.js` → `inventoryService.uploadDiscrepancyPhoto` + `reportService.requestDiscrepancyResolution` (same two-call shape as #1).
+3. Stock request submission — `RequestListSR.js` → `requestService.submitStockRequest` (no photo, no branch_id sent — the RPC derives it server-side, confirmed in §56/§59).
+4. Collector delivery trip start + finish — `CollectorTripReviewScreen.js` → `deliveryService.startDeliveryTrip`; `CollectorDeliverStockScreen.js` → `deliveryService.finishDeliveryLeg`.
+
+`log_delivery_checkpoint` stays excluded (too frequent per leg). Release/Receive Stock stay excluded (shared-inventory concurrent-writer risk — the reason this whole offline effort was scoped to single-writer flows only in the first place).
+
+### Design
+
+**Photo persistence**: confirmed `CameraCaptureModal.js` hands back whatever URI `expo-camera`'s `takePictureAsync` returns — the OS cache directory, not guaranteed to survive a queued item sitting around. On enqueue, any photo gets copied via `expo-file-system`'s `copyAsync` into `FileSystem.documentDirectory + 'pending-outbox/'` (stable, non-cache), deleted once the entry syncs or is removed.
+
+**Outbox store** (`src/services/outboxService.js`, new) — mirrors `connectionStatus.js`'s own shape for consistency: a module-level array persisted to `storage.js` (the existing AsyncStorage wrapper, reused as-is) as one JSON blob, synchronous `subscribeOutbox`/`getOutbox` access so a new `useOutbox()` hook (mirrors `useConnectionStatus.js`) can drive UI without polling. Entry shape: `{ id, type, payload, photoUri, photoStoragePath, createdAt, lastAttemptAt, lastError, attempts }`. Each `type` maps to a small executor that calls the *exact same existing service function* the screen already calls today — the outbox never talks to Supabase directly, it replays the same calls later. No SQL changes needed anywhere in this design.
+
+**Enqueue flow**, wrapped around each of the 5 screens' existing submit handlers (not a rewrite):
+- Already offline → skip the live call, enqueue immediately, show "Saved — will send once you're back online."
+- Attempt the live call as today. Success → unchanged. Failure + still online → real rejection, show today's existing error alert unchanged, never queue. Failure + now offline → network failure, enqueue, same "saved, will sync" messaging.
+- A screen with pending entries of its own type shows a small "Pending — N waiting to sync" banner (same visual language as the existing already-submitted banner in `SubmitReportSR.js`) with a manual "Retry now" action — this was the "what does pending-sync UI look like" piece left undesigned in §57.
+
+**Flush trigger**: one global subscription to `subscribeConnectionStatus`, set up once at app start, flushing the outbox whenever status transitions offline → online. Also flushed once on app launch (entries queued in a prior session) and on a light ~45s interval armed only while the outbox is non-empty (safety net for reconnecting while idle on a screen that doesn't naturally trigger a request). FIFO, one at a time; a photo-bearing entry whose upload hasn't completed runs that first, then the RPC with the now-known storage path.
+
+**Known limitation, stated plainly**: at-least-once delivery, not exactly-once. A crash in the narrow window after server-side success but before local removal would cause a retry on next flush; none of the 4 target RPCs have an idempotency key to dedupe on today. Worth a follow-up (client-generated idempotency key, RPC-side dedup check) if it turns out to matter in practice — not built in this pass, the window is narrow enough to accept for now.
+
+### Files (when this gets built)
+New: `src/services/outboxService.js`, `src/hooks/useOutbox.js`.
+Modified: `SubmitReportSR.js`, `ResolveDiscrepancyScreen.js`, `RequestListSR.js`, `CollectorTripReviewScreen.js`, `CollectorDeliverStockScreen.js`; app bootstrap (likely `App.js`, wherever `setPresenceIdentity`-style startup calls already live) to hydrate the outbox and arm the flush-on-reconnect subscription once.
+
+### Verification plan (when this gets built)
+Airplane-mode test each of the 4 flows (submit → confirm "saved, will sync" not an error → reconnect → confirm auto-flush lands it server-side, photo included). Confirm a genuine server-side rejection (e.g. resolving an already-resolved discrepancy) still shows today's error immediately and is never queued, even while online. Kill the app mid-queue while still offline, relaunch, confirm the queue survived and flushes once reconnected.
