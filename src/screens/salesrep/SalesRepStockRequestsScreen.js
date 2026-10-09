@@ -1,8 +1,8 @@
 // src/screens/salesrep/SalesRepStockRequestsScreen.js
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
@@ -28,23 +28,24 @@ const STATUS_META = {
   declined: { label: 'Declined', bg: '#FBDCDC', text: '#B91C1C' },
 };
 
+// Returns the full request list. A request that fails keeps its value from
+// the previous snapshot instead of blanking the screen — same pattern
+// SalesRepStockScreen/the dashboards already use.
+const loadRequestsData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agent?.id === agent?.id ? previous : null;
+
+  const result = await requestService.getMyStockRequests(agent?.id, 50);
+
+  return {
+    agent,
+    requests: result.success ? result.data : prev?.requests ?? [],
+  };
+};
+
 export default function SalesRepStockRequestsScreen() {
-  const [requests, setRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadRequests = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const result = await requestService.getMyStockRequests(agent?.id, 50);
-    setRequests(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadRequests();
-    }, [loadRequests])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-stock-requests', loadRequestsData);
+  const requests = snapshot?.requests ?? [];
 
   return (
     <>

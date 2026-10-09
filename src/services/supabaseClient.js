@@ -20,7 +20,15 @@ const trackedFetch = async (input, init) => {
     markOnline();
     return response;
   } catch (error) {
-    if (error instanceof TypeError) markOffline();
+    // fetch() only ever rejects for a genuine network-level failure (DNS,
+    // connection refused, timeout, no connectivity) — an HTTP error status
+    // still resolves normally with response.ok === false, it never lands
+    // here. So any rejection at all means offline, regardless of which
+    // error class the platform wraps it in. Narrowing to `instanceof
+    // TypeError` (iOS/web's shape) silently missed every failure on this
+    // Android/Expo Go setup, which throws its own CodedError instead —
+    // leaving connectionStatus permanently stuck reporting "online".
+    markOffline();
     throw error;
   }
 };

@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
+import { getConnectionStatus } from '../services/connectionStatus';
 
 // Last successful result per screen, kept for the whole app session. It lives
 // outside React state so it survives the screen unmounting and remounting.
@@ -53,22 +54,24 @@ export default function useCachedFocusLoader(cacheKey, load) {
           setData(stored.data);
           setIsLoading(false);
           cached = stored;
-          debugLog('debug', 'Cache', 'Hydrated from disk', { screen: cacheKey });
+          debugLog('debug', 'Cache', `📀 [${cacheKey}] Hydrated from disk`, { online: getConnectionStatus().online });
         }
       } catch (error) {
-        debugLog('error', 'Cache', 'Disk hydration failed', { screen: cacheKey, error: error.message });
+        debugLog('error', 'Cache', `❌ [${cacheKey}] Disk hydration failed`, { error: error.message });
       }
     }
 
     if (cached && Date.now() - cached.fetchedAt < FRESH_MS) {
-      debugLog('debug', 'Cache', 'Fresh, reused without a request', { screen: cacheKey });
+      const { online } = getConnectionStatus();
+      debugLog('debug', 'Cache', `${online ? '✅' : '✅ OFFLINE —'} [${cacheKey}] Reused without a request`, { online, ageMs: Date.now() - cached.fetchedAt });
       return;
     }
 
     // Skeleton only when there's no cached result yet (memory or disk) —
     // never on a revisit.
     if (!cached) setIsLoading(true);
-    debugLog('info', 'Cache', cached ? 'Stale, refreshing in background' : 'No cache, loading', { screen: cacheKey });
+    const { online: onlineBeforeLoad } = getConnectionStatus();
+    debugLog('info', 'Cache', `${cached ? 'Stale, refreshing in background' : 'No cache, loading'} [${cacheKey}]`, { online: onlineBeforeLoad });
 
     const startedAt = Date.now();
     try {
@@ -77,9 +80,24 @@ export default function useCachedFocusLoader(cacheKey, load) {
       snapshots.set(cacheKey, snapshot);
       setData(next);
       storage.set(STORAGE_PREFIX + cacheKey, snapshot); // fire-and-forget, non-blocking
-      debugLog('info', 'Cache', 'Loaded', { screen: cacheKey, ms: Date.now() - startedAt });
+      const { online: onlineAfterLoad } = getConnectionStatus();
+      if (onlineAfterLoad) {
+        debugLog('info', 'Cache', `✅ [${cacheKey}] Loaded live data from server`, { ms: Date.now() - startedAt });
+      } else {
+        // The connection is down, yet loadRef.current() still resolved —
+        // this only happens because the screen's own load() function caught
+        // its failed fetch(es) internally and fell back to the previous
+        // snapshot it was handed. In other words: confirmed successful
+        // offline degradation, not a fluke.
+        debugLog('warn', 'Cache', `✅ OFFLINE — [${cacheKey}] Live refresh failed as expected, screen is showing cached data`, { ms: Date.now() - startedAt, hadPreviousSnapshot: !!cached });
+      }
     } catch (error) {
-      debugLog('error', 'Cache', 'Refresh failed', { screen: cacheKey, error: error.message });
+      const { online } = getConnectionStatus();
+      if (cached) {
+        debugLog('warn', 'Cache', `⚠️ [${cacheKey}] Refresh failed, kept last-known cached data on screen`, { online, error: error.message });
+      } else {
+        debugLog('error', 'Cache', `❌ [${cacheKey}] Refresh failed and there is no cached data to fall back to — screen will show empty/error state`, { online, error: error.message });
+      }
     } finally {
       setIsLoading(false);
     }

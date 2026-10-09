@@ -13,6 +13,15 @@ import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 // getCurrentUser()'s fallback below.
 const AGENT_SESSION_KEY = 'chemstock_agent_session';
 
+// Mirrors AGENT_SESSION_KEY, but for Supabase-Auth users (managers/admins).
+// Unlike agents, managers DO have a real Supabase session restored from
+// AsyncStorage automatically — but rebuilding the app-level `user` object
+// (role, branch, name) still required a *live* user_profiles fetch with no
+// offline fallback, so a manager who closed the app without logging out and
+// came back offline would have their valid session thrown away. This caches
+// the last successfully-fetched profile so that fetch can degrade instead.
+const MANAGER_PROFILE_CACHE_KEY = 'chemstock_manager_profile_cache';
+
 // getCurrentUser() costs several round trips (session, profile, branch names,
 // photo URL, and for agents an RPC), and nearly every screen calls it on
 // focus. A result this recent is reused; login and logout clear it.
@@ -185,7 +194,12 @@ class AuthService extends BaseService {
             authMode: 'supabase',
           }
         };
-            
+
+        // Cache immediately on login too, not just on later getCurrentUser()
+        // calls — so the offline fallback below has something to use even if
+        // the app is closed right after this first login.
+        await storage.set(MANAGER_PROFILE_CACHE_KEY, result.user);
+
         debugLog('info', 'AuthService', 'Login successful', {userId: result.user.id});
         return result;
 
@@ -263,10 +277,12 @@ class AuthService extends BaseService {
     debugLog('info', 'AuthService', 'Logout');
 
     try {
-      // Always clear the agent session — harmless no-op for a Supabase-Auth
-      // user (manager), required for an agent (no Supabase session to sign
-      // out of at all).
+      // Always clear both cached sessions — harmless no-op for whichever
+      // auth mode the current user wasn't using, and prevents a stale
+      // profile from a previous account leaking into the offline fallback
+      // below for whoever logs in next on this device.
       await storage.remove(AGENT_SESSION_KEY);
+      await storage.remove(MANAGER_PROFILE_CACHE_KEY);
 
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -369,29 +385,49 @@ class AuthService extends BaseService {
         }
       }
 
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('*, media:profile_media_id(storage_path)')
-        .eq('id', session.user.id)
-        .single();
+      // The session object above came straight from local storage, no
+      // network needed. Rebuilding the app-level user (role, branch, name)
+      // still needs a live profile fetch, which is the one thing that can
+      // fail while offline — so it's isolated here with its own fallback,
+      // same reasoning as the agent branch's refresh fallback above.
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*, media:profile_media_id(storage_path)')
+          .eq('id', session.user.id)
+          .single();
 
-      const branchName = await this._fetchBranchNames(profile?.branch_ids);
-      const profilePhotoUrl = await this._resolveProfilePhotoUrl(profile?.media?.storage_path);
+        if (profileError) throw profileError;
 
-      const user = {
-        id: session.user.id,
-        email: session.user.email,
-        username: session.user.email?.split('@')[0],
-        full_name: profile?.full_name || null,
-        role: profile?.role || null,
-        branchIds: profile?.branch_ids || [],
-        branchName,
-        profilePhotoUrl,
-        phoneNumber: profile?.phone_number || null,
-        isActivated: !!profile,
-      };
+        const branchName = await this._fetchBranchNames(profile?.branch_ids);
+        const profilePhotoUrl = await this._resolveProfilePhotoUrl(profile?.media?.storage_path);
 
-      return user;
+        const user = {
+          id: session.user.id,
+          email: session.user.email,
+          username: session.user.email?.split('@')[0],
+          full_name: profile?.full_name || null,
+          role: profile?.role || null,
+          branchIds: profile?.branch_ids || [],
+          branchName,
+          profilePhotoUrl,
+          phoneNumber: profile?.phone_number || null,
+          isActivated: !!profile,
+        };
+
+        await storage.set(MANAGER_PROFILE_CACHE_KEY, user);
+        return user;
+      } catch (profileFetchError) {
+        console.warn('[WARN] [AuthService] Profile fetch failed, trying cached profile:', profileFetchError.message);
+        const cachedUser = await storage.get(MANAGER_PROFILE_CACHE_KEY);
+        if (cachedUser && cachedUser.id === session.user.id) {
+          debugLog('info', 'AuthService', 'Restored manager session from cached profile (offline)', { userId: cachedUser.id });
+          return cachedUser;
+        }
+        // No cache to fall back to (e.g. first-ever launch while offline) —
+        // nothing left to do but surface the failure like before.
+        throw profileFetchError;
+      }
 
     } catch (error) {
       this.handleError(error);

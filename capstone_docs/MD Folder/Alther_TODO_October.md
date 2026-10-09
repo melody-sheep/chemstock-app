@@ -64,6 +64,32 @@ Per `Jay_Sprint1.1.md` §62/§64: the **in-app** notification system (7 triggers
 
 ---
 
+## 🔴 Bug found & fixed — Oct 9, 2026 (Jay)
+
+**Report:** a Manager logs in successfully, closes the app without logging out, turns off the device's internet connection, then reopens the app. Expected: still logged in (per §3's "Always logged in," Oct 8). Actual: stuck on "Connecting to server..." for a while, then dropped on the Login screen — and can't log back in at all while offline, since login itself needs a live request.
+
+**Root cause (confirmed by reading the code, not guessed):**
+1. §3's "Always logged in" fix only covers *having* a persisted session — it never accounted for `authService._loadCurrentUser()` needing a **live `user_profiles` fetch** to rebuild the app-level user object (role, branch, name) for a Manager (Supabase-Auth user). The **agent** (Sales Rep/Collector) branch right above it already had an offline fallback (a cached profile it degrades to); the manager branch never got the same treatment. When that fetch fails offline, `BaseService.handleError()` (`src/services/BaseService.js:25`) always re-throws, the exception is only caught back in `App.js`'s `resolveExistingSession()`, which silently swallows it — so a perfectly valid session gets discarded instead of restored.
+2. `App.js`'s `isConnecting` splash state stayed `true` until `testConnection()` *and* the full session-restore chain both finished, with no timeout on either — so offline, where a network call can take a while to actually fail rather than erroring instantly, "Connecting to server..." could sit on screen far longer than it should before (incorrectly) landing on Login.
+
+**Not a database/SQL issue, not an auth overhaul** — this is the same class of fix already applied once correctly for agents, just missing for managers.
+
+**Fix applied:**
+- `src/services/authService.js`: added `MANAGER_PROFILE_CACHE_KEY`, mirroring `AGENT_SESSION_KEY`. The manager's resolved profile is now cached on every successful `login()` and every successful `_loadCurrentUser()` fetch, cleared on `logout()`. When the live `user_profiles` fetch fails, it falls back to this cache (matching session `id`) instead of throwing the whole session away. Only on a genuine first-ever offline launch (no cache yet) does it still fail as before — nothing else possible there.
+- `App.js`: `testConnection()` is now capped at 6s (`CONNECTION_PROBE_TIMEOUT_MS`) via a `Promise.race` timeout, and runs **in parallel** with `resolveExistingSession()` instead of before it — session restore reads local storage only and has no reason to wait on a slow/hanging network probe.
+
+**✅ Confirmed on device, Oct 9** (Jay) — logged in online, closed the app, went offline (no DNS/mobile data), reopened: landed straight on the Manager Dashboard, no Login screen, no blocking popup. Dashboard finished loading from the existing persisted-cache system (`useCachedFocusLoader`, §1 above) despite every live fetch failing with `UnknownHostException`, so it showed last-known data instead of a blank/broken screen.
+
+**Found and fixed in the same pass:** a pre-existing dev-only "Connection Issue" alert (and a matching full-screen red error view) in `App.js` fired on every failed connection probe regardless of whether a session was actually restored — so the very first offline test blocked a *working* screen behind a scary popup. Both now only trigger when there's truly no session to fall back on.
+
+**Known minor noise, not a functional bug:** several services (`AgentService`, `RequestService`, `ReportService`, `NotificationService`) log a second, blank `CodedError` with just a call stack after their first (correctly-messaged) failure — cosmetic, worth a cleanup pass on those services' error logging later, but doesn't affect behavior.
+
+**Third fix, Oct 9 — `SalesRepBackpackScreen.js` and `SalesRepStockRequestsScreen.js` had zero offline caching (Jay)**. Unlike Dashboard/Stock (both roles, Tier 1), these two screens were never wired into `useCachedFocusLoader` at all — plain `useState`/`useFocusEffect` with a raw fetch and no fallback. Confirmed via device log: `getSrInventory` failures (`UnknownHostException`) appeared even *before* the deliberate offline test started (real intermittent Wi-Fi), and since these screens had nothing to fall back to, any failure — planned or accidental — just showed blank/zero. Retrofitted both to the same `useCachedFocusLoader` pattern already proven on Stock/Dashboard (previous-snapshot fallback on failed fetch). Not yet device-tested.
+
+**Second real bug found and fixed, Oct 9, while validating Sales Rep offline (Jay)** — `connectionStatus.js`'s global online/offline flag never actually flipped to offline on Android/Expo Go, confirmed by every `[Cache]` log line reporting `"online": true"` throughout an entire offline test session where dozens of calls were visibly failing with `UnknownHostException`. Root cause: `supabaseClient.js`'s `trackedFetch` only called `markOffline()` when `error instanceof TypeError` — the shape a failed `fetch()` throws on iOS/web. On this Android setup it throws Expo's own `CodedError` instead, so the check silently never matched. **This is not just cosmetic** — `ConnectionPill.js` (the Online/Offline indicator on the 3 delivery map screens) reads this same flag, so it has very likely been silently stuck showing "Online" during every real offline test anyone's run on Android. `App.js`'s own splash-screen check was unaffected (it catches its own error directly, doesn't depend on this flag). **Fix**: removed the `instanceof TypeError` narrowing — any `fetch()` rejection at all means a network-level failure (an HTTP error status still resolves normally, it never reaches the catch), so any rejection now marks offline regardless of error class. Confirmed by code read, not yet re-tested on device — next offline test should show `"online": false"` correctly and `ConnectionPill` should flip to red on the map screens.
+
+---
+
 ## ✅ Implementation Log — Oct 7/8, 2026
 
 Everything below is backend/database-touching, written down in full per Alther's request — if anything breaks later, this is the paper trail. **None of it has been device-tested beyond what's explicitly marked "confirmed on device."**

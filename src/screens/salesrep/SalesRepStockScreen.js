@@ -47,9 +47,18 @@ const loadStockData = async (previous) => {
   const agentBranches = await requestService.getAgentBranches(currentAgent?.branchIds || []);
   const result = await inventoryService.getBranchStockForAgent(currentAgent?.id);
 
+  // getAgentBranches collapses "no branches assigned" and "fetch failed"
+  // into the same empty array — unlike `stock` below, falling back here
+  // only on empty rather than checking a .success flag. An offline retry
+  // coming back empty almost always means the fetch failed (losing this
+  // wipes selectedBranchId downstream and blanks every stock section even
+  // though `stock` itself is fine); a real zero-branch reassignment just
+  // self-corrects on the next successful sync.
+  const branches = agentBranches.length > 0 ? agentBranches : prev?.branches ?? [];
+
   return {
     agent: currentAgent,
-    branches: agentBranches,
+    branches,
     stock: result.success ? result.data : prev?.stock ?? [],
   };
 };

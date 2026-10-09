@@ -21,6 +21,18 @@ const DASHBOARD_ROUTE_BY_ROLE = {
   collector: 'CollectorDashboard',
 };
 
+// Offline, a network call can take a while to actually fail rather than
+// erroring instantly — without a cap, "Connecting to server..." could sit on
+// screen far longer than it should before falling back. Caps the connection
+// probe only; session restore (see below) runs independently of it.
+const CONNECTION_PROBE_TIMEOUT_MS = 6000;
+
+const withTimeout = (promise, ms, fallbackValue) =>
+  Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
+  ]);
+
 export default function App() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
@@ -31,37 +43,52 @@ export default function App() {
     const initializeApp = async () => {
       console.log('🚀 [App] Initializing application...');
       console.log('📱 [App] Environment:', __DEV__ ? 'Development' : 'Production');
-      
+
+      // Run the connection probe and session restore in parallel — restoring
+      // a session (Supabase session + cached profile, or a cached agent
+      // session) reads from local storage and must not sit behind a slow or
+      // hanging network probe that has nothing to do with it.
+      const [result, restoredRouteName] = await Promise.all([
+        withTimeout(testConnection(), CONNECTION_PROBE_TIMEOUT_MS, {
+          success: false,
+          error: 'Connection timed out',
+        }).catch((err) => ({ success: false, error: err.message })),
+        resolveExistingSession(),
+      ]);
+
       try {
-        // Test connection
-        const result = await testConnection();
-        
         if (result.success) {
           console.log('✅ [App] Supabase connection successful!');
           setConnectionStatus('Connected');
-          
+
           // Test RLS policies on activation_keys only
           await testRLSPolicies();
         } else {
           console.error('❌ [App] Connection failed:', result.error);
-          setConnectionError(result.error);
-          
-          if (__DEV__) {
-            Alert.alert(
-              'Connection Issue',
-              `Cannot connect to database:\n${result.error}\n\nPlease check:\n1. Internet connection\n2. Supabase credentials\n3. Table permissions`
-            );
+
+          // A failed probe is expected and already handled gracefully when a
+          // session was restored above (offline + cached profile/agent
+          // session) — only surface this as an error when there's truly
+          // nothing to fall back on, otherwise a dev build alerts and blocks
+          // the screen on every normal offline launch for a user who's
+          // actually fine.
+          if (!restoredRouteName) {
+            setConnectionError(result.error);
+
+            if (__DEV__) {
+              Alert.alert(
+                'Connection Issue',
+                `Cannot connect to database:\n${result.error}\n\nPlease check:\n1. Internet connection\n2. Supabase credentials\n3. Table permissions`
+              );
+            }
+          } else {
+            console.log('ℹ️ [App] Connection probe failed but a session was restored — continuing offline, not surfacing the error.');
           }
         }
       } catch (err) {
         console.error('❌ [App] Unexpected error:', err.message);
         setConnectionError(err.message);
       } finally {
-        // Check for an already-logged-in session regardless of how the
-        // connection test above went — restoring a Manager's Supabase
-        // session or a cached agent session both read from local storage,
-        // no live request required.
-        await resolveExistingSession();
         setIsConnecting(false);
       }
     };
@@ -74,8 +101,10 @@ export default function App() {
           console.log('✅ [App] Existing session found, skipping Login:', user.role);
           setInitialRouteName(routeName);
         }
+        return routeName;
       } catch (err) {
         console.warn('⚠️ [App] No existing session to restore:', err.message);
+        return null;
       }
     };
 

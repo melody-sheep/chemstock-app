@@ -1,10 +1,11 @@
 // src/screens/salesrep/SalesRepBackpackScreen.js
 // A Sales Rep's personal stock — what they have accepted and are carrying.
 // Separate from the Stock tab, which shows the branch warehouse.
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import StockBatchCard from '../../components/common/StockBatchCard';
@@ -19,26 +20,26 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 const BANNER_HEIGHT = 76;
 
+// Returns the full backpack snapshot. A request that fails keeps its value
+// from the previous snapshot instead of blanking the screen — same pattern
+// SalesRepStockScreen/the dashboards already use.
+const loadBackpackData = async (previous) => {
+  const currentAgent = await authService.getCurrentUser();
+  const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
+
+  const result = await inventoryService.getSrInventory(currentAgent?.id);
+
+  return {
+    agent: currentAgent,
+    items: result.success ? result.data.filter((row) => row.remaining_quantity > 0) : prev?.items ?? [],
+  };
+};
+
 export default function SalesRepBackpackScreen() {
   const navigation = useNavigation();
-  const [agent, setAgent] = useState(null);
-  const [items, setItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadBackpack = useCallback(async () => {
-    setIsLoading(true);
-    const currentAgent = await authService.getCurrentUser();
-    setAgent(currentAgent);
-    const result = await inventoryService.getSrInventory(currentAgent?.id);
-    setItems(result.success ? result.data.filter((row) => row.remaining_quantity > 0) : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadBackpack();
-    }, [loadBackpack])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-backpack', loadBackpackData);
+  const agent = snapshot?.agent ?? null;
+  const items = snapshot?.items ?? [];
 
   const totalUnits = items.reduce((sum, row) => sum + row.remaining_quantity, 0);
 
