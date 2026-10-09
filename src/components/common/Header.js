@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import Icon from './Icon';
 import UserAvatar from './UserAvatar';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import { formatClockTime } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -38,6 +40,7 @@ export default function Header({
   onDocumentPress = null,
   showNotificationIcon = false,
   onNotificationPress = null,
+  notificationCount = 0,
   title = null,
   titleAlign = 'center',
   height = 56,
@@ -48,6 +51,7 @@ export default function Header({
 }) {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const connection = useConnectionStatus();
 
   const handleBackPress = () => {
     try {
@@ -143,9 +147,9 @@ export default function Header({
       <View style={styles.rightSection}>
         {showOnlineStatus && (
           <View style={styles.onlineContainer}>
-            <View style={styles.onlineDot} />
-            <Text style={[styles.onlineText, { color: textColor }]}>
-              Online
+            <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+            <Text style={[styles.onlineText, { color: textColor }, !connection.online && styles.onlineTextOffline]}>
+              {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
             </Text>
           </View>
         )}
@@ -164,12 +168,20 @@ export default function Header({
             )}
             {showNotificationIcon && (
               <TouchableOpacity
+                style={styles.notificationButton}
                 onPress={onNotificationPress}
                 activeOpacity={0.7}
-                accessibilityLabel="Notifications"
+                accessibilityLabel={notificationCount > 0 ? `Notifications, ${notificationCount} unread` : 'Notifications'}
                 accessibilityRole="button"
               >
                 <Icon name="notification" size={22} color={textColor} weight="fill" />
+                {notificationCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {notificationCount > 99 ? '99+' : notificationCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -191,6 +203,7 @@ Header.propTypes = {
   onDocumentPress: PropTypes.func,
   showNotificationIcon: PropTypes.bool,
   onNotificationPress: PropTypes.func,
+  notificationCount: PropTypes.number,
   title: PropTypes.string,
   titleAlign: PropTypes.oneOf(['left', 'center']),
   height: PropTypes.number,
@@ -279,9 +292,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
     marginRight: SPACING.xs,
   },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
+  onlineTextOffline: { color: COLORS.warning },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
+  },
+  notificationButton: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notificationBadgeText: {
+    fontSize: 9,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
   },
 });

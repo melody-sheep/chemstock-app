@@ -13,16 +13,17 @@ class RequestService extends BaseService {
    * auth.uid()-is-always-null caveat as every other agent action (see
    * inventoryService.getTransactionByQrCodeForAgent for the full reasoning).
    */
-  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items }) {
-    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, itemCount: items?.length });
+  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items, branchId }) {
+    debugLog('info', 'RequestService', 'Submitting stock request', { agentId, itemCount: items?.length, branchId });
 
     try {
       this.validateRequired(['agentId'], { agentId });
 
-      // No p_branch_id here — submit_stock_request derives the branch itself
-      // from the agent's own (single) branch_ids, since a Sales Rep/Collector
-      // always belongs to exactly one branch (unlike a Manager). Passing one
-      // doesn't match that RPC's signature and fails with a schema-cache error.
+      // p_branch_id: required for a multi-branch agent (the RPC rejects a
+      // missing one in that case), harmless/ignored for a single-branch
+      // agent. See 2026-10-08c_submit_stock_request_multi_branch.sql —
+      // the earlier "always single-branch" assumption here was wrong,
+      // confirmed by a real multi-branch Sales Rep hitting this on device.
       const { data, error } = await supabase.rpc('submit_stock_request', {
         p_agent_id: agentId,
         p_latitude: latitude ?? null,
@@ -34,6 +35,7 @@ class RequestService extends BaseService {
           product_name: item.productName,
           quantity: item.quantity,
         })),
+        p_branch_id: branchId ?? null,
       });
 
       if (error) {

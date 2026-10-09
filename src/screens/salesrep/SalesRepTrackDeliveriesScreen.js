@@ -1,8 +1,9 @@
 // src/screens/salesrep/SalesRepTrackDeliveriesScreen.js
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -32,24 +33,21 @@ function getStatusPillTextStyle(status) {
   return styles.statusPillTextPending;
 }
 
+// A failed fetch keeps the previous list instead of blanking it.
+const loadDeliveriesData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agentId === agent?.id ? previous : null;
+  const result = await inventoryService.getMyDeliveries(agent?.id);
+  return {
+    agentId: agent?.id,
+    deliveries: result.success ? result.data : prev?.deliveries ?? [],
+  };
+};
+
 export default function SalesRepTrackDeliveriesScreen() {
   const navigation = useNavigation();
-  const [deliveries, setDeliveries] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadDeliveries = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const result = await inventoryService.getMyDeliveries(agent?.id);
-    setDeliveries(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDeliveries();
-    }, [loadDeliveries])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-track-deliveries', loadDeliveriesData);
+  const deliveries = snapshot?.deliveries ?? [];
 
   return (
     <>

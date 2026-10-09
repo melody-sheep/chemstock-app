@@ -16,6 +16,149 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 
 ---
 
+## 🔴 PM Priority Check-In — Oct 7, 2026 (Alther, relayed via Messenger)
+
+**Source:** Alther's PM chat, translated/organized here. Claude double-checked all 4 items against the actual code before writing this section — findings below each one, not just the ask.
+
+### A. Offline feature tiers — Discord list, double-checked
+
+```
+Tier 0 — Already offline, zero work
+  Product catalog, Legal Info/FAQ (static bundled content, no network call at all)
+Tier 1 — Read-only cache, highest priority
+  Stock Inventory (Manager & Sales Rep)
+  Dashboard summary stats
+Tier 2 — Read-only cache, secondary
+  Logs/history screens (Stock Logs, SR Logs, Track Deliveries)
+  Alerts/Discrepancies lists
+Tier 3 — Offline write queue (single local outbox, single-writer actions, low conflict risk)
+  Sales Rep daily report submission
+  Sales Rep return/discrepancy-resolution request
+  Collector GPS checkpoints (trip breadcrumbs)
+  Collector "mark delivered" confirmation — only after the initial QR scan/lookup already happened online
+Tier 4 — Skip, not viable offline
+  Release Stock / Receive Stock (shared inventory, concurrent actors)
+  Any QR scan-and-lookup step (always needs a live read)
+```
+
+- [x] 🔴 Tier 0 confirmed correct (zero work, already static)
+- [x] ✅ **Tier 1/2 — done Oct 8.** See Implementation Log §1 below.
+- [x] ✅ **Tier 3 — done Oct 8.** See Implementation Log §2 below.
+- [x] Tier 4 confirmed correct, matches §65's own exclusion reasoning
+- [x] ⚠️ **Conflict resolved:** GPS checkpoints are a manual one-shot tap (Collector taps a landmark label), not continuous tracking — confirmed by Alther. Safe to queue once `captured_at` (not sync time) was added. See Implementation Log §2.
+- [x] ⚠️ Confirmed: "Collector 'mark delivered' confirmation" = `finishDeliveryLeg`, already scoped in §65 — same action, not a 5th flow.
+
+### B. Notification feature — what Jay put on hold
+
+Per `Jay_Sprint1.1.md` §62/§64: the **in-app** notification system (7 triggers, bell badges, `NotificationsScreen.js`) is built and confirmed working on-device.
+- [ ] Real OS push (pop-up when app is closed) — **still correctly on hold, not started.** `expo-notifications` + `expo-constants`, new `push_tokens` table, a registration RPC, push-send wired into the same 7 trigger points. Needs a dev-client build to test at all — Expo Go on this SDK can't receive real push.
+- [x] ✅ **`ConnectionPill.js` wiring — done Oct 8.** See Implementation Log §4 below.
+
+### C. Sales Rep offline report submission — photo proof must survive reconnect
+
+- [x] ✅ **Done Oct 8.** See Implementation Log §2 below.
+
+### D. "Always logged in" after login — corrects Jay's own notes
+
+- [x] ✅ **Done Oct 8.** See Implementation Log §3 below.
+
+---
+
+## ✅ Implementation Log — Oct 7/8, 2026
+
+Everything below is backend/database-touching, written down in full per Alther's request — if anything breaks later, this is the paper trail. **None of it has been device-tested beyond what's explicitly marked "confirmed on device."**
+
+### Database migrations (run in this order, all in `capstone_docs/sql/`)
+
+| File | What it does | Status |
+|---|---|---|
+| `2026-10-08_delivery_checkpoint_captured_at.sql` | Adds `delivery_checkpoints.captured_at` (backfilled from `created_at`); `log_delivery_checkpoint` gains optional `p_captured_at` param (old 5-arg signature dropped first) | ✅ Run, confirmed via schema dump |
+| `2026-10-08b_delivery_checkpoint_read_paths.sql` | `get_my_deliveries` and `get_my_collector_deliveries` switched from reading `dc.created_at` to `dc.captured_at` for checkpoints — without this, the write-side fix above would be invisible (right time stored, wrong time still displayed) | ✅ Run |
+| `2026-10-08c_submit_stock_request_multi_branch.sql` | `submit_stock_request` gains optional `p_branch_id` (ownership-validated against the agent's own `branch_ids`; old 6-arg signature dropped first). Fixes a real bug found on device: Clint (multi-branch Sales Rep, Iponan + Butuan) could not submit any stock request at all — "Your account is assigned to more than one branch" fired every time, because Jay's "a Sales Rep is always single-branch" assumption (§50/§56) was wrong, not just untested | ✅ Run, confirmed `pronargs: 7`, then confirmed submitting on Clint's device |
+
+**Known gotcha hit again tonight, for the record:** adding a parameter to an existing function changes its signature, so a plain `CREATE OR REPLACE` leaves the *old* version behind as a separate overload instead of replacing it — same issue as the Aug 19 `get_my_agent_accounts` incident. Every migration above does an explicit `DROP FUNCTION IF EXISTS` (old signature) before the `CREATE`. Also hit again: PostgREST's schema cache not picking up a function change until `NOTIFY pgrst, 'reload schema';` is run manually afterward.
+
+### §1. Tier 1/2 — persisted read-caching
+
+`src/hooks/useCachedFocusLoader.js` upgraded to write every successful load to AsyncStorage (`chemstock_cache_<key>`), not just the in-memory `Map` it had before — so a cold app launch with no network now paints the last-known data instead of a stuck skeleton. In-memory behavior is unchanged; this is additive.
+
+Applied to 9 screens total (each with its own "if every sub-fetch failed, keep the previous snapshot entirely" fallback, so a dead network never quietly blanks out data that was already showing):
+`ManagerDashboardScreen`, `SalesRepDashboardScreen` (already used the hook, upgraded for free), `ManagerStockScreen`, `SalesRepStockScreen`, `StockLogsScreen`, `SalesRepLogsScreen`, `ManagerAlertsScreen`, `AlertsDiscrepanciesSR`, `TrackDeliveriesScreen`, `SalesRepTrackDeliveriesScreen`.
+
+**Decision recorded:** uses AsyncStorage, not `expo-sqlite`/NetInfo as the original proposal names. This is a deliberate, documented divergence — not an oversight. The Tier 3 outbox (below) already established this pattern; Tier 1/2 just extends it for consistency and to avoid adding a new native dependency on an Expo-Go-only test setup (this project's own repeated history of new-native-module pain, see `Jay_Sprint1.1.md` §7).
+
+### §2. Tier 3 — offline write queue
+
+**New:** `src/services/outboxService.js` (AsyncStorage-persisted FIFO queue, photo persistence via `expo-file-system/legacy` into `pending-outbox/`, flushes on reconnect/app-launch/45s safety interval) and `src/hooks/useOutbox.js`.
+
+5 executors registered, each wired into its screen with the same pattern (already-offline → enqueue immediately; live call fails while still online → today's unchanged error; live call fails and now offline → enqueue instead of erroring):
+- `daily_report` — `SubmitReportSR.js`
+- `discrepancy_resolution` — `ResolveDiscrepancyScreen.js`
+- `stock_request` — `RequestListSR.js`
+- `delivery_checkpoint` — `CollectorDeliverStockScreen.js` (`handleLogCheckpoint`)
+- `finish_delivery_leg` — `CollectorDeliverStockScreen.js` (`handleFinishDelivery`) — approximates `tripCompleted` locally from already-loaded leg data when queued, worded as "looks like" since it's not server-confirmed
+
+**Deliberately NOT given an executor:** `startDeliveryTrip`. It navigates into a screen keyed by a server-generated `tripId` that doesn't exist until the call actually runs — queuing it would strand the Collector on a screen with nothing to show. Also never on the PM's own Discord list. Reasoning is written into `outboxService.js` itself.
+
+### §3. "Always logged in"
+
+`App.js`: calls `authService.getCurrentUser()` before rendering, regardless of the connection-test outcome (session restore works offline too). `AppNavigator.js`: accepts `initialRouteName` prop, defaults to `'Login'`, set to the correct role dashboard when a session is found. No route params passed through — confirmed by reading all 3 dashboard screens that none of them read `route.params`, they already self-fetch via `getCurrentUser()`.
+
+### §4. `ConnectionPill` wiring
+
+Added to the 3 actual delivery **map** screens (not every screen with an "Online" header, which is a much bigger, out-of-scope cosmetic sweep — 26 files have some hardcoded "Online" text, most of it unrelated decoration): `TrackDeliveryDetailScreen.js` (Manager), `SalesRepDeliveryDetailScreen.js`, `CollectorDeliverStockScreen.js`. Inserted into the existing `topOverlayColumn`, directly under `MapLegend` — the slot the original (never-actually-applied) Oct 5/6 notes already described.
+
+Note: the *other* "Online"/"Last online" text already visible on these same map screens (for the Collector/Sales Rep being tracked) is a different, already-correctly-live system (`presenceService.js` / `touch_presence` / `get_presence`) — not touched, not part of this gap.
+
+### Other fixes made along the way (found via device testing, not originally scoped)
+
+**PM request status: A, B, C, D above are all done.** Everything from here down is extra work that came up afterward — bug fixes you found on device, plus a UI redesign pass you asked for on top. Written out in full, file by file, so any of it can be found and reverted on its own if something breaks — this section is the "fix it back" reference.
+
+#### `BranchSelector.js` — rewritten twice, here's the full history
+
+1. **Original bug:** switching branches made the newly-active chip visually overlap the inactive one. Root cause: `gap` inside a horizontal `ScrollView`'s `contentContainerStyle` not reliably applying on Android once a chip's style array changes reference (happens every press, since `[styles.chip, active && styles.chipActive]` is a new array each time).
+2. **First fix attempt (insufficient):** swapped `gap` for explicit `marginRight` per chip. Looked right in the one screenshot checked, but the bug was still reproducible — this ruled out spacing as the actual cause.
+3. **Current version — full rewrite:** replaced the whole approach. `ScrollView` → plain `View`, `TouchableOpacity` → `Pressable` (no internal Animated-opacity wrapper, the more likely real cause of the Android stacking issue). **Confirmed working by you** ("its now working!") in this form.
+4. **Then changed again per your "make it 1 row" request:** chips no longer `flexWrap` — every chip now gets `flex: 1`, so N chips always divide the row evenly and share one line, truncating text (`numberOfLines={1}`) instead of ever wrapping to a second row. **This specific version has NOT been re-confirmed on device** — it was built after the last confirmed check-in, so re-test it before assuming it's still good.
+5. **Alignment fix, separate issue:** the chip row didn't line up with the title text above it on 6 of the 8 screens that use `BranchSelector`. Root cause was inconsistent `edgePadding`: 3 screens needed `edgePadding={SPACING.md}` (label sits in a header with no padding of its own — `SalesRepStockScreen.js`, `ManagerStockScreen.js`, `RequestStockSR.js`), 3 needed `edgePadding={0}` (label already sits inside a padded container, so any non-zero value double-pads — `AgentAccountsScreen.js`, `ReleaseStockRecipientScreen.js`, `ReceiveStockPreviewScreen.js`), and 2 were already correct as-is (`ManagerAlertsScreen.js`, `ManageReturnsScreen.js` — their own negative-margin "bleed" trick already nets out right). **Not device-tested.**
+
+**To revert `BranchSelector.js` to before any of tonight's changes:** go back to `ScrollView horizontal` + `TouchableOpacity` + `gap: SPACING.sm` in `row`, drop the `edgePadding={0}`/`{SPACING.md}` props added to the 6 screens above.
+
+#### `AgentStockRequestScreen.js` — redesigned
+
+Off-brand pink/red theme (hardcoded `SecondaryHeader` color overrides `backgroundColor="#FFF5F8"` / `borderColor="#F9C9DA"`, pink card borders `#F9C9DA`/`#FFF9FB`) replaced with the neutral theme every other screen uses (component defaults, `#EAEFF5` border on white). Action buttons resized from the default `52/18` down to `44/14` (the card-embedded Decline/Prepare/Continue pair) and `40/14` for "View Logs" — which also got `width={140}` + a `document` icon instead of stretching full-width, matching `ReceiveStockPreviewScreen`'s Share/Done button sizing. **Not device-tested.**
+
+#### Multi-branch Sales Rep stock request bug — **confirmed fixed on device** (Clint's account)
+
+Covered above in the SQL migrations table (`2026-10-08c_submit_stock_request_multi_branch.sql`) — the one piece of tonight's extra work that's actually been verified end-to-end on a real device, not just code-complete.
+
+### §5. Stock screens UI overhaul (Manager Stock + Sales Rep Stock) — Oct 8, later session
+
+Everything in this section applies identically to **both** `ManagerStockScreen.js` and `SalesRepStockScreen.js` (same layout, same fixes, same components). **None of it is device-tested yet.**
+
+**New shared components:**
+- `src/components/common/InfoTooltip.js` — small red "?" badge; tap shows a short message in a centered popup (built on React Native's own `Modal`, not a `ScrollView`, specifically to avoid repeating the `BranchSelector` class of bug). Appears instantly (`animationType="none"`), card corners `borderRadius: 2` (near-zero), per your request.
+- `src/components/common/StockSectionHeader.js` — colored dot (same dot the original design used, not a new icon) + label, with the tooltip `?` sitting immediately next to the label (not pushed to the row's far edge). Replaces the old "Label (Parenthetical Explanation)" pattern on all 3 stock buckets — the explanation now lives in the tooltip:
+  - 🟢 "In-Stock" — *"These products have healthy stock levels — no action needed."*
+  - 🟡 "Almost Out" — *"These products are running low — plan to resupply soon."*
+  - 🔴 "Out of Stock" — *"These products have no stock left on the shelf."*
+
+**`src/components/common/Input.js`** — gained an optional `height` prop (default `44`, unchanged everywhere else that uses this component). Stock screens pass `height={40}` for a more compact search bar.
+
+**`src/components/common/FilterSheet.js`** — redesigned rows: optional icon badge + optional description line per option, a tinted background for the selected row, a radio circle instead of a bare checkmark. The "All Batches" / "Near Expiry Only" options on both Stock screens now carry an icon (`grid` / `warningTriangle`) and a description line.
+
+**`src/components/common/StockBatchCard.js`** — `CARD_WIDTH` 144→120 (shrunk, per request). **Also fixed a real inconsistency**: the card had no fixed height, only content-sized — an out-of-stock card (no batch/expiry text lines) was visibly shorter than an in-stock card (has a status pill + 2 extra text lines). Added a fixed `CARD_HEIGHT: 176`, so every card is now exactly the same box regardless of section; an out-of-stock card just carries a little empty space at the bottom instead of shrinking.
+
+**Search/filter row:** search bar `height={40}` (was 44), filter button `40×40` / `borderRadius: 10` (was `44×44` / `12`), filter icon `18` (was `20`).
+
+**Collapsible "3rd header" (branch chips + search/filter row) — scroll-hide behavior, rewritten twice:**
+1. **First version:** manual scroll-delta tracking, hide after >6px moved in one `onScroll` callback, `Animated.timing` 200ms toggle. **Bug:** judged each `onScroll` callback individually — a fast flick down easily exceeded 6px (hiding worked), but a gentle scroll-up fires many callbacks with tiny per-frame deltas that individually never crossed the threshold, so the header stayed stuck hidden no matter how far you scrolled up in total.
+2. **Second attempt:** same `Animated.timing` toggle, but accumulated distance since the last direction change instead of judging single callbacks (18px threshold), plus a "within 4px of the top always force-shows" safety net. Still reported not working.
+3. **Third attempt:** replaced the hand-rolled logic entirely with `Animated.diffClamp`, the standard React Native primitive built for this exact UI — still reported not working.
+4. **Abandoned, reverted to static — current state.** After 3 attempts, pulled the scroll-hide behavior entirely rather than keep debugging blind. Branch chips + search/filter row are a plain, always-visible `View` again (`styles.stockHeaderStatic`), with a `borderBottomWidth: 1` / `#EAEFF5` divider line added to visually separate it from the stock cards below, per your request. All `Animated`/`scrollY`/`diffClamp`/`collapsibleHeight`/`onScroll` code removed from both screens — nothing scroll-driven left in either file. This is the current, simpler, untested-but-low-risk state (it's just a static view with a border, not a novel animation).
+
+---
+
 ## Status summary (October 6, 2026)
 
 **Achieved in code** (device check pending unless marked ✅ Confirmed)

@@ -1,8 +1,10 @@
 // src/screens/manager/ManagerAlertsScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -17,44 +19,47 @@ import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import agentService from '../../services/agentService';
 import requestService from '../../services/requestService';
-import { formatDisplayDate } from '../../utils/formatters';
+import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
 
 const ALL_BRANCHES_ID = 'all';
 
+// Returns the full alerts snapshot. If both sub-fetches failed (e.g. fully
+// offline), keeps the previous snapshot entirely rather than blanking it.
+const loadAlertsData = async (previous) => {
+  const [manager, alertsResult, agentsResult] = await Promise.all([
+    authService.getCurrentUser(),
+    reportService.getBranchDiscrepancies(200),
+    agentService.getMyAgentAccounts(),
+  ]);
+  const prev = previous?.managerId === manager?.id ? previous : null;
+
+  if (!alertsResult.success && !agentsResult.success && prev) {
+    return prev;
+  }
+
+  const managerBranches = await requestService.getAgentBranches(manager?.branchIds || []);
+
+  return {
+    managerId: manager?.id,
+    alerts: alertsResult.success ? alertsResult.data : prev?.alerts ?? [],
+    photoUrlByAgentId: agentsResult.success
+      ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
+      : prev?.photoUrlByAgentId ?? {},
+    branches: managerBranches,
+  };
+};
+
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
-  const [alerts, setAlerts] = useState([]);
-  const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
-  const [branches, setBranches] = useState([]);
+  const connection = useConnectionStatus();
+  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-alerts', loadAlertsData);
+  const alerts = snapshot?.alerts ?? [];
+  const photoUrlByAgentId = snapshot?.photoUrlByAgentId ?? {};
+  const branches = snapshot?.branches ?? [];
   const [selectedBranchId, setSelectedBranchId] = useState(ALL_BRANCHES_ID);
-  const [isLoading, setIsLoading] = useState(true);
   const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
-
-  const loadAlerts = useCallback(async () => {
-    setIsLoading(true);
-    const [manager, alertsResult, agentsResult] = await Promise.all([
-      authService.getCurrentUser(),
-      reportService.getBranchDiscrepancies(200),
-      agentService.getMyAgentAccounts(),
-    ]);
-    setAlerts(alertsResult.success ? alertsResult.data : []);
-    setPhotoUrlByAgentId(
-      agentsResult.success
-        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
-        : {}
-    );
-    const managerBranches = await requestService.getAgentBranches(manager?.branchIds || []);
-    setBranches(managerBranches);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadAlerts();
-    }, [loadAlerts])
-  );
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -103,8 +108,10 @@ export default function ManagerAlertsScreen() {
           <View style={styles.bannerRow}>
             <Text style={styles.bannerTitle}>Alerts and Discrepancies</Text>
             <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
+                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              </Text>
             </View>
           </View>
         </SecondaryHeader>
@@ -297,12 +304,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  onlineTextOffline: { color: COLORS.warning },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.lg,

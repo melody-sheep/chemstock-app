@@ -4,6 +4,7 @@ import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet }
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -18,8 +19,9 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
+import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
-import { formatRelativeTime } from '../../utils/formatters';
+import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -80,6 +82,7 @@ const MAIN_OPERATIONS = [
 
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
+  const connection = useConnectionStatus();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
@@ -101,13 +104,15 @@ export default function SalesRepDashboardScreen() {
     // A different account must never see the last account's numbers.
     const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
-    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult] = await Promise.all([
-      inventoryService.getSrInventory(currentUser?.id),
-      inventoryService.getSrActivityLogs(currentUser?.id, 3),
-      requestService.getMyStockRequests(currentUser?.id, 5),
-      inventoryService.getMyDeliveries(currentUser?.id, 10),
-      reportService.getMyDiscrepancies(currentUser?.id, 50),
-    ]);
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult, notificationsResult] =
+      await Promise.all([
+        inventoryService.getSrInventory(currentUser?.id),
+        inventoryService.getSrActivityLogs(currentUser?.id, 3),
+        requestService.getMyStockRequests(currentUser?.id, 5),
+        inventoryService.getMyDeliveries(currentUser?.id, 10),
+        reportService.getMyDiscrepancies(currentUser?.id, 50),
+        notificationService.getMyNotifications(currentUser?.id),
+      ]);
 
     const requests = requestsResult.success ? requestsResult.data : [];
     const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
@@ -144,6 +149,9 @@ export default function SalesRepDashboardScreen() {
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
       recentLogs: merged.slice(0, 3),
+      notificationCount: notificationsResult.success
+        ? notificationsResult.unreadCount
+        : prev?.notificationCount ?? 0,
     };
   };
 
@@ -153,6 +161,7 @@ export default function SalesRepDashboardScreen() {
   const recentLogs = snapshot?.recentLogs ?? [];
   const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
+  const notificationCount = snapshot?.notificationCount ?? 0;
 
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
@@ -249,6 +258,8 @@ export default function SalesRepDashboardScreen() {
           showDocumentIcon={true}
           onDocumentPress={() => navigation.navigate('SalesRepLogs')}
           showNotificationIcon={true}
+          onNotificationPress={() => navigation.navigate('Notifications')}
+          notificationCount={notificationCount}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
@@ -280,8 +291,10 @@ export default function SalesRepDashboardScreen() {
                   <Text style={styles.statusText}>Status</Text>
 
                   <View style={styles.statusGroup}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.statusText}>Online</Text>
+                    <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+                    <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
+                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                    </Text>
                   </View>
 
                   <TouchableOpacity
@@ -497,12 +510,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#00FF6E',
   },
+  onlineDotOffline: {
+    backgroundColor: '#FFE6AD',
+    borderColor: COLORS.warning,
+  },
   statusText: {
     fontSize: 14,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#555353',
   },
+  onlineTextOffline: { color: COLORS.warning },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

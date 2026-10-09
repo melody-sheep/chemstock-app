@@ -21,22 +21,32 @@ export default function FilterSheet({ visible, onClose, title, options, selected
   };
 
   return (
-    <CustomModal visible={visible} onClose={onClose} height={Math.min(140 + options.length * 56, 520)}>
+    <CustomModal visible={visible} onClose={onClose} height={Math.min(150 + options.length * 64, 540)}>
       <Text style={styles.title}>{title}</Text>
       <View style={styles.list}>
-        {options.map((option, index) => {
+        {options.map((option) => {
           const isSelected = option.key === selectedKey;
           return (
             <TouchableOpacity
               key={option.key}
-              style={[styles.row, index === options.length - 1 && styles.rowLast]}
+              style={[styles.row, isSelected && styles.rowSelected]}
               onPress={() => handleSelect(option.key)}
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
             >
-              <Text style={[styles.rowText, isSelected && styles.rowTextSelected]}>{option.label}</Text>
-              {isSelected && <Icon name="checkmark" size={18} color={COLORS.primary} />}
+              {!!option.icon && (
+                <View style={[styles.rowIconWrap, isSelected && styles.rowIconWrapSelected]}>
+                  <Icon name={option.icon} size={16} color={isSelected ? '#FFFFFF' : COLORS.textSecondary} />
+                </View>
+              )}
+              <View style={styles.rowTextCol}>
+                <Text style={[styles.rowText, isSelected && styles.rowTextSelected]}>{option.label}</Text>
+                {!!option.description && <Text style={styles.rowDescription}>{option.description}</Text>}
+              </View>
+              <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                {isSelected && <View style={styles.radioInner} />}
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -50,7 +60,12 @@ FilterSheet.propTypes = {
   onClose: PropTypes.func.isRequired,
   title: PropTypes.string.isRequired,
   options: PropTypes.arrayOf(
-    PropTypes.shape({ key: PropTypes.string.isRequired, label: PropTypes.string.isRequired })
+    PropTypes.shape({
+      key: PropTypes.string.isRequired,
+      label: PropTypes.string.isRequired,
+      description: PropTypes.string,
+      icon: PropTypes.string,
+    })
   ).isRequired,
   selectedKey: PropTypes.string.isRequired,
   onSelect: PropTypes.func.isRequired,
@@ -64,16 +79,33 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
-  list: { gap: 0 },
+  list: { gap: SPACING.xs },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  rowLast: { borderBottomWidth: 0 },
+  rowSelected: {
+    backgroundColor: COLORS.primary + '0D',
+    borderColor: COLORS.primary + '33',
+  },
+  rowIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  rowIconWrapSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  rowTextCol: { flex: 1 },
   rowText: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
@@ -84,5 +116,27 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  rowDescription: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#C0C0C0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioOuterSelected: { borderColor: COLORS.primary },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.primary,
   },
 });

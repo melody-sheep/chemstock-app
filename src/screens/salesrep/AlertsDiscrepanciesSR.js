@@ -1,9 +1,10 @@
 // src/screens/salesrep/AlertsDiscrepanciesSR.js
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
@@ -11,25 +12,22 @@ import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
+// A failed fetch keeps the previous list instead of blanking it.
+const loadDiscrepanciesData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agentId === agent?.id ? previous : null;
+  const result = await reportService.getMyDiscrepancies(agent?.id, 50);
+  return {
+    agentId: agent?.id,
+    discrepancies: result.success ? result.data : prev?.discrepancies ?? [],
+  };
+};
+
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [discrepancies, setDiscrepancies] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadDiscrepancies = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const result = await reportService.getMyDiscrepancies(agent?.id, 50);
-    setDiscrepancies(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDiscrepancies();
-    }, [loadDiscrepancies])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
+  const discrepancies = snapshot?.discrepancies ?? [];
 
   const handleBack = () => navigation.goBack();
 

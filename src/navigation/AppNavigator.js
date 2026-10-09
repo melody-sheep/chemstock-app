@@ -33,6 +33,7 @@ import ManagerSettingsScreen from '../screens/manager/ManagerSettingsScreen';
 import ComingSoonScreen from '../screens/common/ComingSoonScreen';
 import EditProfileScreen from '../screens/common/EditProfileScreen';
 import LegalInfoScreen from '../screens/common/LegalInfoScreen';
+import NotificationsScreen from '../screens/common/NotificationsScreen';
 import StockBatchDetailScreen from '../screens/common/StockBatchDetailScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
 import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
@@ -71,10 +72,10 @@ const trackCurrentScreen = () => {
   debugLog('info', 'Navigation', `-> ${route.name}`, route.params ? { paramKeys: Object.keys(route.params) } : null);
 };
 
-export default function AppNavigator() {
+export default function AppNavigator({ initialRouteName = 'Login' }) {
   return (
     <NavigationContainer ref={navigationRef} onReady={trackCurrentScreen} onStateChange={trackCurrentScreen}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="ManagerActivation" component={ManagerActivationScreen} />
         <Stack.Screen name="ManagerDashboard" component={ManagerDashboardScreen} options={{ animation: 'none' }} />
@@ -104,6 +105,7 @@ export default function AppNavigator() {
         <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} />
         <Stack.Screen name="ManagerSettings" component={ManagerSettingsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="LegalInfo" component={LegalInfoScreen} options={{ animation: 'none' }} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ComingSoon" component={ComingSoonScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} options={{ animation: 'none' }} />

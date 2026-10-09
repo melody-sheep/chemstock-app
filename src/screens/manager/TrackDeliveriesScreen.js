@@ -1,8 +1,9 @@
 // src/screens/manager/TrackDeliveriesScreen.js
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -33,33 +34,38 @@ function getStatusPillTextStyle(status) {
   return styles.statusPillTextPending;
 }
 
+// Returns the full deliveries snapshot. If both sub-fetches failed (e.g.
+// fully offline), keeps the previous snapshot entirely rather than blanking it.
+const loadDeliveriesData = async (previous) => {
+  const manager = await authService.getCurrentUser();
+  const prev = previous?.managerId === manager?.id ? previous : null;
+  const [deliveriesResult, agentsResult] = await Promise.all([
+    inventoryService.getDeliveries(manager?.branchIds || []),
+    agentService.getMyAgentAccounts(),
+  ]);
+
+  if (!deliveriesResult.success && !agentsResult.success && prev) {
+    return prev;
+  }
+
+  return {
+    managerId: manager?.id,
+    deliveries: deliveriesResult.success ? deliveriesResult.data : prev?.deliveries ?? [],
+    recipientNameById: agentsResult.success
+      ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name]))
+      : prev?.recipientNameById ?? {},
+    recipientPhotoById: agentsResult.success
+      ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl || null]))
+      : prev?.recipientPhotoById ?? {},
+  };
+};
+
 export default function TrackDeliveriesScreen() {
   const navigation = useNavigation();
-  const [deliveries, setDeliveries] = useState([]);
-  const [recipientNameById, setRecipientNameById] = useState({});
-  const [recipientPhotoById, setRecipientPhotoById] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadDeliveries = useCallback(async () => {
-    setIsLoading(true);
-    const manager = await authService.getCurrentUser();
-    const [deliveriesResult, agentsResult] = await Promise.all([
-      inventoryService.getDeliveries(manager?.branchIds || []),
-      agentService.getMyAgentAccounts(),
-    ]);
-    setDeliveries(deliveriesResult.success ? deliveriesResult.data : []);
-    if (agentsResult.success) {
-      setRecipientNameById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name])));
-      setRecipientPhotoById(Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl || null])));
-    }
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDeliveries();
-    }, [loadDeliveries])
-  );
+  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-track-deliveries', loadDeliveriesData);
+  const deliveries = snapshot?.deliveries ?? [];
+  const recipientNameById = snapshot?.recipientNameById ?? {};
+  const recipientPhotoById = snapshot?.recipientPhotoById ?? {};
 
   return (
     <>

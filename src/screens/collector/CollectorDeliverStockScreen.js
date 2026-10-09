@@ -11,6 +11,7 @@ import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import MapLegend from '../../components/common/MapLegend';
+import ConnectionPill from '../../components/common/ConnectionPill';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
 import MapZoomControls from '../../components/common/MapZoomControls';
@@ -19,6 +20,8 @@ import { buildTimelineEntries } from '../../utils/checkpointTimeline';
 import CollectorUpdateCheckpointModal from '../../components/common/CollectorUpdateCheckpointModal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import outboxService from '../../services/outboxService';
+import { getConnectionStatus } from '../../services/connectionStatus';
 import { recordLandmarkUsage } from '../../utils/landmarkUsage';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
 import { COLORS } from '../../constants/colors';
@@ -179,16 +182,49 @@ export default function CollectorDeliverStockScreen() {
         }
       }
 
-      const result = await deliveryService.logDeliveryCheckpoint({
+      const checkpointPayload = {
         agentId: agent.id,
         tripId,
         latitude: coords?.latitude,
         longitude: coords?.longitude,
         label,
-      });
+        // Captured at the moment of the tap, not whenever this eventually
+        // syncs if it has to queue offline — see the 2026-10-08 migrations.
+        capturedAt: new Date().toISOString(),
+      };
 
-      if (!result.success) {
-        throw new Error(result.message);
+      // Already known offline — don't even attempt the live call.
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('delivery_checkpoint', checkpointPayload);
+        await recordLandmarkUsage(label);
+        setIsCheckpointModalVisible(false);
+        Alert.alert(
+          'Saved — Will Send Later',
+          "You're offline. This checkpoint is saved on this device and will sync automatically once you're back online."
+        );
+        return;
+      }
+
+      try {
+        const result = await deliveryService.logDeliveryCheckpoint(checkpointPayload);
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+      } catch (liveError) {
+        // A failure that leaves us offline is a network problem, not a real
+        // rejection — queue it instead of showing an error. Anything else
+        // (still online) is a genuine failure, handled below as before.
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('delivery_checkpoint', checkpointPayload);
+          await recordLandmarkUsage(label);
+          setIsCheckpointModalVisible(false);
+          Alert.alert(
+            'Saved — Will Send Later',
+            "Connection dropped mid-update. This checkpoint is saved on this device and will sync automatically once you're back online."
+          );
+          return;
+        }
+        throw liveError;
       }
 
       await recordLandmarkUsage(label);
@@ -205,26 +241,75 @@ export default function CollectorDeliverStockScreen() {
     if (!agent || !nearestLeg || isFinishing) return;
     setIsFinishing(true);
 
-    try {
-      const result = await deliveryService.finishDeliveryLeg({
-        agentId: agent.id,
-        transactionId: nearestLeg.id,
-        latitude: collectorPosition?.latitude,
-        longitude: collectorPosition?.longitude,
-        label: `Delivered to ${nearestLeg.label}`,
-      });
+    const finishPayload = {
+      agentId: agent.id,
+      transactionId: nearestLeg.id,
+      latitude: collectorPosition?.latitude,
+      longitude: collectorPosition?.longitude,
+      label: `Delivered to ${nearestLeg.label}`,
+    };
 
-      if (!result.success) {
-        throw new Error(result.message);
+    // Approximated locally for the offline case — the real answer comes
+    // from the server's tripCompleted once this syncs. Just enough to
+    // decide what to show right now: is this the only leg still pending?
+    const isLikelyLastStop = undeliveredLegs.length <= 1;
+
+    try {
+      // Already known offline — don't even attempt the live call.
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('finish_delivery_leg', finishPayload);
+        if (isLikelyLastStop) {
+          Alert.alert(
+            'Saved — Will Send Later',
+            "You're offline. This looks like your last stop — it'll be marked delivered and the trip completed once you're back online.",
+            [{ text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') }]
+          );
+        } else {
+          Alert.alert(
+            'Saved — Will Send Later',
+            `You're offline. Delivery to ${nearestLeg.label} is saved on this device and will sync automatically once you're back online.`
+          );
+          load();
+        }
+        return;
       }
 
-      if (result.data?.tripCompleted) {
-        Alert.alert('Trip Completed', 'All deliveries in this trip are done.', [
-          { text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') },
-        ]);
-      } else {
-        Alert.alert('Delivery Finished', `Delivery to ${nearestLeg.label} is complete.`);
-        load();
+      try {
+        const result = await deliveryService.finishDeliveryLeg(finishPayload);
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+
+        if (result.data?.tripCompleted) {
+          Alert.alert('Trip Completed', 'All deliveries in this trip are done.', [
+            { text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') },
+          ]);
+        } else {
+          Alert.alert('Delivery Finished', `Delivery to ${nearestLeg.label} is complete.`);
+          load();
+        }
+      } catch (liveError) {
+        // A failure that leaves us offline is a network problem, not a real
+        // rejection — queue it instead of showing an error. Anything else
+        // (still online) is a genuine failure, handled below as before.
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('finish_delivery_leg', finishPayload);
+          if (isLikelyLastStop) {
+            Alert.alert(
+              'Saved — Will Send Later',
+              "Connection dropped mid-update. This looks like your last stop — it'll be marked delivered and the trip completed once you're back online.",
+              [{ text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') }]
+            );
+          } else {
+            Alert.alert(
+              'Saved — Will Send Later',
+              `Connection dropped mid-update. Delivery to ${nearestLeg.label} is saved on this device and will sync automatically once you're back online.`
+            );
+            load();
+          }
+          return;
+        }
+        throw liveError;
       }
     } catch (error) {
       Alert.alert('Failed to Finish Delivery', error.message || 'Please try again.');
@@ -312,6 +397,7 @@ export default function CollectorDeliverStockScreen() {
           {/* Stacked on the left so it never sits over the map's zoom control (top right). */}
           <View style={styles.topOverlayColumn} pointerEvents="box-none">
             <MapLegend items={MAP_LEGEND_ITEMS} />
+            <ConnectionPill />
             <Pressable style={[styles.cancelPill, glassPanel]} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
               <Icon name="xCircle" size={14} color={COLORS.error} weight="fill" />
               <Text style={styles.cancelPillText}>Cancel</Text>

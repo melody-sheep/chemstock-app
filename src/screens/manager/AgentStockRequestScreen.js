@@ -113,7 +113,7 @@ export default function AgentStockRequestScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={64} backgroundColor="#FFF5F8" borderColor="#F9C9DA">
+        <SecondaryHeader height={64}>
           <View style={styles.titleRow}>
             <Text style={styles.pageTitle}>Agent Stock Request</Text>
           </View>
@@ -182,6 +182,9 @@ export default function AgentStockRequestScreen() {
                         onPress={() => setDeclineTarget(request)}
                         disabled={isBusy}
                         style={styles.actionButton}
+                        height={44}
+                        fontSize={14}
+                        borderRadius={10}
                       />
                       {displayStatus === 'pending' && (
                         <Button
@@ -191,6 +194,9 @@ export default function AgentStockRequestScreen() {
                           loading={isBusy}
                           disabled={isBusy}
                           style={styles.actionButton}
+                          height={44}
+                          fontSize={14}
+                          borderRadius={10}
                         />
                       )}
                       {displayStatus === 'preparing' && (
@@ -200,13 +206,27 @@ export default function AgentStockRequestScreen() {
                           onPress={() => handleContinue(request)}
                           disabled={isBusy}
                           style={styles.actionButton}
+                          height={44}
+                          fontSize={14}
+                          borderRadius={10}
                         />
                       )}
                     </View>
                   )}
 
                   {displayStatus === 'fulfilled' && (
-                    <Button title="View Logs" variant="outline" onPress={handleViewLogs} style={styles.viewLogsButton} />
+                    <Button
+                      title="View Logs"
+                      variant="outline"
+                      icon="document"
+                      iconSize={16}
+                      onPress={handleViewLogs}
+                      style={styles.viewLogsButton}
+                      width={140}
+                      height={40}
+                      fontSize={14}
+                      borderRadius={10}
+                    />
                   )}
                 </View>
               );
@@ -236,7 +256,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#E63946',
+    color: '#272632',
   },
   queueHeaderRow: {
     flexDirection: 'row',
@@ -245,7 +265,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#F9C9DA',
+    borderBottomColor: '#EAEFF5',
   },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.success },
   queueHeaderText: {
@@ -263,9 +283,9 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, gap: SPACING.md },
   requestCard: {
     borderWidth: 1,
-    borderColor: '#F9C9DA',
-    borderRadius: 12,
-    backgroundColor: '#FFF9FB',
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: 4,
   },

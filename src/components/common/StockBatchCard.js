@@ -10,7 +10,12 @@ import { SHADOWS } from '../../styles/shadows';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { daysUntil } from '../../utils/formatters';
 
-const CARD_WIDTH = 144;
+const CARD_WIDTH = 120;
+// Fixed, not minHeight — every card (in-stock or out-of-stock) is exactly
+// this size regardless of how many text lines it actually has, so a row
+// never looks uneven. Out-of-stock cards (no batch/expiry lines) just carry
+// a little empty space at the bottom instead of shrinking the box.
+const CARD_HEIGHT = 176;
 
 /**
  * StockBatchCard - one card per received batch (in-stock) or catalog
@@ -116,6 +121,7 @@ StockBatchCard.propTypes = {
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
+    height: CARD_HEIGHT,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E5E5E5',
@@ -135,18 +141,18 @@ const styles = StyleSheet.create({
   },
   thumbWrap: {
     width: '100%',
-    height: 88,
+    height: 72,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   thumbIconBg: {
-    width: 60,
-    height: 60,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },

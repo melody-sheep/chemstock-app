@@ -13,6 +13,11 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
+import outboxService from '../../services/outboxService';
+import { getConnectionStatus } from '../../services/connectionStatus';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOutbox from '../../hooks/useOutbox';
+import { formatClockTime } from '../../utils/formatters';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 
 function isNearExpiry(expDate) {
@@ -41,6 +46,8 @@ export default function SubmitReportSR() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
+  const connection = useConnectionStatus();
+  const { pendingCount, retryNow } = useOutbox('daily_report');
 
   const loadStatus = useCallback(async () => {
     setIsLoading(true);
@@ -137,28 +144,55 @@ export default function SubmitReportSR() {
         };
       });
 
-      const storagePath = await reportService.uploadDailyReportPhoto(photoUri, agent?.id);
-
-      const result = await reportService.submitDailyReport({
+      const reportPayload = {
         agentId: agent?.id,
         latitude: coords.latitude,
         longitude: coords.longitude,
         deviceModel: Device.modelName || null,
         deviceOs: Device.osName || null,
-        storagePath,
         items: reportItems,
-      });
-
-      if (!result.success) {
-        Alert.alert('Submit Failed', result.message || 'Could not submit your daily report.');
-        return;
-      }
+      };
 
       const discrepantCount = items.reduce((count, item) => {
         const f = figures[item.productCode] || {};
         const discrepancy = computeDiscrepancy(f.sold, f.returns, item.inCustodyQuantity);
         return discrepancy !== 0 ? count + 1 : count;
       }, 0);
+
+      // Already known offline — don't even attempt the live call.
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('daily_report', reportPayload, photoUri);
+        Alert.alert(
+          'Saved — Will Send Later',
+          "You're offline. Your daily report and handover photo are saved on this device and will upload automatically once you're back online.",
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+        return;
+      }
+
+      try {
+        const storagePath = await reportService.uploadDailyReportPhoto(photoUri, agent?.id);
+        const result = await reportService.submitDailyReport({ ...reportPayload, storagePath });
+
+        if (!result.success) {
+          Alert.alert('Submit Failed', result.message || 'Could not submit your daily report.');
+          return;
+        }
+      } catch (liveError) {
+        // A failure that leaves us offline is a network problem, not a real
+        // rejection — queue it instead of showing an error. Anything else
+        // (still online) is a genuine failure, handled below as before.
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('daily_report', reportPayload, photoUri);
+          Alert.alert(
+            'Saved — Will Send Later',
+            "Connection dropped mid-submit. Your daily report and handover photo are saved on this device and will upload automatically once you're back online.",
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+          return;
+        }
+        throw liveError;
+      }
 
       if (discrepantCount > 0) {
         Alert.alert(
@@ -212,11 +246,32 @@ export default function SubmitReportSR() {
                 <Text style={styles.summaryTitle}>
                   {alreadySubmitted ? "Today's Report (Submitted)" : "Today's Report Summary (Daily)"}
                 </Text>
-                <View style={styles.statusPill}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.statusText}>Online</Text>
+                <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
+                  <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
+                  <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
+                    {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                  </Text>
                 </View>
               </View>
+
+              {pendingCount > 0 && (
+                <View style={styles.pendingBanner}>
+                  <View style={styles.pendingIconCircle}>
+                    <Icon name="clock" size={14} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pendingBannerTitle}>
+                      Pending — {pendingCount} waiting to sync
+                    </Text>
+                    <Text style={styles.pendingBannerText}>
+                      Saved on this device. Sends automatically once you're back online.
+                    </Text>
+                  </View>
+                  <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                    <Text style={styles.pendingRetryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
 
               {alreadySubmitted && (
                 <View style={styles.submittedBanner}>
@@ -505,6 +560,59 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  statusPillOffline: {
+    backgroundColor: '#FBDCDC',
+    borderColor: COLORS.error,
+  },
+  statusDotOffline: {
+    backgroundColor: COLORS.error,
+  },
+  statusTextOffline: {
+    color: '#B91C1C',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF1D6',
+    borderWidth: 1,
+    borderColor: '#F2C94C',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pendingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#B26400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingBannerTitle: {
+    fontSize: 13,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  pendingBannerText: {
+    fontSize: 11,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  pendingRetryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#B26400',
+  },
+  pendingRetryText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   statsRow: {
     flexDirection: 'row',

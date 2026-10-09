@@ -13,6 +13,9 @@ import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import reportService from '../../services/reportService';
+import outboxService from '../../services/outboxService';
+import { getConnectionStatus } from '../../services/connectionStatus';
+import useOutbox from '../../hooks/useOutbox';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 /**
@@ -29,6 +32,7 @@ export default function ResolveDiscrepancyScreen() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { pendingCount, retryNow } = useOutbox('discrepancy_resolution');
 
   const handleBack = () => navigation.goBack();
 
@@ -53,21 +57,48 @@ export default function ResolveDiscrepancyScreen() {
         console.error('[ERROR] [ResolveDiscrepancyScreen] Location error:', locationError);
       }
 
-      const storagePath = await inventoryService.uploadDiscrepancyPhoto(photoUri, agent?.id);
-
-      const result = await reportService.requestDiscrepancyResolution({
+      const requestPayload = {
         agentId: agent?.id,
         reportItemId: reportItem.reportItemId,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        storagePath,
         deviceModel: Device.modelName || null,
         deviceOs: Device.osName || null,
-      });
+      };
 
-      if (!result.success) {
-        Alert.alert('Request Failed', result.message || 'Could not submit your return request.');
+      // Already known offline — don't even attempt the live call.
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri);
+        Alert.alert(
+          'Saved — Will Send Later',
+          "You're offline. Your return request and photo proof are saved on this device and will upload automatically once you're back online.",
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
         return;
+      }
+
+      try {
+        const storagePath = await inventoryService.uploadDiscrepancyPhoto(photoUri, agent?.id);
+        const result = await reportService.requestDiscrepancyResolution({ ...requestPayload, storagePath });
+
+        if (!result.success) {
+          Alert.alert('Request Failed', result.message || 'Could not submit your return request.');
+          return;
+        }
+      } catch (liveError) {
+        // A failure that leaves us offline is a network problem, not a real
+        // rejection — queue it instead of showing an error. Anything else
+        // (still online) is a genuine failure, handled below as before.
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri);
+          Alert.alert(
+            'Saved — Will Send Later',
+            "Connection dropped mid-submit. Your return request and photo proof are saved on this device and will upload automatically once you're back online.",
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+          return;
+        }
+        throw liveError;
       }
 
       Alert.alert('Request Sent', 'Your return request has been sent to your manager for review.', [
@@ -114,6 +145,25 @@ export default function ResolveDiscrepancyScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {pendingCount > 0 && (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingIconCircle}>
+                <Icon name="clock" size={14} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingBannerTitle}>
+                  Pending — {pendingCount} waiting to sync
+                </Text>
+                <Text style={styles.pendingBannerText}>
+                  Saved on this device. Sends automatically once you're back online.
+                </Text>
+              </View>
+              <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                <Text style={styles.pendingRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+
           <View style={styles.itemCard}>
             <View style={styles.itemTopRow}>
               <View style={styles.thumbnail}>
@@ -248,6 +298,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF1D6',
+    borderWidth: 1,
+    borderColor: '#F2C94C',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pendingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#B26400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingBannerTitle: {
+    fontSize: 13,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  pendingBannerText: {
+    fontSize: 11,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  pendingRetryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#B26400',
+  },
+  pendingRetryText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   itemCard: {
     borderWidth: 1,
