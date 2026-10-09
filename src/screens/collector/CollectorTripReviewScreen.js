@@ -1,7 +1,7 @@
 // src/screens/collector/CollectorTripReviewScreen.js
 import React, { useCallback, useState } from 'react';
 import { getDeliveryParties } from '../../services/presenceService';
-import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, Linking, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -11,13 +11,27 @@ import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import CustomModal from '../../components/common/Modal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import profileService from '../../services/profileService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+
+const ROLE_LABELS = {
+  manager: 'Branch Manager',
+  sales_rep: 'Sales Representative',
+  collector: 'Collector',
+};
+
+const ROLE_PILL_COLORS = {
+  manager: { backgroundColor: COLORS.primaryLight, color: COLORS.primary },
+  sales_rep: { backgroundColor: '#FFE8F0', color: COLORS.accentPink },
+  collector: { backgroundColor: '#FFF1E0', color: COLORS.accentOrange },
+};
 
 // Doubles as both the post-selection "review before Start Trip" screen
 // (route params: transactionIds, no tripId yet) and the Active-trip detail
@@ -37,6 +51,8 @@ export default function CollectorTripReviewScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCancelDialogVisible, setIsCancelDialogVisible] = useState(false);
+  const [viewingParty, setViewingParty] = useState(null);
+  const [isLoadingPartyDetail, setIsLoadingPartyDetail] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -119,6 +135,36 @@ export default function CollectorTripReviewScreen() {
 
   const handleTrack = () => navigation.navigate('CollectorDeliverStock', { tripId });
 
+  // The Collector row is always the current viewer — their full profile
+  // (including phone) is already loaded via authService, no extra fetch
+  // needed. A Recipient row is someone else (an agent), so only a fetch via
+  // get_agent_profile — same RPC authService uses for its own refresh —
+  // can surface their phone number.
+  const handleViewParty = async (party) => {
+    setViewingParty(party);
+
+    if (!party.agentId) return;
+
+    setIsLoadingPartyDetail(true);
+    try {
+      const result = await profileService.getAgentProfileById(party.agentId);
+      if (result.success) {
+        setViewingParty((prev) =>
+          prev && prev.agentId === party.agentId
+            ? { ...prev, phoneNumber: result.data.phoneNumber, profilePhotoUrl: result.data.profilePhotoUrl || prev.profilePhotoUrl }
+            : prev
+        );
+      }
+    } finally {
+      setIsLoadingPartyDetail(false);
+    }
+  };
+
+  const handleCallParty = () => {
+    if (!viewingParty?.phoneNumber) return;
+    Linking.openURL(`tel:${viewingParty.phoneNumber}`);
+  };
+
   // Each leg's Sales Rep, with a photo. The leg data has no photo of its own.
   const [partiesById, setPartiesById] = useState({});
   const legKey = legs.map((leg) => leg.transactionId).join(',');
@@ -196,7 +242,17 @@ export default function CollectorTripReviewScreen() {
               <View style={[styles.banner, styles.bannerTarget]}>
                 <Text style={styles.bannerText}>Deliver to: {leg.targetRecipientName || 'Sales Rep'}</Text>
               </View>
-              <View style={styles.personCard}>
+              <Pressable
+                style={styles.personCard}
+                onPress={() =>
+                  handleViewParty({
+                    agentId: leg.targetRecipientId,
+                    name: leg.targetRecipientName || 'Sales Rep',
+                    role: 'sales_rep',
+                    profilePhotoUrl: partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl,
+                  })
+                }
+              >
                 <UserAvatar
                   photoUrl={partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl}
                   fallbackText={getInitials(leg.targetRecipientName)}
@@ -208,7 +264,8 @@ export default function CollectorTripReviewScreen() {
                   <Text style={styles.personName}>{leg.targetRecipientName || 'Sales Rep'}</Text>
                   <Text style={styles.personRole}>Sales Representative</Text>
                 </View>
-              </View>
+                <Icon name="arrowRight" size={16} color="#94a3b8" />
+              </Pressable>
               <View style={styles.itemsCard}>
                 {(leg.items || []).map((item, index) => (
                   <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
@@ -287,6 +344,72 @@ export default function CollectorTripReviewScreen() {
         confirmLabel={isCancelling ? 'Cancelling…' : 'Cancel Delivery'}
         cancelLabel="Keep Trip"
       />
+
+      <CustomModal visible={!!viewingParty} onClose={() => setViewingParty(null)} height="auto">
+        {viewingParty && (
+          <View style={styles.partyModalContent}>
+            <View style={styles.partyModalHandle} />
+            <Pressable
+              style={styles.partyModalCloseBtn}
+              onPress={() => setViewingParty(null)}
+              hitSlop={10}
+              accessibilityLabel="Close"
+              accessibilityRole="button"
+            >
+              <Icon name="xCircle" size={24} color="#94a3b8" />
+            </Pressable>
+
+            <UserAvatar
+              photoUrl={viewingParty.profilePhotoUrl}
+              fallbackText={getInitials(viewingParty.name)}
+              size={96}
+              backgroundColor="#F1F3F6"
+              fallbackTextColor={COLORS.primary}
+              style={styles.partyModalAvatarRing}
+            />
+            <Text style={styles.partyModalName}>{viewingParty.name}</Text>
+            <View
+              style={[
+                styles.partyModalRolePill,
+                { backgroundColor: ROLE_PILL_COLORS[viewingParty.role]?.backgroundColor || '#EEF2FF' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.partyModalRoleText,
+                  { color: ROLE_PILL_COLORS[viewingParty.role]?.color || COLORS.primary },
+                ]}
+              >
+                {ROLE_LABELS[viewingParty.role] || viewingParty.role}
+              </Text>
+            </View>
+
+            <View style={styles.partyModalDivider} />
+
+            {isLoadingPartyDetail ? (
+              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 8 }} />
+            ) : viewingParty.phoneNumber ? (
+              <Pressable style={styles.partyModalPhoneRow} onPress={handleCallParty}>
+                <View style={styles.partyModalPhoneIconWrap}>
+                  <Icon name="phone" size={16} color={COLORS.primary} />
+                </View>
+                <View style={styles.partyModalPhoneTextWrap}>
+                  <Text style={styles.partyModalPhoneLabel}>Phone Number</Text>
+                  <Text style={styles.partyModalPhoneText}>{viewingParty.phoneNumber}</Text>
+                </View>
+                <View style={styles.partyModalCallBtn}>
+                  <Icon name="phone" size={14} color="#FFFFFF" weight="fill" />
+                </View>
+              </Pressable>
+            ) : (
+              <View style={styles.partyModalNoPhoneRow}>
+                <Icon name="phone" size={16} color="#94a3b8" />
+                <Text style={styles.partyModalNoPhone}>No phone number on file.</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </CustomModal>
     </>
   );
 }
@@ -369,4 +492,105 @@ const styles = StyleSheet.create({
   noticeText: { flex: 1, fontSize: 11, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
   buttonRow: { flexDirection: 'column', gap: SPACING.sm },
   actionButton: { width: '100%' },
+  partyModalContent: { alignItems: 'center', paddingTop: 4, paddingBottom: 8 },
+  partyModalHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 12,
+  },
+  partyModalCloseBtn: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    padding: 4,
+  },
+  partyModalAvatarRing: {
+    borderWidth: 3,
+    borderColor: COLORS.primaryLight,
+  },
+  partyModalName: {
+    marginTop: 14,
+    fontSize: 19,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  partyModalRolePill: {
+    marginTop: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  partyModalRoleText: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  partyModalDivider: {
+    alignSelf: 'stretch',
+    height: 1,
+    backgroundColor: '#EEF2F7',
+    marginVertical: 20,
+  },
+  partyModalPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  partyModalPhoneIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partyModalPhoneTextWrap: { flex: 1 },
+  partyModalPhoneLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  partyModalPhoneText: {
+    marginTop: 2,
+    fontSize: 15,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  partyModalCallBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partyModalNoPhoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  partyModalNoPhone: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontStyle: 'italic',
+  },
 });
