@@ -158,10 +158,12 @@ export default function ManagerActivationScreen() {
   const inputRef = useRef(null);
   
   const [managerUsername, setManagerUsername] = useState('');
+  const [managerPhone, setManagerPhone] = useState('');
   const [managerPassword, setManagerPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [step2Errors, setStep2Errors] = useState({
     username: '',
+    phone: '',
     password: '',
     confirmPassword: '',
   });
@@ -353,9 +355,10 @@ export default function ManagerActivationScreen() {
   const handleBackToStep1 = () => {
     try {
       setManagerUsername('');
+      setManagerPhone('');
       setManagerPassword('');
       setConfirmPassword('');
-      setStep2Errors({ username: '', password: '', confirmPassword: '' });
+      setStep2Errors({ username: '', phone: '', password: '', confirmPassword: '' });
       animateStepTransition('backward');
     } catch (err) {
       console.error('[ERROR] [ManagerActivationScreen] Back error:', err);
@@ -377,6 +380,13 @@ export default function ManagerActivationScreen() {
     setManagerUsername(text);
     if (step2Errors.username) {
       setStep2Errors(prev => ({ ...prev, username: '' }));
+    }
+  };
+
+  const handlePhoneChange = (text) => {
+    setManagerPhone(text);
+    if (step2Errors.phone) {
+      setStep2Errors(prev => ({ ...prev, phone: '' }));
     }
   };
 
@@ -410,13 +420,21 @@ export default function ManagerActivationScreen() {
   const handleCompleteSetup = async () => {
   try {
     let hasError = false;
-    const errors = { username: '', password: '', confirmPassword: '' };
+    const errors = { username: '', phone: '', password: '', confirmPassword: '' };
 
     if (!managerUsername || !managerUsername.trim()) {
       errors.username = 'Please enter your full name';
       hasError = true;
     } else if (managerUsername.trim().length < 2) {
       errors.username = 'Name must be at least 2 characters';
+      hasError = true;
+    }
+
+    if (!managerPhone || !managerPhone.trim()) {
+      errors.phone = 'Please enter your phone number';
+      hasError = true;
+    } else if (managerPhone.trim().length < 7) {
+      errors.phone = 'Please enter a valid phone number';
       hasError = true;
     }
 
@@ -450,9 +468,9 @@ export default function ManagerActivationScreen() {
       return;
     }
 
-    setStep2Errors({ username: '', password: '', confirmPassword: '' });
+    setStep2Errors({ username: '', phone: '', password: '', confirmPassword: '' });
 
-    const result = await completeSetup(managerUsername.trim(), managerPassword);
+    const result = await completeSetup(managerUsername.trim(), managerPassword, managerPhone.trim());
 
     if (!result.success) {
       Alert.alert('Setup Failed', result.message || 'Please try again.');
@@ -479,12 +497,14 @@ export default function ManagerActivationScreen() {
   // ============================================
   // COMPUTED PROPERTIES
   // ============================================
-  const isFormValid = 
+  const isFormValid =
     managerUsername && managerUsername.trim().length >= 2 &&
+    managerPhone && managerPhone.trim().length >= 7 &&
     managerPassword && managerPassword.length >= 8 &&
     confirmPassword &&
     managerPassword === confirmPassword &&
     !step2Errors.username &&
+    !step2Errors.phone &&
     !step2Errors.password &&
     !step2Errors.confirmPassword;
   
@@ -721,7 +741,18 @@ export default function ManagerActivationScreen() {
               autoCapitalize="words"
               returnKeyType="next"
             />
-            
+
+            <Input
+              label="Phone Number"
+              required={true}
+              placeholder="Enter your phone number"
+              value={managerPhone}
+              onChangeText={handlePhoneChange}
+              error={step2Errors.phone}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+
             <Input
               label="Manager Password"
               required={true}
