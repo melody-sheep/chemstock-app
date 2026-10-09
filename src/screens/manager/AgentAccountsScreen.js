@@ -9,6 +9,7 @@ import LogListItem from '../../components/common/LogListItem';
 import BranchSelector from '../../components/common/BranchSelector';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
+import profileService from '../../services/profileService';
 import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -23,6 +24,7 @@ export default function AgentAccountsScreen() {
   const [manager, setManager] = useState(null);
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('sales_rep');
@@ -46,14 +48,19 @@ export default function AgentAccountsScreen() {
   const resetForm = () => {
     setFullName('');
     setUsername('');
+    setPhoneNumber('');
     setPassword('');
     setConfirmPassword('');
     setRole('sales_rep');
   };
 
   const handleCreate = async () => {
-    if (!fullName.trim() || !username.trim() || !password) {
+    if (!fullName.trim() || !username.trim() || !phoneNumber.trim() || !password) {
       Alert.alert('Missing Info', 'Please fill in all fields.');
+      return;
+    }
+    if (phoneNumber.trim().length < 7) {
+      Alert.alert('Invalid Phone Number', 'Please enter a valid phone number.');
       return;
     }
     if (password.length < 4) {
@@ -77,11 +84,23 @@ export default function AgentAccountsScreen() {
       role,
       branchIds: selectedBranchId ? [selectedBranchId] : manager?.branchIds || [],
     });
-    setIsSubmitting(false);
 
     if (!result.success) {
+      setIsSubmitting(false);
       Alert.alert('Failed', result.message);
       return;
+    }
+
+    // Best-effort — the account itself is already created at this point, so
+    // a phone-number save failure here shouldn't be reported as account
+    // creation failing. The agent can still set it later via Edit Profile.
+    const phoneResult = await profileService.updateAgentPhoneNumber({
+      agentId: result.data.id,
+      phoneNumber: phoneNumber.trim(),
+    });
+    setIsSubmitting(false);
+    if (!phoneResult.success) {
+      console.error('[ERROR] [AgentAccountsScreen] Failed to save phone number for new agent:', phoneResult.message);
     }
 
     const roleLabel = role === 'sales_rep' ? 'Sales Rep' : 'Collector';
@@ -149,6 +168,14 @@ export default function AgentAccountsScreen() {
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
+          />
+          <Input
+            label="Phone Number"
+            required
+            placeholder="Enter phone number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
           />
           <Input
             label="Password"

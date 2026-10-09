@@ -4,6 +4,7 @@ import { debugLog, logError } from '../utils/logger';
 import { ActivationKeyStrategy } from '../utils/validationStrategies';
 import activationService from '../services/activationService';
 import authService from '../services/authService';
+import profileService from '../services/profileService';
 import { isRLSError, getFriendlyErrorMessage } from '../services/supabaseClient';
 
 /**
@@ -190,7 +191,7 @@ class ActivationViewModel {
     }
   }
 
-  async completeSetup(username, password) {
+  async completeSetup(username, password, phoneNumber) {
     if (!this.branchInfo) {
       this.error = 'Please validate your activation code first';
       this.notifyStateChange();
@@ -225,6 +226,19 @@ class ActivationViewModel {
       debugLog('info', 'ActivationViewModel', 'Setup complete', {
         managerId: activationResult.data?.managerId
       });
+
+      // Best-effort — the account itself is already created at this point,
+      // so a phone-number save failure shouldn't surface as setup failing.
+      // update_manager_phone_number is keyed on auth.uid(), which only
+      // resolves once register()'s signUp() has produced a live session —
+      // skip entirely if email confirmation left the account sessionless
+      // (same condition the screen already checks via hasSession below).
+      if (registerResult.session && phoneNumber) {
+        const phoneResult = await profileService.updateManagerPhoneNumber({ phoneNumber });
+        if (!phoneResult.success) {
+          console.error('[ERROR] [ActivationViewModel] Failed to save manager phone number:', phoneResult.message);
+        }
+      }
 
       return {
         success: true,
@@ -295,8 +309,8 @@ export const useActivation = (userId) => {
     return await viewModel.submit();
   }, [viewModel]);
 
-  const completeSetup = useCallback(async (username, password) => {
-    return await viewModel.completeSetup(username, password);
+  const completeSetup = useCallback(async (username, password, phoneNumber) => {
+    return await viewModel.completeSetup(username, password, phoneNumber);
   }, [viewModel]);
 
   const reset = useCallback(() => {
