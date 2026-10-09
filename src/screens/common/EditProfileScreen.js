@@ -43,8 +43,8 @@ export default function EditProfileScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState('+63 917 123 4567');
-  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [isPhoneModalVisible, setIsPhoneModalVisible] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState('');
 
   const loadUser = useCallback(async () => {
@@ -120,16 +120,37 @@ export default function EditProfileScreen() {
   };
 
   const handleEditPhone = () => {
-    setPhoneDraft(phoneNumber);
-    setIsEditingPhone(true);
+    setPhoneDraft(user?.phoneNumber || '');
+    setIsPhoneModalVisible(true);
   };
 
-  const handleSavePhone = () => {
-    setPhoneNumber(phoneDraft.trim() || phoneNumber);
-    setIsEditingPhone(false);
+  const handleSavePhone = async () => {
+    if (!user?.id || isSavingPhone) return;
+    const trimmed = phoneDraft.trim();
+    setIsSavingPhone(true);
+
+    try {
+      const result =
+        user.role === 'manager'
+          ? await profileService.updateManagerPhoneNumber({ phoneNumber: trimmed })
+          : await profileService.updateAgentPhoneNumber({ agentId: user.id, phoneNumber: trimmed });
+
+      if (!result.success) {
+        Alert.alert('Update Failed', result.message || 'Could not update your phone number.');
+        return;
+      }
+
+      authService.clearCurrentUserCache();
+      setIsPhoneModalVisible(false);
+      await loadUser();
+    } catch (error) {
+      Alert.alert('Update Failed', error.message || 'Could not update your phone number.');
+    } finally {
+      setIsSavingPhone(false);
+    }
   };
 
-  const handleCancelPhone = () => setIsEditingPhone(false);
+  const handleCancelPhone = () => setIsPhoneModalVisible(false);
 
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || '';
   const roleIcon = ROLE_ICONS[user?.role] || 'idCard';
@@ -229,57 +250,24 @@ export default function EditProfileScreen() {
 
               <View style={styles.rowDivider} />
 
-              <View style={styles.rowItem}>
+              <Pressable
+                style={styles.rowItem}
+                onPress={handleEditPhone}
+                accessibilityLabel="Edit phone number"
+                accessibilityRole="button"
+              >
                 <View style={styles.rowLeft}>
                   <View style={styles.rowIconWrap}>
                     <Icon name="phone" size={18} color="#03045E" />
                   </View>
-                  {isEditingPhone ? (
-                    <TextInput
-                      style={styles.phoneInput}
-                      value={phoneDraft}
-                      onChangeText={setPhoneDraft}
-                      keyboardType="phone-pad"
-                      placeholder="Enter phone number"
-                      placeholderTextColor="#94a3b8"
-                      autoFocus
-                    />
-                  ) : (
-                    <Text style={styles.rowLabel}>Phone Number</Text>
-                  )}
+                  <Text style={styles.rowLabel}>Phone Number</Text>
                 </View>
 
-                {isEditingPhone ? (
-                  <View style={styles.phoneEditActions}>
-                    <Pressable
-                      style={styles.phoneActionBtn}
-                      onPress={handleCancelPhone}
-                      accessibilityLabel="Cancel phone number edit"
-                      accessibilityRole="button"
-                    >
-                      <Icon name="xCircle" size={18} color="#94a3b8" />
-                    </Pressable>
-                    <Pressable
-                      style={styles.phoneActionBtn}
-                      onPress={handleSavePhone}
-                      accessibilityLabel="Save phone number"
-                      accessibilityRole="button"
-                    >
-                      <Icon name="check" size={18} color={COLORS.success} weight="bold" />
-                    </Pressable>
-                  </View>
-                ) : (
-                  <Pressable
-                    style={styles.phoneEditTrigger}
-                    onPress={handleEditPhone}
-                    accessibilityLabel="Edit phone number"
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.rowValue} numberOfLines={1}>{phoneNumber}</Text>
-                    <Icon name="notePencil" size={15} color="#03045E" />
-                  </Pressable>
-                )}
-              </View>
+                <View style={styles.phoneEditTrigger}>
+                  <Text style={styles.rowValue} numberOfLines={1}>{user?.phoneNumber || 'Add phone number'}</Text>
+                  <Icon name="notePencil" size={15} color="#03045E" />
+                </View>
+              </Pressable>
             </View>
 
             <View style={styles.noticeBox}>
@@ -324,6 +312,45 @@ export default function EditProfileScreen() {
           savePhoto(uri);
         }}
       />
+
+      <CustomModal visible={isPhoneModalVisible} onClose={handleCancelPhone} height="auto">
+        <Text style={styles.modalTitle}>Edit Phone Number</Text>
+
+        <View style={styles.phoneModalInputWrap}>
+          <Icon name="phone" size={18} color="#03045E" />
+          <TextInput
+            style={styles.phoneModalInput}
+            value={phoneDraft}
+            onChangeText={setPhoneDraft}
+            keyboardType="phone-pad"
+            placeholder="Enter phone number"
+            placeholderTextColor="#94a3b8"
+            autoFocus
+            editable={!isSavingPhone}
+          />
+        </View>
+
+        <View style={styles.phoneModalActions}>
+          <Pressable
+            style={[styles.phoneModalBtn, styles.phoneModalCancelBtn]}
+            onPress={handleCancelPhone}
+            disabled={isSavingPhone}
+          >
+            <Text style={styles.phoneModalCancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.phoneModalBtn, styles.phoneModalSaveBtn]}
+            onPress={handleSavePhone}
+            disabled={isSavingPhone}
+          >
+            {isSavingPhone ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.phoneModalSaveText}>Save</Text>
+            )}
+          </Pressable>
+        </View>
+      </CustomModal>
     </>
   );
 }
@@ -455,26 +482,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  phoneInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-    paddingVertical: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.primary,
-  },
-  phoneEditActions: {
+  phoneModalInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 14,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    height: 50,
   },
-  phoneActionBtn: {
-    width: 28,
-    height: 28,
+  phoneModalInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  phoneModalActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  phoneModalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  phoneModalCancelBtn: {
+    backgroundColor: '#F1F3F6',
+  },
+  phoneModalCancelText: {
+    fontSize: 14,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  phoneModalSaveBtn: {
+    backgroundColor: COLORS.primary,
+  },
+  phoneModalSaveText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   noticeBox: {
     flexDirection: 'row',

@@ -180,6 +180,7 @@ class AuthService extends BaseService {
             role: profile?.role || null,
             branchIds: profile?.branch_ids || [],
             branchName,
+            phoneNumber: profile?.phone_number || null,
             isActivated: !!profile,
             authMode: 'supabase',
           }
@@ -355,6 +356,7 @@ class AuthService extends BaseService {
             branchIds: freshProfile.branch_ids || [],
             branchName,
             profilePhotoUrl,
+            phoneNumber: freshProfile.phone_number || null,
           };
 
           debugLog('info', 'AuthService', 'Agent profile refreshed', { branchIds: refreshedUser.branchIds, branchName: refreshedUser.branchName });
@@ -385,6 +387,7 @@ class AuthService extends BaseService {
         branchIds: profile?.branch_ids || [],
         branchName,
         profilePhotoUrl,
+        phoneNumber: profile?.phone_number || null,
         isActivated: !!profile,
       };
 

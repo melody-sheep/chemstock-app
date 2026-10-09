@@ -6,6 +6,7 @@ import { debugLog } from '../utils/logger';
 // default File/Paths API needs a native module Expo Go doesn't ship yet.
 import * as FileSystem from 'expo-file-system/legacy';
 import { base64ToUint8Array } from '../utils/base64';
+import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 
 const SHIPMENT_BUCKET = 'shipment-media';
 
@@ -95,6 +96,93 @@ class ProfileService extends BaseService {
     } catch (error) {
       this.log('error', 'updateManagerProfilePhoto failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to update profile photo' };
+    }
+  }
+
+  async updateAgentPhoneNumber({ agentId, phoneNumber }) {
+    debugLog('info', 'ProfileService', 'Updating agent phone number', { agentId });
+
+    try {
+      this.validateRequired(['agentId'], { agentId });
+
+      const { data, error } = await supabase.rpc('update_agent_phone_number', {
+        p_agent_id: agentId,
+        p_phone_number: phoneNumber ?? null,
+      });
+
+      if (error) {
+        console.error('[ERROR] [ProfileService] update_agent_phone_number RPC error:', error);
+        throw new Error(error.message || 'Failed to update phone number');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'updateAgentPhoneNumber failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to update phone number' };
+    }
+  }
+
+  async updateManagerPhoneNumber({ phoneNumber }) {
+    debugLog('info', 'ProfileService', 'Updating manager phone number', {});
+
+    try {
+      const { data, error } = await supabase.rpc('update_manager_phone_number', {
+        p_phone_number: phoneNumber ?? null,
+      });
+
+      if (error) {
+        console.error('[ERROR] [ProfileService] update_manager_phone_number RPC error:', error);
+        throw new Error(error.message || 'Failed to update phone number');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'updateManagerPhoneNumber failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to update phone number' };
+    }
+  }
+
+  /**
+   * Read-only lookup of ANOTHER agent's (sales_rep/collector) public
+   * profile — same get_agent_profile RPC getCurrentUser() uses to refresh
+   * its own session, just called with someone else's id. Used by "view
+   * profile" taps (e.g. a Collector viewing the Sales Rep they're
+   * delivering to) so those screens don't need their own RPC for this.
+   * Returns null for a manager id — get_agent_profile only covers agents.
+   */
+  async getAgentProfileById(agentId) {
+    debugLog('info', 'ProfileService', 'Fetching agent profile by id', { agentId });
+
+    try {
+      this.validateRequired(['agentId'], { agentId });
+
+      const { data, error } = await supabase.rpc('get_agent_profile', { p_agent_id: agentId });
+
+      if (error) {
+        console.error('[ERROR] [ProfileService] get_agent_profile RPC error:', error);
+        throw new Error(error.message || 'Failed to load profile');
+      }
+
+      if (!data) {
+        return { success: false, message: 'Profile not found' };
+      }
+
+      const profilePhotoUrl = await resolveProfilePhotoUrl(data.profile_photo_path);
+
+      return {
+        success: true,
+        data: {
+          id: data.id,
+          username: data.username,
+          fullName: data.full_name,
+          role: data.role,
+          phoneNumber: data.phone_number || null,
+          profilePhotoUrl,
+        },
+      };
+    } catch (error) {
+      this.log('error', 'getAgentProfileById failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load profile' };
     }
   }
 }
