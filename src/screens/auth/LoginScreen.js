@@ -20,6 +20,9 @@ import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import Modal from '../../components/common/Modal';
 import WarningSection from '../../components/common/WarningSection';
+import GlassPanel from '../../components/common/GlassPanel';
+import ColorBlobs from '../../components/common/ColorBlobs';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -127,6 +130,14 @@ export default function LoginScreen() {
       <StatusBar style="light" />
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={styles.container}>
+          <LinearGradient
+            colors={[COLORS.secondaryLight, COLORS.background]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
+          />
+          <ColorBlobs />
           <AnimatedTextDot
             data={ANIMATION_DATA}
             loop={true}
@@ -136,7 +147,10 @@ export default function LoginScreen() {
           />
 
           {/* Bottom Sheet with dynamic position */}
-          <View 
+          <GlassPanel
+            intensity={40}
+            tint="light"
+            noiseOpacity={0.04}
             style={[
               styles.bottomSheet,
               { bottom: bottomSheetBottom }
@@ -206,7 +220,7 @@ export default function LoginScreen() {
                 <Text style={styles.managerActivationText}>Manager Activation</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </GlassPanel>
         </View>
       </TouchableWithoutFeedback>
 
@@ -242,7 +256,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    backgroundColor: '#F7FEFF',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 0,
@@ -296,12 +309,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: COLORS.success,
     marginRight: SPACING.xs,
   },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    color: '#757575',
+    color: COLORS.textTertiary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   footerSection: {
@@ -310,18 +323,25 @@ const styles = StyleSheet.create({
   },
   footerDivider: {
     height: 1,
-    alignSelf: 'stretch',
-    backgroundColor: '#E5E5E5',
+    backgroundColor: COLORS.borderLight,
     marginBottom: SPACING.md,
+    // Full-bleed: cancel the sheet's horizontal padding so the line
+    // reaches the left and right edges of the glass, corner to corner.
+    marginLeft: -SPACING.lg,
+    marginRight: -SPACING.lg,
   },
   managerActivationButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.xs,
     paddingVertical: 10,
     paddingHorizontal: SPACING.md,
     borderRadius: 20,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignSelf: 'stretch',
   },
   managerActivationText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

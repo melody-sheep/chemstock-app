@@ -1,321 +1,323 @@
-# 📁 CHEMSTOCK-MOBILE — PROJECT STRUCTURE
+﻿# CHEMSTOCK-MOBILE — PROJECT STRUCTURE
 
-*Last synced to the filesystem: October 6, 2026. Excludes `node_modules/`, `.git/`, `.expo/`, and build output.*
+* Generated from the local project on 2026-10-11.
+* Excludes dependency folders, build/cache output, and local environment, credential, or user-specific config files.
 
 ```
-📱 chemstock-mobile/
-│
-├── 🤖 .claude/                                   # Claude Code settings
-│
-├── 📁 admin-cli/                                 # 🔐 Super Admin tool (Express + web UI)
-│   ├── .env                                      # ⚠️ Supabase service key — NEVER commit
-│   ├── .gitignore
-│   ├── index.js                                  # CLI entry — starts server and opens browser
-│   ├── server.js                                 # Express API: keys, activation, audit logs
-│   ├── install.bat                               # Windows installer
-│   ├── package.json / package-lock.json
-│   ├── config/
-│   │   └── supabase.js                           # Service-role Supabase client
-│   ├── utils/
-│   │   ├── crypto.js                             # Secure activation-code generator
-│   │   ├── rateLimiter.js                        # express-rate-limit rules
-│   │   └── auditLogger.js                        # Audit trail for key actions
-│   └── web-ui/
-│       ├── index.html                            # Dashboard page
-│       ├── style.css
-│       └── script.js
-│
-├── 🎨 assets/
-│   ├── image/
-│   │   ├── chemstock_png.png                     # App logo
-│   │   └── empty_box1.png                        # Empty-state image
-│   ├── product_images/                           # 19 bundled product photos (Oct 2)
-│   ├── sales_rep_assets/                         # Sales Rep header illustration
-│   ├── android-icon-*.png                        # Adaptive icon (background, foreground, monochrome)
-│   ├── favicon.png · icon.png · splash-icon.png
-│
-├── 📚 capstone_docs/
-│   ├── [PROPOSAL] ChemStock.pdf                  # Capstone proposal (ERD, DFD, Figma refs)
-│   ├── proposal.txt                              # Text extract of the proposal (untracked)
-│   ├── ChemStock_Sprint_Roadmap.pdf
-│   ├── sql/                                      # Database migrations, run in Supabase, in date order
-│   │   ├── 2026-08-18_branch_wide_stock_visibility.sql
-│   │   ├── 2026-08-19_agent_account_removal_and_branch_ids.sql
-│   │   ├── 2026-08-20_release_stock.sql
-│   │   ├── 2026-08-21_fix_release_stock_data_loss.sql
-│   │   ├── 2026-08-23_collector_release_delivery.sql
-│   │   ├── 2026-08-23_sr_receive_stock.sql
-│   │   ├── 2026-08-23_track_deliveries.sql
-│   │   ├── 2026-08-24_sr_track_deliveries.sql
-│   │   ├── 2026-08-24_stock_requests.sql
-│   │   ├── 2026-08-25_collector_delivery_trips.sql
-│   │   ├── 2026-08-25_sr_delivery_checkpoint_timeline.sql
-│   │   ├── 2026-08-26_sr_daily_reports_and_returns.sql
-│   │   ├── 2026-08-26b_fix_sr_report_backlog_date_scope.sql
-│   │   ├── 2026-08-26c_agent_profile_refresh.sql
-│   │   ├── 2026-08-27_profile_photo.sql
-│   │   ├── 2026-08-28_photos_in_lists.sql
-│   │   ├── 2026-10-04_release_branch_photo_discrepancy_branch.sql
-│   │   ├── 2026-10-05_daily_report_media_policy_fix.sql     # ⏳ not confirmed run
-│   │   ├── 2026-10-05_reset_agent_password.sql              # ⏳ not confirmed run
-│   │   ├── 2026-10-06_presence_last_seen.sql                # ✅ run
-│   │   └── 2026-10-06b_delivery_parties.sql                 # ✅ run
-│   └── MD Folder/
-│       ├── Alther_TODO_October.md                # 📋 Living task list, status summary, sweep log
-│       ├── ChemStock_Sprint_Roadmap.md           # Sprint plan
-│       ├── Jay_Sprint1.1.md                      # Session notes (Jay)
-│       └── alther_development.md                 # Session notes (Alther)
-│
-├── 📁 src/                                       # MAIN SOURCE (161 JS files, ~34,600 lines)
-│   │
-│   ├── container.js                              # DI container (service registration)
-│   │
-│   ├── components/
-│   │   ├── common/                               # ✅ 49 shared components
-│   │   │   ├── ActionCard.js                     # Dashboard menu tile (icon + title, badge count)
-│   │   │   ├── AnimatedTextDot.js                # Animated text (login)
-│   │   │   ├── BottomActionBar.js                # Fixed bottom action area
-│   │   │   ├── BottomNavBar.js                   # Bottom tab bar + center FAB
-│   │   │   ├── BranchSelector.js                 # Branch chip row (edge-to-edge option)
-│   │   │   ├── Button.js                         # Button variants
-│   │   │   ├── CameraCaptureModal.js             # Photo capture + flashlight + GPS fix
-│   │   │   ├── Card.js
-│   │   │   ├── CollectorUpdateCheckpointModal.js # Collector checkpoint form
-│   │   │   ├── ConfirmationDialog.js             # Confirm dialog (sized to content)
-│   │   │   ├── ConnectionPill.js                 # Online / offline pill
-│   │   │   ├── DateChip.js                       # MFG / EXP date chip
-│   │   │   ├── DeliveryStatusPill.js             # Pending / In Transit / Delivered pill
-│   │   │   ├── DeliveryTimeline.js               # Checkpoint timeline ("Current Location")
-│   │   │   ├── FilterSheet.js                    # Filter bottom sheet
-│   │   │   ├── Header.js                         # App header (back, profile, doc/bell icons)
-│   │   │   ├── Icon.js                           # Icon set: hand-drawn SVGs + Phosphor components
-│   │   │   ├── Input.js                          # Form input
-│   │   │   ├── KeyboardWrapper.js
-│   │   │   ├── LogListItem.js                    # Activity log row
-│   │   │   ├── MapLegend.js                      # Map legend (glass pill)
-│   │   │   ├── MapLocationPickerModal.js         # Pin destination: search, insight, far-pin check
-│   │   │   ├── MapZoomControls.js                # Glass zoom and recenter column
-│   │   │   ├── Modal.js                          # Bottom sheet (safe-area aware)
-│   │   │   ├── PhotoProofCard.js                 # Photo preview + metadata rows
-│   │   │   ├── ProductChip.js
-│   │   │   ├── ProductGridTile.js
-│   │   │   ├── ProductPickerList.js
-│   │   │   ├── QRScannerModal.js                 # In-app QR scanner with flashlight
-│   │   │   ├── QRSuccessView.js                  # Post-registration QR screen
-│   │   │   ├── QuantityStepper.js                # − / + quantity control
-│   │   │   ├── RegisteredItemsList.js
-│   │   │   ├── ReleaseSummaryCard.js             # Items-to-release card (whole header toggles)
-│   │   │   ├── SaveableQRCode.js                 # QR with Save / Print / Share
-│   │   │   ├── ScreenContainer.js
-│   │   │   ├── SearchDropdownField.js
-│   │   │   ├── SecondaryHeader.js                # Info bar under the main header (glass option)
-│   │   │   ├── SelectedProductsRow.js
-│   │   │   ├── ShipmentProofRow.js               # Handover photo row
-│   │   │   ├── SpotlightHint.js
-│   │   │   ├── StatCard.js                       # Quick-stat tile
-│   │   │   ├── StaticRouteMap.js                 # Leaflet map in WebView (routes, arrows, avatars)
-│   │   │   ├── Stepper.js                        # Step indicator
-│   │   │   ├── StockBatchCard.js
-│   │   │   ├── SubScreenSecondaryHeader.js
-│   │   │   ├── SuccessFrame.js                   # Success toast
-│   │   │   ├── SyncStatusBadge.js                # Header Online / Offline badge
-│   │   │   ├── UserAvatar.js                     # Photo or initials avatar
-│   │   │   └── WarningSection.js
-│   │   │
-│   │   └── ui/                                   # ✅ Loading and skeleton components
-│   │       ├── SkeletonBlock.js
-│   │       ├── SkeletonCard.js
-│   │       ├── Divider.js                        # ⚠️ Empty stub
-│   │       ├── LoadingSpinner.js                 # ⚠️ Empty stub
-│   │       └── Logo.js                           # ⚠️ Empty stub
-│   │
-│   ├── constants/
-│   │   ├── colors.js                             # ✅ All colour tokens (incl. glass tokens)
-│   │   ├── inventory.js                          # Inventory constants
-│   │   ├── legalContent.js                       # FAQ and Laws text
-│   │   ├── productCatalog.js                     # Product codes, names, bundled images
-│   │   ├── roles.js                              # ⚠️ 'salesrep' here; DB and screens use 'sales_rep'
-│   │   └── savedPlaces.js                        # Offline place list for map search (empty)
-│   │
-│   ├── hooks/
-│   │   ├── useActivation.js                      # Activation ViewModel
-│   │   ├── useAuth.js                            # Auth ViewModel
-│   │   ├── useCachedFocusLoader.js               # Screen data cache: skeleton only on first load
-│   │   ├── useConnectionStatus.js                # Live connection state
-│   │   ├── useFirstTimeHint.js
-│   │   ├── useItemDatePicker.js
-│   │   ├── useKeyboard.js
-│   │   ├── useRippleAnimation.js
-│   │   └── useScrolledToEnd.js                   # Scroll-to-review gate
-│   │
-│   ├── navigation/
-│   │   ├── AppNavigator.js                       # Root navigator (all screens)
-│   │   └── AuthStack.js                          # Auth-only stack
-│   │
-│   ├── screens/
-│   │   ├── auth/                                 # 2 screens
-│   │   │   ├── LoginScreen.js
-│   │   │   └── ManagerActivationScreen.js
-│   │   ├── common/                               # 3 shared screens
-│   │   │   ├── ComingSoonScreen.js
-│   │   │   ├── EditProfileScreen.js
-│   │   │   ├── LegalInfoScreen.js                # FAQ and Laws
-│   │   │   └── StockBatchDetailScreen.js         # Batch QR, reprint
-│   │   ├── manager/                              # 26 screens
-│   │   │   ├── ManagerDashboardScreen.js         # Stats, operations grid, recent logs
-│   │   │   ├── ManagerStockScreen.js             # Stock by branch
-│   │   │   ├── ManagerSettingsScreen.js
-│   │   │   ├── AddNewBatchesScreen.js            # Add products to a receiving batch
-│   │   │   ├── ProductBrowserScreen.js
-│   │   │   ├── ProductSelectScreen.js            # Multi-select products
-│   │   │   ├── ReceiveStockScreen.js
-│   │   │   ├── ReceiveStockPreviewScreen.js      # Branch choice, review, QR
-│   │   │   ├── QuickRegisterReleaseScreen.js     # Urgent release
-│   │   │   ├── ReleaseStockMethodScreen.js       # Direct or via collector
-│   │   │   ├── ReleaseStockRecipientScreen.js    # Branch and recipient
-│   │   │   ├── ReleaseStockScanReviewScreen.js
-│   │   │   ├── ReleaseStockRequestReviewScreen.js
-│   │   │   ├── ReleaseStockDeliveryScreen.js     # Pin destination, photo
-│   │   │   ├── ReleaseStockConfirmScreen.js      # Summary and QR
-│   │   │   ├── StockLogsScreen.js                # Logs with filters
-│   │   │   ├── TrackDeliveriesScreen.js
-│   │   │   ├── TrackDeliveryDetailScreen.js      # Map, timeline, person status
-│   │   │   ├── ManageAccountsScreen.js           # Reset password, remove account
-│   │   │   ├── AgentAccountsScreen.js            # Create Sales Rep / Collector
-│   │   │   ├── AgentStockRequestScreen.js        # Request queue
-│   │   │   ├── ManageReturnsScreen.js            # Returns and daily reports
-│   │   │   ├── ReturnStockVerifyScreen.js
-│   │   │   ├── ManagerAlertsScreen.js            # Discrepancies
-│   │   │   └── ManagerReportsScreen.js           # Weekly and monthly reports
-│   │   ├── salesrep/                             # 17 screens
-│   │   │   ├── SalesRepDashboardScreen.js
-│   │   │   ├── SalesRepStockScreen.js            # Branch stock
-│   │   │   ├── SalesRepBackpackScreen.js         # Personal stock (sr_inventory)
-│   │   │   ├── SalesRepLogsScreen.js
-│   │   │   ├── SalesRepSettingsScreen.js
-│   │   │   ├── SalesRepReportsScreen.js
-│   │   │   ├── SalesRepTrackDeliveriesScreen.js
-│   │   │   ├── SalesRepDeliveryDetailScreen.js   # Collector photo and status on map
-│   │   │   ├── SalesRepStockRequestsScreen.js
-│   │   │   ├── ReceiveStockTypeSR.js
-│   │   │   ├── ReceiveStockSR.js                 # Accept release by QR
-│   │   │   ├── RequestStockSR.js
-│   │   │   ├── RequestListSR.js
-│   │   │   ├── SubmitReportSR.js                 # Daily report with handover photo
-│   │   │   ├── AlertsDiscrepanciesSR.js
-│   │   │   ├── ResolveDiscrepancyScreen.js
-│   │   │   └── ReturnStocksSR.js
-│   │   └── collector/                            # 7 screens
-│   │       ├── CollectorDashboardScreen.js
-│   │       ├── CollectorAcceptDeliveriesScreen.js
-│   │       ├── CollectorTripReviewScreen.js      # Trip summary, Sales Rep photos
-│   │       ├── CollectorDeliverStockScreen.js    # Live route map, checkpoints, finish stop
-│   │       ├── CollectorDeliveryDetailScreen.js
-│   │       ├── CollectorDeliveredStockScreen.js
-│   │       └── CollectorSettingsScreen.js
-│   │
-│   ├── services/                                 # ✅ 12 services (API layer)
-│   │   ├── BaseService.js                        # Base class: errors, logging
-│   │   ├── supabaseClient.js                     # Supabase client
-│   │   ├── connectionStatus.js                   # Online / offline from request results
-│   │   ├── authService.js                        # Login, session, current user (cached 60 s)
-│   │   ├── activationService.js                  # Manager activation (RPC)
-│   │   ├── agentService.js                       # Sales Rep and Collector accounts
-│   │   ├── inventoryService.js                   # Receive, release, trips, batches
-│   │   ├── requestService.js                     # Stock requests
-│   │   ├── reportService.js                      # Daily reports, discrepancies
-│   │   ├── deliveryService.js                    # Checkpoints
-│   │   ├── presenceService.js                    # Last-seen, delivery parties
-│   │   └── profileService.js                     # Profile photo
-│   │
-│   ├── styles/
-│   │   ├── colors.js                             # (see constants/)
-│   │   ├── glass.js                              # Shared glass panel style
-│   │   ├── globalStyles.js                       # ⚠️ Uses COLORS.backgroundWhite, which is not defined
-│   │   ├── shadows.js
-│   │   ├── spacing.js                            # xs(4) sm(8) md(16) lg(24) xl(32) 2xl(40) 3xl(48)
-│   │   └── typography.js                         # Inter font scale
-│   │
-│   └── utils/                                    # ✅ 17 utilities
-│       ├── base64.js
-│       ├── batchItemValidation.js                # MFG / EXP and photo checks
-│       ├── checkpointTimeline.js                 # Shared timeline builder (all roles)
-│       ├── debugReport.js                        # Share debug log
-│       ├── deviceInfo.js                         # Device model and OS
-│       ├── distance.js                           # Straight-line distance
-│       ├── formatPlace.js                        # Address formatting
-│       ├── formatters.js                         # Relative time, coordinates, dates
-│       ├── initials.js
-│       ├── landmarkUsage.js
-│       ├── logger.js                             # Central logging (debugLog)
-│       ├── productUsage.js
-│       ├── profilePhoto.js                       # Signed photo URLs
-│       ├── scanLookup.js                         # QR lookup
-│       ├── storage.js                            # AsyncStorage wrapper
-│       ├── validationStrategies.js               # Validation strategies
-│       └── validators.js
-│
-├── 📄 App.js                                     # Entry: fonts, connection check, navigator
-├── 🔌 index.js                                   # registerRootComponent(App)
-├── ⚙️ app.json                                   # Expo configuration
-├── 📦 package.json                               # Expo ~57, React 19.2, React Native 0.85
-├── 📦 package-lock.json
-├── 📄 AGENTS.md                                  # Agent instructions (Expo docs note)
-├── 📄 CLAUDE.md                                  # Imports AGENTS.md
-├── 📄 README.md                                  # Project overview
-├── 📄 TO_DO_TASK.md                              # ⚠️ Older task list — see the MD Folder version
-├── 📄 supabase_schema_structure(DONT_DELETE).txt # Schema snapshot (see note below)
-├── 📄 project_structure(DONT_DELETE).txt         # This file
-├── 📄 LICENSE                                    # MIT
-├── 📄 .gitignore
-├── ⚠️ test.env                                   # Local file, not tracked — confirm with the team
-├── ⚠️ expo-export/                               # Export output — not part of the source
-│
-└── ⚠️ Stray files (0 bytes, from a broken paste — safe to delete):
-      ,                                            # repo root
-      admin-cli/console.log('❌                     # admin-cli
-      admin-cli/{                                 # admin-cli
+chemstock-mobile/
+|-- .claude/
+|   `-- settings.json
+|-- admin-cli/
+|   |-- config/
+|   |   `-- supabase.js
+|   |-- utils/
+|   |   |-- auditLogger.js
+|   |   |-- crypto.js
+|   |   `-- rateLimiter.js
+|   |-- web-ui/
+|   |   |-- index.html
+|   |   |-- script.js
+|   |   `-- style.css
+|   |-- .gitignore
+|   |-- {
+|   |-- console.log('❌
+|   |-- index.js
+|   |-- install.bat
+|   |-- package.json
+|   |-- package-lock.json
+|   `-- server.js
+|-- assets/
+|   |-- collector_assets/
+|   |   `-- 2nd_header_collector.png
+|   |-- image/
+|   |   |-- chemstock_png.png
+|   |   `-- empty_box1.png
+|   |-- manager_assets/
+|   |   |-- 2nd_header_scan_img.png
+|   |   `-- scanned_qr_man.png
+|   |-- product_images/
+|   |   |-- 3VNMG.png
+|   |   |-- 7HDT.png
+|   |   |-- 7HWO.png
+|   |   |-- AIR2.png
+|   |   |-- AMB.png
+|   |   |-- AMG.png
+|   |   |-- AOL.png
+|   |   |-- DS.png
+|   |   |-- FHVCO.png
+|   |   |-- GSSL.png
+|   |   |-- MBG.png
+|   |   |-- NC-s.png
+|   |   |-- PGL.png
+|   |   |-- PWBS.png
+|   |   |-- TBC.png
+|   |   |-- TBC-s.png
+|   |   |-- TWNC.png
+|   |   |-- VNCM.png
+|   |   `-- WLG.png
+|   |-- sales_rep_assets/
+|   |   |-- 2nd_header_img_salerep.png
+|   |   |-- receive_stock_manager_illustration.png
+|   |   `-- receive_stock_rider_illustration.png
+|   |-- android-icon-background.png
+|   |-- android-icon-foreground.png
+|   |-- android-icon-monochrome.png
+|   |-- favicon.png
+|   |-- icon.png
+|   `-- splash-icon.png
+|-- capstone_docs/
+|   |-- MD Folder/
+|   |   |-- alther_development.md
+|   |   |-- Alther_TODO_October.md
+|   |   |-- ChemStock_Sprint_Roadmap.md
+|   |   `-- Jay_Sprint1.1.md
+|   |-- sql/
+|   |   |-- _debug_phone_number_check.sql
+|   |   |-- 2026-08-18_branch_wide_stock_visibility.sql
+|   |   |-- 2026-08-19_agent_account_removal_and_branch_ids.sql
+|   |   |-- 2026-08-20_release_stock.sql
+|   |   |-- 2026-08-21_fix_release_stock_data_loss.sql
+|   |   |-- 2026-08-23_collector_release_delivery.sql
+|   |   |-- 2026-08-23_sr_receive_stock.sql
+|   |   |-- 2026-08-23_track_deliveries.sql
+|   |   |-- 2026-08-24_sr_track_deliveries.sql
+|   |   |-- 2026-08-24_stock_requests.sql
+|   |   |-- 2026-08-25_collector_delivery_trips.sql
+|   |   |-- 2026-08-25_sr_delivery_checkpoint_timeline.sql
+|   |   |-- 2026-08-26_sr_daily_reports_and_returns.sql
+|   |   |-- 2026-08-26b_fix_sr_report_backlog_date_scope.sql
+|   |   |-- 2026-08-26c_agent_profile_refresh.sql
+|   |   |-- 2026-08-27_profile_photo.sql
+|   |   |-- 2026-08-28_photos_in_lists.sql
+|   |   |-- 2026-10-04_release_branch_photo_discrepancy_branch.sql
+|   |   |-- 2026-10-05_daily_report_media_policy_fix.sql
+|   |   |-- 2026-10-05_reset_agent_password.sql
+|   |   |-- 2026-10-06_presence_last_seen.sql
+|   |   |-- 2026-10-06b_delivery_parties.sql
+|   |   |-- 2026-10-06c_notifications_system.sql
+|   |   |-- 2026-10-08_delivery_checkpoint_captured_at.sql
+|   |   |-- 2026-10-08b_delivery_checkpoint_read_paths.sql
+|   |   |-- 2026-10-08c_submit_stock_request_multi_branch.sql
+|   |   |-- 2026-10-09_profile_phone_number.sql
+|   |   |-- 2026-10-09b_phone_number_update_guard.sql
+|   |   `-- 2026-10-10_submit_daily_report_multi_branch.sql
+|   |-- [PROPOSAL] ChemStock.pdf
+|   `-- ChemStock_Sprint_Roadmap.pdf
+|-- src/
+|   |-- components/
+|   |   |-- camera/
+|   |   |-- common/
+|   |   |   |-- ActionCard.js
+|   |   |   |-- AnimatedTextDot.js
+|   |   |   |-- BottomActionBar.js
+|   |   |   |-- BottomNavBar.js
+|   |   |   |-- BranchSelector.js
+|   |   |   |-- Button.js
+|   |   |   |-- CameraCaptureModal.js
+|   |   |   |-- Card.js
+|   |   |   |-- CollectorUpdateCheckpointModal.js
+|   |   |   |-- ConfirmationDialog.js
+|   |   |   |-- ConnectionPill.js
+|   |   |   |-- DateChip.js
+|   |   |   |-- DeliveryStatusPill.js
+|   |   |   |-- DeliveryTimeline.js
+|   |   |   |-- FilterSheet.js
+|   |   |   |-- Header.js
+|   |   |   |-- Icon.js
+|   |   |   |-- InfoTooltip.js
+|   |   |   |-- Input.js
+|   |   |   |-- KeyboardWrapper.js
+|   |   |   |-- LogListItem.js
+|   |   |   |-- MapLegend.js
+|   |   |   |-- MapLocationPickerModal.js
+|   |   |   |-- MapZoomControls.js
+|   |   |   |-- Modal.js
+|   |   |   |-- PhotoProofCard.js
+|   |   |   |-- ProductChip.js
+|   |   |   |-- ProductGridTile.js
+|   |   |   |-- ProductPickerList.js
+|   |   |   |-- QRScannerModal.js
+|   |   |   |-- QRSuccessView.js
+|   |   |   |-- QuantityStepper.js
+|   |   |   |-- RegisteredItemsList.js
+|   |   |   |-- ReleaseSummaryCard.js
+|   |   |   |-- SaveableQRCode.js
+|   |   |   |-- ScreenContainer.js
+|   |   |   |-- SearchDropdownField.js
+|   |   |   |-- SecondaryHeader.js
+|   |   |   |-- SelectedProductsRow.js
+|   |   |   |-- ShipmentProofRow.js
+|   |   |   |-- SpotlightHint.js
+|   |   |   |-- StatCard.js
+|   |   |   |-- StaticRouteMap.js
+|   |   |   |-- Stepper.js
+|   |   |   |-- StockBatchCard.js
+|   |   |   |-- StockSectionHeader.js
+|   |   |   |-- SubScreenSecondaryHeader.js
+|   |   |   |-- SuccessFrame.js
+|   |   |   |-- SyncStatusBadge.js
+|   |   |   |-- UserAvatar.js
+|   |   |   `-- WarningSection.js
+|   |   |-- inventory/
+|   |   |-- maps/
+|   |   |-- qr/
+|   |   `-- ui/
+|   |       |-- Divider.js
+|   |       |-- LoadingSpinner.js
+|   |       |-- Logo.js
+|   |       |-- SkeletonBlock.js
+|   |       `-- SkeletonCard.js
+|   |-- constants/
+|   |   |-- colors.js
+|   |   |-- inventory.js
+|   |   |-- legalContent.js
+|   |   |-- productCatalog.js
+|   |   |-- roles.js
+|   |   `-- savedPlaces.js
+|   |-- contexts/
+|   |-- hooks/
+|   |   |-- useActivation.js
+|   |   |-- useAuth.js
+|   |   |-- useCachedFocusLoader.js
+|   |   |-- useConnectionStatus.js
+|   |   |-- useFirstTimeHint.js
+|   |   |-- useItemDatePicker.js
+|   |   |-- useKeyboard.js
+|   |   |-- useOutbox.js
+|   |   |-- useRippleAnimation.js
+|   |   `-- useScrolledToEnd.js
+|   |-- navigation/
+|   |   |-- AppNavigator.js
+|   |   `-- AuthStack.js
+|   |-- screens/
+|   |   |-- auth/
+|   |   |   |-- LoginScreen.js
+|   |   |   `-- ManagerActivationScreen.js
+|   |   |-- collector/
+|   |   |   |-- CollectorAcceptDeliveriesScreen.js
+|   |   |   |-- CollectorDashboardScreen.js
+|   |   |   |-- CollectorDeliveredStockScreen.js
+|   |   |   |-- CollectorDeliverStockScreen.js
+|   |   |   |-- CollectorDeliveryDetailScreen.js
+|   |   |   |-- CollectorSettingsScreen.js
+|   |   |   `-- CollectorTripReviewScreen.js
+|   |   |-- common/
+|   |   |   |-- ComingSoonScreen.js
+|   |   |   |-- EditProfileScreen.js
+|   |   |   |-- LegalInfoScreen.js
+|   |   |   |-- NotificationsScreen.js
+|   |   |   `-- StockBatchDetailScreen.js
+|   |   |-- manager/
+|   |   |   |-- AddNewBatchesScreen.js
+|   |   |   |-- AgentAccountsScreen.js
+|   |   |   |-- AgentStockRequestScreen.js
+|   |   |   |-- ManageAccountsScreen.js
+|   |   |   |-- ManagerAlertsScreen.js
+|   |   |   |-- ManagerDashboardScreen.js
+|   |   |   |-- ManageReturnsScreen.js
+|   |   |   |-- ManagerReportsScreen.js
+|   |   |   |-- ManagerSettingsScreen.js
+|   |   |   |-- ManagerStockScreen.js
+|   |   |   |-- ProductBrowserScreen.js
+|   |   |   |-- ProductSelectScreen.js
+|   |   |   |-- QuickRegisterReleaseScreen.js
+|   |   |   |-- ReceiveStockPreviewScreen.js
+|   |   |   |-- ReceiveStockScreen.js
+|   |   |   |-- ReleaseStockConfirmScreen.js
+|   |   |   |-- ReleaseStockDeliveryScreen.js
+|   |   |   |-- ReleaseStockMethodScreen.js
+|   |   |   |-- ReleaseStockRecipientScreen.js
+|   |   |   |-- ReleaseStockRequestReviewScreen.js
+|   |   |   |-- ReleaseStockScanReviewScreen.js
+|   |   |   |-- ReturnStockVerifyScreen.js
+|   |   |   |-- StockLogsScreen.js
+|   |   |   |-- TrackDeliveriesScreen.js
+|   |   |   `-- TrackDeliveryDetailScreen.js
+|   |   `-- salesrep/
+|   |       |-- AlertsDiscrepanciesSR.js
+|   |       |-- ReceiveStockSR.js
+|   |       |-- ReceiveStockTypeSR.js
+|   |       |-- RequestListSR.js
+|   |       |-- RequestStockSR.js
+|   |       |-- ResolveDiscrepancyScreen.js
+|   |       |-- ReturnStocksSR.js
+|   |       |-- SalesRepBackpackScreen.js
+|   |       |-- SalesRepDashboardScreen.js
+|   |       |-- SalesRepDeliveryDetailScreen.js
+|   |       |-- SalesRepLogsScreen.js
+|   |       |-- SalesRepReportsScreen.js
+|   |       |-- SalesRepSettingsScreen.js
+|   |       |-- SalesRepStockRequestsScreen.js
+|   |       |-- SalesRepStockScreen.js
+|   |       |-- SalesRepTrackDeliveriesScreen.js
+|   |       |-- SR Receive Stock.svg
+|   |       `-- SubmitReportSR.js
+|   |-- services/
+|   |   |-- activationService.js
+|   |   |-- agentService.js
+|   |   |-- authService.js
+|   |   |-- BaseService.js
+|   |   |-- connectionStatus.js
+|   |   |-- deliveryService.js
+|   |   |-- inventoryService.js
+|   |   |-- notificationService.js
+|   |   |-- outboxService.js
+|   |   |-- presenceService.js
+|   |   |-- profileService.js
+|   |   |-- reportService.js
+|   |   |-- requestService.js
+|   |   `-- supabaseClient.js
+|   |-- styles/
+|   |   |-- glass.js
+|   |   |-- globalStyles.js
+|   |   |-- shadows.js
+|   |   |-- spacing.js
+|   |   `-- typography.js
+|   |-- types/
+|   |-- utils/
+|   |   |-- base64.js
+|   |   |-- batchItemValidation.js
+|   |   |-- checkpointTimeline.js
+|   |   |-- debugReport.js
+|   |   |-- deviceInfo.js
+|   |   |-- distance.js
+|   |   |-- formatPlace.js
+|   |   |-- formatters.js
+|   |   |-- initials.js
+|   |   |-- landmarkUsage.js
+|   |   |-- logger.js
+|   |   |-- productUsage.js
+|   |   |-- profilePhoto.js
+|   |   |-- scanLookup.js
+|   |   |-- storage.js
+|   |   |-- validationStrategies.js
+|   |   `-- validators.js
+|   `-- container.js
+|-- ,
+|-- .gitignore
+|-- AGENTS.md
+|-- App.js
+|-- app.json
+|-- CLAUDE.md
+|-- eas.json
+|-- index.js
+|-- LICENSE
+|-- package.json
+|-- package-lock.json
+|-- project_structure(DONT_DELETE).txt
+|-- README.md
+|-- supabase_schema_structure(DONT_DELETE).txt
+`-- TO_DO_TASK.md
 ```
 
----
+## Current source counts
 
-## 📊 SUMMARY
+- JavaScript files under `src/`: 167
+- Screens under `src/screens/`: 56
+- Components under `src/components/`: 56
+- Services under `src/services/`: 14
+- Hooks under `src/hooks/`: 10
+- Utilities under `src/utils/`: 17
+- SQL files under `capstone_docs/sql/`: 29
 
-| Area | Count | Notes |
-|------|-------|-------|
-| JavaScript files in `src/` | 161 | About 34,600 lines |
-| Screens | 55 | Manager 26 · Sales Rep 17 · Collector 7 · Common 3 · Auth 2 |
-| Shared components | 49 | `components/common/` |
-| Services | 12 | Extend `BaseService` |
-| Hooks | 9 | MVVM view-models plus UI hooks |
-| Utilities | 17 | Some still placeholders (see below) |
-| SQL migrations | 21 | Run in date order in Supabase |
-
----
-
-## 🏗️ ARCHITECTURE
-
-| Layer | Location | Responsibility |
-|-------|----------|----------------|
-| UI | `screens/`, `components/` | Layout and rendering only |
-| Logic | `hooks/` | View-model state and actions |
-| Data | `services/` | Supabase calls, extend `BaseService` |
-| Database rules | `capstone_docs/sql/` | Row-level security and RPCs (`SECURITY DEFINER`) |
-| Shared style | `constants/colors.js`, `styles/` | Single source for colours, spacing, type |
-
-**Patterns in use**
-- **Shared components first:** map legend, glass panel, zoom controls, timeline, confirm dialog, and status pills are each defined once.
-- **Constants as the source of truth:** no hard-coded colours, spacing, or fonts in new code.
-- **Caching:** `authService` caches the current user for 60 s; `useCachedFocusLoader` caches screen data.
-- **Agents use the anon key:** Sales Reps and Collectors aren't Supabase Auth users, so their data comes through `SECURITY DEFINER` RPCs that check the caller's role and ID.
-
----
-
-## ⚠️ KNOWN ISSUES AND STALE ITEMS
-
-- `constants/roles.js` uses `'salesrep'`, but the database and screens use `'sales_rep'`. Pick one and update both.
-- `styles/globalStyles.js` references `COLORS.backgroundWhite`, which doesn't exist.
-- `components/ui/Divider.js`, `LoadingSpinner.js`, and `Logo.js` are empty stubs. `storage.js` and `validators.js` are not yet used.
-- `TO_DO_TASK.md` and `supabase_schema_structure(DONT_DELETE).txt` are older snapshots. The TODO in `capstone_docs/MD Folder/` and the SQL folder are the current sources.
-- `expo-export/` and `test.env` are not part of the source. Confirm with the team before tracking or deleting them.
-- Three stray 0-byte files are listed above. Delete them when convenient.
+The tree reflects files and folders currently present on this machine. It is a directory inventory, not a statement that every listed file is tracked by Git.
