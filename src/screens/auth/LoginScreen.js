@@ -19,7 +19,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import Modal from '../../components/common/Modal';
-import WarningSection from '../../components/common/WarningSection';
+import ModalHero from '../../components/common/ModalHero';
 import GlassPanel from '../../components/common/GlassPanel';
 import ColorBlobs from '../../components/common/ColorBlobs';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -150,7 +150,7 @@ export default function LoginScreen() {
           <GlassPanel
             intensity={40}
             tint="light"
-            noiseOpacity={0.04}
+            noiseOpacity={0.08}
             style={[
               styles.bottomSheet,
               { bottom: bottomSheetBottom }
@@ -224,15 +224,31 @@ export default function LoginScreen() {
         </View>
       </TouchableWithoutFeedback>
 
-      <Modal visible={isActivationWarningVisible} onClose={handleCancelManagerActivation} height={360}>
-        <WarningSection
+      <Modal visible={isActivationWarningVisible} onClose={handleCancelManagerActivation} height={460}>
+        <ModalHero
+          icon="warning"
           title="Restricted Access"
-          description="Manager Activation is restricted to authorized personnel only. Continue only if you have a valid activation code from your organization."
+          description="Manager Activation is restricted to authorized personnel only. Continue only if you're authorized to register a branch."
+          infoItems={[
+            {
+              icon: 'key',
+              label: 'An activation code',
+              hint: 'Provided by your system administrator',
+            },
+            {
+              icon: 'location',
+              label: 'Your branch assignment',
+              hint: 'The branch you will manage',
+            },
+          ]}
         />
         <Button
-          title="Continue to Manager Activation"
+          title="Continue Setup"
           onPress={handleConfirmManagerActivation}
           variant="black"
+          height={50}
+          fontSize={16}
+          borderRadius={12}
           style={styles.activationModalButton}
         />
         <TouchableOpacity
@@ -338,7 +354,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: SPACING.md,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.78)',
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     alignSelf: 'stretch',
@@ -351,12 +367,11 @@ const styles = StyleSheet.create({
   },
   activationModalButton: {
     width: '100%',
-    marginTop: SPACING.md,
   },
   activationModalCancel: {
     alignItems: 'center',
     paddingVertical: SPACING.sm,
-    marginTop: SPACING.xs,
+    marginTop: SPACING.md,
   },
   activationModalCancelText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

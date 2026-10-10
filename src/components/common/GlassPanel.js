@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.65)',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.90)',
     ...Platform.select({
       web: {
         backdropFilter: 'blur(12px)',
