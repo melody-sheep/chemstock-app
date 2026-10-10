@@ -1,12 +1,13 @@
 // src/screens/common/NotificationsScreen.js
 // Shared across all three roles, same precedent as ComingSoonScreen/
 // EditProfileScreen — one screen, reached from each dashboard's bell icon.
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import authService from '../../services/authService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
@@ -25,27 +26,33 @@ const TYPE_META = {
 };
 const DEFAULT_META = { icon: 'notification', color: COLORS.primary };
 
+// A failed fetch keeps the previous snapshot instead of blanking the screen
+// — without this, "no notifications" and "failed to load while offline"
+// looked identical (both showed the empty state).
+const loadNotificationsData = async (previous) => {
+  const currentUser = await authService.getCurrentUser();
+  const prev = previous?.user?.id === currentUser?.id ? previous : null;
+  const result = await notificationService.getMyNotifications(currentUser?.id);
+  return {
+    user: currentUser,
+    notifications: result.success ? result.data : prev?.notifications ?? [],
+  };
+};
+
 export default function NotificationsScreen() {
   const navigation = useNavigation();
-  const [user, setUser] = useState(null);
+  const { data: snapshot, isLoading } = useCachedFocusLoader('notifications', loadNotificationsData);
+  const user = snapshot?.user ?? null;
+
+  // Local copy so mark-as-read can update optimistically — reseeded from the
+  // cached snapshot whenever it changes (a fresh load, or a background
+  // refresh completing), same as the screen always did on every focus.
   const [notifications, setNotifications] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  const loadNotifications = useCallback(async () => {
-    setIsLoading(true);
-    const currentUser = await authService.getCurrentUser();
-    setUser(currentUser);
-    const result = await notificationService.getMyNotifications(currentUser?.id);
-    setNotifications(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadNotifications();
-    }, [loadNotifications])
-  );
+  useEffect(() => {
+    setNotifications(snapshot?.notifications ?? []);
+  }, [snapshot]);
 
   const handleMarkAllRead = async () => {
     if (isMarkingAll) return;

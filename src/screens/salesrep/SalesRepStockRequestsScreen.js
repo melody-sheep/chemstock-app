@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
@@ -26,6 +27,7 @@ const STATUS_META = {
   preparing: { label: 'Preparing', bg: '#E3F2FF', text: '#0085F9' },
   fulfilled: { label: 'Fulfilled', bg: '#EAFBF2', text: '#1E7A3A' },
   declined: { label: 'Declined', bg: '#FBDCDC', text: '#B91C1C' },
+  queued: { label: 'Waiting for Network', bg: '#F1F3F6', text: '#555353' },
 };
 
 // Returns the full request list. A request that fails keeps its value from
@@ -47,6 +49,18 @@ export default function SalesRepStockRequestsScreen() {
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-stock-requests', loadRequestsData);
   const requests = snapshot?.requests ?? [];
 
+  // Requests queued offline (not yet synced) are otherwise invisible here
+  // until they sync — shown first, labeled distinctly, so the SR can see
+  // what's already waiting before sending another one.
+  const { pending: queuedEntries } = useOutbox('stock_request');
+  const queuedRequests = queuedEntries.map((entry) => ({
+    requestId: entry.id,
+    createdAt: entry.createdAt,
+    items: entry.payload?.items || [],
+    isQueued: true,
+  }));
+  const allRequests = [...queuedRequests, ...requests];
+
   return (
     <>
       <StatusBar style="light" />
@@ -65,7 +79,7 @@ export default function SalesRepStockRequestsScreen() {
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
-        ) : requests.length === 0 ? (
+        ) : allRequests.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="notePencil" size={32} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>No stock requests yet.</Text>
@@ -73,8 +87,8 @@ export default function SalesRepStockRequestsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {requests.map((request) => {
-              const displayStatus = getDisplayStatus(request);
+            {allRequests.map((request) => {
+              const displayStatus = request.isQueued ? 'queued' : getDisplayStatus(request);
               const meta = STATUS_META[displayStatus];
               const units = (request.items || []).reduce((sum, item) => sum + item.quantity, 0);
 
@@ -82,14 +96,16 @@ export default function SalesRepStockRequestsScreen() {
                 <View key={request.requestId} style={styles.requestCard}>
                   <View style={styles.requestHeaderRow}>
                     <Text style={styles.requestHeaderText}>
-                      REQUEST: #{request.requestId.slice(0, 8).toUpperCase()}
+                      {request.isQueued ? 'REQUEST: Not sent yet' : `REQUEST: #${request.requestId.slice(0, 8).toUpperCase()}`}
                     </Text>
                     <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
                       <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.requestMeta}>Sent {formatRelativeTime(request.createdAt)}</Text>
+                  <Text style={styles.requestMeta}>
+                    {request.isQueued ? 'Saved' : 'Sent'} {formatRelativeTime(request.createdAt)}
+                  </Text>
                   <Text style={styles.requestMeta}>
                     {units} unit{units === 1 ? '' : 's'} · {(request.items || []).length} product
                     {(request.items || []).length === 1 ? '' : 's'}
@@ -104,6 +120,12 @@ export default function SalesRepStockRequestsScreen() {
                       </View>
                     ))}
                   </View>
+
+                  {request.isQueued && (
+                    <Text style={styles.queuedText}>
+                      Saved on this device — will send automatically once you're back online.
+                    </Text>
+                  )}
 
                   {displayStatus === 'declined' && request.declineReason && (
                     <Text style={styles.declineReasonText}>Reason: {request.declineReason}</Text>
@@ -166,5 +188,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.error,
+  },
+  queuedText: {
+    marginTop: SPACING.xs,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: '#555353',
   },
 });

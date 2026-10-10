@@ -3,11 +3,16 @@ import React from 'react';
 import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOutbox from '../../hooks/useOutbox';
+import Header from '../../components/common/Header';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
+import { formatClockTime } from '../../utils/formatters';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
@@ -25,9 +30,11 @@ const loadDiscrepanciesData = async (previous) => {
 
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
+  const connection = useConnectionStatus();
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
   const discrepancies = snapshot?.discrepancies ?? [];
+  const { pending: queuedResolutions } = useOutbox('discrepancy_resolution');
+  const queuedReportItemIds = new Set(queuedResolutions.map((e) => e.payload?.reportItemId));
 
   const handleBack = () => navigation.goBack();
 
@@ -53,9 +60,6 @@ export default function AlertsDiscrepanciesSR() {
               <Icon name="package" size={26} color="#94a3b8" />
             )}
           </View>
-          <View style={styles.warningIconWrap}>
-            <Icon name="warningTriangle" size={16} color="#F04D59" weight="fill" />
-          </View>
         </View>
 
         <View style={styles.itemDetails}>
@@ -68,41 +72,60 @@ export default function AlertsDiscrepanciesSR() {
             </View>
           </View>
           <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
-          <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
-          {item.latestRequest?.status === 'pending' && (
+          <View style={styles.itemMetaRow}>
+            <Icon name="trayDown" size={11} color="#555353" />
+            <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+          </View>
+          {queuedReportItemIds.has(item.reportItemId) ? (
+            // Queued locally, not yet synced — the server doesn't know about
+            // this request yet, so it takes priority over whatever
+            // latestRequest says below.
+            <Text style={styles.queuedRequestText}>⏳ Saved offline — will send once you're back online</Text>
+          ) : item.latestRequest?.status === 'pending' ? (
             <Text style={styles.pendingRequestText}>Return request pending manager review</Text>
-          )}
-          {item.latestRequest?.status === 'rejected' && (
+          ) : item.latestRequest?.status === 'rejected' ? (
             <Text style={styles.rejectedRequestText}>
               Last request rejected{item.latestRequest.rejectReason ? `: ${item.latestRequest.rejectReason}` : ''} — tap to resubmit
             </Text>
-          )}
+          ) : null}
         </View>
       </View>
 
       <View style={styles.figuresRow}>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Released</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="trayDown" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Released</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.inCustodyQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Sold</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="checkCircle" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Sold</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.soldQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Return</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="returns" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Return</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.returnQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={[styles.figureLabel, styles.missingLabel]}>
-            {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
-          </Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="warningTriangle" size={11} color="#B91C1C" />
+            <Text style={[styles.figureLabel, styles.missingLabel]}>
+              {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+            </Text>
+          </View>
           <View style={[styles.figureBox, styles.figureBoxError]}>
             <Text style={[styles.figureValue, styles.figureValueError]}>{Math.abs(item.discrepancy)}</Text>
           </View>
@@ -112,7 +135,11 @@ export default function AlertsDiscrepanciesSR() {
   );
 
   const renderSettledCard = (item) => (
-    <View key={item.reportItemId} style={styles.itemCard}>
+    <Pressable
+      key={item.reportItemId}
+      style={styles.itemCard}
+      onPress={() => navigation.navigate('ResolveDiscrepancy', { reportItem: item })}
+    >
       <View style={styles.itemTopRow}>
         <View style={styles.thumbnailWrap}>
           <View style={styles.thumbnail}>
@@ -126,9 +153,6 @@ export default function AlertsDiscrepanciesSR() {
               <Icon name="package" size={26} color="#94a3b8" />
             )}
           </View>
-          <View style={styles.settledIconWrap}>
-            <Icon name="checkmark" size={13} color="#FFFFFF" weight="bold" />
-          </View>
         </View>
 
         <View style={styles.itemDetails}>
@@ -139,62 +163,79 @@ export default function AlertsDiscrepanciesSR() {
             </View>
           </View>
           <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
-          <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+          <View style={styles.itemMetaRow}>
+            <Icon name="trayDown" size={11} color="#555353" />
+            <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+          </View>
         </View>
       </View>
 
       <View style={styles.figuresRow}>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Released</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="trayDown" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Released</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.inCustodyQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Sold</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="checkCircle" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Sold</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.soldQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>Return</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="returns" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>Return</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{item.returnQuantity}</Text>
           </View>
         </View>
         <View style={styles.figureColumn}>
-          <Text style={styles.figureLabel}>{item.discrepancyType === 'loss' ? 'Missing' : 'Over'}</Text>
+          <View style={styles.figureLabelRow}>
+            <Icon name="warningTriangle" size={11} color="#272632" />
+            <Text style={styles.figureLabel}>{item.discrepancyType === 'loss' ? 'Missing' : 'Over'}</Text>
+          </View>
           <View style={styles.figureBox}>
             <Text style={styles.figureValue}>{Math.abs(item.discrepancy)}</Text>
           </View>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 
   return (
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
+        <Header
+          showBackButton
+          backButtonText="Sales Rep Dashboard"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+          onBackPress={handleBack}
+        />
 
-          <Text style={styles.topBarTitle}>Sales Rep Dashboard</Text>
-
-          <View style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" />
+        <SecondaryHeader height={72}>
+          <View style={styles.bannerRow}>
+            <Text style={styles.bannerTitle}>Alerts and Discrepancies</Text>
+            <View style={styles.onlinePill}>
+              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
+                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              </Text>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.bannerBar}>
-          <Text style={styles.bannerTitle}>Alerts and Discrepancies</Text>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
-          </View>
-        </View>
+        </SecondaryHeader>
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -235,68 +276,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+  bannerRow: {
     flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  bannerBar: {
-    backgroundColor: '#FF7800',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: SPACING.md,
   },
   bannerTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    color: '#272632',
+    fontSize: 19,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
+    flexShrink: 1,
     marginRight: 8,
   },
-  statusPill: {
+  onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#B7FFD6',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#00FF6E',
+    gap: 4,
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#00FF6E',
-    marginRight: 5,
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineDotOffline: { backgroundColor: COLORS.warning },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
   },
-  statusText: {
-    color: '#1D6A3A',
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
+  onlineTextOffline: { color: COLORS.warning },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: 16,
@@ -340,7 +348,7 @@ const styles = StyleSheet.create({
   itemCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 12,
   },
   itemTopRow: {
@@ -353,7 +361,7 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: 80,
     height: 90,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -361,18 +369,6 @@ const styles = StyleSheet.create({
   thumbnailImage: {
     width: '70%',
     height: '70%',
-  },
-  warningIconWrap: {
-    marginTop: 8,
-  },
-  settledIconWrap: {
-    marginTop: 8,
-    width: 22,
-    height: 22,
-    borderRadius: 999,
-    backgroundColor: '#22C55E',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   itemDetails: {
     flex: 1,
@@ -426,10 +422,21 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   itemMeta: {
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+  queuedRequestText: {
+    fontSize: 10,
+    color: '#1E7A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
   },
   pendingRequestText: {
@@ -452,12 +459,17 @@ const styles = StyleSheet.create({
   figureColumn: {
     flex: 1,
   },
+  figureLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
   figureLabel: {
     fontSize: 11,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-    marginBottom: 4,
   },
   missingLabel: {
     color: '#B91C1C',

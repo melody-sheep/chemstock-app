@@ -109,6 +109,22 @@ const EXECUTORS = {
     return result;
   },
 
+  // Only the final confirmation step — the QR scan + lookup that produced
+  // this payload always happened live first (a QR code has no data of its
+  // own, so the lookup itself can never be queued). This just replays the
+  // "Accept" tap: upload the handover photo, then confirm receipt.
+  receive_stock: async (entry) => {
+    if (!entry.localPhotoUri) {
+      throw new Error('Missing photo proof for queued stock receipt');
+    }
+    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const result = await inventoryService.acceptStockRelease({ ...entry.payload, storagePath });
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to confirm queued stock receipt');
+    }
+    return result;
+  },
+
   // No photo involved — just a payload replayed straight through the RPC.
   stock_request: async (entry) => {
     const result = await requestService.submitStockRequest(entry.payload);

@@ -1,23 +1,23 @@
 // src/screens/salesrep/SubmitReportSR.js
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Image, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
+import Header from '../../components/common/Header';
+import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
-import PhotoProofCard from '../../components/common/PhotoProofCard';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
-import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOutbox from '../../hooks/useOutbox';
-import { formatClockTime } from '../../utils/formatters';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 
 function isNearExpiry(expDate) {
@@ -33,46 +33,60 @@ function computeDiscrepancy(sold, ret, inCustody) {
   return (Number(sold) || 0) + (Number(ret) || 0) - inCustody;
 }
 
+// A failed fetch keeps the previous snapshot instead of blanking the screen —
+// same pattern Dashboard/Stock/Backpack already use. Without this, opening
+// Submit Report offline (even for the first time this session) showed "No
+// in-custody stock to report today" instead of what was actually on hand.
+const loadReportStatusData = async (previous) => {
+  const currentAgent = await authService.getCurrentUser();
+  const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
+
+  const result = await reportService.getMySrReportStatus(currentAgent?.id);
+
+  return {
+    agent: currentAgent,
+    reportDate: result.success ? result.data.reportDate : prev?.reportDate ?? null,
+    alreadySubmitted: result.success ? result.data.alreadySubmitted : prev?.alreadySubmitted ?? false,
+    // The server derives this from where the agent's current stock actually
+    // came from — nothing for the agent to pick. Shown as a read-only label
+    // purely so a multi-branch agent knows which branch today's report is for.
+    branchId: result.success ? result.data.branchId || null : prev?.branchId ?? null,
+    branchName: result.success ? result.data.branchName || null : prev?.branchName ?? null,
+    items: result.success ? result.data.items || [] : prev?.items ?? [],
+  };
+};
+
 export default function SubmitReportSR() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const [agent, setAgent] = useState(null);
-  const [reportDate, setReportDate] = useState(null);
-  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
-  const [items, setItems] = useState([]);
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
+  const agent = snapshot?.agent ?? null;
+  const reportDate = snapshot?.reportDate ?? null;
+  const alreadySubmitted = snapshot?.alreadySubmitted ?? false;
+  const branchName = snapshot?.branchName ?? null;
+  const items = snapshot?.items ?? [];
+
   const [figures, setFigures] = useState({}); // { [productCode]: { sold, returns } }
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
-  const connection = useConnectionStatus();
   const { pendingCount, retryNow } = useOutbox('daily_report');
 
-  const loadStatus = useCallback(async () => {
-    setIsLoading(true);
-    const currentAgent = await authService.getCurrentUser();
-    setAgent(currentAgent);
-
-    const result = await reportService.getMySrReportStatus(currentAgent?.id);
-    if (result.success) {
-      setReportDate(result.data.reportDate);
-      setAlreadySubmitted(result.data.alreadySubmitted);
-      setItems(result.data.items || []);
-      const initialFigures = {};
-      (result.data.items || []).forEach((item) => {
-        initialFigures[item.productCode] = { sold: '', returns: '' };
-      });
-      setFigures(initialFigures);
-    }
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadStatus();
-    }, [loadStatus])
-  );
+  // Figures are local, in-progress UI state, not part of the cached snapshot
+  // — so this only resets them when the actual set of products changes (a
+  // fresh day, or the first load), never on a same-items background refresh
+  // that would otherwise silently wipe out whatever the SR is mid-typing.
+  const itemsSignatureRef = useRef(null);
+  useEffect(() => {
+    const signature = items.map((item) => item.productCode).sort().join(',');
+    if (signature === itemsSignatureRef.current) return;
+    itemsSignatureRef.current = signature;
+    const initialFigures = {};
+    items.forEach((item) => {
+      initialFigures[item.productCode] = { sold: '', returns: '' };
+    });
+    setFigures(initialFigures);
+  }, [items]);
 
   const handleBack = () => navigation.goBack();
 
@@ -93,12 +107,40 @@ export default function SubmitReportSR() {
     setIsCameraVisible(false);
   };
 
+  // Clamped so sold+returns can never exceed what's actually in custody —
+  // previously unbounded, so e.g. 40 sold + 20 return against 30 in custody
+  // was accepted client-side and only ever caught (confusingly, as an
+  // "Over" discrepancy) after the fact. The server now also rejects this
+  // independently (defense in depth), but this stops it from being typeable
+  // at all.
   const updateFigure = (productCode, field, value) => {
     const digitsOnly = value.replace(/[^0-9]/g, '');
-    setFigures((prev) => ({
-      ...prev,
-      [productCode]: { ...prev[productCode], [field]: digitsOnly },
-    }));
+    const inCustody = items.find((i) => i.productCode === productCode)?.inCustodyQuantity ?? 0;
+
+    setFigures((prev) => {
+      const current = prev[productCode] || { sold: '', returns: '' };
+      const otherField = field === 'sold' ? 'returns' : 'sold';
+      const otherValue = Number(current[otherField]) || 0;
+      const maxForField = Math.max(inCustody - otherValue, 0);
+      const clamped = digitsOnly === '' ? '' : String(Math.min(Number(digitsOnly), maxForField));
+
+      return {
+        ...prev,
+        [productCode]: { ...current, [field]: clamped },
+      };
+    });
+  };
+
+  // selectTextOnFocus is unreliable on some Android/Gboard combos — tapping
+  // into a field already at "0" doesn't always select it, so typing just
+  // appends instead of replacing. Clearing explicitly on focus guarantees a
+  // blank field (placeholder "0" showing) the moment you tap in, every time.
+  const clearFigureOnFocus = (productCode, field) => {
+    setFigures((prev) => {
+      const current = prev[productCode] || { sold: '', returns: '' };
+      if (current[field] !== '0') return prev;
+      return { ...prev, [productCode]: { ...current, [field]: '' } };
+    });
   };
 
   const totals = items.reduce(
@@ -223,17 +265,19 @@ export default function SubmitReportSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
+        <Header
+          showBackButton
+          title="Submit Report"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          paddingHorizontal={SPACING.md}
+          onBackPress={handleBack}
+        />
 
-          <Text style={styles.topBarTitle}>Submit Report</Text>
-
-          <View style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" />
-          </View>
-        </View>
+        <SubScreenSecondaryHeader
+          title={alreadySubmitted ? "Today's Report (Submitted)" : "Today's Report Summary"}
+        />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -242,17 +286,15 @@ export default function SubmitReportSR() {
         ) : (
           <>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <View style={styles.summaryHeaderRow}>
-                <Text style={styles.summaryTitle}>
-                  {alreadySubmitted ? "Today's Report (Submitted)" : "Today's Report Summary (Daily)"}
-                </Text>
-                <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
-                  <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
-                  <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
-                    {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
-                  </Text>
+              {/* Only an SR assigned to more than one branch ever sees this —
+                  informational only, derived automatically from which branch
+                  their current stock came from, never something to pick. */}
+              {branchName && agent?.branchIds?.length > 1 && (
+                <View style={styles.branchRow}>
+                  <Icon name="building" size={11} color="#555353" />
+                  <Text style={styles.branchText}>Filing for {branchName}</Text>
                 </View>
-              </View>
+              )}
 
               {pendingCount > 0 && (
                 <View style={styles.pendingBanner}>
@@ -276,7 +318,7 @@ export default function SubmitReportSR() {
               {alreadySubmitted && (
                 <View style={styles.submittedBanner}>
                   <View style={styles.submittedCheckCircle}>
-                    <Icon name="checkmark" size={16} color="#FFFFFF" weight="bold" />
+                    <Icon name="check" size={15} color="#FFFFFF" weight="bold" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.submittedBannerTitle}>Report already submitted</Text>
@@ -289,24 +331,30 @@ export default function SubmitReportSR() {
 
               <View style={styles.statsRow}>
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconWrap, { backgroundColor: '#EDEBFF' }]}>
-                    <Icon name="boxPackage" size={18} color="#03045E" />
+                  <View style={styles.statTopRow}>
+                    <View style={[styles.statIconWrap, { backgroundColor: '#EDEBFF' }]}>
+                      <Icon name="package" size={16} color="#03045E" />
+                    </View>
+                    <Text style={styles.statValue}>{totals.given}</Text>
                   </View>
-                  <Text style={styles.statValue}>{totals.given}</Text>
                   <Text style={styles.statLabel}>Given Stock</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconWrap, { backgroundColor: '#3B2FC9' }]}>
-                    <Icon name="checkmarkCircle" size={18} color="#FFFFFF" weight="fill" />
+                  <View style={styles.statTopRow}>
+                    <View style={[styles.statIconWrap, { backgroundColor: '#EAFBF2' }]}>
+                      <Icon name="checkCircle" size={16} color="#1E7A3A" />
+                    </View>
+                    <Text style={styles.statValue}>{totals.sold}</Text>
                   </View>
-                  <Text style={styles.statValue}>{totals.sold}</Text>
                   <Text style={styles.statLabel}>Sold Stocks</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconWrap, { backgroundColor: '#F72E75' }]}>
-                    <Icon name="returns" size={18} color="#FFFFFF" weight="fill" />
+                  <View style={styles.statTopRow}>
+                    <View style={[styles.statIconWrap, { backgroundColor: '#E3F2FF' }]}>
+                      <Icon name="returns" size={16} color="#0085F9" />
+                    </View>
+                    <Text style={styles.statValue}>{totals.returns}</Text>
                   </View>
-                  <Text style={styles.statValue}>{totals.returns}</Text>
                   <Text style={styles.statLabel}>Return</Text>
                 </View>
               </View>
@@ -339,60 +387,63 @@ export default function SubmitReportSR() {
                           </View>
 
                           <View style={styles.itemDetails}>
-                            <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
+                            <View style={styles.itemNameRow}>
+                              <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
+                              <View style={[styles.discBadge, discrepancy === 0 ? styles.discBadgeSuccess : styles.discBadgeError]}>
+                                <Icon
+                                  name={discrepancy === 0 ? 'checkCircle' : 'warningTriangle'}
+                                  size={10}
+                                  color={discrepancy === 0 ? '#1E7A3A' : '#B91C1C'}
+                                />
+                                <Text style={[styles.discBadgeText, discrepancy === 0 ? styles.discBadgeTextSuccess : styles.discBadgeTextError]}>
+                                  {discrepancy === 0 ? 'Balanced' : `${Math.abs(discrepancy)} Missing`}
+                                </Text>
+                              </View>
+                            </View>
                             <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
-                            <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+                            <View style={styles.itemMetaRow}>
+                              <Icon name="trayDown" size={11} color="#555353" />
+                              <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
+                            </View>
                           </View>
                         </View>
 
                         <View style={styles.figuresRow}>
                           <View style={styles.figureColumn}>
-                            <Text style={styles.figureLabel}>Sold</Text>
+                            <View style={styles.figureLabelRow}>
+                              <Icon name="checkCircle" size={11} color="#272632" />
+                              <Text style={styles.figureLabel}>Sold</Text>
+                            </View>
                             <TextInput
                               style={styles.figureInput}
                               value={f.sold}
                               onChangeText={(v) => updateFigure(item.productCode, 'sold', v)}
+                              onFocus={() => clearFigureOnFocus(item.productCode, 'sold')}
                               keyboardType="number-pad"
                               placeholder="0"
+                              placeholderTextColor="#B5C0CC"
+                              textAlignVertical="center"
+                              selectTextOnFocus
                               editable={!alreadySubmitted && !isSubmitting}
                             />
                           </View>
                           <View style={styles.figureColumn}>
-                            <Text style={styles.figureLabel}>Returns</Text>
+                            <View style={styles.figureLabelRow}>
+                              <Icon name="returns" size={11} color="#272632" />
+                              <Text style={styles.figureLabel}>Returns</Text>
+                            </View>
                             <TextInput
                               style={styles.figureInput}
                               value={f.returns}
                               onChangeText={(v) => updateFigure(item.productCode, 'returns', v)}
+                              onFocus={() => clearFigureOnFocus(item.productCode, 'returns')}
                               keyboardType="number-pad"
                               placeholder="0"
+                              placeholderTextColor="#B5C0CC"
+                              textAlignVertical="center"
+                              selectTextOnFocus
                               editable={!alreadySubmitted && !isSubmitting}
                             />
-                          </View>
-                          <View style={styles.figureColumn}>
-                            <Text style={styles.figureLabel}>Discrepancy</Text>
-                            <View
-                              style={[
-                                styles.figureBox,
-                                discrepancy === 0
-                                  ? styles.figureBoxSuccess
-                                  : discrepancy < 0
-                                  ? styles.figureBoxError
-                                  : styles.figureBoxOver,
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.figureValue,
-                                  discrepancy === 0
-                                    ? styles.figureValueSuccess
-                                    : discrepancy < 0
-                                    ? styles.figureValueError
-                                    : styles.figureValueOver,
-                                ]}
-                              >
-                                {discrepancy}
-                              </Text>
-                            </View>
                           </View>
                         </View>
                       </View>
@@ -403,11 +454,25 @@ export default function SubmitReportSR() {
 
               {!alreadySubmitted && items.length > 0 && (
                 <View style={styles.photoSection}>
-                  <Text style={styles.photoSectionTitle}>Handover Photo</Text>
+                  <Text style={styles.listTitle}>Handover Photo</Text>
                   <Text style={styles.photoSectionHint}>
                     Required — a photo of your remaining stock on hand, taken at the time you file this report.
                   </Text>
-                  <PhotoProofCard photoUri={photoUri} onView={photoUri ? handleViewPhoto : handleOpenCamera} />
+                  <Pressable onPress={photoUri ? handleViewPhoto : handleOpenCamera}>
+                    {photoUri ? (
+                      <View style={styles.photoPreviewWrap}>
+                        <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
+                        <View style={styles.expandBadge}>
+                          <Icon name="expand" size={14} color="#FFFFFF" />
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.photoPlaceholder}>
+                        <Icon name="camera" size={36} color="#03045E" />
+                        <Text style={styles.photoText}>Tap to capture proof</Text>
+                      </View>
+                    )}
+                  </Pressable>
                 </View>
               )}
             </ScrollView>
@@ -448,29 +513,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  topBar: {
-    height: 56,
-    backgroundColor: '#03045E',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   submittedBanner: {
     flexDirection: 'row',
@@ -479,7 +521,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#DFFBE9',
     borderWidth: 1,
     borderColor: '#B7FFD6',
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
@@ -504,72 +546,72 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   photoSection: {
-    marginTop: 20,
-  },
-  photoSectionTitle: {
-    fontSize: 15,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    marginTop: 4,
   },
   photoSectionHint: {
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 2,
     marginBottom: 10,
+  },
+  listTitle: {
+    color: '#272632',
+    fontSize: 18,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  photoPlaceholder: {
+    borderWidth: 1.5,
+    borderColor: '#D7E3F1',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoText: {
+    marginTop: 8,
+    color: '#555353',
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  photoPreviewWrap: {
+    position: 'relative',
+    width: '100%',
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+  },
+  expandBadge: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(3,4,94,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
   },
-  summaryHeaderRow: {
+  branchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 4,
     marginBottom: 14,
   },
-  summaryTitle: {
-    fontSize: 17,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#B7FFD6',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#00FF6E',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#00FF6E',
-    marginRight: 5,
-  },
-  statusText: {
-    color: '#1D6A3A',
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-  },
-  statusPillOffline: {
-    backgroundColor: '#FBDCDC',
-    borderColor: COLORS.error,
-  },
-  statusDotOffline: {
-    backgroundColor: COLORS.error,
-  },
-  statusTextOffline: {
-    color: '#B91C1C',
+  branchText: {
+    fontSize: 11,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   pendingBanner: {
     flexDirection: 'row',
@@ -578,7 +620,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF1D6',
     borderWidth: 1,
     borderColor: '#F2C94C',
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
@@ -624,18 +666,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 10,
-    alignItems: 'flex-start',
+  },
+  statTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   statIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   statValue: {
     fontSize: 18,
@@ -647,7 +692,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 1,
+    marginTop: 6,
   },
   emptyWrap: {
     alignItems: 'center',
@@ -666,7 +711,7 @@ const styles = StyleSheet.create({
   itemCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 12,
   },
   itemTopRow: {
@@ -678,7 +723,7 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: 80,
     height: 90,
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -702,11 +747,43 @@ const styles = StyleSheet.create({
   itemDetails: {
     flex: 1,
   },
+  itemNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   itemCode: {
+    flex: 1,
     fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+    marginRight: 8,
+  },
+  discBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  discBadgeSuccess: {
+    backgroundColor: '#EAFBF2',
+  },
+  discBadgeError: {
+    backgroundColor: '#FBDCDC',
+  },
+  discBadgeText: {
+    fontSize: 10,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  discBadgeTextSuccess: {
+    color: '#1E7A3A',
+  },
+  discBadgeTextError: {
+    color: '#B91C1C',
   },
   itemFullName: {
     fontSize: 12,
@@ -714,11 +791,16 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
   itemMeta: {
     fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 4,
   },
   figuresRow: {
     flexDirection: 'row',
@@ -728,58 +810,34 @@ const styles = StyleSheet.create({
   figureColumn: {
     flex: 1,
   },
+  figureLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
   figureLabel: {
     fontSize: 11,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-    marginBottom: 4,
   },
   figureInput: {
     borderWidth: 1,
     borderColor: '#DBE4EE',
+    backgroundColor: '#F8FAFC',
     borderRadius: 8,
-    height: 34,
+    height: 40,
+    paddingVertical: 0,
+    paddingHorizontal: 4,
+    includeFontPadding: false,
     textAlign: 'center',
-    fontSize: 13,
+    textAlignVertical: 'center',
+    fontSize: 14,
+    lineHeight: 18,
     color: '#03045E',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-  },
-  figureBox: {
-    borderWidth: 1,
-    borderColor: '#DBE4EE',
-    borderRadius: 8,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  figureBoxSuccess: {
-    backgroundColor: '#DFFBE9',
-    borderColor: '#DFFBE9',
-  },
-  figureBoxError: {
-    backgroundColor: '#FBDCDC',
-    borderColor: '#FBDCDC',
-  },
-  figureBoxOver: {
-    backgroundColor: '#FFF1D6',
-    borderColor: '#FFF1D6',
-  },
-  figureValue: {
-    fontSize: 13,
-    color: '#03045E',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-  },
-  figureValueSuccess: {
-    color: '#1E7A3A',
-  },
-  figureValueError: {
-    color: '#B91C1C',
-  },
-  figureValueOver: {
-    color: '#B26400',
   },
   footer: {
     paddingHorizontal: 16,
@@ -797,7 +855,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonDisabled: {
-    opacity: 0.6,
+    backgroundColor: '#B5BEC9',
   },
   primaryButtonText: {
     color: '#FFFFFF',

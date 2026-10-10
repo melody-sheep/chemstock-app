@@ -22,7 +22,7 @@ export default function SubScreenSecondaryHeader({ title, syncStatus, glass = fa
       style={glass ? glassHeaderStyle : undefined}
     >
       <View style={styles.row}>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <SyncStatusBadge status={syncStatus} />
       </View>
     </SecondaryHeader>
@@ -47,6 +47,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   title: {
+    flexShrink: 1,
+    marginRight: SPACING.sm,
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,

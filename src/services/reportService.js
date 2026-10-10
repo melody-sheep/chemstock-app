@@ -111,6 +111,10 @@ class ReportService extends BaseService {
    * for exactly every product currently in custody (all-or-nothing, enforced
    * server-side). storagePath is the mandatory handover photo, already
    * uploaded via uploadDailyReportPhoto — the RPC rejects a null/empty one.
+   * No branchId here — the RPC derives it itself from where the agent's
+   * current stock actually came from (see
+   * 2026-10-10_submit_daily_report_multi_branch.sql), same as
+   * getMySrReportStatus's items, so the two always agree.
    */
   async submitDailyReport({ agentId, latitude, longitude, deviceModel, deviceOs, storagePath, items }) {
     debugLog('info', 'ReportService', 'Submitting daily report', { agentId, itemCount: items?.length });

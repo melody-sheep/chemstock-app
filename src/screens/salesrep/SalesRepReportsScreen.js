@@ -1,18 +1,20 @@
 // src/screens/salesrep/SalesRepReportsScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import Header from '../../components/common/Header';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
-import { formatDisplayDate } from '../../utils/formatters';
+import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -23,25 +25,23 @@ function startOfWeek(date) {
   return d;
 }
 
+// A failed fetch keeps the previous snapshot instead of blanking the screen.
+const loadReportsData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agentId === agent?.id ? previous : null;
+  const result = await reportService.getMyDailyReports(agent?.id, 30);
+  return {
+    agentId: agent?.id,
+    reports: result.success ? result.data : prev?.reports ?? [],
+  };
+};
+
 export default function SalesRepReportsScreen() {
   const navigation = useNavigation();
-  const [reports, setReports] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const connection = useConnectionStatus();
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
+  const reports = snapshot?.reports ?? [];
   const [selectedReport, setSelectedReport] = useState(null);
-
-  const loadReports = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const result = await reportService.getMyDailyReports(agent?.id, 30);
-    setReports(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadReports();
-    }, [loadReports])
-  );
 
 
   const handleTabPress = (key) => {
@@ -105,9 +105,11 @@ export default function SalesRepReportsScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.summaryHeaderRow}>
               <Text style={styles.summaryTitle}>This Week's Summary</Text>
-              <View style={styles.statusPill}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>Online</Text>
+              <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
+                <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
+                <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
+                  {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                </Text>
               </View>
             </View>
 
@@ -273,25 +275,35 @@ const styles = StyleSheet.create({
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#B7FFD6',
+    backgroundColor: '#EAFBF2',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#00FF6E',
+    borderColor: '#A7E8C4',
   },
   statusDot: {
     width: 7,
     height: 7,
     borderRadius: 999,
-    backgroundColor: '#00FF6E',
+    backgroundColor: '#1E7A3A',
     marginRight: 5,
   },
   statusText: {
-    color: '#1D6A3A',
+    color: '#1E7A3A',
     fontSize: 10,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  statusPillOffline: {
+    backgroundColor: '#FBDCDC',
+    borderColor: COLORS.error,
+  },
+  statusDotOffline: {
+    backgroundColor: COLORS.error,
+  },
+  statusTextOffline: {
+    color: '#B91C1C',
   },
   statsRow: {
     flexDirection: 'row',

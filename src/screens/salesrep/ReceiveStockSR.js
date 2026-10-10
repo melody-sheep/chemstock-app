@@ -13,14 +13,20 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import outboxService from '../../services/outboxService';
+import { getConnectionStatus } from '../../services/connectionStatus';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOutbox from '../../hooks/useOutbox';
 import { getInitials } from '../../utils/initials';
+import { formatClockTime } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-// Passed from ReceiveStockTypeSR — cosmetic only pre-scan (what the user
-// *expects* to receive). Once a QR is scanned, the resolved
-// batch.movementType from the server is what actually decides the source
-// card shown below, not this value.
+// Passed from ReceiveStockTypeSR. Used both pre-scan (what the user
+// *expects* to receive) and as a hard gate once a QR resolves — the server's
+// batch.movementType must match the chosen handoff type, or the scan is
+// rejected (see handleScanned). The source card below is still built from
+// batch.movementType, the authoritative value, not this param.
 const HANDOFF_LABELS = {
   manager: 'Direct From Manager',
   rider: 'Via Collector Delivery',
@@ -44,6 +50,9 @@ export default function ReceiveStockSR() {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
+  const [isQueuedAccept, setIsQueuedAccept] = useState(false);
+  const connection = useConnectionStatus();
+  const { pendingCount, retryNow } = useOutbox('receive_stock');
 
   useEffect(() => {
     authService.getCurrentUser().then(setAgent);
@@ -75,6 +84,18 @@ export default function ReceiveStockSR() {
     }
     if (result.data.alreadyAccepted) {
       setLookupError('This batch has already been accepted.');
+      return;
+    }
+
+    // Jay's explicit ask: the handoff-type button the SR picked to get into
+    // the scanner must actually gate what they're allowed to scan, not just
+    // be cosmetic — scanning a direct-from-manager QR via "Via Collector
+    // Delivery" (or vice versa) is now rejected instead of silently
+    // resolving to whatever the QR really is.
+    const expectedMovementType = handoffType === 'rider' ? 'collector' : handoffType === 'manager' ? 'direct' : null;
+    if (expectedMovementType && result.data.movementType !== expectedMovementType) {
+      const actualLabel = result.data.movementType === 'collector' ? 'Via Collector Delivery' : 'Direct From Manager';
+      setLookupError(`This batch was released as "${actualLabel}" — go back and choose that option instead.`);
       return;
     }
 
@@ -110,20 +131,40 @@ export default function ReceiveStockSR() {
     if (!agent || !photoUri || !batch || isSubmitting) return;
     setIsSubmitting(true);
 
-    try {
-      const storagePath = await inventoryService.uploadStockAcceptancePhoto(photoUri, agent.id);
-      const result = await inventoryService.acceptStockRelease({
-        qrCode: batch.qrCode,
-        agentId: agent.id,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
-        deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
-        storagePath,
-      });
+    // The scan + lookup that produced `batch` always happened live — a QR
+    // code carries no data of its own, so only this final confirmation step
+    // can ever be queued. Mirrors the daily report / return request pattern.
+    const acceptPayload = {
+      qrCode: batch.qrCode,
+      agentId: agent.id,
+      latitude: coords?.latitude,
+      longitude: coords?.longitude,
+      deviceModel: Device.modelName,
+      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+    };
 
-      if (!result.success) {
-        throw new Error(result.message);
+    try {
+      if (!getConnectionStatus().online) {
+        await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+        setIsQueuedAccept(true);
+        setIsAccepted(true);
+        return;
+      }
+
+      try {
+        const storagePath = await inventoryService.uploadStockAcceptancePhoto(photoUri, agent.id);
+        const result = await inventoryService.acceptStockRelease({ ...acceptPayload, storagePath });
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+      } catch (liveError) {
+        if (!getConnectionStatus().online) {
+          await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+          setIsQueuedAccept(true);
+          setIsAccepted(true);
+          return;
+        }
+        throw liveError;
       }
 
       setIsAccepted(true);
@@ -142,14 +183,22 @@ export default function ReceiveStockSR() {
         <StatusBar style="light" />
         <View style={styles.screen}>
           <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-            <Text style={styles.topBarTitle}>Stock Accepted</Text>
+            <Text style={styles.topBarTitle}>{isQueuedAccept ? 'Saved — Will Send Later' : 'Stock Accepted'}</Text>
           </View>
           <View style={styles.successWrap}>
-            <Icon name="checkCircle" size={48} color={COLORS.success} weight="fill" />
-            <Text style={styles.successTitle}>Stock Accepted Successfully</Text>
+            <Icon
+              name={isQueuedAccept ? 'clock' : 'checkCircle'}
+              size={48}
+              color={isQueuedAccept ? COLORS.warning : COLORS.success}
+              weight="fill"
+            />
+            <Text style={styles.successTitle}>
+              {isQueuedAccept ? "You're Offline — Saved On This Device" : 'Stock Accepted Successfully'}
+            </Text>
             <Text style={styles.successSubtitle}>
-              {batch?.items?.length || 0} item{(batch?.items?.length || 0) === 1 ? '' : 's'}, {totalUnits} units added
-              to your stock
+              {isQueuedAccept
+                ? `Your confirmation for ${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'} (${totalUnits} units) is saved and will send automatically once you're back online.`
+                : `${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'}, ${totalUnits} units added to your stock`}
             </Text>
             <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
           </View>
@@ -169,13 +218,32 @@ export default function ReceiveStockSR() {
 
           <Text style={styles.topBarTitle}>Receive Stock</Text>
 
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
+          <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
+            <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
+            <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
+              {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+            </Text>
           </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {pendingCount > 0 && (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingIconCircle}>
+                <Icon name="clock" size={14} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pendingBannerTitle}>Pending — {pendingCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerText}>
+                  Saved on this device. Sends automatically once you're back online.
+                </Text>
+              </View>
+              <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                <Text style={styles.pendingRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+
           {!batch && (
             <>
               <View style={styles.sectionHeaderPanel}>
@@ -371,25 +439,78 @@ const styles = StyleSheet.create({
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#B7FFD6',
+    backgroundColor: '#EAFBF2',
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#00FF6E',
+    borderColor: '#A7E8C4',
+    maxWidth: 150,
   },
   statusDot: {
     width: 7,
     height: 7,
     borderRadius: 999,
-    backgroundColor: '#00FF6E',
+    backgroundColor: '#1E7A3A',
     marginRight: 5,
   },
   statusText: {
-    color: '#1D6A3A',
+    color: '#1E7A3A',
     fontSize: 10,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
+  },
+  statusPillOffline: {
+    backgroundColor: '#FBDCDC',
+    borderColor: COLORS.error,
+  },
+  statusDotOffline: {
+    backgroundColor: COLORS.error,
+  },
+  statusTextOffline: {
+    color: '#B91C1C',
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF1D6',
+    borderWidth: 1,
+    borderColor: '#F2C94C',
+    borderRadius: 8,
+    padding: 12,
+  },
+  pendingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#B26400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingBannerTitle: {
+    fontSize: 13,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  pendingBannerText: {
+    fontSize: 11,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  pendingRetryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#B26400',
+  },
+  pendingRetryText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   content: {
     paddingHorizontal: 16,

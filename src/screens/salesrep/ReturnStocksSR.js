@@ -1,11 +1,12 @@
 // src/screens/salesrep/ReturnStocksSR.js
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
@@ -24,27 +25,24 @@ const STATUS_META = {
 
 const SHIPMENT_BUCKET = 'shipment-media';
 
+// A failed fetch keeps the previous snapshot instead of blanking the screen.
+const loadReturnRequestsData = async (previous) => {
+  const agent = await authService.getCurrentUser();
+  const prev = previous?.agentId === agent?.id ? previous : null;
+  const result = await reportService.getMyReturnRequests(agent?.id, 50);
+  return {
+    agentId: agent?.id,
+    requests: result.success ? result.data : prev?.requests ?? [],
+  };
+};
+
 export default function ReturnStocksSR() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [requests, setRequests] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-return-requests', loadReturnRequestsData);
+  const requests = snapshot?.requests ?? [];
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
-
-  const loadRequests = useCallback(async () => {
-    setIsLoading(true);
-    const agent = await authService.getCurrentUser();
-    const result = await reportService.getMyReturnRequests(agent?.id, 50);
-    setRequests(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadRequests();
-    }, [loadRequests])
-  );
 
   const handleBack = () => navigation.goBack();
 

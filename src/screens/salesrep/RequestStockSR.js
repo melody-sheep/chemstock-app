@@ -3,10 +3,10 @@
 // three status sections, StockBatchCard rows). Shows branch inventory, since a
 // request is made against what the branch can supply. Tapping a card opens a
 // quantity popup and adds the product to the request list.
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
@@ -17,6 +17,7 @@ import FilterSheet from '../../components/common/FilterSheet';
 import CustomModal from '../../components/common/Modal';
 import BranchSelector from '../../components/common/BranchSelector';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
@@ -34,48 +35,54 @@ const EXPIRY_FILTER_OPTIONS = [
   { key: 'nearExpiry', label: 'Near Expiry Only' },
 ];
 
+// A failed fetch keeps the previous snapshot instead of blanking the screen.
+// getAgentBranches doesn't distinguish "genuinely no branches" from "the
+// request failed" (both return []), so an empty result here falls back to
+// whatever branch list was cached rather than wiping the selector.
+const loadRequestableStockData = async (previous) => {
+  const currentAgent = await authService.getCurrentUser();
+  const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
+
+  const branchesResult = await requestService.getAgentBranches(currentAgent?.branchIds || []);
+  const stockResult = await inventoryService.getBranchStockForAgent(currentAgent?.id);
+
+  return {
+    agent: currentAgent,
+    branches: branchesResult.length > 0 ? branchesResult : prev?.branches ?? [],
+    stock: stockResult.success ? stockResult.data : prev?.stock ?? [],
+  };
+};
+
 export default function RequestStockSR() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
-  const [agent, setAgent] = useState(null);
-  const [stock, setStock] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
+  const agent = snapshot?.agent ?? null;
+  const branches = snapshot?.branches ?? [];
+  const stock = snapshot?.stock ?? [];
+
   const [searchText, setSearchText] = useState('');
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
-  const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [cart, setCart] = useState([]);
   const [activeProduct, setActiveProduct] = useState(null);
   const [modalQty, setModalQty] = useState(1);
   const [qtyText, setQtyText] = useState('1');
 
+  // Each branch has its own storage, so the screen shows one branch at a
+  // time — default to the first once branches are available, same as before,
+  // just driven off the cached snapshot instead of the raw load call.
+  useEffect(() => {
+    if (selectedBranchId || branches.length === 0) return;
+    setSelectedBranchId(branches[0].id);
+  }, [branches, selectedBranchId]);
+
   // Keeps the number and the text box in sync (stepper buttons and reset).
   const setQty = (n) => {
     setModalQty(n);
     setQtyText(String(n));
   };
-
-  const loadStock = useCallback(async () => {
-    setIsLoading(true);
-    const currentAgent = await authService.getCurrentUser();
-    setAgent(currentAgent);
-
-    // Each branch has its own storage, so the screen shows one branch at a time.
-    const agentBranches = await requestService.getAgentBranches(currentAgent?.branchIds || []);
-    setBranches(agentBranches);
-    setSelectedBranchId((prev) => prev ?? agentBranches[0]?.id ?? null);
-
-    const result = await inventoryService.getBranchStockForAgent(currentAgent?.id);
-    setStock(result.success ? result.data : []);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadStock();
-    }, [loadStock])
-  );
 
   const cartCount = cart.length;
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
