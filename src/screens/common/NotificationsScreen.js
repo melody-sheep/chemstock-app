@@ -2,7 +2,7 @@
 // Shared across all three roles, same precedent as ComingSoonScreen/
 // EditProfileScreen — one screen, reached from each dashboard's bell icon.
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -10,6 +10,7 @@ import Icon from '../../components/common/Icon';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import authService from '../../services/authService';
 import notificationService from '../../services/notificationService';
+import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -68,13 +69,49 @@ export default function NotificationsScreen() {
   // tapping a notification navigates immediately instead of waiting on a
   // round trip — the badge/list will reconcile with the server on next focus
   // regardless.
-  const handlePressNotification = (notification) => {
+  const handlePressNotification = async (notification) => {
     if (!notification.isRead) {
       setNotifications((prev) =>
         prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n))
       );
       notificationService.markNotificationRead(notification.id, user?.id);
     }
+
+    if (
+      notification.type === 'delivery_handoff_pending_sr' &&
+      notification.navParams?.transactionId
+    ) {
+      if (!user?.id) {
+        Alert.alert('Unable to Load Handoff', 'Your account could not be loaded. Please try again.');
+        return;
+      }
+      try {
+        const result = await deliveryService.getMyPendingHandoffs(user.id);
+        if (!result.success) {
+          Alert.alert('Unable to Load Handoff', result.message || 'Please try again.');
+          return;
+        }
+
+        const handoff = result.data.find(
+          (pendingHandoff) => pendingHandoff.transactionId === notification.navParams.transactionId
+        );
+        if (handoff) {
+          navigation.navigate('SalesRepConfirmHandoff', { handoff });
+        } else {
+          Alert.alert(
+            'Handoff Already Handled',
+            'This delivery is no longer waiting for your confirmation.'
+          );
+        }
+      } catch (error) {
+        Alert.alert(
+          'Unable to Load Handoff',
+          error.message || 'Please try again.'
+        );
+      }
+      return;
+    }
+
     if (notification.navTarget) {
       navigation.navigate(notification.navTarget, notification.navParams || undefined);
     }

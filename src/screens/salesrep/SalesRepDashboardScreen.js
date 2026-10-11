@@ -22,6 +22,7 @@ import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
+import { routeQrScan } from '../../utils/routeQrScan';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -236,9 +237,14 @@ export default function SalesRepDashboardScreen() {
     }
   };
 
-  const handleScanned = (qrCode) => {
+  const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);
-    navigation.navigate('ReceiveStockSR', { initialQrCode: qrCode });
+    try {
+      const currentAgent = await authService.getCurrentUser();
+      await routeQrScan({ qrCode, agentId: currentAgent?.id, navigation });
+    } catch (error) {
+      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
+    }
   };
 
   const handleScroll = Animated.event(

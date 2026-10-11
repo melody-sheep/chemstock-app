@@ -34,15 +34,20 @@ export default function SalesRepConfirmHandoffScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const handoff = route.params?.handoff;
+  const [directTransaction, setDirectTransaction] = useState(route.params?.directTransaction || null);
+  const initialScannedQr = route.params?.initialScannedQr || null;
 
   const [agent, setAgent] = useState(null);
   const [coords, setCoords] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isIssueModalVisible, setIsIssueModalVisible] = useState(false);
-  const [scannedQrCode, setScannedQrCode] = useState(null);
+  const [scannedQrCode, setScannedQrCode] = useState(initialScannedQr);
   const [photoUri, setPhotoUri] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchedDirectTx, setFetchedDirectTx] = useState(null);
+  const isDirectAwaitingScan = !handoff && !directTransaction;
+  const isDirectMode = route.params?.directMode === true || !!directTransaction || isDirectAwaitingScan;
 
   useEffect(() => {
     let isActive = true;
@@ -76,31 +81,65 @@ export default function SalesRepConfirmHandoffScreen() {
     };
   }, []);
 
-  if (!handoff) {
-    return (
-      <>
-        <StatusBar style="light" />
-        <View style={styles.container}>
-          <Header showBackButton title="Verify Delivery" titleAlign="left" height={56} backgroundColor={COLORS.primary} textColor="#FFFFFF" />
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyText}>No handoff data.</Text>
-          </View>
-        </View>
-      </>
-    );
-  }
-
-  const expectedQr = handoff.releaseQrCode;
-  const isQrValid = Boolean(scannedQrCode && expectedQr && scannedQrCode === expectedQr);
-  const collectorGps = handoff.collectorGps;
+  const effectiveDirectTx = directTransaction || fetchedDirectTx;
+  const expectedQr = handoff?.releaseQrCode || effectiveDirectTx?.qrCode || null;
+  const isQrValid = isDirectAwaitingScan && !fetchedDirectTx
+    ? Boolean(scannedQrCode)
+    : Boolean(scannedQrCode && expectedQr && scannedQrCode === expectedQr);
+  const collectorGps = handoff?.collectorGps;
   const distanceMeters =
     collectorGps && coords
       ? distanceInMeters(coords, { latitude: collectorGps.latitude, longitude: collectorGps.longitude })
       : null;
   const isFar = distanceMeters != null && distanceMeters > DISTANCE_WARN_METERS;
 
-  const handleScanned = (code) => {
+  const handleScanned = async (code) => {
     setIsScannerVisible(false);
+    if (isDirectAwaitingScan && !fetchedDirectTx) {
+      try {
+        const currentAgent = agent || await authService.getCurrentUser();
+        if (!currentAgent?.id) {
+          Alert.alert('Unable to Verify QR', 'Your account could not be loaded. Please try again.');
+          return;
+        }
+        const result = await inventoryService.getTransactionByQrCodeForAgent(code, currentAgent.id);
+
+        if (!result.success || !result.data) {
+          Alert.alert('Delivery Not Found', "This QR doesn't match any delivery assigned to you.");
+          return;
+        }
+
+        const tx = result.data;
+        if (tx.movementType !== 'direct') {
+          Alert.alert(
+            'Wrong Delivery Type',
+            'This QR belongs to a collector delivery. Go back and use "Via Collector Delivery" instead.'
+          );
+          return;
+        }
+
+        if (tx.alreadyAccepted) {
+          Alert.alert('Already Accepted', 'This batch was already accepted.');
+          return;
+        }
+
+        setFetchedDirectTx({
+          transactionId: tx.transactionId,
+          qrCode: tx.qrCode,
+          movementType: tx.movementType,
+          releasedByName: tx.releasedByName,
+          releasedByPhotoPath: tx.releasedByPhotoPath,
+          targetRecipientId: tx.targetRecipientId,
+          targetRecipientName: tx.targetRecipientName,
+          branchName: tx.branchName,
+          items: tx.items || [],
+        });
+        setScannedQrCode(code);
+      } catch (error) {
+        Alert.alert('Lookup Failed', error.message || 'Could not load this delivery.');
+      }
+      return;
+    }
     setScannedQrCode(code);
   };
 
@@ -113,18 +152,20 @@ export default function SalesRepConfirmHandoffScreen() {
     setIsSubmitting(true);
 
     const payload = {
+      ...(isDirectMode
+        ? { qrCode: scannedQrCode }
+        : { transactionId: handoff.transactionId, scannedQrCode }),
       agentId: agent.id,
-      transactionId: handoff.transactionId,
       latitude: coords?.latitude,
       longitude: coords?.longitude,
       deviceModel: Device.modelName,
       deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
-      scannedQrCode,
     };
+    const outboxAction = isDirectMode ? 'receive_stock' : 'confirm_delivery_handoff';
 
     try {
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue('confirm_delivery_handoff', payload, photoUri);
+        await outboxService.enqueue(outboxAction, payload, photoUri);
         Alert.alert('Saved — Will Send Later', "You're offline. Your confirmation is saved on this device and will sync automatically once you're back online.", [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
@@ -133,11 +174,13 @@ export default function SalesRepConfirmHandoffScreen() {
 
       try {
         const storagePath = await inventoryService.uploadStockAcceptancePhoto(photoUri, agent.id);
-        const result = await inventoryService.confirmDeliveryHandoff({ ...payload, storagePath });
+        const result = isDirectMode
+          ? await inventoryService.acceptStockRelease({ ...payload, storagePath })
+          : await inventoryService.confirmDeliveryHandoff({ ...payload, storagePath });
         if (!result.success) throw new Error(result.message);
       } catch (liveError) {
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue('confirm_delivery_handoff', payload, photoUri);
+          await outboxService.enqueue(outboxAction, payload, photoUri);
           Alert.alert('Saved — Will Send Later', "Connection dropped. Your confirmation is saved on this device and will sync automatically once you're back online.", [
             { text: 'OK', onPress: () => navigation.goBack() },
           ]);
@@ -157,7 +200,7 @@ export default function SalesRepConfirmHandoffScreen() {
   };
 
   const handleSubmitIssue = async ({ reasonCode, reason, photoUri: issuePhoto }) => {
-    if (!agent || isSubmitting) return false;
+    if (!agent || isSubmitting || isDirectMode) return false;
     setIsSubmitting(true);
 
     try {
@@ -207,18 +250,28 @@ export default function SalesRepConfirmHandoffScreen() {
           <View style={styles.handoffCard}>
             <View style={styles.handoffTop}>
               <View style={styles.truckBadge}>
-                <Icon name="truck" size={22} color={COLORS.primary} />
+                <Icon name={isDirectMode ? 'package' : 'truck'} size={22} color={COLORS.primary} />
               </View>
               <View style={styles.handoffInfo}>
                 <Text style={styles.handoffName}>
-                  Received from {handoff.collectorName || 'Collector'}
+                  {isDirectMode
+                    ? effectiveDirectTx
+                      ? `Direct release from ${effectiveDirectTx.releasedByName || 'Manager'}`
+                      : 'Direct release from Manager'
+                    : `Received from ${handoff.collectorName || 'Collector'}`}
                 </Text>
                 <Text style={styles.handoffMeta}>
-                  Marked delivered {new Date(handoff.collectorClaimedAt).toLocaleString()}
+                  {isDirectMode
+                    ? effectiveDirectTx?.branchName || 'Scan the QR to load the delivery'
+                    : `Marked delivered ${handoff.collectorClaimedAt
+                      ? new Date(handoff.collectorClaimedAt).toLocaleString()
+                      : 'by Collector'}`}
                 </Text>
               </View>
             </View>
-            <DeliveryHandoffStatusBadge status={handoff.handoffStatus || 'pending_sr'} />
+            {!isDirectMode && (
+              <DeliveryHandoffStatusBadge status={handoff.handoffStatus || 'pending_sr'} />
+            )}
             {isFar && (
               <View style={styles.distanceWarn}>
                 <Icon name="warningTriangle" size={14} color={COLORS.warning} />
@@ -231,7 +284,7 @@ export default function SalesRepConfirmHandoffScreen() {
 
           <Text style={styles.sectionLabel}>Items</Text>
           <View style={styles.itemsCard}>
-            {(handoff.items || []).map((item, index) => {
+            {((handoff?.items) || (effectiveDirectTx?.items) || []).map((item, index) => {
               const image = productImageFor(item.productCode);
               return (
                 <View
@@ -253,6 +306,15 @@ export default function SalesRepConfirmHandoffScreen() {
                 </View>
               );
             })}
+            {((handoff?.items) || (effectiveDirectTx?.items) || []).length === 0 && (
+              <View style={{ padding: SPACING.md, alignItems: 'center' }}>
+                <Text style={styles.emptyText}>
+                  {isDirectAwaitingScan && !fetchedDirectTx
+                    ? 'Scan the QR to load the items.'
+                    : 'No items to show.'}
+                </Text>
+              </View>
+            )}
           </View>
 
           <Text style={styles.sectionLabel}>Step 1 — Scan product QR</Text>
@@ -278,7 +340,11 @@ export default function SalesRepConfirmHandoffScreen() {
               activeOpacity={0.8}
             >
               <Icon name="qrCode" size={20} color={COLORS.primary} />
-              <Text style={styles.stepButtonText}>Scan the QR on the package</Text>
+              <Text style={styles.stepButtonText}>
+                {isDirectAwaitingScan && !fetchedDirectTx
+                  ? 'Scan the QR to load the delivery'
+                  : 'Scan the QR on the package'}
+              </Text>
               <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
@@ -319,15 +385,17 @@ export default function SalesRepConfirmHandoffScreen() {
             style={styles.confirmButton}
           />
 
-          <TouchableOpacity
-            onPress={() => setIsIssueModalVisible(true)}
-            style={styles.issueLink}
-            activeOpacity={0.7}
-            disabled={isSubmitting}
-          >
-            <Icon name="warningTriangle" size={14} color={COLORS.error} />
-            <Text style={styles.issueLinkText}>Report an issue</Text>
-          </TouchableOpacity>
+          {!isDirectMode && (
+            <TouchableOpacity
+              onPress={() => setIsIssueModalVisible(true)}
+              style={styles.issueLink}
+              activeOpacity={0.7}
+              disabled={isSubmitting}
+            >
+              <Icon name="warningTriangle" size={14} color={COLORS.error} />
+              <Text style={styles.issueLinkText}>Report an issue</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={{ height: Math.max(insets.bottom, SPACING.lg) + 16 }} />
         </ScrollView>
@@ -345,12 +413,14 @@ export default function SalesRepConfirmHandoffScreen() {
         onCapture={setPhotoUri}
       />
 
-      <ReportHandoffIssueModal
-        visible={isIssueModalVisible}
-        onCancel={() => setIsIssueModalVisible(false)}
-        onSubmit={handleSubmitIssue}
-        isSubmitting={isSubmitting}
-      />
+      {!isDirectMode && (
+        <ReportHandoffIssueModal
+          visible={isIssueModalVisible}
+          onCancel={() => setIsIssueModalVisible(false)}
+          onSubmit={handleSubmitIssue}
+          isSubmitting={isSubmitting}
+        />
+      )}
     </>
   );
 }

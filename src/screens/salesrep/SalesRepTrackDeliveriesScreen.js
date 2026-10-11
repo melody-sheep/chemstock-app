@@ -1,13 +1,14 @@
 // src/screens/salesrep/SalesRepTrackDeliveriesScreen.js
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import DeliveryHandoffStatusBadge from '../../components/common/DeliveryHandoffStatusBadge';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import deliveryService from '../../services/deliveryService';
@@ -15,6 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { routeQrScan } from '../../utils/routeQrScan';
 
 const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
 
@@ -84,8 +86,23 @@ const loadDeliveriesData = async (previous) => {
 
 export default function SalesRepTrackDeliveriesScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const filterPending = route.params?.filterPending === true;
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-track-deliveries', loadDeliveriesData);
-  const deliveries = snapshot?.deliveries ?? [];
+  const allDeliveries = snapshot?.deliveries ?? [];
+  const deliveries = filterPending
+    ? allDeliveries.filter((delivery) => delivery.handoffStatus === 'pending_sr')
+    : allDeliveries;
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    try {
+      const agent = await authService.getCurrentUser();
+      await routeQrScan({ qrCode, agentId: agent?.id, navigation });
+    } catch (error) {
+      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
+    }
+  };
 
   return (
     <>
@@ -107,10 +124,24 @@ export default function SalesRepTrackDeliveriesScreen() {
         ) : deliveries.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="truck" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>No incoming deliveries yet.</Text>
-            <Text style={styles.emptySubtext}>
-              Stock your manager releases via a Collector will show up here.
+            <Text style={styles.emptyText}>
+              {filterPending ? 'No pending collector deliveries right now.' : 'No incoming deliveries yet.'}
             </Text>
+            <Text style={styles.emptySubtext}>
+              {filterPending
+                ? 'When a Collector marks a delivery as delivered, it will appear here for you to confirm.'
+                : 'Stock your manager releases via a Collector will show up here.'}
+            </Text>
+            {filterPending && (
+              <TouchableOpacity
+                style={styles.scanFallbackButton}
+                onPress={() => setIsScannerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Icon name="qrCode" size={18} color="#FFFFFF" />
+                <Text style={styles.scanFallbackText}>Scan a QR</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -169,6 +200,11 @@ export default function SalesRepTrackDeliveriesScreen() {
           </ScrollView>
         )}
       </View>
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </>
   );
 }
@@ -189,6 +225,22 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  scanFallbackButton: {
+    marginTop: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
+  scanFallbackText: {
+    color: '#FFFFFF',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
   },
   deliveryCard: {
     flexDirection: 'row',
