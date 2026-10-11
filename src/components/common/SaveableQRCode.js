@@ -281,7 +281,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
         </View>
       </View>
 
-      <View style={styles.qrTile}>
+      <View style={styles.qrWrap}>
         <QRCode value={value} size={size} getRef={(c) => (qrRef.current = c)} />
       </View>
       {showValueText && (
@@ -335,20 +335,23 @@ const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
     gap: SPACING.lg,
-    padding: SPACING.lg,
-    borderRadius: 16,
+    paddingVertical: SPACING.lg,
+    borderRadius: 8,
     backgroundColor: COLORS.textWhite,
+    borderWidth: 1,
+    borderColor: '#ECEEF1',
   },
-  qrTile: {
-    alignSelf: 'center',
-    padding: SPACING.md,
-    borderRadius: 12,
-    backgroundColor: COLORS.background,
+  qrWrap: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    marginHorizontal: SPACING.lg,
   },
   codeBlock: {
-    alignSelf: 'center',
+    alignSelf: 'stretch',
     alignItems: 'center',
     gap: 4,
+    marginHorizontal: SPACING.lg,
   },
   codeLabel: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -367,6 +370,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     alignSelf: 'stretch',
+    marginHorizontal: SPACING.lg,
     gap: SPACING.sm,
   },
   fullWidth: {

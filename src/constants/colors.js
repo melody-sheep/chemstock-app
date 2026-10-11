@@ -75,4 +75,11 @@ export const COLORS = {
   // green-checkmark concept already fits).
   colAcceptStroke: '#6C5CE7',
   colAcceptFill: '#ECECFF',
+
+  // Neutral surface tokens — used by card borders, row dividers, and
+  // photo placeholder backgrounds across detail/log screens. Kept here
+  // (not inline) so a future theme change touches one file, not fifteen.
+  borderSubtle: '#ECEEF1',
+  dividerSubtle: '#F4F5F7',
+  placeholderBg: '#F1F5F9',
 };

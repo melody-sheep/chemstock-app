@@ -167,6 +167,7 @@ export default function StockLogsScreen() {
         <Header
           showBackButton
           title="Transaction Logs"
+          titleAlign="left"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

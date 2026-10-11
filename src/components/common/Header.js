@@ -127,6 +127,18 @@ export default function Header({
           </View>
         )}
 
+        {/* Left-aligned title when a back button is present — renders
+            right after the back icon so the header reads "← Log Detail"
+            instead of centering the title and leaving an empty gap. */}
+        {!showProfileIcon && showBackButton && titleAlign === 'left' && title && title !== '' && (
+          <Text
+            style={[styles.leftTitle, styles.backButtonTitle, { color: textColor }]}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        )}
+
         {!showProfileIcon && !showBackButton && titleAlign === 'left' && title && title !== '' && (
           <Text style={[styles.leftTitle, { color: textColor }]}>
             {title}
@@ -227,9 +239,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexShrink: 1,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     height: '100%',
   },
   centerSection: {
@@ -266,6 +279,9 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     marginLeft: SPACING.sm,
+  },
+  backButtonTitle: {
+    flexShrink: 1,
   },
   title: {
     fontSize: TYPOGRAPHY.fontSize.lg,

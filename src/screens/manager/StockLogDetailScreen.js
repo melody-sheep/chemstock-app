@@ -1,11 +1,12 @@
 // src/screens/manager/StockLogDetailScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Image, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
+import ImageViewerModal from '../../components/common/ImageViewerModal';
 import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -19,6 +20,7 @@ export default function StockLogDetailScreen() {
 
   const [photoUrl, setPhotoUrl] = useState(null);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const [isViewerVisible, setIsViewerVisible] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -44,7 +46,7 @@ export default function StockLogDetailScreen() {
       <>
         <StatusBar style="light" />
         <View style={styles.container}>
-          <Header showBackButton title="Log Detail" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
+          <Header showBackButton title="Log Detail" titleAlign="left" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>No log data.</Text>
           </View>
@@ -71,6 +73,7 @@ export default function StockLogDetailScreen() {
         <Header
           showBackButton
           title="Log Detail"
+          titleAlign="left"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
@@ -153,7 +156,18 @@ export default function StockLogDetailScreen() {
                       style={{ marginVertical: SPACING.md }}
                     />
                   ) : photoUrl ? (
-                    <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
+                    <TouchableOpacity
+                      style={styles.photoWrap}
+                      onPress={() => setIsViewerVisible(true)}
+                      activeOpacity={0.85}
+                      accessibilityLabel="View full-size photo"
+                      accessibilityRole="button"
+                    >
+                      <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
+                      <View style={styles.expandBadge}>
+                        <Icon name="expand" size={14} color="#FFFFFF" />
+                      </View>
+                    </TouchableOpacity>
                   ) : (
                     <Text style={styles.emptyText}>Photo unavailable.</Text>
                   )}
@@ -163,6 +177,12 @@ export default function StockLogDetailScreen() {
           )}
         </ScrollView>
       </View>
+
+      <ImageViewerModal
+        visible={isViewerVisible}
+        onClose={() => setIsViewerVisible(false)}
+        imageUri={photoUrl}
+      />
     </>
   );
 }
@@ -256,12 +276,27 @@ const styles = StyleSheet.create({
   },
   qrCard: {
     marginBottom: SPACING.md,
-    alignSelf: 'center',
   },
-  photo: {
+  photoWrap: {
     width: '100%',
     height: 180,
     borderRadius: 8,
+    overflow: 'hidden',
     backgroundColor: '#F1F5F9',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  expandBadge: {
+    position: 'absolute',
+    bottom: SPACING.sm,
+    right: SPACING.sm,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

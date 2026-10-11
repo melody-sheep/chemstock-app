@@ -49,6 +49,7 @@ import SalesRepStockScreen from '../screens/salesrep/SalesRepStockScreen';
 import SalesRepBackpackScreen from '../screens/salesrep/SalesRepBackpackScreen';
 import SalesRepStockRequestsScreen from '../screens/salesrep/SalesRepStockRequestsScreen';
 import SalesRepLogsScreen from '../screens/salesrep/SalesRepLogsScreen';
+import SalesRepLogDetailScreen from '../screens/salesrep/SalesRepLogDetailScreen';
 import SalesRepTrackDeliveriesScreen from '../screens/salesrep/SalesRepTrackDeliveriesScreen';
 import SalesRepDeliveryDetailScreen from '../screens/salesrep/SalesRepDeliveryDetailScreen';
 import SalesRepReportsScreen from '../screens/salesrep/SalesRepReportsScreen';
@@ -123,6 +124,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="SalesRepBackpack" component={SalesRepBackpackScreen} />
         <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} />
         <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} />
+        <Stack.Screen name="SalesRepLogDetail" component={SalesRepLogDetailScreen} />
         <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} />
         <Stack.Screen name="SalesRepDeliveryDetail" component={SalesRepDeliveryDetailScreen} />
         <Stack.Screen name="SalesRepReports" component={SalesRepReportsScreen} options={{ animation: 'none' }} />
