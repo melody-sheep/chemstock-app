@@ -15,6 +15,7 @@ import CustomModal from '../../components/common/Modal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import profileService from '../../services/profileService';
+import QRCode from 'react-native-qrcode-svg';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
@@ -286,6 +287,14 @@ export default function CollectorTripReviewScreen() {
                     <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
                   </View>
                 ))}
+                {leg.qrCode && (
+                  <View style={styles.qrSection}>
+                    <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
+                    <View style={styles.qrTile}>
+                      <QRCode value={leg.qrCode} size={160} />
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           ))}
@@ -478,6 +487,26 @@ const styles = StyleSheet.create({
   itemTextWrap: { flex: 1 },
   itemName: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
   itemMeta: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
+  qrSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    gap: 10,
+  },
+  qrTitle: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+  },
+  qrTile: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   summaryText: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   noticeBox: {

@@ -4,11 +4,13 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import DeliveryHandoffStatusBadge from '../../components/common/DeliveryHandoffStatusBadge';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -37,10 +39,46 @@ function getStatusPillTextStyle(status) {
 const loadDeliveriesData = async (previous) => {
   const agent = await authService.getCurrentUser();
   const prev = previous?.agentId === agent?.id ? previous : null;
-  const result = await inventoryService.getMyDeliveries(agent?.id);
+  const [result, handoffsResult] = await Promise.all([
+    inventoryService.getMyDeliveries(agent?.id),
+    deliveryService.getMyPendingHandoffs(agent?.id),
+  ]);
+  const previousDeliveries = prev?.deliveries ?? [];
+  const baseDeliveries = result.success ? result.data : previousDeliveries;
+  const handoffs = handoffsResult.success ? handoffsResult.data : [];
+  const handoffsByTransaction = new Map(handoffs.map((handoff) => [handoff.transactionId, handoff]));
+  const deliveriesByTransaction = new Map();
+
+  baseDeliveries.forEach((delivery) => {
+    const handoff = handoffsByTransaction.get(delivery.transactionId);
+    deliveriesByTransaction.set(delivery.transactionId, {
+      ...delivery,
+      handoffStatus: handoff?.handoffStatus ?? delivery.handoffStatus,
+      handoff: handoff ?? delivery.handoff,
+    });
+  });
+
+  handoffs.forEach((handoff) => {
+    if (!deliveriesByTransaction.has(handoff.transactionId)) {
+      deliveriesByTransaction.set(handoff.transactionId, {
+        transactionId: handoff.transactionId,
+        createdAt: handoff.collectorClaimedAt,
+        deliveredAt: handoff.deliveredAt,
+        deliveryStatus: handoff.deliveryStatus || 'delivered',
+        collectorName: handoff.collectorName,
+        qrCode: handoff.releaseQrCode,
+        items: handoff.items || [],
+        handoffStatus: handoff.handoffStatus,
+        handoff,
+      });
+    }
+  });
+
   return {
     agentId: agent?.id,
-    deliveries: result.success ? result.data : prev?.deliveries ?? [],
+    deliveries: [...deliveriesByTransaction.values()].sort(
+      (a, b) => new Date(b.deliveredAt || b.createdAt).getTime() - new Date(a.deliveredAt || a.createdAt).getTime()
+    ),
   };
 };
 
@@ -78,11 +116,29 @@ export default function SalesRepTrackDeliveriesScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {deliveries.map((delivery) => {
               const isDelivered = delivery.deliveryStatus === 'delivered';
+              const isPendingHandoff = isDelivered && delivery.handoffStatus === 'pending_sr';
               return (
                 <TouchableOpacity
                   key={delivery.transactionId}
                   style={styles.deliveryCard}
-                  onPress={() => navigation.navigate('SalesRepDeliveryDetail', { delivery })}
+                  onPress={() =>
+                    isPendingHandoff
+                      ? navigation.navigate('SalesRepConfirmHandoff', {
+                          handoff: {
+                            transactionId: delivery.transactionId,
+                            collectorName: delivery.handoff?.collectorName || delivery.collectorName,
+                            collectorClaimedAt:
+                              delivery.handoff?.collectorClaimedAt ||
+                              delivery.deliveredAt ||
+                              delivery.createdAt,
+                            collectorGps: delivery.handoff?.collectorGps || delivery.destinationGps || null,
+                            releaseQrCode: delivery.handoff?.releaseQrCode || delivery.qrCode || null,
+                            items: delivery.handoff?.items || delivery.items || [],
+                            handoffStatus: delivery.handoffStatus,
+                          },
+                        })
+                      : navigation.navigate('SalesRepDeliveryDetail', { delivery })
+                  }
                   activeOpacity={0.7}
                 >
                   <View style={[styles.deliveryIconBadge, isDelivered && styles.deliveryIconBadgeDelivered]}>
@@ -93,12 +149,19 @@ export default function SalesRepTrackDeliveriesScreen() {
                       From: {delivery.collectorName || 'Collector'}
                     </Text>
                     <Text style={styles.deliveryMeta}>{formatRelativeTime(delivery.createdAt)}</Text>
+                    {isPendingHandoff && (
+                      <View style={styles.handoffBadgeWrap}>
+                        <DeliveryHandoffStatusBadge status={delivery.handoffStatus} />
+                      </View>
+                    )}
                   </View>
-                  <View style={[styles.statusPill, getStatusPillStyle(delivery.deliveryStatus)]}>
-                    <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.deliveryStatus)]}>
-                      {getStatusLabel(delivery)}
-                    </Text>
-                  </View>
+                  {!isPendingHandoff && (
+                    <View style={[styles.statusPill, getStatusPillStyle(delivery.deliveryStatus)]}>
+                      <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.deliveryStatus)]}>
+                        {getStatusLabel(delivery)}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -149,6 +212,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success + '15',
   },
   deliveryTextCol: { flex: 1 },
+  handoffBadgeWrap: { marginTop: 6 },
   deliveryTitle: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

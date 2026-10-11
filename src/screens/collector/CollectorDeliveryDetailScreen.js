@@ -15,6 +15,7 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import CustomModal from '../../components/common/Modal';
+import QRCode from 'react-native-qrcode-svg';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import profileService from '../../services/profileService';
@@ -296,6 +297,14 @@ export default function CollectorDeliveryDetailScreen() {
                 </View>
               </View>
             ))}
+            {delivery.qrCode && (
+              <View style={styles.qrSection}>
+                <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
+                <View style={styles.qrTile}>
+                  <QRCode value={delivery.qrCode} size={160} />
+                </View>
+              </View>
+            )}
           </View>
 
           <Text style={styles.listTitle}>Verify Stock With Manager</Text>
@@ -511,6 +520,26 @@ const styles = StyleSheet.create({
   },
   itemName: { color: '#272632', fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   itemMeta: { color: '#555353', fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
+  qrSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    gap: 10,
+  },
+  qrTitle: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+  },
+  qrTile: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+  },
   verifyCard: {
     backgroundColor: '#F8FAFC',
     borderRadius: 16,

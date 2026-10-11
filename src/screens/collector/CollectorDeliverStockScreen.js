@@ -18,6 +18,7 @@ import MapZoomControls from '../../components/common/MapZoomControls';
 import DeliveryTimeline from '../../components/common/DeliveryTimeline';
 import { buildTimelineEntries } from '../../utils/checkpointTimeline';
 import CollectorUpdateCheckpointModal from '../../components/common/CollectorUpdateCheckpointModal';
+import MarkDeliveredModal from '../../components/common/MarkDeliveredModal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import outboxService from '../../services/outboxService';
@@ -62,6 +63,9 @@ export default function CollectorDeliverStockScreen() {
   const [isFinishing, setIsFinishing] = useState(false);
   const [isCancelDialogVisible, setIsCancelDialogVisible] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isMarkDeliveredModalVisible, setIsMarkDeliveredModalVisible] = useState(false);
+  const [isDeliveredConfirmed, setIsDeliveredConfirmed] = useState(false);
+  const [confirmedQrCode, setConfirmedQrCode] = useState(null);
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
   const mapRef = useRef(null);
@@ -144,6 +148,7 @@ export default function CollectorDeliverStockScreen() {
       const meters = collectorPosition ? distanceInMeters(collectorPosition, leg.destinationGps) : null;
       return {
         id: leg.transactionId,
+        qrCode: leg.qrCode,
         avatar: partiesById[leg.transactionId]?.salesRep || undefined,
         label: leg.targetRecipientName || 'Sales Rep',
         latitude: leg.destinationGps.latitude,
@@ -237,8 +242,8 @@ export default function CollectorDeliverStockScreen() {
     }
   };
 
-  const handleFinishDelivery = async () => {
-    if (!agent || !nearestLeg || isFinishing) return;
+  const handleFinishDelivery = async (note = null) => {
+    if (!agent || !nearestLeg || isFinishing) return false;
     setIsFinishing(true);
 
     const finishPayload = {
@@ -246,7 +251,7 @@ export default function CollectorDeliverStockScreen() {
       transactionId: nearestLeg.id,
       latitude: collectorPosition?.latitude,
       longitude: collectorPosition?.longitude,
-      label: `Delivered to ${nearestLeg.label}`,
+      label: note ? `Delivered to ${nearestLeg.label} — ${note}` : `Delivered to ${nearestLeg.label}`,
     };
 
     // Approximated locally for the offline case — the real answer comes
@@ -262,7 +267,7 @@ export default function CollectorDeliverStockScreen() {
           Alert.alert(
             'Saved — Will Send Later',
             "You're offline. This looks like your last stop — it'll be marked delivered and the trip completed once you're back online.",
-            [{ text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') }]
+            [{ text: 'OK' }]
           );
         } else {
           Alert.alert(
@@ -271,7 +276,7 @@ export default function CollectorDeliverStockScreen() {
           );
           load();
         }
-        return;
+        return true;
       }
 
       try {
@@ -281,9 +286,8 @@ export default function CollectorDeliverStockScreen() {
         }
 
         if (result.data?.tripCompleted) {
-          Alert.alert('Trip Completed', 'All deliveries in this trip are done.', [
-            { text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') },
-          ]);
+          // Keep the QR handoff visible in the confirmation modal. The
+          // collector returns to the dashboard when they tap Done there.
         } else {
           Alert.alert('Delivery Finished', `Delivery to ${nearestLeg.label} is complete.`);
           load();
@@ -298,7 +302,7 @@ export default function CollectorDeliverStockScreen() {
             Alert.alert(
               'Saved — Will Send Later',
               "Connection dropped mid-update. This looks like your last stop — it'll be marked delivered and the trip completed once you're back online.",
-              [{ text: 'OK', onPress: () => navigation.navigate('CollectorDashboard') }]
+              [{ text: 'OK' }]
             );
           } else {
             Alert.alert(
@@ -307,14 +311,38 @@ export default function CollectorDeliverStockScreen() {
             );
             load();
           }
-          return;
+          return true;
         }
         throw liveError;
       }
+      return true;
     } catch (error) {
       Alert.alert('Failed to Finish Delivery', error.message || 'Please try again.');
+      return false;
     } finally {
       setIsFinishing(false);
+    }
+  };
+
+  const handleMarkDelivered = async (note) => {
+    const succeeded = await handleFinishDelivery(note);
+    if (succeeded) {
+      setConfirmedQrCode(nearestLeg?.qrCode || null);
+      setIsDeliveredConfirmed(true);
+    }
+  };
+
+  const handleMarkDeliveredClose = () => {
+    const wasConfirmed = isDeliveredConfirmed;
+    setIsMarkDeliveredModalVisible(false);
+    setIsDeliveredConfirmed(false);
+    setConfirmedQrCode(null);
+    if (wasConfirmed) {
+      if (undeliveredLegs.length <= 1) {
+        navigation.navigate('CollectorDashboard');
+      } else {
+        load();
+      }
     }
   };
 
@@ -455,9 +483,9 @@ export default function CollectorDeliverStockScreen() {
 
             {isNearAStop ? (
               <Button
-                title={isFinishing ? 'Finishing…' : `Finish Delivery — ${nearestLeg.label}`}
+                title={isFinishing ? 'Finishing…' : `Mark Delivered — ${nearestLeg.label}`}
                 variant="black"
-                onPress={handleFinishDelivery}
+                onPress={() => setIsMarkDeliveredModalVisible(true)}
                 loading={isFinishing}
                 height={48}
                 fontSize={15}
@@ -490,6 +518,17 @@ export default function CollectorDeliverStockScreen() {
         description="This will cancel the remaining, undelivered stops on this trip. Deliveries already finished stay marked delivered."
         confirmLabel={isCancelling ? 'Cancelling…' : 'Cancel Delivery'}
         cancelLabel="Keep Trip"
+      />
+
+      <MarkDeliveredModal
+        visible={isMarkDeliveredModalVisible}
+        onCancel={handleMarkDeliveredClose}
+        onConfirm={handleMarkDelivered}
+        recipientName={nearestLeg?.label}
+        coords={collectorPosition}
+        qrCode={confirmedQrCode}
+        isSubmitting={isFinishing}
+        isConfirmed={isDeliveredConfirmed}
       />
     </>
   );
