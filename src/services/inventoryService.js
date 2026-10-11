@@ -685,6 +685,96 @@ class InventoryService extends BaseService {
       return { success: false, message: error.message || 'Failed to load deliveries', data: [] };
     }
   }
+
+  /**
+   * SR-side confirmation of a collector-delivered handoff. Credits the SR's
+   * sr_inventory from the transaction line items, computes SR-to-collector
+   * distance, and marks the handoff confirmed. Server-side
+   * (confirm_delivery_handoff RPC) rejects if the collector's
+   * finish_delivery_leg hasn't yet landed — see "wait-for-collector-sync".
+   * Agents are always anon, so this is SECURITY DEFINER.
+   */
+  async confirmDeliveryHandoff({
+    agentId,
+    transactionId,
+    latitude,
+    longitude,
+    deviceModel,
+    deviceOs,
+    storagePath,
+    scannedQrCode,
+  }) {
+    debugLog('info', 'InventoryService', 'Confirming delivery handoff', { agentId, transactionId });
+
+    try {
+      this.validateRequired(
+        ['agentId', 'transactionId', 'storagePath', 'scannedQrCode'],
+        { agentId, transactionId, storagePath, scannedQrCode }
+      );
+
+      const { data, error } = await supabase.rpc('confirm_delivery_handoff', {
+        p_agent_id: agentId,
+        p_transaction_id: transactionId,
+        p_latitude: latitude ?? null,
+        p_longitude: longitude ?? null,
+        p_storage_path: storagePath,
+        p_device_model: deviceModel ?? null,
+        p_device_os: deviceOs ?? null,
+        p_scanned_qr_code: scannedQrCode,
+      });
+
+      if (error) {
+        console.error('[ERROR] [InventoryService] confirm_delivery_handoff RPC error:', error);
+        throw new Error(error.message || 'Failed to confirm handoff');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'confirmDeliveryHandoff failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to confirm handoff' };
+    }
+  }
+
+  /**
+   * SR-side dispute of a collector-delivered handoff. Records the reason,
+   * notifies the branch manager, and does NOT credit sr_inventory or revert
+   * the collector's delivered state — a human investigation follows.
+   */
+  async disputeDeliveryHandoff({
+    agentId,
+    transactionId,
+    reason,
+    reasonCode = null,
+    storagePath = null,
+    deviceModel = null,
+    deviceOs = null,
+  }) {
+    debugLog('info', 'InventoryService', 'Disputing delivery handoff', { agentId, transactionId, reasonCode });
+
+    try {
+      this.validateRequired(['agentId', 'transactionId', 'reason'], { agentId, transactionId, reason });
+
+      const { data, error } = await supabase.rpc('dispute_delivery_handoff', {
+        p_agent_id: agentId,
+        p_transaction_id: transactionId,
+        p_reason: reason,
+        p_reason_code: reasonCode,
+        p_storage_path: storagePath,
+        p_device_model: deviceModel,
+        p_device_os: deviceOs,
+      });
+
+      if (error) {
+        console.error('[ERROR] [InventoryService] dispute_delivery_handoff RPC error:', error);
+        throw new Error(error.message || 'Failed to dispute handoff');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'disputeDeliveryHandoff failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to dispute handoff' };
+    }
+  }
 }
 
 const inventoryService = new InventoryService();

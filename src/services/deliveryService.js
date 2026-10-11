@@ -172,6 +172,36 @@ class DeliveryService extends BaseService {
       return { success: false, message: error.message || 'Failed to finish delivery' };
     }
   }
+
+  /**
+   * SR-side read: handoffs assigned to this Sales Rep that are waiting on
+   * their confirmation or dispute. Backed by a SECURITY DEFINER RPC
+   * (get_my_pending_handoffs) since agents are always anon — see
+   * inventoryService.getTransactionByQrCodeForAgent for the same reasoning.
+   */
+  async getMyPendingHandoffs(agentId) {
+    debugLog('info', 'DeliveryService', 'Fetching my pending handoffs', { agentId });
+
+    if (!agentId) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('get_my_pending_handoffs', {
+        p_agent_id: agentId,
+      });
+
+      if (error) {
+        console.error('[ERROR] [DeliveryService] get_my_pending_handoffs RPC error:', error);
+        throw new Error(error.message || 'Failed to load pending handoffs');
+      }
+
+      return { success: true, data: data || [] };
+    } catch (error) {
+      this.log('error', 'getMyPendingHandoffs failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load pending handoffs', data: [] };
+    }
+  }
 }
 
 const deliveryService = new DeliveryService();

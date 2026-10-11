@@ -160,6 +160,26 @@ const EXECUTORS = {
     }
     return result;
   },
+
+  // SR-side handoff confirmation, queued while offline. Server-side
+  // (confirm_delivery_handoff RPC) rejects if the collector's
+  // finish_delivery_leg hasn't yet landed — the outbox naturally retries
+  // on the next flush until both events have synced. See "wait-for-
+  // collector-sync" design decision.
+  confirm_delivery_handoff: async (entry) => {
+    if (!entry.localPhotoUri) {
+      throw new Error('Missing photo proof for queued handoff confirmation');
+    }
+    if (!entry.payload?.scannedQrCode) {
+      throw new Error('Missing scanned QR for queued handoff confirmation');
+    }
+    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const result = await inventoryService.confirmDeliveryHandoff({ ...entry.payload, storagePath });
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to confirm queued handoff');
+    }
+    return result;
+  },
 };
 
 /** Lets a screen register an executor for a new entry type later. */
