@@ -9,20 +9,37 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
- * FilterSheet - bottom-sheet radio list for single-choice filters (e.g.
- * "All" vs "Near Expiry Only", or a date range). Selecting an option applies
- * it and closes the sheet immediately — no separate Apply step, since these
- * are cheap, instantly-visible filters rather than a multi-field form.
+ * FilterSheet - bottom-sheet radio list for single-choice filters.
+ * Selecting an option applies it and closes the sheet immediately.
+ *
+ * If `clearKey` is provided and the currently-selected key is not that key,
+ * a "Clear filter" row appears at the bottom of the list.
  */
-export default function FilterSheet({ visible, onClose, title, options, selectedKey, onSelect }) {
+export default function FilterSheet({
+  visible,
+  onClose,
+  title,
+  options,
+  selectedKey,
+  onSelect,
+  clearKey = null,
+  clearLabel = 'Clear filter',
+}) {
   const handleSelect = (key) => {
     onSelect(key);
     onClose();
   };
 
+  const showClear = clearKey != null && selectedKey !== clearKey;
+
   return (
-    <CustomModal visible={visible} onClose={onClose} height={Math.min(150 + options.length * 64, 540)}>
+    <CustomModal
+      visible={visible}
+      onClose={onClose}
+      height={Math.min(140 + options.length * 64 + (showClear ? 64 : 0), 600)}
+    >
       <Text style={styles.title}>{title}</Text>
+
       <View style={styles.list}>
         {options.map((option) => {
           const isSelected = option.key === selectedKey;
@@ -51,6 +68,19 @@ export default function FilterSheet({ visible, onClose, title, options, selected
           );
         })}
       </View>
+
+      {showClear && (
+        <TouchableOpacity
+          style={styles.clearRow}
+          onPress={() => handleSelect(clearKey)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={clearLabel}
+        >
+          <Icon name="xCircle" size={16} color={COLORS.error} />
+          <Text style={styles.clearText}>{clearLabel}</Text>
+        </TouchableOpacity>
+      )}
     </CustomModal>
   );
 }
@@ -69,6 +99,8 @@ FilterSheet.propTypes = {
   ).isRequired,
   selectedKey: PropTypes.string.isRequired,
   onSelect: PropTypes.func.isRequired,
+  clearKey: PropTypes.string,
+  clearLabel: PropTypes.string,
 };
 
 const styles = StyleSheet.create({
@@ -79,6 +111,22 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
+  clearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#ECEEF1',
+  },
+  clearText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.error,
+  },
   list: { gap: SPACING.xs },
   row: {
     flexDirection: 'row',
@@ -86,7 +134,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.sm,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -97,7 +145,7 @@ const styles = StyleSheet.create({
   rowIconWrap: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',

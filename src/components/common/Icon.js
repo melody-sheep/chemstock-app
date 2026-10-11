@@ -43,6 +43,12 @@ import {
   Check,
   Question,
   Backpack,
+  ArrowUpRight,
+  ArrowDownLeft,
+  SealCheck,
+  SealWarning,
+  ClipboardText,
+  ClockCountdown,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -197,6 +203,13 @@ const PHOSPHOR_ICONS = {
   check: Check,
   question: Question,
   backpack: Backpack,
+  // Transaction-log icons (LogCard)
+  arrowUpRight: ArrowUpRight,
+  arrowDownLeft: ArrowDownLeft,
+  sealCheck: SealCheck,
+  sealWarning: SealWarning,
+  clipboardText: ClipboardText,
+  clockCountdown: ClockCountdown,
 };
 
 const ICON_NAMES = [
@@ -209,6 +222,8 @@ const ICON_NAMES = [
   'notePencil', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
   'phone', 'check', 'search',
   'question', 'backpack',
+  // Transaction-log icons (LogCard)
+  'arrowUpRight', 'arrowDownLeft', 'sealCheck', 'sealWarning', 'clipboardText', 'clockCountdown',
   'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

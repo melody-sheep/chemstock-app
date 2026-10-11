@@ -1,12 +1,13 @@
 // src/screens/collector/CollectorDeliveredStockScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
+import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
@@ -67,23 +68,14 @@ export default function CollectorDeliveredStockScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {deliveries.map((delivery) => (
-              <TouchableOpacity
+              <LogCard
                 key={delivery.transactionId}
-                style={styles.card}
+                type="delivery"
+                title={`Delivered to ${delivery.targetRecipientName || 'Sales Rep'}`}
+                meta={summarizeItems(delivery.items)}
+                time={formatRelativeTime(delivery.deliveredAt || delivery.createdAt)}
                 onPress={() => setSelectedDelivery(delivery)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.iconBadge}>
-                  <Icon name="checkCircle" size={18} color={COLORS.success} weight="fill" />
-                </View>
-                <View style={styles.textCol}>
-                  <Text style={styles.title} numberOfLines={1}>
-                    Delivered to {delivery.targetRecipientName || 'Sales Rep'}
-                  </Text>
-                  <Text style={styles.meta}>{summarizeItems(delivery.items)}</Text>
-                </View>
-                <Text style={styles.time}>{formatRelativeTime(delivery.deliveredAt || delivery.createdAt)}</Text>
-              </TouchableOpacity>
+              />
             ))}
             <View style={{ height: 24 }} />
           </ScrollView>
@@ -132,29 +124,7 @@ export default function CollectorDeliveredStockScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
-  content: { padding: SPACING.lg, gap: SPACING.sm },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    padding: SPACING.sm,
-  },
-  iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.success + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textCol: { flex: 1 },
-  title: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
-  meta: { marginTop: 2, fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
-  time: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textTertiary },
+  content: { padding: SPACING.lg, gap: SPACING.xs },
   emptyText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
   detailTitle: { fontSize: TYPOGRAPHY.fontSize.lg, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
   detailSubtitle: { marginTop: 2, marginBottom: SPACING.md, fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },

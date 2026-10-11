@@ -1,6 +1,6 @@
 // src/screens/salesrep/SalesRepLogsScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -8,6 +8,7 @@ import Header from '../../components/common/Header';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import FilterSheet from '../../components/common/FilterSheet';
+import LogCard from '../../components/common/LogCard';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
@@ -19,6 +20,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
 
 const LOGS_LIMIT = 50;
+const { height: screenHeight } = Dimensions.get('window');
 
 // Same rolling-window filter shape as the Manager's StockLogsScreen.
 const DATE_FILTER_OPTIONS = [
@@ -201,48 +203,31 @@ export default function SalesRepLogsScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log) => {
-              const isDiscrepancy = log.logType === 'discrepancy';
+              const cardType =
+                log.logType === 'discrepancy'
+                  ? 'discrepancy'
+                  : log.logType === 'request'
+                  ? log.status === 'accepted'
+                    ? 'requestAccepted'
+                    : log.status === 'declined'
+                    ? 'requestDeclined'
+                    : 'requestPending'
+                  : log.logType === 'delivery'
+                  ? 'delivery'
+                  : 'receive';
+              const metaText =
+                log.logType === 'discrepancy'
+                  ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                  : summarizeItems(log.items || []);
               return (
-                <TouchableOpacity
+                <LogCard
                   key={getLogKey(log)}
-                  style={styles.logCard}
+                  type={cardType}
+                  title={getTitle(log)}
+                  meta={metaText}
+                  time={formatRelativeTime(log.createdAt)}
                   onPress={() => openDetail(log)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.logIconBadge, isDiscrepancy && styles.logIconBadgeAlert]}>
-                    <Icon
-                      name={
-                        isDiscrepancy
-                          ? 'alertTriangle'
-                          : log.logType === 'request'
-                          ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).icon
-                          : log.logType === 'delivery'
-                          ? 'checkCircle'
-                          : 'trayDown'
-                      }
-                      size={18}
-                      color={
-                        isDiscrepancy
-                          ? COLORS.error
-                          : log.logType === 'request'
-                          ? (REQUEST_STATUS_META[log.status] || REQUEST_STATUS_META.pending).iconColor
-                          : log.logType === 'delivery'
-                          ? COLORS.success
-                          : COLORS.primary
-                      }
-                      weight="duotone"
-                    />
-                  </View>
-                  <View style={styles.logTextCol}>
-                    <Text style={styles.logTitle}>{getTitle(log)}</Text>
-                    <Text style={styles.logMeta}>
-                      {isDiscrepancy
-                        ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
-                        : summarizeItems(log.items || [])}
-                    </Text>
-                  </View>
-                  <Text style={styles.logTime}>{formatRelativeTime(log.createdAt)}</Text>
-                </TouchableOpacity>
+                />
               );
             })}
             <View style={{ height: 24 }} />
@@ -250,9 +235,14 @@ export default function SalesRepLogsScreen() {
         )}
       </View>
 
-      <CustomModal visible={!!selectedLog} onClose={closeDetail} height={560}>
+      <CustomModal visible={!!selectedLog} onClose={closeDetail} height={screenHeight * 0.6}>
         {selectedLog && (
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={{ flex: 1 }}>
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: SPACING.lg }}
+            >
             <Text style={styles.detailTitle}>{getTitle(selectedLog)}</Text>
             <Text style={styles.detailSubtitle}>
               {new Date(selectedLog.createdAt).toLocaleString()}
@@ -265,7 +255,10 @@ export default function SalesRepLogsScreen() {
               </View>
             )}
 
-            <Text style={styles.detailSectionLabel}>Items</Text>
+            <View style={styles.sectionHeader}>
+              <Icon name="package" size={14} color={COLORS.textTertiary} />
+              <Text style={styles.detailSectionLabel}>Items</Text>
+            </View>
             <View style={styles.itemsCard}>
               {(selectedLog.items || []).map((item, index) => (
                 <View key={`${item.productCode}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
@@ -279,7 +272,10 @@ export default function SalesRepLogsScreen() {
               ))}
             </View>
 
-            <Text style={styles.detailSectionLabel}>Details</Text>
+            <View style={styles.sectionHeader}>
+              <Icon name="idCard" size={14} color={COLORS.textTertiary} />
+              <Text style={styles.detailSectionLabel}>Details</Text>
+            </View>
             <View style={styles.metaCard}>
               {(selectedLog.logType === 'request' ? selectedLog.latitude != null : selectedLog.gps) && (
                 <View style={styles.metaRow}>
@@ -317,12 +313,18 @@ export default function SalesRepLogsScreen() {
 
             {selectedLog.logType !== 'request' && selectedLog.logType !== 'delivery' && (
               <>
-                <Text style={styles.detailSectionLabel}>Release QR Code</Text>
+                <View style={styles.sectionHeader}>
+                  <Icon name="qrCode" size={14} color={COLORS.textTertiary} />
+                  <Text style={styles.detailSectionLabel}>Release QR Code</Text>
+                </View>
                 <SaveableQRCode value={selectedLog.qrCode} size={180} style={styles.qrCard} />
 
                 {selectedLog.media?.storagePath && (
                   <>
-                    <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
+                    <View style={styles.sectionHeader}>
+                      <Icon name="camera" size={14} color={COLORS.textTertiary} />
+                      <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
+                    </View>
                     {isPhotoLoading ? (
                       <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
                     ) : photoUrl ? (
@@ -335,8 +337,9 @@ export default function SalesRepLogsScreen() {
               </>
             )}
 
-            <View style={{ height: 24 }} />
-          </ScrollView>
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          </View>
         )}
       </CustomModal>
 
@@ -347,6 +350,8 @@ export default function SalesRepLogsScreen() {
         options={DATE_FILTER_OPTIONS.map(({ key, label }) => ({ key, label }))}
         selectedKey={dateFilter}
         onSelect={setDateFilter}
+        clearKey="all"
+        clearLabel="Clear filter"
       />
     </>
   );
@@ -361,7 +366,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: '#ECEEF1',
     backgroundColor: '#FFFFFF',
   },
   filterRowLabel: {
@@ -371,67 +376,25 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   filterButtonWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: '#757575',
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7FEFF',
   },
   filterActiveDot: {
     position: 'absolute',
-    top: 5,
-    right: 5,
+    top: 4,
+    right: 4,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.error,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
-  content: { padding: SPACING.lg, gap: SPACING.sm },
-  logCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    padding: SPACING.sm,
-  },
-  logIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logIconBadgeAlert: {
-    backgroundColor: COLORS.error + '15',
-  },
-  logTextCol: { flex: 1 },
-  logTitle: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  logMeta: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  logTime: {
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textTertiary,
-  },
+  content: { padding: SPACING.lg, gap: SPACING.xs },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
@@ -442,15 +405,16 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
+    color: COLORS.textPrimary,
+    letterSpacing: 0.2,
   },
   detailSubtitle: {
-    marginTop: 2,
-    marginBottom: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    marginTop: 4,
+    marginBottom: SPACING.lg,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
+    color: COLORS.textTertiary,
   },
   declineBanner: {
     flexDirection: 'row',
@@ -470,52 +434,58 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.error,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
   detailSectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#272632',
-    marginBottom: SPACING.xs,
+    color: COLORS.textTertiary,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   itemsCard: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderColor: '#ECEEF1',
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
-    marginBottom: SPACING.md,
     overflow: 'hidden',
   },
   itemRow: {
     padding: SPACING.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#F4F5F7',
   },
   itemRowFirst: { borderTopWidth: 0 },
   itemName: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
   },
   itemMeta: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
   },
   metaCard: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
+    borderColor: '#ECEEF1',
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
     gap: SPACING.sm,
-    marginBottom: SPACING.md,
   },
   metaRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
   },
   metaText: {
@@ -523,15 +493,17 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: '#272632',
+    color: COLORS.textPrimary,
+    lineHeight: 18,
   },
   qrCard: {
     marginBottom: SPACING.md,
+    alignSelf: 'center',
   },
   photo: {
     width: '100%',
-    height: 160,
-    borderRadius: 12,
+    height: 180,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
   },
 });

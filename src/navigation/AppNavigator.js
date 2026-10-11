@@ -14,6 +14,7 @@ import ProductBrowserScreen from '../screens/manager/ProductBrowserScreen';
 import ReceiveStockPreviewScreen from '../screens/manager/ReceiveStockPreviewScreen';
 import ManagerStockScreen from '../screens/manager/ManagerStockScreen';
 import StockLogsScreen from '../screens/manager/StockLogsScreen';
+import StockLogDetailScreen from '../screens/manager/StockLogDetailScreen';
 import ReleaseStockRecipientScreen from '../screens/manager/ReleaseStockRecipientScreen';
 import ReleaseStockMethodScreen from '../screens/manager/ReleaseStockMethodScreen';
 import ReleaseStockScanReviewScreen from '../screens/manager/ReleaseStockScanReviewScreen';
@@ -87,6 +88,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="ReceiveStockPreview" component={ReceiveStockPreviewScreen} />
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="StockLogs" component={StockLogsScreen} />
+        <Stack.Screen name="StockLogDetail" component={StockLogDetailScreen} />
         <Stack.Screen name="StockBatchDetail" component={StockBatchDetailScreen} />
         <Stack.Screen name="ReleaseStockRecipient" component={ReleaseStockRecipientScreen} />
         <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} />

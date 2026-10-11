@@ -334,18 +334,19 @@ SaveableQRCode.propTypes = {
 const styles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
-    alignItems: 'center',
     gap: SPACING.lg,
     padding: SPACING.lg,
     borderRadius: 16,
     backgroundColor: COLORS.textWhite,
   },
   qrTile: {
+    alignSelf: 'center',
     padding: SPACING.md,
     borderRadius: 12,
     backgroundColor: COLORS.background,
   },
   codeBlock: {
+    alignSelf: 'center',
     alignItems: 'center',
     gap: 4,
   },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   actions: {
-    width: '100%',
+    alignSelf: 'stretch',
     gap: SPACING.sm,
   },
   fullWidth: {
@@ -373,8 +374,10 @@ const styles = StyleSheet.create({
   },
   offscreenWrap: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: -9999,
+    left: -9999,
+    width: 320,
+    height: 500,
     opacity: 0,
   },
   brandedCard: {

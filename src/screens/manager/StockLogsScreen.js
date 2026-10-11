@@ -1,14 +1,13 @@
 // src/screens/manager/StockLogsScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
-import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import FilterSheet from '../../components/common/FilterSheet';
-import SaveableQRCode from '../../components/common/SaveableQRCode';
+import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
@@ -17,6 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { getLogItems } from '../../utils/stockLogUtils';
 
 const LOGS_LIMIT = 50;
 
@@ -41,41 +41,6 @@ const DATE_FILTER_OPTIONS = [
     test: (log) => (Date.now() - new Date(log.created_at).getTime()) / 86400000 <= 30,
   },
 ];
-
-// Receiving (branch_inventory, "received_quantity") and release/delivery
-// (transaction_details, "quantity") logs have different embed shapes —
-// normalize all to the same {name, qty, mfgDate, expDate} so the rest of
-// this screen doesn't need to know which type it's rendering.
-function getLogItems(log) {
-  if (log.logType === 'release' || log.logType === 'delivery') {
-    return (log.transaction_details || []).map((item) => ({
-      key: item.batch_number,
-      name: item.product_name,
-      qty: item.quantity,
-      mfgDate: item.mfg_date,
-      expDate: item.exp_date,
-    }));
-  }
-  return (log.branch_inventory || []).map((item) => ({
-    key: item.batch_number,
-    name: item.product_name,
-    qty: item.received_quantity,
-    mfgDate: item.mfg_date,
-    expDate: item.exp_date,
-  }));
-}
-
-// Receiving logs still embed a single `gps_coordinates`. Release logs embed
-// `origin_gps`/`destination_gps` (transactions has two FKs into
-// gps_coordinates as of the Collector-delivery migration, so the query needs
-// named embeds — see inventoryService.getReleaseLogs) — this surfaces the
-// origin point, matching what this detail sheet showed before that
-// migration. A delivery-completed entry surfaces the destination instead,
-// since that's the point relevant to "where did this actually end up."
-function getLogGps(log) {
-  if (log.logType === 'delivery') return log.destination_gps;
-  return log.logType === 'release' ? log.origin_gps : log.gps_coordinates;
-}
 
 function summarizeItems(items) {
   const totalUnits = items.reduce((sum, item) => sum + item.qty, 0);
@@ -151,15 +116,10 @@ export default function StockLogsScreen() {
   const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
   const recipientNameById = snapshot?.recipientNameById ?? {};
-  const [selectedLog, setSelectedLog] = useState(null);
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [dateFilter, setDateFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
 
-  const openDetail = async (log) => {
-    // Reports/discrepancies already have full detail UI on their own
-    // screens — deep-link out instead of duplicating it in this modal.
+  const openDetail = (log) => {
     if (log.logType === 'report') {
       navigation.navigate('ManageReturns');
       return;
@@ -169,25 +129,12 @@ export default function StockLogsScreen() {
       return;
     }
 
-    setSelectedLog(log);
-    setPhotoUrl(null);
-
-    if (log.media?.storage_path) {
-      setIsPhotoLoading(true);
-      const url = await inventoryService.getShipmentPhotoUrl(log.media.storage_path);
-      setPhotoUrl(url);
-      setIsPhotoLoading(false);
-    }
-  };
-
-  const closeDetail = () => {
-    setSelectedLog(null);
-    setPhotoUrl(null);
+    navigation.navigate('StockLogDetail', { log, recipientNameById });
   };
 
   // Jumped here from a tap on a Recent Logs row (Dashboard) — the row
   // already had the full log object from its own fetch, so open straight
-  // to the detail sheet instead of waiting for this screen's own list load.
+  // to the detail screen instead of waiting for this screen's own list load.
   useEffect(() => {
     if (route.params?.initialLog) {
       openDetail(route.params.initialLog);
@@ -257,128 +204,44 @@ export default function StockLogsScreen() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-            {filteredLogs.map((log) => {
-              const isRelease = log.logType === 'release';
-              const isDelivery = log.logType === 'delivery';
-              const isReport = log.logType === 'report';
-              const isDiscrepancy = log.logType === 'discrepancy';
-              const logKey = log.id || log.reportId || log.reportItemId;
-              const metaText = isReport
+            {filteredLogs.map((log, index) => {
+              const logKey =
+                log.id ??
+                (log.reportItemId ? `${log.reportId}-${log.reportItemId}` : null) ??
+                log.reportId ??
+                log.requestId ??
+                log.transactionId ??
+                index;
+              const cardType =
+                log.logType === 'report'
+                  ? 'report'
+                  : log.logType === 'discrepancy'
+                  ? 'discrepancy'
+                  : log.logType === 'delivery'
+                  ? 'delivery'
+                  : log.logType === 'release'
+                  ? 'release'
+                  : 'receive';
+              const metaText = log.logType === 'report'
                 ? `${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'} reported`
-                : isDiscrepancy
+                : log.logType === 'discrepancy'
                 ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
                 : summarizeItems(getLogItems(log));
               return (
-                <TouchableOpacity
+                <LogCard
                   key={`${log.logType}-${logKey}`}
-                  style={styles.logCard}
+                  type={cardType}
+                  title={getTitle(log)}
+                  meta={metaText}
+                  time={formatRelativeTime(log.created_at)}
                   onPress={() => openDetail(log)}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    style={[
-                      styles.logIconBadge,
-                      (isRelease || isDelivery) && styles.logIconBadgeRelease,
-                      isDiscrepancy && styles.logIconBadgeAlert,
-                    ]}
-                  >
-                    <Icon
-                      name={isDiscrepancy ? 'alertTriangle' : isReport ? 'document' : isDelivery ? 'checkCircle' : isRelease ? 'trayUp' : 'trayDown'}
-                      size={18}
-                      color={isDiscrepancy ? COLORS.error : isRelease || isDelivery ? COLORS.success : COLORS.primary}
-                      weight="duotone"
-                    />
-                  </View>
-                  <View style={styles.logTextCol}>
-                    <Text style={styles.logTitle}>{getTitle(log)}</Text>
-                    <Text style={styles.logMeta}>{metaText}</Text>
-                  </View>
-                  <Text style={styles.logTime}>{formatRelativeTime(log.created_at)}</Text>
-                </TouchableOpacity>
+                />
               );
             })}
             <View style={{ height: 24 }} />
           </ScrollView>
         )}
       </View>
-
-      <CustomModal visible={!!selectedLog} onClose={closeDetail} height={560}>
-        {selectedLog && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.detailTitle}>{getTitle(selectedLog)}</Text>
-            <Text style={styles.detailSubtitle}>
-              {new Date(selectedLog.created_at).toLocaleString()}
-            </Text>
-
-            <Text style={styles.detailSectionLabel}>Items</Text>
-            <View style={styles.itemsCard}>
-              {getLogItems(selectedLog).map((item, index) => (
-                <View key={`${item.key}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemMeta}>
-                    Qty: {item.qty}
-                    {item.mfgDate ? `   Mfg: ${new Date(item.mfgDate).toLocaleDateString()}` : ''}
-                    {item.expDate ? `   Exp: ${new Date(item.expDate).toLocaleDateString()}` : ''}
-                  </Text>
-                </View>
-              ))}
-            </View>
-
-            <Text style={styles.detailSectionLabel}>Details</Text>
-            <View style={styles.metaCard}>
-              {getLogGps(selectedLog) && (
-                <View style={styles.metaRow}>
-                  <Icon name="location" size={16} color={COLORS.error} />
-                  <Text style={styles.metaText}>
-                    {getLogGps(selectedLog).latitude.toFixed(5)}, {getLogGps(selectedLog).longitude.toFixed(5)}
-                  </Text>
-                </View>
-              )}
-              {selectedLog.media?.device_model && (
-                <View style={styles.metaRow}>
-                  <Icon name="package" size={16} color={COLORS.textSecondary} />
-                  <Text style={styles.metaText}>
-                    {[selectedLog.media.device_model, selectedLog.media.device_os].filter(Boolean).join(' - ')}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {selectedLog.logType !== 'delivery' && (
-              <>
-                <Text style={styles.detailSectionLabel}>
-                  {selectedLog.logType === 'release' ? 'Release QR Code' : 'Shipment QR Code'}
-                </Text>
-                <SaveableQRCode value={selectedLog.qr_code} size={180} style={styles.qrCard} />
-
-                {selectedLog.media?.storage_path && (
-                  <>
-                    <Text style={styles.detailSectionLabel}>
-                      {selectedLog.logType === 'release' ? 'Release Proof' : 'Shipment Proof'}
-                    </Text>
-                    {isPhotoLoading ? (
-                      <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: SPACING.md }} />
-                    ) : photoUrl ? (
-                      <Image
-                        source={{ uri: photoUrl }}
-                        style={styles.photo}
-                        resizeMode="cover"
-                        onError={(e) =>
-                          console.error('[ERROR] [StockLogsScreen] Image failed to load:', e.nativeEvent?.error, photoUrl)
-                        }
-                      />
-                    ) : (
-                      <Text style={styles.emptyText}>Photo unavailable.</Text>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-
-            <View style={{ height: 24 }} />
-          </ScrollView>
-        )}
-      </CustomModal>
 
       <FilterSheet
         visible={isFilterSheetVisible}
@@ -387,6 +250,8 @@ export default function StockLogsScreen() {
         options={DATE_FILTER_OPTIONS.map(({ key, label }) => ({ key, label }))}
         selectedKey={dateFilter}
         onSelect={setDateFilter}
+        clearKey="all"
+        clearLabel="Clear filter"
       />
     </>
   );
@@ -401,7 +266,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: '#ECEEF1',
     backgroundColor: '#FFFFFF',
   },
   filterRowLabel: {
@@ -411,152 +276,29 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   filterButtonWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: '#757575',
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7FEFF',
   },
   filterActiveDot: {
     position: 'absolute',
-    top: 5,
-    right: 5,
+    top: 4,
+    right: 4,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.error,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
-  content: { padding: SPACING.lg, gap: SPACING.sm },
-  logCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    padding: SPACING.sm,
-  },
-  logIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logIconBadgeRelease: {
-    backgroundColor: COLORS.success + '15',
-  },
-  logIconBadgeAlert: {
-    backgroundColor: COLORS.error + '15',
-  },
-  logTextCol: { flex: 1 },
-  logTitle: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  logMeta: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  logTime: {
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textTertiary,
-  },
+  content: { padding: SPACING.lg, gap: SPACING.xs },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
-  },
-  detailTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  detailSubtitle: {
-    marginTop: 2,
-    marginBottom: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  detailSectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#272632',
-    marginBottom: SPACING.xs,
-  },
-  itemsCard: {
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    marginBottom: SPACING.md,
-    overflow: 'hidden',
-  },
-  itemRow: {
-    padding: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  itemRowFirst: { borderTopWidth: 0 },
-  itemName: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
-  itemMeta: {
-    marginTop: 2,
-    fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  metaCard: {
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    padding: SPACING.sm,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  metaText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: '#272632',
-  },
-  qrCard: {
-    marginBottom: SPACING.md,
-  },
-  photo: {
-    width: '100%',
-    height: 160,
-    borderRadius: 12,
-    backgroundColor: '#F1F5F9',
   },
 });

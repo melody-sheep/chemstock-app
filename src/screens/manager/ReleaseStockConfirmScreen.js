@@ -233,20 +233,22 @@ export default function ReleaseStockConfirmScreen() {
         <StatusBar style="light" />
         <View style={styles.container}>
           <Header title="Stock Released" height={56} backgroundColor="#03045E" textColor="#FFFFFF" paddingHorizontal={SPACING.md} />
-          <QRSuccessView
-            title="Stock Released Successfully"
-            subtitle="Scan this code anytime to track the release."
-            qrValue={qrCode}
-            receipt={[
-              {
-                label: 'Recipient',
-                value: targetRecipient ? `${recipient.fullName} → ${targetRecipient.fullName}` : recipient.fullName,
-              },
-              { label: 'Items', value: `${displayItems.length} item${displayItems.length === 1 ? '' : 's'}, ${totalUnits} units` },
-              { label: 'Released', value: formatDateTime(capturedAt) },
-            ]}
-            onDone={handleDone}
-          />
+          <View style={{ flex: 1 }}>
+            <QRSuccessView
+              title="Stock Released Successfully"
+              subtitle="Scan this code anytime to track the release."
+              qrValue={qrCode}
+              receipt={[
+                {
+                  label: 'Recipient',
+                  value: targetRecipient ? `${recipient.fullName} → ${targetRecipient.fullName}` : recipient.fullName,
+                },
+                { label: 'Items', value: `${displayItems.length} item${displayItems.length === 1 ? '' : 's'}, ${totalUnits} units` },
+                { label: 'Released', value: formatDateTime(capturedAt) },
+              ]}
+              onDone={handleDone}
+            />
+          </View>
         </View>
       </>
     );

@@ -22,8 +22,10 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
   const halfButtonWidth = Math.floor((Dimensions.get('window').width - SPACING.lg * 2 - SPACING.sm) / 2);
 
   return (
-    <ScrollView contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
-      <Icon name="successCircle" size={64} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
+      <View style={styles.successIcon}>
+        <Icon name="successCircle" size={64} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
+      </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
 
@@ -50,8 +52,8 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
           iconSize={16}
           onPress={handleShare}
           width={halfButtonWidth}
-          height={40}
-          fontSize={14}
+          height={48}
+          fontSize={15}
         />
         <Button
           title="Done"
@@ -60,8 +62,8 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
           iconSize={16}
           onPress={onDone}
           width={halfButtonWidth}
-          height={40}
-          fontSize={14}
+          height={48}
+          fontSize={15}
         />
       </View>
     </ScrollView>
@@ -79,13 +81,15 @@ QRSuccessView.propTypes = {
 };
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
   screen: {
     flexGrow: 1,
-    alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
-    paddingBottom: SPACING.xl,
-    gap: SPACING.xs,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING['3xl'],
+    gap: SPACING.sm,
   },
   title: {
     marginTop: SPACING.xs,
@@ -93,6 +97,8 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
+    textAlign: 'center',
+    alignSelf: 'center',
   },
   subtitle: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -100,6 +106,10 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    alignSelf: 'center',
+  },
+  successIcon: {
+    alignSelf: 'center',
   },
   qrCard: {
     marginTop: SPACING.sm,

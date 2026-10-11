@@ -19,6 +19,7 @@ export default function CustomModal({
   onClose,
   children,
   height = 467, // pass 'auto' to size the sheet to its content
+  maxHeight = null, // only used when height === 'auto'
   backgroundColor = '#FFFFFF',
   closeOnBackdropPress = true,
   backdropOpacity = 0.2,
@@ -45,6 +46,7 @@ export default function CustomModal({
                 styles.modalContainer,
                 {
                   ...(height === 'auto' ? {} : { height }),
+                  ...(height === 'auto' && maxHeight ? { maxHeight } : {}),
                   paddingBottom: Math.max(insets.bottom, SPACING.lg),
                   backgroundColor: backgroundColor,
                 },

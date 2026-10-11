@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, Alert } from 'react-native';
@@ -139,68 +140,74 @@ export default function App() {
 
   if (isConnecting) {
     return (
-      <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          backgroundColor: COLORS.background
-        }}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={{ 
-            marginTop: 20, 
-            color: COLORS.textSecondary,
-            fontSize: 16
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <View style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: COLORS.background
           }}>
-            {connectionStatus || 'Connecting to server...'}
-          </Text>
-        </View>
-      </SafeAreaProvider>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={{
+              marginTop: 20,
+              color: COLORS.textSecondary,
+              fontSize: 16
+            }}>
+              {connectionStatus || 'Connecting to server...'}
+            </Text>
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     );
   }
 
   if (connectionError && __DEV__) {
     return (
-      <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <View style={{ 
-          flex: 1, 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          padding: 20,
-          backgroundColor: COLORS.background
-        }}>
-          <Text style={{ 
-            color: COLORS.error, 
-            fontSize: 18,
-            fontWeight: 'bold',
-            marginBottom: 10
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <View style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+            backgroundColor: COLORS.background
           }}>
-            Connection Error
-          </Text>
-          <Text style={{ 
-            color: COLORS.textSecondary, 
-            textAlign: 'center',
-            marginBottom: 20
-          }}>
-            {connectionError}
-          </Text>
-          <Text style={{ 
-            color: COLORS.textSecondary, 
-            fontSize: 12,
-            textAlign: 'center'
-          }}>
-            Check your internet connection and Supabase credentials.
-          </Text>
-        </View>
-      </SafeAreaProvider>
+            <Text style={{
+              color: COLORS.error,
+              fontSize: 18,
+              fontWeight: 'bold',
+              marginBottom: 10
+            }}>
+              Connection Error
+            </Text>
+            <Text style={{
+              color: COLORS.textSecondary,
+              textAlign: 'center',
+              marginBottom: 20
+            }}>
+              {connectionError}
+            </Text>
+            <Text style={{
+              color: COLORS.textSecondary,
+              fontSize: 12,
+              textAlign: 'center'
+            }}>
+              Check your internet connection and Supabase credentials.
+            </Text>
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <SafeAreaProvider>
-      <AppNavigator initialRouteName={initialRouteName || 'Login'} />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppNavigator initialRouteName={initialRouteName || 'Login'} />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
