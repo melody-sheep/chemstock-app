@@ -1,6 +1,6 @@
 // src/screens/common/EditProfileScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,6 +10,12 @@ import UserAvatar from '../../components/common/UserAvatar';
 import CustomModal from '../../components/common/Modal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import Icon from '../../components/common/Icon';
+import PhilippinePhoneInput, {
+  isValidPhNationalNumber,
+  toPhE164,
+  fromPhE164,
+  formatPhDisplay,
+} from '../../components/common/PhilippinePhoneInput';
 import authService from '../../services/authService';
 import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
@@ -29,6 +35,12 @@ const ROLE_ICONS = {
   collector: 'truck',
 };
 
+const ROLE_PILL_COLORS = {
+  manager: { backgroundColor: COLORS.primaryLight, color: COLORS.primary },
+  sales_rep: { backgroundColor: '#FFE8F0', color: COLORS.accentPink },
+  collector: { backgroundColor: '#FFF1E0', color: COLORS.accentOrange },
+};
+
 /**
  * EditProfileScreen - one shared screen for all three roles (same
  * role-agnostic precedent as ComingSoonScreen), reached only from each
@@ -45,7 +57,8 @@ export default function EditProfileScreen() {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [isPhoneModalVisible, setIsPhoneModalVisible] = useState(false);
-  const [phoneDraft, setPhoneDraft] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [phoneError, setPhoneError] = useState(null);
 
   const loadUser = useCallback(async () => {
     setIsLoading(true);
@@ -120,20 +133,38 @@ export default function EditProfileScreen() {
   };
 
   const handleEditPhone = () => {
-    setPhoneDraft(user?.phoneNumber || '');
+    setPhoneDigits(fromPhE164(user?.phoneNumber));
+    setPhoneError(null);
     setIsPhoneModalVisible(true);
+  };
+
+  const handlePhoneChange = (digits) => {
+    setPhoneDigits(digits);
+    if (phoneError) setPhoneError(null);
   };
 
   const handleSavePhone = async () => {
     if (!user?.id || isSavingPhone) return;
-    const trimmed = phoneDraft.trim();
+
+    if (!isValidPhNationalNumber(phoneDigits)) {
+      setPhoneError(
+        phoneDigits.length === 0
+          ? 'Phone number is required'
+          : phoneDigits.length < 10
+            ? `Enter all 10 digits (${phoneDigits.length}/10 so far)`
+            : 'PH mobile numbers start with 9, e.g. 917 123 4567'
+      );
+      return;
+    }
+
     setIsSavingPhone(true);
 
     try {
+      const phoneNumber = toPhE164(phoneDigits);
       const result =
         user.role === 'manager'
-          ? await profileService.updateManagerPhoneNumber({ phoneNumber: trimmed })
-          : await profileService.updateAgentPhoneNumber({ agentId: user.id, phoneNumber: trimmed });
+          ? await profileService.updateManagerPhoneNumber({ phoneNumber })
+          : await profileService.updateAgentPhoneNumber({ agentId: user.id, phoneNumber });
 
       if (!result.success) {
         Alert.alert('Update Failed', result.message || 'Could not update your phone number.');
@@ -154,6 +185,8 @@ export default function EditProfileScreen() {
 
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || '';
   const roleIcon = ROLE_ICONS[user?.role] || 'idCard';
+  const rolePillColors = ROLE_PILL_COLORS[user?.role] || { backgroundColor: '#EEF2FF', color: COLORS.primary };
+  const hasPhoneNumber = !!user?.phoneNumber;
 
   return (
     <>
@@ -197,7 +230,9 @@ export default function EditProfileScreen() {
               <Text style={styles.userName} numberOfLines={1}>
                 {user?.full_name || user?.username || ''}
               </Text>
-              <Text style={styles.userRole}>{roleLabel}</Text>
+              <View style={[styles.rolePill, { backgroundColor: rolePillColors.backgroundColor }]}>
+                <Text style={[styles.rolePillText, { color: rolePillColors.color }]}>{roleLabel}</Text>
+              </View>
 
               <Pressable
                 style={styles.changePhotoBtn}
@@ -226,8 +261,8 @@ export default function EditProfileScreen() {
 
               <View style={styles.rowItem}>
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name={roleIcon} size={18} color="#03045E" />
+                  <View style={[styles.rowIconWrap, { backgroundColor: rolePillColors.backgroundColor }]}>
+                    <Icon name={roleIcon} size={18} color={rolePillColors.color} />
                   </View>
                   <Text style={styles.rowLabel}>Role</Text>
                 </View>
@@ -264,14 +299,21 @@ export default function EditProfileScreen() {
                 </View>
 
                 <View style={styles.phoneEditTrigger}>
-                  <Text style={styles.rowValue} numberOfLines={1}>{user?.phoneNumber || 'Add phone number'}</Text>
-                  <Icon name="notePencil" size={15} color="#03045E" />
+                  <Text
+                    style={[styles.rowValue, !hasPhoneNumber && styles.rowValuePlaceholder]}
+                    numberOfLines={1}
+                  >
+                    {hasPhoneNumber ? formatPhDisplay(user.phoneNumber) : 'Add phone number'}
+                  </Text>
+                  <Icon name="notePencil" size={15} color={COLORS.primary} />
                 </View>
               </Pressable>
             </View>
 
             <View style={styles.noticeBox}>
-              <Icon name="lock" size={14} color="#94a3b8" />
+              <View style={styles.noticeIconWrap}>
+                <Icon name="lock" size={13} color="#94a3b8" />
+              </View>
               <Text style={styles.noticeText}>
                 Name, role, and branch are managed by your administrator — only your phone number can be edited here.
               </Text>
@@ -282,26 +324,39 @@ export default function EditProfileScreen() {
         )}
       </View>
 
-      <CustomModal visible={isSourceModalVisible} onClose={() => setIsSourceModalVisible(false)} height={260}>
-        <Text style={styles.modalTitle}>Change Profile Photo</Text>
+      <CustomModal visible={isSourceModalVisible} onClose={() => setIsSourceModalVisible(false)} height="auto">
+        <View style={styles.photoModalContent}>
+          <View style={styles.phoneModalHandle} />
+          <Pressable
+            style={styles.phoneModalCloseBtn}
+            onPress={() => setIsSourceModalVisible(false)}
+            hitSlop={10}
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+          >
+            <Icon name="xCircle" size={24} color="#94a3b8" />
+          </Pressable>
 
-        <Pressable style={styles.modalOption} onPress={handleTakePhoto}>
-          <View style={styles.modalOptionIconWrap}>
-            <Icon name="camera" size={18} color="#03045E" />
-          </View>
-          <Text style={styles.modalOptionText}>Take Photo</Text>
-          <Icon name="arrowRight" size={16} color="#94a3b8" />
-        </Pressable>
+          <Text style={styles.modalTitle}>Change Profile Photo</Text>
 
-        <View style={styles.rowDivider} />
+          <Pressable style={styles.modalOption} onPress={handleTakePhoto}>
+            <View style={styles.modalOptionIconWrap}>
+              <Icon name="camera" size={18} color="#03045E" />
+            </View>
+            <Text style={styles.modalOptionText}>Take Photo</Text>
+            <Icon name="arrowRight" size={16} color="#94a3b8" />
+          </Pressable>
 
-        <Pressable style={styles.modalOption} onPress={handlePickFromGallery}>
-          <View style={styles.modalOptionIconWrap}>
-            <Icon name="grid" size={18} color="#03045E" />
-          </View>
-          <Text style={styles.modalOptionText}>Choose from Gallery</Text>
-          <Icon name="arrowRight" size={16} color="#94a3b8" />
-        </Pressable>
+          <View style={styles.rowDivider} />
+
+          <Pressable style={styles.modalOption} onPress={handlePickFromGallery}>
+            <View style={styles.modalOptionIconWrap}>
+              <Icon name="grid" size={18} color="#03045E" />
+            </View>
+            <Text style={styles.modalOptionText}>Choose from Gallery</Text>
+            <Icon name="arrowRight" size={16} color="#94a3b8" />
+          </Pressable>
+        </View>
       </CustomModal>
 
       <CameraCaptureModal
@@ -314,41 +369,58 @@ export default function EditProfileScreen() {
       />
 
       <CustomModal visible={isPhoneModalVisible} onClose={handleCancelPhone} height="auto">
-        <Text style={styles.modalTitle}>Edit Phone Number</Text>
-
-        <View style={styles.phoneModalInputWrap}>
-          <Icon name="phone" size={18} color="#03045E" />
-          <TextInput
-            style={styles.phoneModalInput}
-            value={phoneDraft}
-            onChangeText={setPhoneDraft}
-            keyboardType="phone-pad"
-            placeholder="Enter phone number"
-            placeholderTextColor="#94a3b8"
-            autoFocus
-            editable={!isSavingPhone}
-          />
-        </View>
-
-        <View style={styles.phoneModalActions}>
+        <View style={styles.phoneModalContent}>
+          <View style={styles.phoneModalHandle} />
           <Pressable
-            style={[styles.phoneModalBtn, styles.phoneModalCancelBtn]}
+            style={styles.phoneModalCloseBtn}
             onPress={handleCancelPhone}
             disabled={isSavingPhone}
+            hitSlop={10}
+            accessibilityLabel="Close"
+            accessibilityRole="button"
           >
-            <Text style={styles.phoneModalCancelText}>Cancel</Text>
+            <Icon name="xCircle" size={24} color="#94a3b8" />
           </Pressable>
-          <Pressable
-            style={[styles.phoneModalBtn, styles.phoneModalSaveBtn]}
-            onPress={handleSavePhone}
-            disabled={isSavingPhone}
-          >
-            {isSavingPhone ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.phoneModalSaveText}>Save</Text>
-            )}
-          </Pressable>
+
+          <View style={styles.phoneModalIconWrap}>
+            <Icon name="phone" size={24} color={COLORS.primary} weight="fill" />
+          </View>
+
+          <Text style={styles.phoneModalTitle}>Edit Phone Number</Text>
+          <Text style={styles.phoneModalSubtitle}>
+            Enter your Philippine mobile number — it's used to reach you about deliveries.
+          </Text>
+
+          <View style={styles.phoneModalFieldOuter}>
+            <PhilippinePhoneInput
+              label={null}
+              value={phoneDigits}
+              onChangeText={handlePhoneChange}
+              error={phoneError}
+              style={styles.phoneModalFieldWrap}
+            />
+          </View>
+
+          <View style={styles.phoneModalActions}>
+            <Pressable
+              style={[styles.phoneModalBtn, styles.phoneModalCancelBtn]}
+              onPress={handleCancelPhone}
+              disabled={isSavingPhone}
+            >
+              <Text style={styles.phoneModalCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.phoneModalBtn, styles.phoneModalSaveBtn]}
+              onPress={handleSavePhone}
+              disabled={isSavingPhone}
+            >
+              {isSavingPhone ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.phoneModalSaveText}>Save Number</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       </CustomModal>
     </>
@@ -402,11 +474,16 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
-  userRole: {
-    fontSize: 13,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 2,
+  rolePill: {
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  rolePillText: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   changePhotoBtn: {
     marginTop: SPACING.md,
@@ -438,6 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginBottom: SPACING.md,
     paddingHorizontal: 12,
+    ...SHADOWS.cardSoft,
   },
   rowItem: {
     flexDirection: 'row',
@@ -473,6 +551,11 @@ const styles = StyleSheet.create({
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
+  rowValuePlaceholder: {
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+  },
   rowDivider: {
     height: 1,
     backgroundColor: '#EEF2F7',
@@ -482,28 +565,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  phoneModalInputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 12,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 14,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.lg,
-    height: 50,
+  phoneModalContent: { alignItems: 'center', paddingTop: 4 },
+  phoneModalHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 12,
   },
-  phoneModalInput: {
-    flex: 1,
-    fontSize: 15,
+  phoneModalCloseBtn: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    padding: 4,
+  },
+  phoneModalIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  phoneModalTitle: {
+    marginTop: 14,
+    fontSize: 18,
     color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  phoneModalSubtitle: {
+    marginTop: 4,
+    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.sm,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    textAlign: 'center',
+  },
+  phoneModalFieldOuter: {
+    alignSelf: 'stretch',
+  },
+  phoneModalFieldWrap: {
+    height: 52,
   },
   phoneModalActions: {
     flexDirection: 'row',
+    alignSelf: 'stretch',
     gap: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   phoneModalBtn: {
     flex: 1,
@@ -534,7 +648,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    paddingHorizontal: 4,
+    backgroundColor: '#F7F9FC',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 12,
+    padding: 12,
+  },
+  noticeIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: '#EEF2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   noticeText: {
     flex: 1,
@@ -542,12 +668,16 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
   },
+  photoModalContent: { paddingTop: 4 },
   modalTitle: {
     fontSize: 16,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 14,
     marginBottom: SPACING.md,
   },
   modalOption: {
