@@ -61,6 +61,7 @@ import CollectorDeliveryDetailScreen from '../screens/collector/CollectorDeliver
 import CollectorTripReviewScreen from '../screens/collector/CollectorTripReviewScreen';
 import CollectorDeliverStockScreen from '../screens/collector/CollectorDeliverStockScreen';
 import CollectorDeliveredStockScreen from '../screens/collector/CollectorDeliveredStockScreen';
+import CollectorReturnQRScreen from '../screens/collector/CollectorReturnQRScreen';
 import CollectorSettingsScreen from '../screens/collector/CollectorSettingsScreen';
 
 const Stack = createNativeStackNavigator();
@@ -137,6 +138,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="CollectorTripReview" component={CollectorTripReviewScreen} />
         <Stack.Screen name="CollectorDeliverStock" component={CollectorDeliverStockScreen} />
         <Stack.Screen name="CollectorDeliveredStock" component={CollectorDeliveredStockScreen} />
+        <Stack.Screen name="CollectorReturnQR" component={CollectorReturnQRScreen} />
         <Stack.Screen name="CollectorSettings" component={CollectorSettingsScreen} options={{ animation: 'none' }} />
       </Stack.Navigator>
     </NavigationContainer>

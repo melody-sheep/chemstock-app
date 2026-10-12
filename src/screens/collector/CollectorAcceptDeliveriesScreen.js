@@ -1,12 +1,13 @@
 // src/screens/collector/CollectorAcceptDeliveriesScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
+import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import { getInitials } from '../../utils/initials';
@@ -28,6 +29,8 @@ export default function CollectorAcceptDeliveriesScreen() {
   const [selectionMode, setSelectionMode] = useState('single');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [returnCandidate, setReturnCandidate] = useState(null);
+  const [isReturning, setIsReturning] = useState(false);
 
   const loadDeliveries = useCallback(async () => {
     setIsLoading(true);
@@ -47,6 +50,7 @@ export default function CollectorAcceptDeliveriesScreen() {
 
   const pending = deliveries.filter((d) => d.stage === 'pending_pickup');
   const ready = deliveries.filter((d) => d.stage === 'ready_to_deliver');
+  const returning = deliveries.filter((d) => d.stage === 'returning');
 
   const handleSelectMode = (mode) => {
     setIsMenuOpen(false);
@@ -68,6 +72,45 @@ export default function CollectorAcceptDeliveriesScreen() {
         ? prev.filter((id) => id !== delivery.transactionId)
         : [...prev, delivery.transactionId]
     );
+  };
+
+  const handleReadyLongPress = (delivery) => {
+    Alert.alert(delivery.targetRecipientName || 'Delivery', 'What would you like to do with this item?', [
+      { text: 'Start Delivery', onPress: () => navigation.navigate('CollectorTripReview', { transactionIds: [delivery.transactionId] }) },
+      { text: 'Return to Manager', style: 'destructive', onPress: () => setReturnCandidate(delivery) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleConfirmReturn = async () => {
+    if (!agent || !returnCandidate || isReturning) return;
+    setIsReturning(true);
+
+    const result = await deliveryService.initiateCollectorReturn(agent.id, returnCandidate.transactionId);
+    setIsReturning(false);
+
+    if (!result.success) {
+      setReturnCandidate(null);
+      Alert.alert('Failed to Start Return', result.message);
+      return;
+    }
+
+    const delivery = returnCandidate;
+    setReturnCandidate(null);
+    loadDeliveries();
+    navigation.navigate('CollectorReturnQR', {
+      qrCode: result.data?.qrCode,
+      items: delivery.items,
+      branchName: delivery.branchName,
+    });
+  };
+
+  const handleReturningPress = (delivery) => {
+    navigation.navigate('CollectorReturnQR', {
+      qrCode: delivery.returnQrCode,
+      items: delivery.items,
+      branchName: delivery.branchName,
+    });
   };
 
   const handleNext = () => {
@@ -159,7 +202,9 @@ export default function CollectorAcceptDeliveriesScreen() {
               )}
             </View>
           </View>
-          <Text style={styles.sectionSubtitle}>Delivery via Collector</Text>
+          <Text style={styles.sectionSubtitle}>
+            {selectionMode === 'single' ? 'Tap to start a delivery · Hold for more options' : 'Delivery via Collector'}
+          </Text>
 
           {ready.length === 0 ? (
             <Text style={styles.emptyText}>No deliveries ready to go out yet.</Text>
@@ -172,6 +217,7 @@ export default function CollectorAcceptDeliveriesScreen() {
                     key={delivery.transactionId}
                     style={styles.readyCard}
                     onPress={() => handleReadyPress(delivery)}
+                    onLongPress={() => handleReadyLongPress(delivery)}
                     activeOpacity={0.7}
                   >
                     <UserAvatar
@@ -207,6 +253,41 @@ export default function CollectorAcceptDeliveriesScreen() {
             </View>
           )}
 
+          {returning.length > 0 && (
+            <>
+              <View style={[styles.sectionHeaderRow, { marginTop: SPACING.lg }]}>
+                <View style={[styles.sectionDot, { backgroundColor: COLORS.accentOrange }]} />
+                <Text style={styles.sectionTitle}>Returning to Manager</Text>
+              </View>
+              <Text style={styles.sectionSubtitle}>Waiting for your manager to scan the QR</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pendingRow}>
+                {returning.map((delivery) => (
+                  <Pressable
+                    key={delivery.transactionId}
+                    style={styles.pendingCard}
+                    onPress={() => handleReturningPress(delivery)}
+                  >
+                    <UserAvatar
+                      photoUrl={delivery.targetRecipientPhotoUrl}
+                      fallbackText={getInitials(delivery.targetRecipientName)}
+                      size={52}
+                      backgroundColor="#F1F3F6"
+                      fallbackTextColor={COLORS.primary}
+                      style={styles.avatarCircleMargin}
+                    />
+                    <Text style={styles.pendingName} numberOfLines={1}>
+                      {delivery.branchName || 'Branch'}
+                    </Text>
+                    <View style={[styles.pendingBadge, { backgroundColor: '#FFE9D6' }]}>
+                      <Text style={[styles.pendingBadgeText, { color: '#B2560A' }]}>Returning</Text>
+                    </View>
+                    <Text style={styles.pendingRole}>Tap to show QR</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
           <View style={{ height: 24 }} />
         </ScrollView>
       )}
@@ -218,6 +299,20 @@ export default function CollectorAcceptDeliveriesScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <ConfirmationDialog
+        visible={!!returnCandidate}
+        onCancel={() => setReturnCandidate(null)}
+        onConfirm={handleConfirmReturn}
+        icon="returnBox"
+        title="Return to Manager?"
+        description={
+          returnCandidate
+            ? `This will return the item(s) from ${returnCandidate.targetRecipientName || 'this delivery'} back to the manager instead of delivering them. You'll get a QR to show your manager.`
+            : ''
+        }
+        confirmLabel={isReturning ? 'Starting…' : 'Return to Manager'}
+      />
     </View>
   );
 }

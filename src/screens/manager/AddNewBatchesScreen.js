@@ -34,7 +34,7 @@ export default function AddNewBatchesScreen() {
   const bottomActionBarHeight = useBottomActionBarHeight();
 
   const handleDocumentPress = () => {
-    Alert.alert('Ledger', 'The stock ledger is coming soon.');
+    navigation.navigate('StockLogs');
   };
 
   const selectedCodes = items.map((item) => item.code);

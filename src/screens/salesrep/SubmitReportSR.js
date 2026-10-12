@@ -273,6 +273,8 @@ export default function SubmitReportSR() {
           textColor="#FFFFFF"
           paddingHorizontal={SPACING.md}
           onBackPress={handleBack}
+          showDocumentIcon
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
         />
 
         <SubScreenSecondaryHeader

@@ -9,11 +9,13 @@ import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
+import { describeReceivingScan } from '../../utils/scanLookup';
 
 /**
  * ManagerSettingsScreen - profile summary, device permissions this app
@@ -32,6 +34,7 @@ import { SHADOWS } from '../../styles/shadows';
 export default function ManagerSettingsScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -53,6 +56,13 @@ export default function ManagerSettingsScreen() {
     } else if (key !== 'settings') {
       navigation.navigate('ComingSoon', { tabKey: key, role: 'manager' });
     }
+  };
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const manager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, manager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
   };
 
   const handleLocationToggle = (value) => {
@@ -261,7 +271,7 @@ export default function ManagerSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
 
       <ConfirmationDialog
@@ -272,6 +282,12 @@ export default function ManagerSettingsScreen() {
         title="Log Out"
         description="You're about to log out of ChemStock. You'll need to sign in again to access your branch."
         confirmLabel="Log Out"
+      />
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
       />
     </>
   );
