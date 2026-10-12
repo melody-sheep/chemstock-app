@@ -1,7 +1,9 @@
 # ChemStock — Alther TODO (October 2026)
 
 Team: Alther Adrian Liga • Maria Angela U. Mantiza • Clint John Mila • Jay Fahad P. Sultan • Gio Niel P. Yecyec
-Prepared: September 12, 2026 · Updated: October 6, 2026 — living checklist, check items off as they land and update the notes if scope changes.
+Prepared: September 12, 2026 · Updated: October 12, 2026 — living checklist, check items off as they land and update the notes if scope changes.
+
+**Start with "Current status — October 12" below.** Older sections are kept as the detailed history; where they disagree with the current-status section, the current-status section is right.
 
 Source: raw feature list from the team (Jay), broken down into actionable frontend/backend/database tasks per POV (Manager / Sales Rep / Collector).
 
@@ -13,6 +15,73 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 | 🟨 | In Progress |
 | 🔴 | Blocked / needs a team decision first |
 | ⬜ | Not Started |
+
+---
+
+## Current status — October 12, 2026
+
+Latest commit on `origin/main`: `51f1a99` (Oct 12). Everything listed under "Done" is in that commit or an earlier one.
+
+### Done since the Oct 6 summary
+
+| Area | What was done | Device status | Detail |
+|---|---|---|---|
+| PM priorities A–D | Offline read cache, offline write queue, "always logged in", `ConnectionPill` | ✅ Confirmed | "PM Priority Check-In" and "Implementation Log" |
+| Manager session offline | Manager stays logged in when reopening the app offline | ✅ Confirmed Oct 9, re-confirmed Oct 12 (L2) | "Bug found & fixed — Oct 9" |
+| Multi-branch Sales Rep | Stock requests and daily reports work for a rep on two branches; the branch is derived, never picked | ✅ Confirmed (SQL run and verified) | Ninth/Tenth fix |
+| Sales Rep offline | 9 SR screens cached; report, return request, stock request and handoff confirmation queue offline; queued stock requests show as "Waiting for Network" | ✅ Confirmed Oct 12 (S1, S2, S5, S6) | Third, Twelfth–Fourteenth fix |
+| Delivery handoff | Collector marks delivered, Sales Rep confirms with QR + photo, dispute path, unified SR receive flow, context-aware FAB scan | ✅ Confirmed | "SR Receive Flow Unification" |
+| Collector offline | Collector screens show last-known deliveries offline; pending-sync banner; queued deliveries listed; a queued stop cannot be marked twice | ✅ Confirmed Oct 12 (C1–C6) | "Collector Offline Fixes" at the bottom |
+| Connection status | Status pill updates by itself every 15s instead of waiting for a failed tap | ✅ Confirmed Oct 12 (C1, M1) | same |
+| Offline login | Says "No Internet Connection" instead of "Invalid username or password"; login pill is live | ✅ Confirmed Oct 12 (L1) | same |
+| Notifications screen | New cards (unread stripe + dot), left-aligned header, filter bar with 5 sections, distinct icon and colour per type | ✅ Confirmed Oct 12 (S3) | same |
+| Filter sheet | Redesigned; shared by Notifications and Transaction Logs | ✅ Confirmed Oct 12 | same |
+| Notification deep links, step 1 | `focusId` added to 7 notification types (`2026-10-12_notification_focus_ids.sql`, run) | SQL run; nothing in the app reads it yet | same |
+
+### Committed but not yet re-tested on device
+
+- [ ] **Custom date range** on Notifications and Transaction Logs — "today to today" matched nothing; now covers whole days (S4, M2).
+- [ ] **Manager notifications offline** — were empty after another account used the phone; now cached per account (M2).
+- [ ] **Agent Stock Request offline** — was empty; now shows the last list (M4).
+- [ ] **Release Stock offline** — recipient step now says a connection is needed instead of spinning (M4).
+- [ ] **Returns icon** — no longer a solid block in the filter sheet and on return notifications.
+
+### Remaining work
+
+**1. Open bugs**
+- [ ] 🔴 **Stock request fulfilment fails with "Transaction branch does not match the request's branch".** `AgentStockRequestScreen.js` drops the request's branch when it starts the release (`buildPrefillRequest`). Diagnosed, not fixed. Blocks fulfilling a request when the manager releases from a different branch than the request's.
+- [ ] Manager Dashboard shows no branch name next to the pin while offline. Cause not investigated.
+- [ ] A "Confirm delivery handoff" notification stays in the list after the Sales Rep has confirmed; tapping it says "Handoff Already Handled".
+- [ ] Checkpoints logged on a cancelled trip still show on the next trip's timeline (known since Oct 6).
+
+**2. Unfinished features**
+- [ ] 🟨 **Notification deep links, step 2 onward** — the 5 destination screens (`AgentStockRequest`, `SalesRepStockRequests`, `ManageReturns`, `ReturnStocksSR`, `CollectorAcceptDeliveries`) must read `focusId` and open or highlight that item. Not started.
+- [ ] Notifications: pull-to-refresh and the empty-state illustration from the original redesign brief. Not built.
+- [ ] ⬜ **Real OS push notifications.** Design was drafted in chat on Oct 12 and not saved to a file. Needs a dev build (Expo Go cannot receive push) and a Firebase project.
+- [ ] 10 screens still show a hardcoded "Online" pill: `ReturnStockVerify`, `ManagerReports`, `ReleaseStockScanReview`, `ReleaseStockRequestReview`, `ManageReturns`, `ReleaseStockMethod`, `ManageAccounts`, `ReleaseStockDelivery`, `QuickRegisterRelease`, `ReceiveStockTypeSR`.
+- [ ] Remaining Manager screens with no offline fallback (e.g. Reports & Returns, Manage Accounts). Not audited.
+
+**3. Decisions needed from the team**
+- [ ] Should a Collector be able to accept stock (scan + photo) offline? Starting a trip offline is not possible either way.
+- [ ] A queued item that the server rejects retries forever and the user is never told. Add a visible failure state?
+- [ ] Items queued offline are stamped with the sync time, not the time the user tapped submit. Worth a schema change?
+- [ ] A daily report queued offline never tells the Sales Rep it had a discrepancy.
+
+**4. Clean-up**
+- [ ] `ReceiveStockSR.js` is no longer reachable from any screen. Delete after confirming.
+- [ ] `DateTimePicker` `onChange` is deprecated (warning only) in `RegisteredItemsList.js` and `FilterSheet.js`.
+
+**5. Still open from the earlier sweep (unchanged)**
+- [ ] Device checks for the Oct 3–6 sweep rows marked "Device check pending".
+- [ ] Print QR smoke test on all 4 screens.
+- [ ] Skeleton loading on about 12 screens.
+- [ ] Manager Receive Stock "Scan QR" is not connected.
+- [ ] `2026-10-05_reset_agent_password.sql` and `2026-10-05_daily_report_media_policy_fix.sql` — never confirmed as run.
+- [ ] Manager Reports: one branch or all branches by default.
+- [ ] FAQ and Laws wording review by the team.
+- [ ] Database indexes.
+- [ ] Modern redesign of the delivery screens (buttons done, rest open).
+- [ ] After midterm: branch management review in `admin-cli` (§5).
 
 ---
 
@@ -96,7 +165,7 @@ Per `Jay_Sprint1.1.md` §62/§64: the **in-app** notification system (7 triggers
 
 **Eleventh fix, Oct 10 — `SubmitReportSR.js` stat-card icon polish (Jay)**. Per "the icons were ugly" — the Sold Stocks and Return stat badges used fully saturated, mismatched colors (`#3B2FC9` indigo, `#F72E75` hot pink) with white icons, clashing with the soft-pastel palette established everywhere else this session. Restyled both to the same light-background/colored-icon treatment the Given Stock badge already used: Sold Stocks → soft green (`#EAFBF2` bg, `#1E7A3A` icon, matching the "settled/success" color used on Alerts/Resolve Discrepancy), Return → soft blue (`#E3F2FF` bg, `#0085F9` icon, matching the "preparing" status color already used on `SalesRepStockRequestsScreen.js`). Not yet device-tested.
 
-**⚠️ Action needed:** `2026-10-10_submit_daily_report_multi_branch.sql` (Ninth/Tenth fix, now fully rewritten — its own earlier picker-based version was never run) must be run in the Supabase SQL editor before any of this takes effect. Until then, `submit_daily_report` is still whatever `2026-10-06c_notifications_system.sql` last defined, and a multi-branch agent (confirmed real: Clint, Iponan + Butuan) still cannot submit a daily report at all.
+**✅ Resolved (Oct 10):** `2026-10-10_submit_daily_report_multi_branch.sql` has been run and verified (function signatures checked, and `get_my_sr_report_status` returned correct Iponan data for Clint). The original note is kept for history: it had to be run in the Supabase SQL editor before any of this took effect. Until then, `submit_daily_report` is still whatever `2026-10-06c_notifications_system.sql` last defined, and a multi-branch agent (confirmed real: Clint, Iponan + Butuan) still cannot submit a daily report at all.
 
 **Offline-sync audit, Oct 10 (Jay)** — not a code change, a verified investigation prompted by Jay's question: "if an SR is offline and someone else takes the last of an item online first, does the offline SR's queued request conflict when it syncs?" Traced the actual data flow rather than guessing:
 - **No inventory race exists for `stock_request`.** `submit_stock_request` only INSERTs a request row (`stock_requests`/`stock_request_items`) — it never checks or reserves `branch_inventory` at request time. A manager reviews pending requests manually and only checks live current stock when they actually fulfill one via Release Stock (which is itself Tier 4, online-only, per row 40 of the offline tiers). So two reps requesting the same low-stock item can't corrupt anything — the manager sees current real stock at fulfillment time regardless of when either request was submitted or synced. Confirmed this matches the proposal's own stated design ("Discrepancy alerts are presented as notifications requiring manager investigation, not as automatic determinations" — the whole system leans on human review at the contested points, not automatic allocation).
@@ -235,6 +304,8 @@ Everything in this section applies identically to **both** `ManagerStockScreen.j
 ---
 
 ## Status summary (October 6, 2026)
+
+> **Superseded by "Current status — October 12, 2026" at the top.** Since this was written: the stock request branch rule is settled (`2026-10-08c` run), the offline checkpoint queue is built, and Track Deliveries, Stock and Logs are cached.
 
 **Achieved in code** (device check pending unless marked ✅ Confirmed)
 - ✅ Confirmed: live Online / Last online status on the delivery maps, with the collector's and Sales Rep's photos (rows 64, 67).
@@ -654,7 +725,7 @@ Enables the client to route a scanned QR correctly (pending handoff vs. direct r
 
 ## Collector Offline Fixes + Notifications v2 — Oct 12, 2026 (device test follow-up)
 
-Found from Jay's 7-step offline device test (Collector Von → SR Clint). Not yet re-tested on device.
+Found from Jay's 7-step offline device test (Collector Von → SR Clint). Fixes 1, 2, 4 and 5 passed the second device pass the same evening. Fix 3 was only checked as far as the Dashboard showing 0 Active for the queued stop; marking a stop twice was not tried. Fix 6 was confirmed by a successful release. Committed as `51f1a99`.
 
 ### Bugs found and fixed
 
