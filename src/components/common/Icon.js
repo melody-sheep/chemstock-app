@@ -49,6 +49,7 @@ import {
   SealWarning,
   ClipboardText,
   ClockCountdown,
+  ArrowUUpLeft,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -210,6 +211,7 @@ const PHOSPHOR_ICONS = {
   sealWarning: SealWarning,
   clipboardText: ClipboardText,
   clockCountdown: ClockCountdown,
+  arrowUUpLeft: ArrowUUpLeft,
 };
 
 const ICON_NAMES = [
@@ -223,7 +225,7 @@ const ICON_NAMES = [
   'phone', 'check', 'search',
   'question', 'backpack',
   // Transaction-log icons (LogCard)
-  'arrowUpRight', 'arrowDownLeft', 'sealCheck', 'sealWarning', 'clipboardText', 'clockCountdown',
+  'arrowUpRight', 'arrowDownLeft', 'sealCheck', 'sealWarning', 'clipboardText', 'clockCountdown', 'arrowUUpLeft',
   'boxPackage', 'peopleGroup', 'qrCodeDetailed',
   'packageHex', 'successCircle', 'returnBox', 'alertTriangle', 'compassTarget', 'agentsGroup',
 ];

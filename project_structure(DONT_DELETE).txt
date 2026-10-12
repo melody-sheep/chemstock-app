@@ -1,6 +1,6 @@
 ﻿# CHEMSTOCK-MOBILE — PROJECT STRUCTURE
 
-* Generated from the local project on 2026-10-11.
+* Generated from the local project on 2026-10-12.
 * Excludes dependency folders, build/cache output, and local environment, credential, or user-specific config files.
 
 ```
@@ -100,7 +100,13 @@ chemstock-mobile/
 |   |   |-- 2026-10-08c_submit_stock_request_multi_branch.sql
 |   |   |-- 2026-10-09_profile_phone_number.sql
 |   |   |-- 2026-10-09b_phone_number_update_guard.sql
-|   |   `-- 2026-10-10_submit_daily_report_multi_branch.sql
+|   |   |-- 2026-10-10_submit_daily_report_multi_branch.sql
+|   |   |-- 2026-10-11_delivery_handoff_confirmation.sql
+|   |   |-- 2026-10-11_delivery_handoff_confirmation_ROLLBACK.sql
+|   |   |-- 2026-10-11_delivery_handoff_confirmation_VALIDATE.sql
+|   |   |-- 2026-10-11b_delivery_handoff_qr.sql
+|   |   |-- 2026-10-11b_delivery_handoff_qr_ROLLBACK.sql
+|   |   `-- 2026-10-11c_get_transaction_rpc_handoff_fields.sql
 |   |-- [PROPOSAL] ChemStock.pdf
 |   `-- ChemStock_Sprint_Roadmap.pdf
 |-- src/
@@ -115,23 +121,31 @@ chemstock-mobile/
 |   |   |   |-- Button.js
 |   |   |   |-- CameraCaptureModal.js
 |   |   |   |-- Card.js
+|   |   |   |-- ColorBlobs.js
 |   |   |   |-- CollectorUpdateCheckpointModal.js
 |   |   |   |-- ConfirmationDialog.js
 |   |   |   |-- ConnectionPill.js
 |   |   |   |-- DateChip.js
+|   |   |   |-- DeliveryHandoffStatusBadge.js
 |   |   |   |-- DeliveryStatusPill.js
 |   |   |   |-- DeliveryTimeline.js
 |   |   |   |-- FilterSheet.js
+|   |   |   |-- GlassPanel.js
 |   |   |   |-- Header.js
 |   |   |   |-- Icon.js
+|   |   |   |-- ImageViewerModal.js
 |   |   |   |-- InfoTooltip.js
 |   |   |   |-- Input.js
 |   |   |   |-- KeyboardWrapper.js
+|   |   |   |-- LogCard.js
 |   |   |   |-- LogListItem.js
 |   |   |   |-- MapLegend.js
 |   |   |   |-- MapLocationPickerModal.js
 |   |   |   |-- MapZoomControls.js
+|   |   |   |-- MarkDeliveredModal.js
 |   |   |   |-- Modal.js
+|   |   |   |-- ModalHero.js
+|   |   |   |-- NoiseOverlay.js
 |   |   |   |-- PhotoProofCard.js
 |   |   |   |-- ProductChip.js
 |   |   |   |-- ProductGridTile.js
@@ -141,9 +155,11 @@ chemstock-mobile/
 |   |   |   |-- QuantityStepper.js
 |   |   |   |-- RegisteredItemsList.js
 |   |   |   |-- ReleaseSummaryCard.js
+|   |   |   |-- ReportHandoffIssueModal.js
 |   |   |   |-- SaveableQRCode.js
 |   |   |   |-- ScreenContainer.js
 |   |   |   |-- SearchDropdownField.js
+|   |   |   |-- SectionHeader.js
 |   |   |   |-- SecondaryHeader.js
 |   |   |   |-- SelectedProductsRow.js
 |   |   |   |-- ShipmentProofRow.js
@@ -230,6 +246,7 @@ chemstock-mobile/
 |   |   |   |-- ReleaseStockRequestReviewScreen.js
 |   |   |   |-- ReleaseStockScanReviewScreen.js
 |   |   |   |-- ReturnStockVerifyScreen.js
+|   |   |   |-- StockLogDetailScreen.js
 |   |   |   |-- StockLogsScreen.js
 |   |   |   |-- TrackDeliveriesScreen.js
 |   |   |   `-- TrackDeliveryDetailScreen.js
@@ -242,8 +259,10 @@ chemstock-mobile/
 |   |       |-- ResolveDiscrepancyScreen.js
 |   |       |-- ReturnStocksSR.js
 |   |       |-- SalesRepBackpackScreen.js
+|   |       |-- SalesRepConfirmHandoffScreen.js
 |   |       |-- SalesRepDashboardScreen.js
 |   |       |-- SalesRepDeliveryDetailScreen.js
+|   |       |-- SalesRepLogDetailScreen.js
 |   |       |-- SalesRepLogsScreen.js
 |   |       |-- SalesRepReportsScreen.js
 |   |       |-- SalesRepSettingsScreen.js
@@ -270,6 +289,7 @@ chemstock-mobile/
 |   |-- styles/
 |   |   |-- glass.js
 |   |   |-- globalStyles.js
+|   |   |-- radius.js
 |   |   |-- shadows.js
 |   |   |-- spacing.js
 |   |   `-- typography.js
@@ -288,7 +308,9 @@ chemstock-mobile/
 |   |   |-- logger.js
 |   |   |-- productUsage.js
 |   |   |-- profilePhoto.js
+|   |   |-- routeQrScan.js
 |   |   |-- scanLookup.js
+|   |   |-- stockLogUtils.js
 |   |   |-- storage.js
 |   |   |-- validationStrategies.js
 |   |   `-- validators.js
@@ -298,6 +320,7 @@ chemstock-mobile/
 |-- AGENTS.md
 |-- App.js
 |-- app.json
+|-- babel.config.js
 |-- CLAUDE.md
 |-- eas.json
 |-- index.js
@@ -312,12 +335,12 @@ chemstock-mobile/
 
 ## Current source counts
 
-- JavaScript files under `src/`: 167
-- Screens under `src/screens/`: 56
-- Components under `src/components/`: 56
+- JavaScript files under `src/`: 183
+- Screens under `src/screens/`: 59
+- Components under `src/components/`: 66
 - Services under `src/services/`: 14
 - Hooks under `src/hooks/`: 10
-- Utilities under `src/utils/`: 17
-- SQL files under `capstone_docs/sql/`: 29
+- Utilities under `src/utils/`: 19
+- SQL files under `capstone_docs/sql/`: 35
 
 The tree reflects files and folders currently present on this machine. It is a directory inventory, not a statement that every listed file is tracked by Git.

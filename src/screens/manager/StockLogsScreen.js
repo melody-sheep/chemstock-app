@@ -118,6 +118,7 @@ export default function StockLogsScreen() {
   const recipientNameById = snapshot?.recipientNameById ?? {};
   const [dateFilter, setDateFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
+  const [dateRange, setDateRange] = useState(null); // { from: Date, to: Date } | null
 
   const openDetail = (log) => {
     if (log.logType === 'report') {
@@ -142,7 +143,19 @@ export default function StockLogsScreen() {
   }, [route.params?.initialLog?.id]);
 
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
-  const filteredLogs = logs.filter((log) => activeFilterOption.test(log));
+
+  // Same end-of-day treatment as NotificationsScreen's custom range: the
+  // "To" date is a calendar-day pick (midnight), so compare against the end
+  // of that day to include everything created on it, not just before 00:00.
+  const matchesDateRange = (log) => {
+    if (!dateRange?.from || !dateRange?.to) return true;
+    const created = new Date(log.created_at);
+    const endOfTo = new Date(dateRange.to);
+    endOfTo.setHours(23, 59, 59, 999);
+    return created >= dateRange.from && created <= endOfTo;
+  };
+
+  const filteredLogs = logs.filter((log) => activeFilterOption.test(log) && matchesDateRange(log));
 
   const getTitle = (log) => {
     if (log.logType === 'delivery') {
@@ -175,7 +188,7 @@ export default function StockLogsScreen() {
 
         <View style={styles.filterRow}>
           <Text style={styles.filterRowLabel}>
-            {activeFilterOption.key === 'all' ? 'All Time' : activeFilterOption.label}
+            {dateRange ? 'Custom range' : activeFilterOption.key === 'all' ? 'All Time' : activeFilterOption.label}
           </Text>
           <TouchableOpacity
             style={styles.filterButtonWrap}
@@ -185,7 +198,7 @@ export default function StockLogsScreen() {
             accessibilityRole="button"
           >
             <Icon name="filter" size={20} color={COLORS.primary} />
-            {dateFilter !== 'all' && <View style={styles.filterActiveDot} />}
+            {(dateFilter !== 'all' || dateRange) && <View style={styles.filterActiveDot} />}
           </TouchableOpacity>
         </View>
 
@@ -253,6 +266,8 @@ export default function StockLogsScreen() {
         onSelect={setDateFilter}
         clearKey="all"
         clearLabel="Clear filter"
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
       />
     </>
   );

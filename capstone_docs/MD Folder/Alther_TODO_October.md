@@ -546,3 +546,106 @@ Collector currently only **scans** QR codes (`QRScannerModal.js`) and never gene
 ---
 
 *Living document — update status symbols and add specifics as work starts. Keep this in `capstone_docs/MD Folder/` alongside the sprint roadmap and session handoff notes so any team member (or Claude, in a future session) has full context without re-explaining.*
+
+## ✅ SR Receive Flow Unification — Oct 12, 2026
+
+**Status:** ✅ Shipped, tested on device, committed.
+
+### The Gap
+
+The SR had **5 different entry points** into receiving stock, and they behaved inconsistently:
+
+| Entry point | Old behavior |
+|---|---|
+| SR dashboard → QR FAB | Scanned → routed to `ReceiveStockSR` → dies on "already accepted" for collector handoffs |
+| SR dashboard → Receive Stock → "Via Collector Delivery" | Same dead end |
+| SR dashboard → Receive Stock → "Direct From Manager" | Routed to `ReceiveStockSR` (worked, but a separate flow) |
+| Track Deliveries row tap | Worked — routed to `SalesRepConfirmHandoff` |
+| Notification tap | Opened the general Track Deliveries list, ignored the specific handoff |
+
+Result: 2 receive screens, 5 entry points, 1 correct. The collector-handoff path had no working UI from the SR side (the QR the collector consumed at pickup couldn't be re-scanned by the SR through the old flow).
+
+### The Fix — One Screen, Four Entry Points
+
+**`SalesRepConfirmHandoffScreen`** is now the universal receiver. It branches internally on `movementType`:
+- `'collector'` → Step 3 calls `confirm_delivery_handoff` (existing RPC)
+- `'direct'` → Step 3 calls `accept_stock_release` (existing RPC)
+
+Same 3-step UI in both cases:
+1. Scan QR (or prefilled if arriving from FAB / notification)
+2. Photo proof (mandatory)
+3. Verify & Confirm
+
+### All Entry Points Converge
+
+
+QR FAB scan ──────────────┐
+Receive Stock → Collector ┤
+Receive Stock → Direct ───┼──▶ SalesRepConfirmHandoffScreen
+Track Deliveries row tap ─┤ │
+Notification tap ─────────┘ ├─ if collector → confirm_delivery_handoff
+└─ if direct → accept_stock_release
+
+text
+
+### Files Changed
+
+**New:**
+- `src/utils/routeQrScan.js` — single source of routing logic; all entry points call it
+- `src/screens/salesrep/SalesRepConfirmHandoffScreen.js` — unified receiver (collector + direct)
+- `src/components/common/DeliveryHandoffStatusBadge.js` — pending/confirmed/disputed pill
+- `src/components/common/MarkDeliveredModal.js` — Collector taps Mark Delivered, captures GPS + note, transitions to QR display state
+- `src/components/common/ReportHandoffIssueModal.js` — SR dispute with reason enum + optional photo
+
+**Modified:**
+- `src/screens/salesrep/SalesRepDashboardScreen.js` — FAB calls `routeQrScan`
+- `src/screens/salesrep/ReceiveStockTypeSR.js` — redesigned (no inline illustrations, shared rider illustration bottom-right, pending-count badge, cleaner tokens)
+- `src/screens/salesrep/SalesRepTrackDeliveriesScreen.js` — accepts `filterPending`, merges pending handoffs with deliveries, empty state
+- `src/screens/common/NotificationsScreen.js` — delivery_handoff_pending_sr notifications route to the specific handoff
+- `src/screens/collector/CollectorDeliverStockScreen.js` — "Mark Delivered" button opens modal
+- `src/screens/collector/CollectorDeliveryDetailScreen.js` + `CollectorTripReviewScreen.js` — product QR rendered inside the item card for the SR to scan from the Collector's phone
+- `src/navigation/AppNavigator.js` — registered `SalesRepConfirmHandoff` route
+
+### Rejection Behavior (Distinct Messages)
+
+| Scenario | Message |
+|---|---|
+| SR scans a QR for a handoff they already confirmed | "You already confirmed this delivery." |
+| SR scans a QR for a direct release they already accepted | "This batch was already accepted." |
+| SR scans a QR not assigned to them | "This delivery isn't assigned to you." |
+
+Hard block — no navigation, just alert.
+
+### SQL — Extended `get_transaction_by_qr_code_for_agent`
+
+**Migration:** `2026-10-11c_get_transaction_rpc_handoff_fields.sql`
+
+Added to the RPC's return shape:
+- `handoffId`, `handoffStatus`, `collectorClaimedAt`, `collectorId`, `collectorName`, `collectorGps`, `isHandoffPending`
+
+Enables the client to route a scanned QR correctly (pending handoff vs. direct release vs. already-confirmed). Same signature, no schema change.
+
+### Commits
+
+- `a5a7741` — db: extend get_transaction_by_qr_code_for_agent with handoff fields
+- `827e6ae` — feat(handoff): collector + SR UI for delivery handoff confirmation
+- `<new-sha>` — feat(sr): unified SR receive flow across all entry points
+
+### Testing Done
+
+| Test | Result |
+|---|---|
+| Direct From Manager → scan QR → photo → confirm | ✅ |
+| Via Collector → pending list → tap → confirm | ✅ |
+| FAB scan collector handoff → Step 1 prefilled | ✅ |
+| FAB scan direct release → Step 1 prefilled | ✅ |
+| FAB scan already-confirmed → rejection alert | ✅ |
+| FAB scan wrong QR → "QR does not match" | ✅ |
+| Offline collector handoff confirm | ✅ (queued to outbox) |
+| Offline direct receive confirm | ✅ (queued to outbox) |
+
+### Known Gaps (Deferred)
+
+- **Notification tap for other types** (e.g. "Your delivery is on the way") currently opens `SalesRepDeliveryDetailScreen` with only a `transactionId` param, which expects a full `delivery` object → shows "Delivery not found." Fix: route to `SalesRepTrackDeliveries` list instead, or fetch the delivery before navigating.
+- **Stale "Confirm delivery handoff" notifications** continue to appear in the notification list even after the SR has confirmed the handoff. Tapping them shows "Handoff Already Handled." Proper fix: server-side mark-as-read when the handoff transitions out of `pending_sr`.
+- **`ReceiveStockSR.js` is now orphaned** — no entry point routes to it. Keep in place for now; delete in a later cleanup session after confirming nothing else uses it.

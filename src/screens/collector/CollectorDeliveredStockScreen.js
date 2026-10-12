@@ -1,8 +1,8 @@
 // src/screens/collector/CollectorDeliveredStockScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import CustomModal from '../../components/common/Modal';
@@ -22,9 +22,12 @@ function summarizeItems(items) {
 }
 
 export default function CollectorDeliveredStockScreen() {
+  const route = useRoute();
+  const focusId = route.params?.focusId || null;
   const [deliveries, setDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const openedFocusIdRef = useRef(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -40,6 +43,19 @@ export default function CollectorDeliveredStockScreen() {
       load();
     }, [load])
   );
+
+  useEffect(() => {
+    if (!focusId) {
+      openedFocusIdRef.current = null;
+      return;
+    }
+    if (isLoading || openedFocusIdRef.current === focusId) return;
+    const match = deliveries.find((delivery) => delivery.transactionId === focusId);
+    if (match) {
+      openedFocusIdRef.current = focusId;
+      setSelectedDelivery(match);
+    }
+  }, [focusId, isLoading, deliveries]);
 
   const closeDetail = () => setSelectedDelivery(null);
 

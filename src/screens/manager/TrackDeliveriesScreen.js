@@ -1,8 +1,8 @@
 // src/screens/manager/TrackDeliveriesScreen.js
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
@@ -62,10 +62,34 @@ const loadDeliveriesData = async (previous) => {
 
 export default function TrackDeliveriesScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const focusId = route.params?.focusId || null;
   const { data: snapshot, isLoading } = useCachedFocusLoader('manager-track-deliveries', loadDeliveriesData);
   const deliveries = snapshot?.deliveries ?? [];
   const recipientNameById = snapshot?.recipientNameById ?? {};
   const recipientPhotoById = snapshot?.recipientPhotoById ?? {};
+  const openedFocusIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!focusId) {
+      openedFocusIdRef.current = null;
+      return;
+    }
+    if (isLoading || openedFocusIdRef.current === focusId) return;
+    const match = deliveries.find((delivery) => delivery.id === focusId);
+    if (!match) return;
+
+    openedFocusIdRef.current = focusId;
+    const collectorName = recipientNameById[match.received_by] || 'Collector';
+    const targetName = recipientNameById[match.target_recipient_id] || 'Sales Rep';
+    navigation.navigate('TrackDeliveryDetail', {
+      delivery: match,
+      collectorName,
+      targetName,
+      collectorPhotoUrl: recipientPhotoById[match.received_by] || null,
+      targetPhotoUrl: recipientPhotoById[match.target_recipient_id] || null,
+    });
+  }, [focusId, isLoading, deliveries, recipientNameById, recipientPhotoById, navigation]);
 
   return (
     <>
