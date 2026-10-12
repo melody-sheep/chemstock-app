@@ -8,6 +8,7 @@ import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondary
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
 import LogCard from '../../components/common/LogCard';
+import useOutbox from '../../hooks/useOutbox';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
@@ -28,6 +29,8 @@ export default function CollectorDeliveredStockScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const openedFocusIdRef = useRef(null);
+  // Stops marked delivered while offline, not yet on the server.
+  const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -76,13 +79,22 @@ export default function CollectorDeliveredStockScreen() {
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
-        ) : deliveries.length === 0 ? (
+        ) : deliveries.length === 0 && queuedFinishes.length === 0 ? (
           <View style={styles.loadingWrap}>
             <Icon name="successCircle" size={32} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>No completed deliveries yet.</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            {queuedFinishes.map((entry) => (
+              <LogCard
+                key={entry.id}
+                type="requestPending"
+                title={entry.payload?.label || 'Delivery'}
+                meta="Waiting for network — saved on this device"
+                time={formatRelativeTime(new Date(entry.createdAt).toISOString())}
+              />
+            ))}
             {deliveries.map((delivery) => (
               <LogCard
                 key={delivery.transactionId}

@@ -649,3 +649,49 @@ Enables the client to route a scanned QR correctly (pending handoff vs. direct r
 - **Notification tap for other types** (e.g. "Your delivery is on the way") currently opens `SalesRepDeliveryDetailScreen` with only a `transactionId` param, which expects a full `delivery` object → shows "Delivery not found." Fix: route to `SalesRepTrackDeliveries` list instead, or fetch the delivery before navigating.
 - **Stale "Confirm delivery handoff" notifications** continue to appear in the notification list even after the SR has confirmed the handoff. Tapping them shows "Handoff Already Handled." Proper fix: server-side mark-as-read when the handoff transitions out of `pending_sr`.
 - **`ReceiveStockSR.js` is now orphaned** — no entry point routes to it. Keep in place for now; delete in a later cleanup session after confirming nothing else uses it.
+
+---
+
+## Collector Offline Fixes + Notifications v2 — Oct 12, 2026 (device test follow-up)
+
+Found from Jay's 7-step offline device test (Collector Von → SR Clint). Not yet re-tested on device.
+
+### Bugs found and fixed
+
+| # | Symptom on device | Root cause | Fix |
+|---|---|---|---|
+| 1 | Collector Dashboard / Accept Deliveries / Delivered Stock showed "No pending pickups", "No completed deliveries yet", "0 Active" when offline | No Collector screen had an offline cache; a failed `getMyCollectorDeliveries` became an empty list | `deliveryService.getMyCollectorDeliveries` now saves each successful result per collector and returns it (`fromCache: true`) when the call fails offline. Covers all 5 Collector screens that read this list |
+| 2 | A delivery marked offline showed nowhere (no pending count, not in Recent Logs) | Collector screens never read the outbox | Dashboard: "Pending — N waiting to sync" banner with Retry, queued deliveries listed first in Recent Logs. Delivered Stock: queued deliveries listed first as "Waiting for network" |
+| 3 | A stop queued offline could be marked delivered a second time | The stop is still `in_transit` on the server until sync; a duplicate replay would fail and block the whole outbox (FIFO, stops on first failure) | Deliver Stock and the Dashboard's Active list hide stops already queued. The stop stays visible while the Mark Delivered sheet is open so the handoff QR is not lost |
+| 4 | Logging in offline said "Invalid username or password" | The failed `verify_agent_login` request fell through to the username lookup; the alert text was also hardcoded | `authService.login` reports "No internet connection" when the request never reached the server; `LoginScreen` shows a matching alert |
+| 5 | Status pill stayed "Online" after the signal dropped, until the next tap failed | `connectionStatus` only changed when a request happened | 15s heartbeat in `supabaseClient.js` (foreground only). Also brings the app back online and flushes the outbox without a tap |
+| 6 | `release_stock_batch` failed with `function gen_random_bytes(integer) does not exist` | `2026-10-12_notification_focus_ids.sql` redefined it with `search_path = public`, dropping `extensions` | Corrected to `public, extensions` and re-run |
+
+### Also shipped this session
+
+- `2026-10-12_notification_focus_ids.sql` — `focusId` in `nav_params` for the 7 notification types that passed `{}` (Option B, Checkpoint 1). The destination screens do not read `focusId` yet.
+- `NotificationsScreen.js` — new card design (unread stripe + dot), left-aligned header, filter bar with 5 sections, custom date range, distinct icon and colour per type.
+- `FilterSheet.js` — redesigned, optional custom date range. `StockLogsScreen.js` uses the date range too.
+- `Icon.js` — added `arrowUUpLeft`.
+
+### Known gaps
+
+- **Logging out and back in while offline is not possible.** Signing in always needs the server; only an existing session survives offline.
+- **Hardcoded "Online" pills remain** on `ReturnStockVerify`, `ManagerReports`, `ReleaseStockScanReview`, `ReleaseStockRequestReview`, `ManageReturns`, `ReleaseStockMethod`, `ManageAccounts`, `ReleaseStockDelivery`, `QuickRegisterRelease`, `ReceiveStockTypeSR`.
+- **`DateTimePicker` `onChange` is deprecated** in the installed version (warning only). Used in `RegisteredItemsList.js` and `FilterSheet.js`.
+- **`link_request_fulfillment` "Transaction branch does not match the request's branch"** — `AgentStockRequestScreen.js` `buildPrefillRequest` drops `branchId`. Diagnosed, not fixed.
+- **Option B checkpoints 2+** (destination screens reading `focusId`) not started.
+
+### Second device pass (Oct 12, evening) — results and follow-up fixes
+
+Passed on device: C1–C6, S1–S3, S5, M1, M3, L1, L2. Follow-up fixes below are not yet re-tested.
+
+| Test | Symptom | Root cause | Fix |
+|---|---|---|---|
+| S4, M2 | Custom date range "Oct 12 – Oct 12" matched nothing | The picker returns the chosen day with the current time of day, so From was "today, now" | `FilterSheet` normalises the range to whole days (From 00:00, To 23:59) |
+| M2 | Manager's Notifications empty offline | One `notifications` cache shared by every account on the device; the Sales Rep's list had replaced the Manager's | Lists are cached per account; the screen takes the signed-in user from `authService`, not from the cache |
+| M4 | Agent Stock Request empty offline while the Dashboard showed 6 | Screen had no offline fallback | `requestService.getBranchStockRequests` falls back to the last list for the same manager |
+| M4 | Release Stock recipient step spun, then "none found" | Releasing needs the server; nothing told the Manager so | The step shows "You're offline. Releasing stock needs an internet connection" |
+| — | "Returns" icon was a solid block in the filter sheet and on return notifications | `returnBox` is a two-layer icon and both layers got the same colour | Fill layer made transparent / tinted |
+
+Still open from this pass: Manager Dashboard's branch name is blank next to the pin while offline (seen in the M1 screenshot, cause not investigated).

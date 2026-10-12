@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 import { markOnline, markOffline } from './connectionStatus';
 
 // ============================================
@@ -32,6 +33,32 @@ const trackedFetch = async (input, init) => {
     throw error;
   }
 };
+
+// The status above only changes when a request happens, so a screen that sits
+// idle (a Collector on the trip map, the login form) kept showing "Online"
+// after the signal dropped until the next tap failed. This small probe keeps
+// it current, and brings the app back online — which also flushes the offline
+// outbox — without the user having to trigger a request.
+const HEARTBEAT_INTERVAL_MS = 15 * 1000;
+const HEARTBEAT_TIMEOUT_MS = 8 * 1000;
+
+const probeConnection = async () => {
+  if (AppState.currentState !== 'active') return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT_MS);
+  try {
+    await trackedFetch(`${SUPABASE_URL}/auth/v1/health`, {
+      headers: { apikey: SUPABASE_ANON_KEY },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // trackedFetch has already marked the app offline.
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+setInterval(probeConnection, HEARTBEAT_INTERVAL_MS);
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { fetch: trackedFetch },

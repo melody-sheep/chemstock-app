@@ -63,7 +63,14 @@ export default function FilterSheet({
 
   const applyDateRange = () => {
     if (!pendingFrom || !pendingTo) return;
-    onDateRangeChange({ from: pendingFrom, to: pendingTo });
+    // The picker returns the chosen day with the current time of day, so
+    // "today to today" was a zero-length range that matched nothing. A range
+    // always covers whole days.
+    const from = new Date(pendingFrom);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(pendingTo);
+    to.setHours(23, 59, 59, 999);
+    onDateRangeChange({ from, to });
     setIsDateSectionOpen(false);
     onClose();
   };
@@ -111,7 +118,7 @@ export default function FilterSheet({
               >
                 {!!option.icon && (
                   <View style={styles.rowIconWrap}>
-                    <Icon name={option.icon} size={20} color={COLORS.primary} />
+                    <Icon name={option.icon} size={20} color={COLORS.primary} duotoneColor="transparent" />
                   </View>
                 )}
                 <View style={styles.rowTextCol}>

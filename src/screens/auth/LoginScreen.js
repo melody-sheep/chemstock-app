@@ -28,6 +28,8 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import useKeyboard from '../../hooks/useKeyboard';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
+import { getConnectionStatus } from '../../services/connectionStatus';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -43,6 +45,7 @@ const ANIMATION_DATA = [
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { isKeyboardVisible, keyboardHeight } = useKeyboard();
+  const connection = useConnectionStatus();
   const [isActivationWarningVisible, setIsActivationWarningVisible] = useState(false);
 
   const {
@@ -86,7 +89,14 @@ export default function LoginScreen() {
     const success = await login();
     
     if (!success) {
-      Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
+      if (getConnectionStatus().online) {
+        Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
+      } else {
+        Alert.alert(
+          'No Internet Connection',
+          'Signing in needs a connection. Please reconnect and try again.'
+        );
+      }
     }
   };
 
@@ -204,8 +214,8 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View style={styles.onlineContainer}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Online</Text>
+                <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+                <Text style={styles.onlineText}>{connection.online ? 'Online' : 'Offline'}</Text>
               </View>
             </View>
 
@@ -328,6 +338,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success,
     marginRight: SPACING.xs,
   },
+  onlineDotOffline: { backgroundColor: COLORS.error },
   onlineText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textTertiary,

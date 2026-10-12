@@ -3,6 +3,13 @@ import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
 import { debugLog } from '../utils/logger';
 import { resolveProfilePhotoUrls } from '../utils/profilePhoto';
+import storage from '../utils/storage';
+import { getConnectionStatus } from './connectionStatus';
+
+// Last successful get_my_collector_deliveries result per collector. Every
+// Collector screen reads this one list, so falling back here covers all of
+// them when the device is offline.
+const COLLECTOR_DELIVERIES_CACHE_PREFIX = 'chemstock_cache_collector_deliveries_';
 
 class DeliveryService extends BaseService {
   constructor() {
@@ -43,9 +50,20 @@ class DeliveryService extends BaseService {
         targetRecipientPhotoUrl: d.targetRecipientPhotoPath ? photoUrlByPath[d.targetRecipientPhotoPath] || null : null,
       }));
 
+      storage.set(COLLECTOR_DELIVERIES_CACHE_PREFIX + agentId, enriched);
+
       return { success: true, data: enriched };
     } catch (error) {
       this.log('error', 'getMyCollectorDeliveries failed', { error: error.message });
+
+      if (!getConnectionStatus().online) {
+        const cached = await storage.get(COLLECTOR_DELIVERIES_CACHE_PREFIX + agentId);
+        if (cached) {
+          debugLog('warn', 'DeliveryService', 'Offline, showing last-known collector deliveries', { count: cached.length });
+          return { success: true, data: cached, fromCache: true };
+        }
+      }
+
       return { success: false, message: error.message || 'Failed to load deliveries', data: [] };
     }
   }

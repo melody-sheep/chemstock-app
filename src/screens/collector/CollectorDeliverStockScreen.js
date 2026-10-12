@@ -22,6 +22,7 @@ import MarkDeliveredModal from '../../components/common/MarkDeliveredModal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import outboxService from '../../services/outboxService';
+import useOutbox from '../../hooks/useOutbox';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import { recordLandmarkUsage } from '../../utils/landmarkUsage';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
@@ -69,6 +70,7 @@ export default function CollectorDeliverStockScreen() {
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
   const mapRef = useRef(null);
+  const markDeliveredOpenedAt = useRef(0);
   const sheetAnim = useRef(new Animated.Value(1)).current;
 
   const toggleDetails = () => {
@@ -118,7 +120,22 @@ export default function CollectorDeliverStockScreen() {
     }, [load])
   );
 
-  const undeliveredLegs = legs.filter((l) => l.deliveryStatus === 'in_transit');
+  // A stop already marked delivered offline is still in_transit on the
+  // server until it syncs. Treat it as done here — queuing it twice would
+  // make the second replay fail and block everything behind it in the outbox.
+  //
+  // A stop queued while the Mark Delivered sheet is open stays counted until
+  // the sheet closes: that sheet is still showing the handoff QR the Sales
+  // Rep has to scan, and dropping the stop would unmount it.
+  const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
+  const queuedTransactionIds = new Set(
+    queuedFinishes
+      .filter((entry) => !isMarkDeliveredModalVisible || entry.createdAt < markDeliveredOpenedAt.current)
+      .map((entry) => entry.payload?.transactionId)
+  );
+  const inTransitLegs = legs.filter((l) => l.deliveryStatus === 'in_transit');
+  const undeliveredLegs = inTransitLegs.filter((l) => !queuedTransactionIds.has(l.transactionId));
+  const hasQueuedStops = inTransitLegs.length > undeliveredLegs.length;
   const originCoords = legs[0]?.tripOriginGps || null;
   const checkpoints = legs[0]?.checkpoints || [];
   const lastCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
@@ -385,8 +402,17 @@ export default function CollectorDeliverStockScreen() {
         <Header showBackButton backButtonText="Collector Dashboard" height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
         <SubScreenSecondaryHeader title="Deliver Stock" glass />
         <View style={styles.loadingWrap}>
-          <Icon name="checkCircle" size={32} color={COLORS.success} weight="fill" />
-          <Text style={styles.emptyText}>All deliveries in this trip are complete.</Text>
+          <Icon
+            name={hasQueuedStops ? 'clock' : 'checkCircle'}
+            size={32}
+            color={hasQueuedStops ? COLORS.warning : COLORS.success}
+            weight="fill"
+          />
+          <Text style={styles.emptyText}>
+            {hasQueuedStops
+              ? 'All stops are marked delivered. Waiting for network to sync.'
+              : 'All deliveries in this trip are complete.'}
+          </Text>
         </View>
       </View>
     );
@@ -485,7 +511,10 @@ export default function CollectorDeliverStockScreen() {
               <Button
                 title={isFinishing ? 'Finishing…' : `Mark Delivered — ${nearestLeg.label}`}
                 variant="black"
-                onPress={() => setIsMarkDeliveredModalVisible(true)}
+                onPress={() => {
+                  markDeliveredOpenedAt.current = Date.now();
+                  setIsMarkDeliveredModalVisible(true);
+                }}
                 loading={isFinishing}
                 height={48}
                 fontSize={15}

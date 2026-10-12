@@ -68,20 +68,37 @@ const FILTER_OPTIONS = [
 // A failed fetch keeps the previous snapshot instead of blanking the screen
 // — without this, "no notifications" and "failed to load while offline"
 // looked identical (both showed the empty state).
+//
+// The cache key is shared by every account that signs in on this device, so
+// each account's list is kept under its own id (byUser). Keeping only the
+// last list meant a Manager opening this screen offline, after a Sales Rep
+// had used the phone, found the Sales Rep's list cached and got nothing.
 const loadNotificationsData = async (previous) => {
   const currentUser = await authService.getCurrentUser();
-  const prev = previous?.user?.id === currentUser?.id ? previous : null;
-  const result = await notificationService.getMyNotifications(currentUser?.id);
+  const userId = currentUser?.id;
+  const byUser = { ...(previous?.byUser || {}) };
+  const result = await notificationService.getMyNotifications(userId);
+  if (result.success && userId) {
+    byUser[userId] = result.data;
+  }
+  const fallback = previous?.user?.id === userId ? previous?.notifications : null;
   return {
     user: currentUser,
-    notifications: result.success ? result.data : prev?.notifications ?? [],
+    notifications: (userId && byUser[userId]) || fallback || [],
+    byUser,
   };
 };
 
 export default function NotificationsScreen() {
   const navigation = useNavigation();
   const { data: snapshot, isLoading } = useCachedFocusLoader('notifications', loadNotificationsData);
-  const user = snapshot?.user ?? null;
+
+  // Who is looking at the screen right now. The cached snapshot may have
+  // been written by a different account, so it is never trusted for this.
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    authService.getCurrentUser().then(setUser);
+  }, []);
 
   // Local copy so mark-as-read can update optimistically — reseeded from the
   // cached snapshot whenever it changes (a fresh load, or a background
@@ -93,8 +110,10 @@ export default function NotificationsScreen() {
   const [dateRange, setDateRange] = useState(null); // { from: Date, to: Date } | null
 
   useEffect(() => {
-    setNotifications(snapshot?.notifications ?? []);
-  }, [snapshot]);
+    if (!user?.id) return;
+    const own = snapshot?.user?.id === user.id ? snapshot.notifications : snapshot?.byUser?.[user.id];
+    setNotifications(own ?? []);
+  }, [snapshot, user?.id]);
 
   const handleMarkAllRead = async () => {
     if (isMarkingAll) return;
@@ -288,7 +307,7 @@ export default function NotificationsScreen() {
           </View>
         )}
 
-        {isLoading ? (
+        {isLoading || !user ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
@@ -312,7 +331,13 @@ export default function NotificationsScreen() {
                 >
                   <View style={[styles.unreadStripe, !notification.isRead && styles.unreadStripeActive]} />
                   <View style={[styles.iconBadge, { backgroundColor: meta.color + '15' }]}>
-                    <Icon name={meta.icon} size={18} color={meta.color} weight="duotone" />
+                    <Icon
+                      name={meta.icon}
+                      size={18}
+                      color={meta.color}
+                      weight="duotone"
+                      duotoneColor={meta.icon === 'returnBox' ? meta.color + '33' : null}
+                    />
                   </View>
                   <View style={styles.textCol}>
                     <View style={styles.titleRow}>

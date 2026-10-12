@@ -2,6 +2,11 @@
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
 import { debugLog } from '../utils/logger';
+import storage from '../utils/storage';
+import { getConnectionStatus } from './connectionStatus';
+
+// Last successful branch request list, shown when the Manager is offline.
+const BRANCH_REQUESTS_CACHE_KEY = 'chemstock_cache_branch_stock_requests';
 
 class RequestService extends BaseService {
   constructor() {
@@ -111,9 +116,21 @@ class RequestService extends BaseService {
         throw new Error(error.message || 'Failed to load requests');
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      storage.set(BRANCH_REQUESTS_CACHE_KEY, { managerId: sessionData?.session?.user?.id, requests: data || [] });
+
       return { success: true, data: data || [] };
     } catch (error) {
       this.log('error', 'getBranchStockRequests failed', { error: error.message });
+
+      if (!getConnectionStatus().online) {
+        const cached = await storage.get(BRANCH_REQUESTS_CACHE_KEY);
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (cached?.requests && cached.managerId === sessionData?.session?.user?.id) {
+          return { success: true, data: cached.requests, fromCache: true };
+        }
+      }
+
       return { success: false, message: error.message || 'Failed to load requests', data: [] };
     }
   }

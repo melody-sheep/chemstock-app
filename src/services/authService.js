@@ -2,6 +2,7 @@
 import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
 import { setPresenceIdentity } from './presenceService';
+import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
 import storage from '../utils/storage';
 import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
@@ -98,6 +99,13 @@ class AuthService extends BaseService {
 
       if (agentLoginError) {
         console.error(`[ERROR] [AuthService] Agent login RPC error: ${agentLoginError.message}`);
+
+        // The request never reached the server, so nothing was checked.
+        // Without this, an offline login fell through to the username
+        // lookup below and was reported as wrong credentials.
+        if (!getConnectionStatus().online) {
+          throw new Error('No internet connection. Signing in needs a connection — please reconnect and try again.');
+        }
       }
 
       if (agentProfile && agentProfile.id) {

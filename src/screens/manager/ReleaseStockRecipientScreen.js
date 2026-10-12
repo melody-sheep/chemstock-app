@@ -251,7 +251,11 @@ export default function ReleaseStockRecipientScreen() {
             />
           </View>
 
-          {isLoading ? (
+          {!connection.online ? (
+            <Text style={styles.emptyText}>
+              You're offline. Releasing stock needs an internet connection — reconnect to continue.
+            </Text>
+          ) : isLoading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>

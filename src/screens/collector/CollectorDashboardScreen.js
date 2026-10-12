@@ -1,9 +1,10 @@
 // src/screens/collector/CollectorDashboardScreen.js
-import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, Image, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOutbox from '../../hooks/useOutbox';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -40,6 +41,8 @@ const MAIN_OPERATIONS = [
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const { pendingCount: outboxCount, retryNow } = useOutbox();
+  const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
   const [user, setUser] = useState(null);
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
@@ -70,7 +73,9 @@ export default function CollectorDashboardScreen() {
       notificationService.getMyNotifications(currentUser?.id),
     ]);
     const all = result.success ? result.data : [];
-    setNotificationCount(notificationsResult.unreadCount || 0);
+    if (notificationsResult.success) {
+      setNotificationCount(notificationsResult.unreadCount || 0);
+    }
 
     setPendingCount(all.filter((d) => d.stage === 'pending_pickup').length);
 
@@ -103,8 +108,25 @@ export default function CollectorDashboardScreen() {
     }, [loadDashboardData])
   );
 
+  // A queued delivery just synced, so the server list has changed.
+  const previousQueuedCount = useRef(queuedFinishes.length);
+  useEffect(() => {
+    if (queuedFinishes.length < previousQueuedCount.current) {
+      loadDashboardData();
+    }
+    previousQueuedCount.current = queuedFinishes.length;
+  }, [queuedFinishes.length, loadDashboardData]);
+
   const collectorName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+
+  // A stop marked delivered while offline is still "in transit" on the
+  // server until the outbox syncs. Hide it from Active so it can't be marked
+  // a second time, and list it under Recent Logs as waiting instead.
+  const queuedTransactionIds = new Set(queuedFinishes.map((entry) => entry.payload?.transactionId));
+  const visibleActiveTrips = activeTrips
+    .map((trip) => ({ ...trip, legs: trip.legs.filter((leg) => !queuedTransactionIds.has(leg.transactionId)) }))
+    .filter((trip) => trip.legs.length > 0);
 
   const displayedStats = [
     {
@@ -125,7 +147,7 @@ export default function CollectorDashboardScreen() {
       accentColor: COLORS.accentPink,
       backgroundColor: '#FFF5F8',
       borderLeftColor: COLORS.accentPink,
-      value: `${activeTrips.length} Active`,
+      value: `${visibleActiveTrips.length} Active`,
       label: 'Deliveries',
     },
   ];
@@ -225,6 +247,23 @@ export default function CollectorDashboardScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          {outboxCount > 0 && (
+            <View style={styles.pendingBanner}>
+              <View style={styles.pendingIconCircle}>
+                <Icon name="clock" size={14} color={COLORS.textWhite} />
+              </View>
+              <View style={styles.pendingTextCol}>
+                <Text style={styles.pendingBannerTitle}>Pending — {outboxCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerText}>
+                  Saved on this device. Sends automatically once you're back online.
+                </Text>
+              </View>
+              <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                <Text style={styles.pendingRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          )}
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>
@@ -257,11 +296,11 @@ export default function CollectorDashboardScreen() {
             </View>
           )}
 
-          {activeTrips.length > 0 && (
+          {visibleActiveTrips.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>Active</Text>
               <View style={styles.activeList}>
-                {activeTrips.map((trip) => (
+                {visibleActiveTrips.map((trip) => (
                   <TouchableOpacity
                     key={trip.tripId}
                     style={styles.activeCard}
@@ -305,16 +344,27 @@ export default function CollectorDashboardScreen() {
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
-            ) : recentLogs.length > 0 ? (
-              recentLogs.map((log) => (
-                <LogListItem
-                  key={log.transactionId}
-                  icon="checkCircle"
-                  iconColor={COLORS.success}
-                  text={`Delivered to ${log.targetRecipientName || 'Sales Rep'} — ${formatRelativeTime(log.deliveredAt || log.createdAt)}`}
-                  onPress={() => navigation.navigate('CollectorDeliveredStock')}
-                />
-              ))
+            ) : queuedFinishes.length > 0 || recentLogs.length > 0 ? (
+              <>
+                {queuedFinishes.map((entry) => (
+                  <LogListItem
+                    key={entry.id}
+                    icon="clock"
+                    iconColor={COLORS.warning}
+                    text={`${entry.payload?.label || 'Delivery'} — waiting for network`}
+                    onPress={() => navigation.navigate('CollectorDeliveredStock')}
+                  />
+                ))}
+                {recentLogs.map((log) => (
+                  <LogListItem
+                    key={log.transactionId}
+                    icon="checkCircle"
+                    iconColor={COLORS.success}
+                    text={`Delivered to ${log.targetRecipientName || 'Sales Rep'} — ${formatRelativeTime(log.deliveredAt || log.createdAt)}`}
+                    onPress={() => navigation.navigate('CollectorDeliveredStock')}
+                  />
+                ))}
+              </>
             ) : (
               <View style={styles.emptyLogs}>
                 <Image
@@ -409,6 +459,50 @@ const styles = StyleSheet.create({
     color: '#555353',
   },
   onlineTextOffline: { color: COLORS.warning },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF1D6',
+    borderWidth: 1,
+    borderColor: COLORS.accentGold,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: SPACING.md,
+  },
+  pendingIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#B26400',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingTextCol: { flex: 1 },
+  pendingBannerTitle: {
+    fontSize: 13,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  pendingBannerText: {
+    fontSize: 11,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
+  },
+  pendingRetryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#B26400',
+  },
+  pendingRetryText: {
+    fontSize: 11,
+    color: COLORS.textWhite,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
