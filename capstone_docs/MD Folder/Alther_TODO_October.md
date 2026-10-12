@@ -20,7 +20,7 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 
 ## Current status — October 12, 2026
 
-Latest commit on `origin/main`: `51f1a99` (Oct 12). Everything listed under "Done" is in that commit or an earlier one.
+Last updated: Oct 12, ~9:00 PM. Rows up to "Notification deep links, step 1" are in commit `51f1a99` or earlier. The rows after it are in the Oct 12 evening commit that follows it (`feat(notifications): full event coverage…`).
 
 ### Done since the Oct 6 summary
 
@@ -36,27 +36,41 @@ Latest commit on `origin/main`: `51f1a99` (Oct 12). Everything listed under "Don
 | Offline login | Says "No Internet Connection" instead of "Invalid username or password"; login pill is live | ✅ Confirmed Oct 12 (L1) | same |
 | Notifications screen | New cards (unread stripe + dot), left-aligned header, filter bar with 5 sections, distinct icon and colour per type | ✅ Confirmed Oct 12 (S3) | same |
 | Filter sheet | Redesigned; shared by Notifications and Transaction Logs | ✅ Confirmed Oct 12 | same |
-| Notification deep links, step 1 | `focusId` added to 7 notification types (`2026-10-12_notification_focus_ids.sql`, run) | SQL run; nothing in the app reads it yet | same |
+| Notification deep links, step 1 | `focusId` added to 7 notification types (`2026-10-12_notification_focus_ids.sql` + `12b` correction, both run) | SQL run; nothing in the app reads it yet | same |
+| Stock request fulfilment | Release is locked to the request's branch; a request released via a Collector can now be marked Fulfilled (`2026-10-12d`, run) | ✅ Confirmed Oct 12 (direct `#C4297381`, collector `#D4AA9B24`) | "Fourth device pass" at the bottom |
+| Notification coverage | 8 new notification types via table triggers (`2026-10-12c`, run); no existing RPC redefined | ✅ 5 of 8 confirmed Oct 12; disputed→Collector, report accepted, discrepancy found not yet triggered | same |
+| Notification freshness | Notifications refetch on open, every 20s and on pull-down; bell count refreshes every 20s on all three dashboards | Notifications arrived during testing; leaving a screen open to watch one arrive was not checked | "Third device pass" |
+| Logs badge | Logs icon on all three dashboards shows a count of entries newer than the last visit | ✅ Confirmed Oct 12 (Manager, Sales Rep) | same |
+| Map while awaiting confirmation | "View on map" on the Sales Rep's Verify Delivery screen | Not tested | "Fourth device pass" |
 
-### Committed but not yet re-tested on device
+### Re-tested on device, Oct 12 evening (R1–R7)
 
-- [ ] **Custom date range** on Notifications and Transaction Logs — "today to today" matched nothing; now covers whole days (S4, M2).
-- [ ] **Manager notifications offline** — were empty after another account used the phone; now cached per account (M2).
-- [ ] **Agent Stock Request offline** — was empty; now shows the last list (M4).
-- [ ] **Release Stock offline** — recipient step now says a connection is needed instead of spinning (M4).
-- [ ] **Returns icon** — no longer a solid block in the filter sheet and on return notifications.
+- [x] **Custom date range** on Notifications and Transaction Logs — passes (S4, M2).
+- [x] **Manager notifications offline** after another account used the phone — passes (M2).
+- [x] **Agent Stock Request offline** — shows the last list (M4).
+- [x] **Release Stock offline** — recipient step says a connection is needed (M4).
+- [x] **Returns icon in the filter sheet** — outlined, no longer a solid block.
+- [ ] **Returns icon on a return notification** — not checked; no return notification was available.
+
+### Fixed in code, not yet tested on device
+
+- [ ] **"View on map"** on the Sales Rep's Verify Delivery screen (shown only when opened from Track Deliveries); the map's status pill reads "Awaiting your confirmation".
+- [ ] Three new notifications not yet triggered on device: "Delivery disputed" to the Collector, "Daily report accepted", "Discrepancy found".
+- [ ] Notifications appearing within ~20s while the screen is left open.
 
 ### Remaining work
 
 **1. Open bugs**
-- [ ] 🔴 **Stock request fulfilment fails with "Transaction branch does not match the request's branch".** `AgentStockRequestScreen.js` drops the request's branch when it starts the release (`buildPrefillRequest`). Diagnosed, not fixed. Blocks fulfilling a request when the manager releases from a different branch than the request's.
+- [ ] Requests `#AC07BF6D` and `#E45A8F41` are stuck on "Preparing" with stock already released (from before the fulfilment fix). Decline them; do not tap Continue.
+- [ ] Logs badge only counts entries the dashboard loads, and report/discrepancy rows are dated by day, so it can undercount.
+- [ ] Agent Stock Request: Decline / Prepare / Continue are still tappable offline and fail with an error alert.
 - [ ] Manager Dashboard shows no branch name next to the pin while offline. Cause not investigated.
 - [ ] A "Confirm delivery handoff" notification stays in the list after the Sales Rep has confirmed; tapping it says "Handoff Already Handled".
 - [ ] Checkpoints logged on a cancelled trip still show on the next trip's timeline (known since Oct 6).
 
 **2. Unfinished features**
 - [ ] 🟨 **Notification deep links, step 2 onward** — the 5 destination screens (`AgentStockRequest`, `SalesRepStockRequests`, `ManageReturns`, `ReturnStocksSR`, `CollectorAcceptDeliveries`) must read `focusId` and open or highlight that item. Not started.
-- [ ] Notifications: pull-to-refresh and the empty-state illustration from the original redesign brief. Not built.
+- [ ] Notifications: empty-state illustration from the original redesign brief. Not built. (Pull-to-refresh is done.)
 - [ ] ⬜ **Real OS push notifications.** Design was drafted in chat on Oct 12 and not saved to a file. Needs a dev build (Expo Go cannot receive push) and a Firebase project.
 - [ ] 10 screens still show a hardcoded "Online" pill: `ReturnStockVerify`, `ManagerReports`, `ReleaseStockScanReview`, `ReleaseStockRequestReview`, `ManageReturns`, `ReleaseStockMethod`, `ManageAccounts`, `ReleaseStockDelivery`, `QuickRegisterRelease`, `ReceiveStockTypeSR`.
 - [ ] Remaining Manager screens with no offline fallback (e.g. Reports & Returns, Manage Accounts). Not audited.
@@ -65,7 +79,7 @@ Latest commit on `origin/main`: `51f1a99` (Oct 12). Everything listed under "Don
 - [ ] Should a Collector be able to accept stock (scan + photo) offline? Starting a trip offline is not possible either way.
 - [ ] A queued item that the server rejects retries forever and the user is never told. Add a visible failure state?
 - [ ] Items queued offline are stamped with the sync time, not the time the user tapped submit. Worth a schema change?
-- [ ] A daily report queued offline never tells the Sales Rep it had a discrepancy.
+- [x] ~~A daily report queued offline never tells the Sales Rep it had a discrepancy.~~ Covered by the new "Discrepancy found" notification (fires when the report reaches the server); not yet seen on device.
 
 **4. Clean-up**
 - [ ] `ReceiveStockSR.js` is no longer reachable from any screen. Delete after confirming.
@@ -766,3 +780,43 @@ Passed on device: C1–C6, S1–S3, S5, M1, M3, L1, L2. Follow-up fixes below ar
 | — | "Returns" icon was a solid block in the filter sheet and on return notifications | `returnBox` is a two-layer icon and both layers got the same colour | Fill layer made transparent / tinted |
 
 Still open from this pass: Manager Dashboard's branch name is blank next to the pin while offline (seen in the M1 screenshot, cause not investigated).
+
+### Third device pass (Oct 12, 7:26–7:52 PM) — results and follow-up
+
+| Test | Result |
+|---|---|
+| T1–T5 stock request fulfilment | **Failed.** Step 1 still showed the branch chips and request `#AC07BF6D` stayed "Preparing" after the release. The release itself succeeded, so its stock is out. Cause not confirmed: the Metro log for 7:29 PM was not captured and the link failure was only written to the console. |
+| T6 normal Release Stock | Passed (branch chips present). |
+| F1–F3 queued stop cannot be marked twice | Passed. First stop disappeared from the map after being queued; both synced once online. |
+| N1 Returns icon on a notification | Not tested (no return request made). |
+
+Follow-up changes, not yet tested on device:
+
+- `ReleaseStockConfirmScreen.js` — a failed request link now shows an alert with the server's reason instead of failing silently.
+- **Notifications were stale** — the list was reused for up to 30s and nothing refreshed while a screen stayed open. Now: the Notifications screen refetches every time it opens, every 20s while open, and on pull-to-refresh; the bell count on all three dashboards refreshes on focus and every 20s (`useUnreadNotificationCount.js`). `useCachedFocusLoader` gained `freshMs` and `refresh({ force })`.
+- **`2026-10-12b_submit_stock_request_focus_id.sql` (NOT RUN YET)** — the Oct 12 focusId migration redefined `submit_stock_request` with the old 6-argument signature, creating an unused second copy; the real 7-argument function never got its `focusId`. This file drops the stray copy and fixes the real one. Section 1 of the original file was removed.
+
+Stuck requests: `#E45A8F41` and `#AC07BF6D` are "Preparing" with stock already released. Do not tap Continue on them.
+
+Notification coverage gaps found (events that reach Transaction Logs but notify nobody) — not built, needs a decision:
+
+- Manager is not told when: a delivery is completed, a Sales Rep confirms a handoff, a Sales Rep or Collector accepts released stock, a daily report contains a discrepancy.
+- Sales Rep is not told when: stock is released directly to them, their request's stock is released, their daily report is accepted, their own report has a discrepancy.
+- Collector is not told when a Sales Rep disputes their delivery.
+- Requested, not built: an unread badge on the Transaction Logs icon (needs a `Header.js` change).
+
+### Oct 12, late evening — fulfilment cause confirmed, notification coverage, logs badge (untested)
+
+- **Fulfilment failure cause confirmed by query:** request `ac07bf6d` was for BUTUAN, the releases (`d3df71f4`, `d40d8371`, a minute apart) went out from IPONAN. The step 1 branch lock (already in code) prevents this; that run was on the old screen. The stock went out twice.
+- **`2026-10-12c_notification_coverage.sql` (NOT RUN YET)** — 8 new notification types via table triggers; no existing RPC is redefined. Covers: direct release → Sales Rep; request released via collector → Sales Rep; stock accepted, delivery completed, handoff confirmed → releasing Manager; handoff disputed → Collector; daily report accepted → Sales Rep; discrepancy → Sales Rep and branch Managers (once per report).
+- `NotificationsScreen.js` — icons and filter groups for the 8 new types.
+- **Logs badge** — `Header.js` gained `documentCount`; all three dashboards show how many log entries are newer than the last time that account opened its logs screen (`useUnseenLogCount.js`, kept per account on the device). Limits: counts only the entries the dashboard loads, and report/discrepancy rows are dated by day so they rarely count.
+- SQL to run, in order: `2026-10-12b_submit_stock_request_focus_id.sql`, then `2026-10-12c_notification_coverage.sql`.
+
+### Oct 12, 8:33–8:57 PM — fourth device pass
+
+Passed on device after running `12b`, `12c`, `12d`: request fulfilment direct (`#C4297381`) and via Collector (`#D4AA9B24`), repaired `#ACD37B0A`; new notifications "Stock released to you", "Your stock request is on its way", "Stock accepted", "Delivery completed", "Delivery received"; logs badge on the Sales Rep and Manager dashboards. Not checked: live 20s refresh with the screen left open, "Delivery disputed" to the Collector, "Daily report accepted", "Discrepancy found".
+
+Added after this pass, untested: "View on map" button on the Sales Rep's Verify Delivery screen (only when opened from Track Deliveries); the map's status pill reads "Awaiting your confirmation" for such a delivery.
+
+Still open: `#AC07BF6D` and `#E45A8F41` stuck on "Preparing" (decline them); Clint has an older handoff from ~7:44 PM still awaiting confirmation.

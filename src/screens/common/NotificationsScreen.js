@@ -1,10 +1,10 @@
 // src/screens/common/NotificationsScreen.js
 // Shared across all three roles, same precedent as ComingSoonScreen/
 // EditProfileScreen — one screen, reached from each dashboard's bell icon.
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import FilterSheet from '../../components/common/FilterSheet';
@@ -30,8 +30,19 @@ const TYPE_META = {
   delivery_handoff_pending_sr: { icon: 'clockCountdown', color: '#B45309' },
   delivery_handoff_confirmed: { icon: 'sealCheck', color: COLORS.success },
   delivery_handoff_disputed: { icon: 'sealWarning', color: COLORS.error },
+  stock_released_to_you: { icon: 'package', color: COLORS.accentPurple },
+  stock_request_fulfilled: { icon: 'sealCheck', color: COLORS.success },
+  stock_accepted: { icon: 'trayDown', color: COLORS.secondary },
+  delivery_completed: { icon: 'checkCircle', color: COLORS.success },
+  delivery_received: { icon: 'sealCheck', color: COLORS.success },
+  delivery_disputed_collector: { icon: 'sealWarning', color: COLORS.error },
+  daily_report_accepted: { icon: 'clipboardText', color: COLORS.success },
+  discrepancy_found: { icon: 'warning', color: COLORS.error },
 };
 const DEFAULT_META = { icon: 'notification', color: COLORS.primary };
+
+// New notifications are picked up this often while the screen is open.
+const POLL_INTERVAL_MS = 20 * 1000;
 
 const FILTER_OPTIONS = [
   { key: 'all', label: 'All', icon: 'grid', description: 'Show every notification', types: null },
@@ -40,21 +51,21 @@ const FILTER_OPTIONS = [
     label: 'Deliveries',
     icon: 'truck',
     description: 'Handoffs and status updates',
-    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed'],
+    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed', 'delivery_completed', 'delivery_received', 'delivery_disputed_collector'],
   },
   {
     key: 'stockRequests',
     label: 'Stock Requests',
     icon: 'notePencil',
-    description: 'Request submissions and outcomes',
-    types: ['stock_request_submitted', 'stock_request_resolved'],
+    description: 'Requests, releases and acceptances',
+    types: ['stock_request_submitted', 'stock_request_resolved', 'stock_request_fulfilled', 'stock_released_to_you', 'stock_accepted'],
   },
   {
     key: 'reports',
     label: 'Reports',
     icon: 'clipboardText',
-    description: 'Daily report submissions',
-    types: ['daily_report_submitted'],
+    description: 'Daily reports and discrepancies',
+    types: ['daily_report_submitted', 'daily_report_accepted', 'discrepancy_found'],
   },
   {
     key: 'returns',
@@ -91,7 +102,25 @@ const loadNotificationsData = async (previous) => {
 
 export default function NotificationsScreen() {
   const navigation = useNavigation();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('notifications', loadNotificationsData);
+  // freshMs 0: always refetch when the screen is opened. Reusing a list up to
+  // 30s old is what made a just-arrived notification look missing.
+  const { data: snapshot, isLoading, refresh } = useCachedFocusLoader('notifications', loadNotificationsData, {
+    freshMs: 0,
+  });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => refresh({ force: true }), POLL_INTERVAL_MS);
+      return () => clearInterval(timer);
+    }, [refresh])
+  );
+
+  const handlePullRefresh = async () => {
+    setIsRefreshing(true);
+    await refresh({ force: true });
+    setIsRefreshing(false);
+  };
 
   // Who is looking at the screen right now. The cached snapshot may have
   // been written by a different account, so it is never trusted for this.
@@ -312,14 +341,25 @@ export default function NotificationsScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : visibleNotifications.length === 0 ? (
-          <View style={styles.loadingWrap}>
+          <ScrollView
+            contentContainerStyle={styles.emptyScroll}
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={handlePullRefresh} colors={[COLORS.primary]} />
+            }
+          >
             <Icon name="notification" size={32} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>
               {!isFilterActive ? 'No notifications yet.' : 'No notifications in this filter.'}
             </Text>
-          </View>
+          </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={handlePullRefresh} colors={[COLORS.primary]} />
+            }
+          >
             {visibleNotifications.map((notification) => {
               const meta = TYPE_META[notification.type] || DEFAULT_META;
               return (
@@ -427,6 +467,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
+  emptyScroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

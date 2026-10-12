@@ -167,6 +167,8 @@ export default function SalesRepTrackDeliveriesScreen() {
                             items: delivery.handoff?.items || delivery.items || [],
                             handoffStatus: delivery.handoffStatus,
                           },
+                          // Lets the confirm screen offer "View on map".
+                          delivery: delivery.destinationGps ? delivery : null,
                         })
                       : navigation.navigate('SalesRepDeliveryDetail', { delivery })
                   }

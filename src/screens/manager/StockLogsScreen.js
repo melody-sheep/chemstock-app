@@ -16,6 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
 import { getLogItems } from '../../utils/stockLogUtils';
 
 const LOGS_LIMIT = 50;
@@ -112,6 +113,7 @@ const loadLogsData = async (previous) => {
 
 export default function StockLogsScreen() {
   const route = useRoute();
+  useMarkLogsSeen();
   const navigation = useNavigation();
   const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];

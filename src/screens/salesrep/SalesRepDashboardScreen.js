@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
+import useUnseenLogCount from '../../hooks/useUnseenLogCount';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -150,6 +152,7 @@ export default function SalesRepDashboardScreen() {
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
       recentLogs: merged.slice(0, 3),
+      logTimes: merged.map((log) => log.createdAt),
       notificationCount: notificationsResult.success
         ? notificationsResult.unreadCount
         : prev?.notificationCount ?? 0,
@@ -162,7 +165,9 @@ export default function SalesRepDashboardScreen() {
   const recentLogs = snapshot?.recentLogs ?? [];
   const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
-  const notificationCount = snapshot?.notificationCount ?? 0;
+  const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
+  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
+  const notificationCount = liveUnreadCount ?? snapshot?.notificationCount ?? 0;
 
   const repName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
@@ -266,6 +271,7 @@ export default function SalesRepDashboardScreen() {
           showNotificationIcon={true}
           onNotificationPress={() => navigation.navigate('Notifications')}
           notificationCount={notificationCount}
+          documentCount={unseenLogCount}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

@@ -16,6 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
 
 function summarizeItems(items) {
   const totalUnits = (items || []).reduce((sum, item) => sum + item.quantity, 0);
@@ -24,6 +25,7 @@ function summarizeItems(items) {
 
 export default function CollectorDeliveredStockScreen() {
   const route = useRoute();
+  useMarkLogsSeen();
   const focusId = route.params?.focusId || null;
   const [deliveries, setDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

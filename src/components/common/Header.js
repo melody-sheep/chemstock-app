@@ -41,6 +41,7 @@ export default function Header({
   showNotificationIcon = false,
   onNotificationPress = null,
   notificationCount = 0,
+  documentCount = 0,
   title = null,
   titleAlign = 'center',
   height = 56,
@@ -170,12 +171,20 @@ export default function Header({
           <View style={styles.rightIconsRow}>
             {showDocumentIcon && (
               <TouchableOpacity
+                style={styles.notificationButton}
                 onPress={onDocumentPress}
                 activeOpacity={0.7}
-                accessibilityLabel="Documents"
+                accessibilityLabel={documentCount > 0 ? `Logs, ${documentCount} new` : 'Logs'}
                 accessibilityRole="button"
               >
                 <Icon name="document" size={22} color={textColor} weight="fill" />
+                {documentCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {documentCount > 99 ? '99+' : documentCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             )}
             {showNotificationIcon && (
@@ -216,6 +225,7 @@ Header.propTypes = {
   showNotificationIcon: PropTypes.bool,
   onNotificationPress: PropTypes.func,
   notificationCount: PropTypes.number,
+  documentCount: PropTypes.number,
   title: PropTypes.string,
   titleAlign: PropTypes.oneOf(['left', 'center']),
   height: PropTypes.number,

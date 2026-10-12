@@ -34,6 +34,9 @@ export default function SalesRepConfirmHandoffScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute();
   const handoff = route.params?.handoff;
+  // Only present when opened from Track Deliveries (not from a notification
+  // or a QR scan), which is the only entry that has the route data.
+  const mapDelivery = route.params?.delivery || null;
   const [directTransaction, setDirectTransaction] = useState(route.params?.directTransaction || null);
   const initialScannedQr = route.params?.initialScannedQr || null;
 
@@ -272,6 +275,19 @@ export default function SalesRepConfirmHandoffScreen() {
             {!isDirectMode && (
               <DeliveryHandoffStatusBadge status={handoff.handoffStatus || 'pending_sr'} />
             )}
+            {!isDirectMode && !!mapDelivery && (
+              <TouchableOpacity
+                style={styles.viewMapButton}
+                onPress={() => navigation.navigate('SalesRepDeliveryDetail', { delivery: mapDelivery })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View delivery on map"
+              >
+                <Icon name="location" size={16} color={COLORS.primary} />
+                <Text style={styles.viewMapText}>View on map</Text>
+                <Icon name="arrowRight" size={14} color={COLORS.primary} />
+              </TouchableOpacity>
+            )}
             {isFar && (
               <View style={styles.distanceWarn}>
                 <Icon name="warningTriangle" size={14} color={COLORS.warning} />
@@ -426,6 +442,24 @@ export default function SalesRepConfirmHandoffScreen() {
 }
 
 const styles = StyleSheet.create({
+  viewMapButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm + 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  viewMapText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
+  },
   container: { flex: 1, backgroundColor: COLORS.background },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: {

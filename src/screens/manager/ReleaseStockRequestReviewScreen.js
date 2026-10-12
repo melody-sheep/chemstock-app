@@ -68,7 +68,9 @@ export default function ReleaseStockRequestReviewScreen() {
   useEffect(() => {
     (async () => {
       const manager = await authService.getCurrentUser();
-      const result = await inventoryService.getBranchStock(manager?.branchIds || []);
+      // Only the request's own branch — allocating from every branch the
+      // manager covers could pull batches from the wrong storage.
+      const result = await inventoryService.getBranchStock(branchId ? [branchId] : manager?.branchIds || []);
       const branchStock = result.success ? result.data : [];
 
       const { rows, shortfalls: shorts } = allocateItems(requestedItems || [], branchStock);

@@ -212,6 +212,10 @@ export default function ReleaseStockConfirmScreen() {
         const linkResult = await requestService.linkRequestFulfillment(requestId, releaseResult.data.transactionId);
         if (!linkResult.success) {
           console.error('[ERROR] [ReleaseStockConfirm] Failed to link request fulfillment:', linkResult.message);
+          Alert.alert(
+            'Stock Released — Request Not Updated',
+            `The stock was released, but the request could not be marked as fulfilled: ${linkResult.message || 'unknown error'}. Do not release it again — report this so the request can be linked.`
+          );
         }
       }
 

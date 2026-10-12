@@ -44,7 +44,9 @@ export default function ReleaseStockRecipientScreen() {
   const [manager, setManager] = useState(null);
   const [agents, setAgents] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [selectedBranchId, setSelectedBranchId] = useState(null);
+  // A request is fulfilled from the branch it was sent to — the server
+  // rejects the link otherwise — so that branch is fixed, not chosen.
+  const [selectedBranchId, setSelectedBranchId] = useState(prefillRequest?.branchId || null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeRole, setActiveRole] = useState(ROLES.SALES_REP);
   const [searchText, setSearchText] = useState('');
@@ -100,6 +102,8 @@ export default function ReleaseStockRecipientScreen() {
     if (!selectedBranchId) return false;
     return (agent.branch_ids || []).includes(selectedBranchId);
   });
+
+  const prefillBranchName = branches.find((b) => b.id === prefillRequest?.branchId)?.name;
 
   const prefillAgent = prefillRequest
     ? agents.find((a) => a.id === prefillRequest.requestedBy.id) || null
@@ -194,7 +198,7 @@ export default function ReleaseStockRecipientScreen() {
         >
           <Stepper currentStep={1} labels={STEP_LABELS} />
 
-          {branches.length > 1 && (
+          {branches.length > 1 && !prefillRequest?.branchId && (
             <>
               <Text style={styles.sectionTitle}>Release stock from which branch?</Text>
               <BranchSelector
@@ -211,6 +215,7 @@ export default function ReleaseStockRecipientScreen() {
               <Icon name="checkCircle" size={16} color={COLORS.primary} weight="fill" />
               <Text style={styles.prefillBannerText}>
                 Fulfilling stock request from {prefillRequest.requestedBy.fullName}
+                {prefillBranchName ? ` · ${prefillBranchName}` : ''}
               </Text>
             </View>
           )}

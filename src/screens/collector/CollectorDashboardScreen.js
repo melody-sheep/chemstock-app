@@ -4,6 +4,8 @@ import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, S
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
+import useUnseenLogCount from '../../hooks/useUnseenLogCount';
 import useOutbox from '../../hooks/useOutbox';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
@@ -47,7 +49,11 @@ export default function CollectorDashboardScreen() {
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [logTimes, setLogTimes] = useState([]);
+  const unseenLogCount = useUnseenLogCount(user?.id ?? null, logTimes);
+  const [loadedNotificationCount, setNotificationCount] = useState(0);
+  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
+  const notificationCount = liveUnreadCount ?? loadedNotificationCount;
   const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as the other dashboards — see
@@ -92,6 +98,7 @@ export default function CollectorDashboardScreen() {
     });
     setActiveTrips(Array.from(tripsById.values()));
 
+    setLogTimes(all.filter((d) => d.stage === 'delivered').map((d) => d.deliveredAt || d.createdAt));
     setRecentLogs(
       all
         .filter((d) => d.stage === 'delivered')
@@ -183,6 +190,7 @@ export default function CollectorDashboardScreen() {
           showNotificationIcon={true}
           onNotificationPress={() => navigation.navigate('Notifications')}
           notificationCount={notificationCount}
+          documentCount={unseenLogCount}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"

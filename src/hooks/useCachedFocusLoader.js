@@ -30,15 +30,21 @@ const STORAGE_PREFIX = 'chemstock_cache_';
  * load(previous) must resolve to the complete data object. `previous` is the
  * last result (or null), so a request that fails can keep its old value.
  *
- * @returns {{ data: Object|null, isLoading: boolean }}
+ * options.freshMs — how long a result is reused without a request (default
+ * 30s). Pass 0 for a screen that must refetch every time it is opened.
+ *
+ * refresh({ force: true }) refetches now, ignoring the fresh window — for
+ * pull-to-refresh and polling.
+ *
+ * @returns {{ data: Object|null, isLoading: boolean, refresh: Function }}
  */
-export default function useCachedFocusLoader(cacheKey, load) {
+export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_MS } = {}) {
   const [data, setData] = useState(() => snapshots.get(cacheKey)?.data ?? null);
   const [isLoading, setIsLoading] = useState(() => !snapshots.has(cacheKey));
   const loadRef = useRef(load);
   loadRef.current = load;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ force = false } = {}) => {
     let cached = snapshots.get(cacheKey);
 
     // Nothing in memory yet — e.g. the app was just (re)launched. Check disk
@@ -61,7 +67,7 @@ export default function useCachedFocusLoader(cacheKey, load) {
       }
     }
 
-    if (cached && Date.now() - cached.fetchedAt < FRESH_MS) {
+    if (!force && cached && Date.now() - cached.fetchedAt < freshMs) {
       const { online } = getConnectionStatus();
       debugLog('debug', 'Cache', `${online ? '✅' : '✅ OFFLINE —'} [${cacheKey}] Reused without a request`, { online, ageMs: Date.now() - cached.fetchedAt });
       return;
@@ -101,7 +107,7 @@ export default function useCachedFocusLoader(cacheKey, load) {
     } finally {
       setIsLoading(false);
     }
-  }, [cacheKey]);
+  }, [cacheKey, freshMs]);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,5 +115,5 @@ export default function useCachedFocusLoader(cacheKey, load) {
     }, [refresh])
   );
 
-  return { data, isLoading };
+  return { data, isLoading, refresh };
 }

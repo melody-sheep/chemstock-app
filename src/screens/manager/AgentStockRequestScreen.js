@@ -53,6 +53,7 @@ export default function AgentStockRequestScreen() {
 
   const buildPrefillRequest = (request) => ({
     requestId: request.requestId,
+    branchId: request.branchId,
     requestedBy: { id: request.requestedById, fullName: request.requestedByName },
     items: request.items || [],
   });
