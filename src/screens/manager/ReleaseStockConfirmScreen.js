@@ -1,6 +1,6 @@
 // src/screens/manager/ReleaseStockConfirmScreen.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet, Alert, BackHandler } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -230,6 +230,22 @@ export default function ReleaseStockConfirmScreen() {
   const handleDone = () => {
     navigation.navigate('ManagerDashboard', undefined, { pop: true });
   };
+
+  // Once the release succeeds, going "back" from here would re-show the
+  // confirm form over an already-completed release — tapping Confirm again
+  // would release the same stock a second time. Block the Android hardware
+  // back button and the iOS/Android swipe-back gesture while this success
+  // state is shown; only the on-screen Done button may leave this screen.
+  useEffect(() => {
+    if (!qrCode) return;
+
+    navigation.setOptions({ gestureEnabled: false });
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => {
+      subscription.remove();
+      navigation.setOptions({ gestureEnabled: true });
+    };
+  }, [qrCode, navigation]);
 
   if (qrCode) {
     return (
