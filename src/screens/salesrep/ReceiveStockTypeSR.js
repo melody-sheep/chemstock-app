@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
@@ -102,10 +103,14 @@ export default function ReceiveStockTypeSR() {
             <Text style={styles.summaryTitle}>Receive Stock</Text>
             <Text style={styles.summarySubtitle}>Handoff Verification</Text>
           </View>
-          <View style={styles.statusPill}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
-          </View>
+          <LiveStatusPill
+            pillStyle={styles.statusPill}
+            dotStyle={styles.statusDot}
+            textStyle={styles.statusText}
+            offlinePillStyle={styles.statusPillOffline}
+            offlineDotStyle={styles.statusDotOffline}
+            offlineTextStyle={styles.statusTextOffline}
+          />
         </View>
 
         {/* Main content */}
@@ -269,6 +274,17 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  // Offline look: same values as ReceiveStockSR.js's pill, the next screen in this flow.
+  statusPillOffline: {
+    backgroundColor: '#FBDCDC',
+    borderColor: COLORS.error,
+  },
+  statusDotOffline: {
+    backgroundColor: COLORS.error,
+  },
+  statusTextOffline: {
+    color: '#B91C1C',
   },
   content: {
     flex: 1,

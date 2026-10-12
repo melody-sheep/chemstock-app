@@ -19,6 +19,7 @@ import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import useOutbox from '../../hooks/useOutbox';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 function isNearExpiry(expDate) {
   if (!expDate) return false;
@@ -66,6 +67,10 @@ export default function SubmitReportSR() {
   const items = snapshot?.items ?? [];
 
   const [figures, setFigures] = useState({}); // { [productCode]: { sold, returns } }
+  // Which figure box has the keyboard, as "CODE:field". Display only: the "0"
+  // hint is hidden while a box is focused, otherwise Android parks the cursor
+  // at the far edge of an empty, centred box instead of in the middle.
+  const [focusedField, setFocusedField] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
@@ -378,7 +383,15 @@ export default function SubmitReportSR() {
                         <View style={styles.itemTopRow}>
                           <View style={styles.thumbnailWrap}>
                             <View style={styles.thumbnail}>
-                              <Icon name="package" size={26} color="#94a3b8" />
+                              {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                                <Image
+                                  source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
+                                  style={styles.thumbnailImage}
+                                  resizeMode="contain"
+                                />
+                              ) : (
+                                <Icon name="package" size={26} color="#94a3b8" />
+                              )}
                             </View>
                             {nearExpiry && (
                               <View style={styles.nearExpiryTag}>
@@ -420,9 +433,15 @@ export default function SubmitReportSR() {
                               style={styles.figureInput}
                               value={f.sold}
                               onChangeText={(v) => updateFigure(item.productCode, 'sold', v)}
-                              onFocus={() => clearFigureOnFocus(item.productCode, 'sold')}
+                              onFocus={() => {
+                                setFocusedField(`${item.productCode}:sold`);
+                                clearFigureOnFocus(item.productCode, 'sold');
+                              }}
+                              onBlur={() =>
+                                setFocusedField((current) => (current === `${item.productCode}:sold` ? null : current))
+                              }
                               keyboardType="number-pad"
-                              placeholder="0"
+                              placeholder={focusedField === `${item.productCode}:sold` ? '' : '0'}
                               placeholderTextColor="#B5C0CC"
                               textAlignVertical="center"
                               selectTextOnFocus
@@ -438,9 +457,15 @@ export default function SubmitReportSR() {
                               style={styles.figureInput}
                               value={f.returns}
                               onChangeText={(v) => updateFigure(item.productCode, 'returns', v)}
-                              onFocus={() => clearFigureOnFocus(item.productCode, 'returns')}
+                              onFocus={() => {
+                                setFocusedField(`${item.productCode}:returns`);
+                                clearFigureOnFocus(item.productCode, 'returns');
+                              }}
+                              onBlur={() =>
+                                setFocusedField((current) => (current === `${item.productCode}:returns` ? null : current))
+                              }
                               keyboardType="number-pad"
-                              placeholder="0"
+                              placeholder={focusedField === `${item.productCode}:returns` ? '' : '0'}
                               placeholderTextColor="#B5C0CC"
                               textAlignVertical="center"
                               selectTextOnFocus
@@ -729,6 +754,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbnailImage: {
+    width: '85%',
+    height: '85%',
   },
   nearExpiryTag: {
     marginTop: 6,

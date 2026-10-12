@@ -23,7 +23,14 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * flex-wrap row (no ScrollView — there are only ever 1-2 branches today, so
  * there was never a real need to scroll) and Pressable (no Animated wrapper).
  */
-export default function BranchSelector({ branches = [], selectedId = null, onSelect, edgePadding = null }) {
+export default function BranchSelector({
+  branches = [],
+  selectedId = null,
+  onSelect,
+  edgePadding = null,
+  truncateToFirstWord = false,
+  compact = false,
+}) {
   if (branches.length <= 1) return null;
 
   // edgePadding: the horizontal padding of the screen's content (pass e.g.
@@ -31,19 +38,29 @@ export default function BranchSelector({ branches = [], selectedId = null, onSel
   const rowStyle = edgePadding !== null ? { paddingHorizontal: edgePadding } : null;
 
   return (
-    <View style={[styles.row, rowStyle]}>
+    <View style={[styles.row, compact && styles.rowCompact, rowStyle]}>
       {branches.map((branch) => {
         const active = branch.id === selectedId;
+        const fullName = branch.name || '';
+        // Opt-in: show only the first word ("IPONAN BRANCH" -> "IPONAN") where
+        // the full name is already shown elsewhere on the screen.
+        const displayName = truncateToFirstWord ? fullName.split(' ')[0] || fullName : fullName;
         return (
           <Pressable
             key={branch.id}
-            style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.chipPressed]}
+            style={({ pressed }) => [
+              styles.chip,
+              compact && styles.chipCompact,
+              active && styles.chipActive,
+              pressed && styles.chipPressed,
+            ]}
             onPress={() => onSelect(branch.id)}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
+            accessibilityLabel={fullName}
           >
             <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
-              {branch.name}
+              {displayName}
             </Text>
           </Pressable>
         );
@@ -57,6 +74,8 @@ BranchSelector.propTypes = {
   selectedId: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
   edgePadding: PropTypes.number,
+  truncateToFirstWord: PropTypes.bool,
+  compact: PropTypes.bool,
 };
 
 // Neutral chips (dark text, grey outline) so the selector doesn't read as a
@@ -80,6 +99,23 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderNeutral,
     backgroundColor: COLORS.textWhite,
     alignItems: 'center',
+  },
+  // compact (opt-in): chips hug their label and sit together on the left,
+  // instead of dividing the row evenly. Kept opt-in because the other
+  // screens that use this component show full names (and an "All Branches"
+  // chip), which would run off the edge if every chip sized to its content.
+  // flexShrink lets a long label truncate rather than overflow.
+  rowCompact: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: SPACING.sm,
+  },
+  chipCompact: {
+    flex: 0,
+    flexShrink: 1,
+    paddingHorizontal: SPACING.md,
+    marginRight: 0,
+    justifyContent: 'center',
   },
   chipActive: { backgroundColor: COLORS.textPrimary, borderColor: COLORS.textPrimary },
   chipPressed: { opacity: 0.7 },

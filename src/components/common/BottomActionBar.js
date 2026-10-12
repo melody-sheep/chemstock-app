@@ -1,7 +1,8 @@
 // src/components/common/BottomActionBar.js
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import PropTypes from 'prop-types';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING } from '../../styles/spacing';
 
@@ -25,13 +26,32 @@ export const BOTTOM_ACTION_BAR_HEIGHT = BAR_PADDING_VERTICAL * 2 + BUTTON_HEIGHT
  * own contentContainerStyle paddingBottom, so this bar never covers the
  * last scrollable item.
  */
-export default function BottomActionBar({ children, style }) {
+export default function BottomActionBar({ children, style, variant = 'solid', blurTarget }) {
   const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.container, { paddingBottom: BAR_PADDING_VERTICAL + insets.bottom }, style]}>
-      {children}
-    </View>
-  );
+  const isGlass = variant === 'glass';
+  const containerStyle = [
+    styles.container,
+    isGlass && styles.containerGlass,
+    { paddingBottom: BAR_PADDING_VERTICAL + insets.bottom },
+    style,
+  ];
+
+  if (isGlass) {
+    return (
+      <View style={containerStyle}>
+        <BlurView
+          blurTarget={blurTarget}
+          blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+          intensity={Platform.OS === 'ios' ? 40 : 30}
+          tint="light"
+          style={StyleSheet.absoluteFill}
+        />
+        {children}
+      </View>
+    );
+  }
+
+  return <View style={containerStyle}>{children}</View>;
 }
 
 export function useBottomActionBarHeight() {
@@ -42,6 +62,8 @@ export function useBottomActionBarHeight() {
 BottomActionBar.propTypes = {
   children: PropTypes.node.isRequired,
   style: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
+  variant: PropTypes.oneOf(['solid', 'glass']),
+  blurTarget: PropTypes.object,
 };
 
 const styles = StyleSheet.create({
@@ -53,5 +75,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingTop: BAR_PADDING_VERTICAL,
+  },
+  containerGlass: {
+    backgroundColor: 'transparent',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.6)',
   },
 });

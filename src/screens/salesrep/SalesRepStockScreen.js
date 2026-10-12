@@ -208,6 +208,8 @@ export default function SalesRepStockScreen() {
             selectedId={selectedBranchId}
             onSelect={setSelectedBranchId}
             edgePadding={SPACING.md}
+            truncateToFirstWord
+            compact
           />
 
           <View style={styles.searchRow}>
@@ -227,7 +229,7 @@ export default function SalesRepStockScreen() {
               accessibilityLabel="Filters"
               accessibilityRole="button"
             >
-              <Icon name="filter" size={18} color={COLORS.primary} />
+              <Icon name="filter" size={24} color={COLORS.primary} />
               {expiryFilter !== 'all' && <View style={styles.filterActiveDot} />}
             </TouchableOpacity>
           </View>
@@ -374,39 +376,34 @@ const styles = StyleSheet.create({
   // never worked right) — the bottom border is what visually separates it
   // from the stock cards below instead.
   stockHeaderStatic: {
-    paddingBottom: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EAEFF5',
+    paddingBottom: SPACING.xs,
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.xs,
   },
   searchInputWrap: { flex: 1, marginBottom: -SPACING.md },
   filterButtonWrap: {
     width: 40,
     height: 40,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: '#757575',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7FEFF',
+    marginTop: 0,
   },
   filterActiveDot: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 2,
+    right: 2,
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: COLORS.error,
   },
   activeFilterRow: {
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
     paddingTop: SPACING.sm,
   },
   activeFilterChip: {

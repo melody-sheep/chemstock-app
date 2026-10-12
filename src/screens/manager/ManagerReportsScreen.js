@@ -9,6 +9,7 @@ import { Asset } from 'expo-asset';
 import * as FileSystem from 'expo-file-system/legacy';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
@@ -457,10 +458,7 @@ export default function ManagerReportsScreen() {
             <Text style={styles.pageTitle}>
               {reportKind === 'received' ? 'Received Stocks' : 'Transaction Report'}
             </Text>
-            <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 

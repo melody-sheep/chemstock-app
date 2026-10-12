@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
@@ -117,10 +118,7 @@ export default function ReturnStockVerifyScreen() {
           <View style={styles.verificationHeader}>
             <View style={styles.verificationTitleRow}>
               <Text style={styles.verificationTitle}>Active Verification:</Text>
-              <View style={styles.onlinePill}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Online</Text>
-              </View>
+              <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
             </View>
             <Text style={styles.verificationLine}>
               <Text style={styles.verificationLabel}>Sales Rep: </Text>

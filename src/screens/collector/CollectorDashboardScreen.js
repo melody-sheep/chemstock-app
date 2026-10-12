@@ -35,6 +35,20 @@ const SECONDARY_HEADER_HEIGHT = 100;
 const HEADER_ILLUSTRATION_ASPECT_RATIO = 364 / 408;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
+// Same branch label rule as ManagerDashboardScreen / SalesRepDashboardScreen:
+// "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
+const BRANCH_LABEL_CHARS = 4;
+const formatBranchLabel = (branchName) =>
+  branchName
+    .split(',')
+    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
+    .filter(Boolean)
+    .map((part) => {
+      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
+      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
+    })
+    .join(', ');
+
 const MAIN_OPERATIONS = [
   { key: 'acceptDeliveries', icon: 'truck', iconColor: COLORS.colAcceptStroke, duotoneColor: COLORS.colAcceptFill, title: 'Accept Deliveries', screen: 'CollectorAcceptDeliveries' },
   { key: 'deliveredStock', icon: 'successCircle', iconColor: COLORS.iconReleaseStroke, duotoneColor: COLORS.iconReleaseFill, title: 'Delivered Stock', screen: 'CollectorDeliveredStock' },
@@ -126,6 +140,7 @@ export default function CollectorDashboardScreen() {
 
   const collectorName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
+  const branchLabel = formatBranchLabel(branchName);
 
   // A stop marked delivered while offline is still "in transit" on the
   // server until the outbox syncs. Hide it from Active so it can't be marked
@@ -138,24 +153,28 @@ export default function CollectorDashboardScreen() {
   const displayedStats = [
     {
       key: 'pendingDelivery',
-      icon: 'truck',
+      icon: 'clockCountdown',
       iconColor: COLORS.accentGold,
       accentColor: COLORS.accentGold,
       backgroundColor: '#FFFDF5',
       borderLeftColor: COLORS.accentGold,
       value: pendingCount === null ? '—' : String(pendingCount),
-      label: 'Pending Delivery',
+      label: 'Pending Pickup',
       onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
     },
     {
       key: 'activeDeliveries',
-      icon: 'truck',
+      icon: 'navigation',
       iconColor: COLORS.accentPink,
       accentColor: COLORS.accentPink,
       backgroundColor: '#FFF5F8',
       borderLeftColor: COLORS.accentPink,
       value: `${visibleActiveTrips.length} Active`,
       label: 'Deliveries',
+      onPress:
+        visibleActiveTrips.length > 0
+          ? () => navigation.navigate('CollectorTripReview', { tripId: visibleActiveTrips[0].tripId })
+          : undefined,
     },
   ];
 
@@ -228,7 +247,13 @@ export default function CollectorDashboardScreen() {
                     </Text>
                   </View>
 
-                  <View style={styles.statusGroup}>
+                  <TouchableOpacity
+                    style={[styles.statusGroup, styles.branchGroup]}
+                    onPress={() => navigation.navigate('EditProfile')}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open profile"
+                  >
                     <Icon
                       name="location"
                       size={16}
@@ -240,9 +265,11 @@ export default function CollectorDashboardScreen() {
                     {isLoading ? (
                       <SkeletonBlock width={90} height={14} borderRadius={4} />
                     ) : (
-                      <Text style={styles.statusText}>{branchName}</Text>
+                      <Text style={[styles.statusText, styles.branchText]} numberOfLines={1} ellipsizeMode="tail">
+                        {branchLabel}
+                      </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
             </SecondaryHeader>
@@ -442,6 +469,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     gap: SPACING.sm,
+    width: '72%',
+  },
+  branchGroup: {
+    flexShrink: 1,
+  },
+  branchText: {
+    flexShrink: 1,
   },
   statusGroup: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 // src/screens/manager/ManagerAlertsScreen.js
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -12,6 +12,10 @@ import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import BranchSelector from '../../components/common/BranchSelector';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import GlassPanel from '../../components/common/GlassPanel';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { describeReceivingScan } from '../../utils/scanLookup';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -23,6 +27,9 @@ import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
 
 const ALL_BRANCHES_ID = 'all';
+
+const productImageFor = (code) => PRODUCT_CATALOG.find((product) => product.code === code)?.image;
+const productTintFor = (code) => PRODUCT_CATALOG.find((product) => product.code === code)?.tint;
 
 // Returns the full alerts snapshot. If both sub-fetches failed (e.g. fully
 // offline), keeps the previous snapshot entirely rather than blanking it.
@@ -60,6 +67,14 @@ export default function ManagerAlertsScreen() {
   const [selectedBranchId, setSelectedBranchId] = useState(ALL_BRANCHES_ID);
   const [sortNewestFirst, setSortNewestFirst] = useState(true);
   const [selectedAlert, setSelectedAlert] = useState(null);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const currentManager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, currentManager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
+  };
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -104,9 +119,12 @@ export default function ManagerAlertsScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={72} backgroundColor="#FFEEEE" borderColor="#FFD5D5">
+        <SecondaryHeader height={72}>
           <View style={styles.bannerRow}>
-            <Text style={styles.bannerTitle}>Alerts and Discrepancies</Text>
+            <View style={styles.bannerTextCol}>
+              <Text style={styles.bannerTitle} numberOfLines={1}>Alerts and Discrepancies</Text>
+              <Text style={styles.bannerSubtitle}>Discrepancy reports from agents</Text>
+            </View>
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
@@ -128,6 +146,8 @@ export default function ManagerAlertsScreen() {
                   branches={branchFilterOptions}
                   selectedId={selectedBranchId}
                   onSelect={setSelectedBranchId}
+                  edgePadding={SPACING.md}
+                  truncateToFirstWord
                 />
               </View>
             )}
@@ -177,9 +197,28 @@ export default function ManagerAlertsScreen() {
 
                         <View style={styles.alertDetails}>
                           <Text style={styles.alertAgentName} numberOfLines={1}>{alert.agentName}</Text>
-                          <Text style={styles.alertCode} numberOfLines={1}>Code: {alert.productCode}</Text>
+                          <View style={styles.codeRow}>
+                            <View
+                              style={[
+                                styles.productThumbSmWrap,
+                                { backgroundColor: productTintFor(alert.productCode) || COLORS.textWhite },
+                              ]}
+                            >
+                              {productImageFor(alert.productCode) ? (
+                                <Image
+                                  source={productImageFor(alert.productCode)}
+                                  style={styles.productThumbSm}
+                                  resizeMode="contain"
+                                />
+                              ) : (
+                                <Icon name="package" size={14} color={COLORS.primary} />
+                              )}
+                            </View>
+                            <Text style={styles.alertCode} numberOfLines={1}>{alert.productCode}</Text>
+                          </View>
                           <Text style={styles.alertFullName} numberOfLines={1}>{alert.productName}</Text>
                           <View style={styles.alertMetaRow}>
+                            <Icon name="calendar" size={10} color={COLORS.textTertiary} />
                             <Text style={styles.alertMeta}>{formatDisplayDate(alert.reportDate)}</Text>
                             {alert.branchName && (
                               <View style={styles.branchBadge}>
@@ -192,7 +231,7 @@ export default function ManagerAlertsScreen() {
 
                         <View style={styles.missingWrap}>
                           <View style={styles.warningIconWrap}>
-                            <Icon name="warningTriangle" size={18} color="#F04D59" weight="fill" />
+                            <Icon name="warningTriangle" size={18} color={COLORS.error} weight="fill" />
                           </View>
                           <Text style={styles.missingText}>
                             {Math.abs(alert.discrepancy)}x {isLoss ? 'Missing' : 'Over'}
@@ -213,9 +252,11 @@ export default function ManagerAlertsScreen() {
 
                       <View style={styles.figuresRow}>
                         <View style={styles.figurePill}>
+                          <Icon name="package" size={12} color="#1E7A3A" />
                           <Text style={styles.figurePillText}>In Custody: {alert.inCustodyQuantity}x</Text>
                         </View>
                         <View style={styles.figurePill}>
+                          <Icon name="notePencil" size={12} color="#1E7A3A" />
                           <Text style={styles.figurePillText}>
                             Reported: {alert.soldQuantity} sold ({alert.returnQuantity} return)
                           </Text>
@@ -231,34 +272,74 @@ export default function ManagerAlertsScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
 
-      <CustomModal visible={!!selectedAlert} onClose={() => setSelectedAlert(null)} height={440}>
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
+
+      <CustomModal visible={!!selectedAlert} onClose={() => setSelectedAlert(null)} height={480}>
         {selectedAlert && (
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>{selectedAlert.productCode}</Text>
-            <Text style={styles.modalSubtitle}>{selectedAlert.productName}</Text>
-            <Text style={styles.modalMeta}>
-              {selectedAlert.agentName}
-              {selectedAlert.branchName ? ` · ${selectedAlert.branchName}` : ''} · {formatDisplayDate(selectedAlert.reportDate)}
-            </Text>
+            <View style={styles.modalHeroRow}>
+              <View
+                style={[
+                  styles.modalThumbWrap,
+                  { backgroundColor: productTintFor(selectedAlert.productCode) || COLORS.textWhite },
+                ]}
+              >
+                {productImageFor(selectedAlert.productCode) ? (
+                  <Image
+                    source={productImageFor(selectedAlert.productCode)}
+                    style={styles.modalThumb}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Icon name="package" size={32} color={COLORS.primary} />
+                )}
+              </View>
+              <View style={styles.modalHeroText}>
+                <Text style={styles.modalTitle} numberOfLines={1}>{selectedAlert.productCode}</Text>
+                <Text style={styles.modalSubtitle} numberOfLines={1}>{selectedAlert.productName}</Text>
+                <View style={styles.modalMetaRow}>
+                  <Icon name="person" size={11} color={COLORS.textTertiary} />
+                  <Text style={styles.modalMeta} numberOfLines={1}>{selectedAlert.agentName}</Text>
+                </View>
+                {!!selectedAlert.branchName && (
+                  <View style={styles.modalMetaRow}>
+                    <Icon name="building" size={11} color={COLORS.textTertiary} />
+                    <Text style={styles.modalMeta} numberOfLines={1}>{selectedAlert.branchName}</Text>
+                  </View>
+                )}
+                <View style={styles.modalMetaRow}>
+                  <Icon name="calendar" size={11} color={COLORS.textTertiary} />
+                  <Text style={styles.modalMeta} numberOfLines={1}>{formatDisplayDate(selectedAlert.reportDate)}</Text>
+                </View>
+              </View>
+            </View>
 
             <View style={styles.modalFiguresRow}>
               <View style={styles.modalFigureColumn}>
+                <Icon name="package" size={16} color={COLORS.primary} />
                 <Text style={styles.modalFigureLabel}>In Custody</Text>
                 <Text style={styles.modalFigureValue}>{selectedAlert.inCustodyQuantity}</Text>
               </View>
               <View style={styles.modalFigureColumn}>
+                <Icon name="notePencil" size={16} color={COLORS.primary} />
                 <Text style={styles.modalFigureLabel}>Sold</Text>
                 <Text style={styles.modalFigureValue}>{selectedAlert.soldQuantity}</Text>
               </View>
               <View style={styles.modalFigureColumn}>
+                <Icon name="returnBox" size={16} color={COLORS.primary} />
                 <Text style={styles.modalFigureLabel}>Return</Text>
                 <Text style={styles.modalFigureValue}>{selectedAlert.returnQuantity}</Text>
               </View>
-              <View style={styles.modalFigureColumn}>
-                <Text style={styles.modalFigureLabel}>
+              <View style={[styles.modalFigureColumn, styles.modalFigureColumnFlag]}>
+                <Icon name="warningTriangle" size={16} color={COLORS.error} />
+                <Text style={[styles.modalFigureLabel, styles.modalFigureLabelFlag]}>
                   {selectedAlert.discrepancyType === 'loss' ? 'Missing' : 'Over'}
                 </Text>
                 <Text style={[styles.modalFigureValue, styles.modalFigureValueFlag]}>
@@ -267,13 +348,35 @@ export default function ManagerAlertsScreen() {
               </View>
             </View>
 
-            <Text style={styles.modalStatusText}>
-              {selectedAlert.resolutionStatus === 'resolved'
-                ? 'This discrepancy has been settled.'
-                : selectedAlert.latestRequest?.status === 'pending'
-                ? 'A return request from this Sales Rep is pending your review in Reports & Returns.'
-                : 'No return request has been submitted for this discrepancy yet.'}
-            </Text>
+            <GlassPanel style={styles.modalStatusPanel}>
+              <View style={styles.modalStatusRow}>
+                <Icon
+                  name={
+                    selectedAlert.resolutionStatus === 'resolved'
+                      ? 'checkCircle'
+                      : selectedAlert.latestRequest?.status === 'pending'
+                      ? 'clock'
+                      : 'sealWarning'
+                  }
+                  size={16}
+                  color={
+                    selectedAlert.resolutionStatus === 'resolved'
+                      ? COLORS.success
+                      : selectedAlert.latestRequest?.status === 'pending'
+                      ? COLORS.warning
+                      : COLORS.textSecondary
+                  }
+                  weight="fill"
+                />
+                <Text style={styles.modalStatusText}>
+                  {selectedAlert.resolutionStatus === 'resolved'
+                    ? 'This discrepancy has been settled.'
+                    : selectedAlert.latestRequest?.status === 'pending'
+                    ? 'A return request from this Sales Rep is pending your review in Reports & Returns.'
+                    : 'No return request has been submitted for this discrepancy yet.'}
+                </Text>
+              </View>
+            </GlassPanel>
           </ScrollView>
         )}
       </CustomModal>
@@ -290,18 +393,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
   },
+  bannerTextCol: { flexShrink: 1, flex: 1, marginRight: SPACING.sm },
   bannerTitle: {
-    fontSize: 19,
-    color: '#B91C1C',
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-    flexShrink: 1,
-    marginRight: 8,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  bannerSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
   onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
   },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
   onlineDotOffline: { backgroundColor: COLORS.warning },
@@ -315,30 +425,30 @@ const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.md,
     paddingBottom: 96,
   },
   branchFilterWrap: {
     marginHorizontal: -SPACING.lg,
-    marginBottom: 14,
+    marginBottom: SPACING.md,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 14,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: TYPOGRAPHY.fontSize.lg,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   alertDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#EF4444',
+    backgroundColor: COLORS.error,
   },
   sortRow: {
     flexDirection: 'row',
@@ -362,7 +472,7 @@ const styles = StyleSheet.create({
   sortPillTextActive: {
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -370,21 +480,40 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   alertsList: {
-    gap: 16,
+    gap: SPACING.md,
   },
   alertCard: {
     borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    padding: 12,
+    borderColor: '#ECEEF1',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    padding: SPACING.sm,
   },
   alertTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   avatarMargin: {
-    marginRight: 12,
+    marginRight: SPACING.sm,
   },
+  codeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginTop: 4,
+  },
+  productThumbSmWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  productThumbSm: { width: '100%', height: '100%' },
   alertDetails: {
     flex: 1,
   },
@@ -392,30 +521,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   alertCode: {
+    flexShrink: 1,
     fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-    marginTop: 2,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   alertFullName: {
     fontSize: 12,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
   alertMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
+    gap: 4,
+    marginTop: 6,
+    flexWrap: 'wrap',
   },
   alertMeta: {
     fontSize: 11,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   branchBadge: {
@@ -426,38 +556,40 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 2,
-    maxWidth: 110,
+    maxWidth: 130,
+    marginLeft: 4,
   },
   branchBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   missingWrap: {
     alignItems: 'center',
+    marginLeft: SPACING.sm,
   },
   warningIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#FFEEEE',
+    backgroundColor: COLORS.error + '12',
     alignItems: 'center',
     justifyContent: 'center',
   },
   missingText: {
     marginTop: 4,
     fontSize: 11,
-    color: '#B91C1C',
+    color: COLORS.error,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   agentRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
   },
@@ -465,34 +597,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   agentRole: {
     fontSize: 11,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   settledTag: {
     marginLeft: 'auto',
     fontSize: 10,
-    color: '#1E7A3A',
+    color: COLORS.success,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   pendingTag: {
     marginLeft: 'auto',
     fontSize: 10,
     color: '#B26400',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   figuresRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 10,
+    marginTop: SPACING.sm,
   },
   figurePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#EAFBF2',
     borderRadius: 8,
     paddingHorizontal: 10,
@@ -502,59 +637,104 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: TYPOGRAPHY.fontSize.lg,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   modalSubtitle: {
-    fontSize: 13,
-    color: '#555353',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
+    marginBottom: 6,
   },
   modalMeta: {
     fontSize: 11,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 4,
-    marginBottom: 16,
+    flexShrink: 1,
+  },
+  modalHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  modalThumbWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  modalThumb: { width: '100%', height: '100%' },
+  modalHeroText: { flex: 1 },
+  modalMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   modalFiguresRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: SPACING.md,
   },
   modalFigureColumn: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#EAEFF5',
     borderRadius: 10,
-    paddingVertical: 10,
+    paddingVertical: SPACING.sm,
     alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  modalFigureColumnFlag: {
+    borderColor: COLORS.error + '30',
+    backgroundColor: COLORS.error + '08',
   },
   modalFigureLabel: {
     fontSize: 10,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginBottom: 4,
+  },
+  modalFigureLabelFlag: {
+    color: COLORS.error,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   modalFigureValue: {
-    fontSize: 16,
-    color: '#03045E',
+    fontSize: 18,
+    color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   modalFigureValueFlag: {
-    color: '#B91C1C',
+    color: COLORS.error,
   },
   modalStatusText: {
+    flex: 1,
     fontSize: 12,
-    color: '#555353',
+    color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     lineHeight: 18,
+  },
+  modalStatusPanel: {
+    borderRadius: 12,
+    padding: SPACING.sm,
+  },
+  modalStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
   },
 });

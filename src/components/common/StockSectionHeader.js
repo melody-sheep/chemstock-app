@@ -18,7 +18,7 @@ export default function StockSectionHeader({ dotColor, label, tooltip, style }) 
     <View style={[styles.row, style]}>
       <View style={[styles.dot, { backgroundColor: dotColor }]} />
       <Text style={styles.label}>{label}</Text>
-      <InfoTooltip message={tooltip} size={12} />
+      <InfoTooltip message={tooltip} size={10} />
     </View>
   );
 }
@@ -31,7 +31,7 @@ StockSectionHeader.propTypes = {
 };
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   label: {
     fontSize: TYPOGRAPHY.fontSize.lg,

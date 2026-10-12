@@ -15,9 +15,10 @@ import CustomModal from '../../components/common/Modal';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import profileService from '../../services/profileService';
-import QRCode from 'react-native-qrcode-svg';
+import BrandedQRCode from '../../components/common/BrandedQRCode';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
+import { getRequiredPosition } from '../../utils/quickLocation';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -92,8 +93,22 @@ export default function CollectorTripReviewScreen() {
       let coords = null;
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const position = await Location.getCurrentPositionAsync({});
-        coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        // An open-ended GPS wait here is what made Start Trip hang. This
+        // uses the last known position when there is one, so it normally
+        // returns at once.
+        coords = await getRequiredPosition();
+      }
+
+      // start_delivery_trip stores the origin point as NOT NULL, so a trip
+      // cannot start without one — say so instead of sending nulls.
+      if (!coords) {
+        Alert.alert(
+          'Location Needed',
+          status === 'granted'
+            ? "Your location could not be found. Check that Location is turned on, then try again."
+            : 'Starting a trip needs location access. Allow location for ChemStock, then try again.'
+        );
+        return;
       }
 
       const result = await deliveryService.startDeliveryTrip({
@@ -219,8 +234,12 @@ export default function CollectorTripReviewScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionLabel}>Collector</Text>
-          <View style={[styles.banner, styles.bannerCollector]}>
-            <Text style={styles.bannerText}>From: {agent?.branchName || 'Branch'}</Text>
+          <View style={styles.routeRow}>
+            <View style={[styles.routeDot, { backgroundColor: COLORS.primary }]} />
+            <Text style={styles.routeLabel}>From</Text>
+            <Text style={styles.routeValue} numberOfLines={1}>
+              {agent?.branchName || 'Branch'}
+            </Text>
           </View>
           <View style={styles.personCard}>
             <View style={styles.avatarCircle}>
@@ -240,8 +259,12 @@ export default function CollectorTripReviewScreen() {
           <Text style={styles.sectionLabel}>Recipients</Text>
           {legs.map((leg) => (
             <View key={leg.transactionId} style={styles.legBlock}>
-              <View style={[styles.banner, styles.bannerTarget]}>
-                <Text style={styles.bannerText}>Deliver to: {leg.targetRecipientName || 'Sales Rep'}</Text>
+              <View style={styles.routeRow}>
+                <View style={[styles.routeDot, { backgroundColor: COLORS.accentOrange }]} />
+                <Text style={styles.routeLabel}>To</Text>
+                <Text style={styles.routeValue} numberOfLines={1}>
+                  {leg.targetRecipientName || 'Sales Rep'}
+                </Text>
               </View>
               <Pressable
                 style={styles.personCard}
@@ -291,7 +314,7 @@ export default function CollectorTripReviewScreen() {
                   <View style={styles.qrSection}>
                     <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
                     <View style={styles.qrTile}>
-                      <QRCode value={leg.qrCode} size={160} />
+                      <BrandedQRCode value={leg.qrCode} size={160} />
                     </View>
                   </View>
                 )}
@@ -434,10 +457,35 @@ const styles = StyleSheet.create({
     color: '#272632',
     marginTop: SPACING.sm,
   },
-  banner: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  bannerCollector: { backgroundColor: '#03045E' },
-  bannerTarget: { backgroundColor: '#FF7800' },
-  bannerText: { color: '#FFFFFF', fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  // Same From / To route rows as CollectorDeliveryDetailScreen, so the two
+  // delivery screens read alike.
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: 6,
+  },
+  routeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  routeLabel: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    minWidth: 32,
+  },
+  routeValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
   personCard: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import CustomModal from './Modal';
 import Button from './Button';
 import Icon from './Icon';
-import QRCode from 'react-native-qrcode-svg';
+import BrandedQRCode from './BrandedQRCode';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -61,7 +61,7 @@ export default function MarkDeliveredModal({
 
             {qrCode ? (
               <View style={styles.qrTile}>
-                <QRCode value={qrCode} size={200} />
+                <BrandedQRCode value={qrCode} size={200} />
               </View>
             ) : (
               <Text style={styles.qrMissingText}>QR code unavailable. The Sales Rep can scan the package label.</Text>

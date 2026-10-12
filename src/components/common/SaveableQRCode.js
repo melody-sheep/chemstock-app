@@ -2,7 +2,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
 import PropTypes from 'prop-types';
-import QRCode from 'react-native-qrcode-svg';
+import BrandedQRCode from './BrandedQRCode';
 import { captureRef } from 'react-native-view-shot';
 // /legacy: the new default APIs (File/Paths, Asset.create()) need native
 // modules Expo Go doesn't ship yet ("...Next"), while /legacy is backed by
@@ -55,28 +55,18 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
     return { fileUri, safeName };
   };
 
-  // Bare-QR-only asset — still needed for handlePrint's embedded <img>,
-  // which builds its own full-page branded layout in HTML/CSS directly.
-  const getQrAsset = () => new Promise((resolve, reject) => {
+  // QR-only image for handlePrint's embedded <img>, which builds its own
+  // full-page branded layout in HTML/CSS. Captured from the QR as drawn on
+  // screen (same view-shot path as the branded card) so the centre logo is
+  // in the print too — the SVG's own toDataURL does not reliably include an
+  // embedded image.
+  const getQrAsset = async () => {
     if (!qrRef.current) {
-      reject(new Error('QR not ready'));
-      return;
+      throw new Error('QR not ready');
     }
-
-    qrRef.current.toDataURL(async (dataURL) => {
-      try {
-        const base64 = dataURL.includes(',') ? dataURL.split(',')[1] : dataURL;
-        const safeName = value.replace(/[^a-zA-Z0-9-_]/g, '_');
-        const fileUri = FileSystem.cacheDirectory + `chemstock-qr-${safeName}.png`;
-        await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        resolve({ fileUri, base64, safeName });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
+    const base64 = await captureRef(qrRef, { format: 'png', quality: 1, result: 'base64' });
+    return { base64 };
+  };
 
   const handleSaveToGallery = async () => {
     try {
@@ -271,7 +261,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           <Text style={styles.brandedBrand}>CHEMSTOCK</Text>
           <Text style={styles.brandedTitle}>Batch QR Code</Text>
           <View style={styles.brandedQrTile}>
-            <QRCode value={value} size={180} />
+            <BrandedQRCode value={value} size={180} />
           </View>
           <Text style={styles.brandedLabel}>Batch code</Text>
           <Text style={styles.brandedCode}>{value}</Text>
@@ -282,7 +272,10 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
       </View>
 
       <View style={styles.qrWrap}>
-        <QRCode value={value} size={size} getRef={(c) => (qrRef.current = c)} />
+        {/* collapsable={false}: required on Android for view-shot, as above. */}
+        <View ref={qrRef} collapsable={false} style={styles.qrCapture}>
+          <BrandedQRCode value={value} size={size} />
+        </View>
       </View>
       {showValueText && (
         <View style={styles.codeBlock}>
@@ -346,6 +339,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
     marginHorizontal: SPACING.lg,
+  },
+  // Wraps only the QR, with a white ground, so the print capture has no
+  // transparent edges. No padding or margin: on-screen layout is unchanged.
+  qrCapture: {
+    backgroundColor: '#FFFFFF',
   },
   codeBlock: {
     alignSelf: 'stretch',

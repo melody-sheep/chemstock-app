@@ -15,13 +15,14 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import CustomModal from '../../components/common/Modal';
-import QRCode from 'react-native-qrcode-svg';
+import BrandedQRCode from '../../components/common/BrandedQRCode';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import profileService from '../../services/profileService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const ROLE_LABELS = {
@@ -192,8 +193,12 @@ export default function CollectorDeliveryDetailScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.listTitle}>Stock Transfer Information</Text>
-          <View style={[styles.sourceBanner, styles.sourceBannerDirect]}>
-            <Text style={styles.sourceBannerText}>From: {delivery.branchName || 'Branch'}</Text>
+          <View style={styles.routeRow}>
+            <View style={[styles.routeDot, { backgroundColor: COLORS.primary }]} />
+            <Text style={styles.routeLabel}>From</Text>
+            <Text style={styles.routeValue} numberOfLines={1}>
+              {delivery.branchName || 'Branch'}
+            </Text>
           </View>
           <Pressable
             style={styles.sourceCard}
@@ -220,8 +225,12 @@ export default function CollectorDeliveryDetailScreen() {
             <Icon name="arrowRight" size={16} color="#94a3b8" />
           </Pressable>
 
-          <View style={[styles.sourceBanner, styles.sourceBannerCollector]}>
-            <Text style={styles.sourceBannerText}>Deliver to: {delivery.targetRecipientName || 'Sales Rep'}</Text>
+          <View style={styles.routeRow}>
+            <View style={[styles.routeDot, { backgroundColor: COLORS.accentOrange }]} />
+            <Text style={styles.routeLabel}>To</Text>
+            <Text style={styles.routeValue} numberOfLines={1}>
+              {delivery.targetRecipientName || 'Sales Rep'}
+            </Text>
           </View>
           <Pressable
             style={styles.sourceCard}
@@ -301,7 +310,7 @@ export default function CollectorDeliveryDetailScreen() {
               <View style={styles.qrSection}>
                 <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
                 <View style={styles.qrTile}>
-                  <QRCode value={delivery.qrCode} size={160} />
+                  <BrandedQRCode value={delivery.qrCode} size={160} />
                 </View>
               </View>
             )}
@@ -456,10 +465,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32, gap: 12 },
   listTitle: { color: '#272632', fontSize: 18, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  sourceBanner: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  sourceBannerCollector: { backgroundColor: '#FF7800' },
-  sourceBannerDirect: { backgroundColor: '#03045E' },
-  sourceBannerText: { color: '#FFFFFF', fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  routeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: 6,
+  },
+  routeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  routeLabel: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    minWidth: 32,
+  },
+  routeValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
   sourceCard: {
     flexDirection: 'row',
     alignItems: 'center',

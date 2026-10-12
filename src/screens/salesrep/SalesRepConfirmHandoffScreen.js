@@ -19,6 +19,7 @@ import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
+import { getRequiredPosition } from '../../utils/quickLocation';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -154,13 +155,37 @@ export default function SalesRepConfirmHandoffScreen() {
     }
     setIsSubmitting(true);
 
+    // The confirm RPCs store the position in gps_coordinates, where latitude
+    // and longitude are NOT NULL — sending none fails with a raw database
+    // error (seen on device Oct 13), and a queued offline copy would fail the
+    // same way on every retry and block the outbox. The one-shot fix on open
+    // can come back empty (location services off, or a slow first fix), so
+    // look again here before giving up.
+    let position = coords;
+    if (!position) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') position = await getRequiredPosition();
+      } catch (error) {
+        console.error('[ERROR] [SalesRepConfirmHandoffScreen] Location error:', error);
+      }
+    }
+    if (!position) {
+      setIsSubmitting(false);
+      Alert.alert(
+        'Location Needed',
+        'Your location could not be found. Check that Location is turned on and ChemStock is allowed to use it, then try again.'
+      );
+      return;
+    }
+
     const payload = {
       ...(isDirectMode
         ? { qrCode: scannedQrCode }
         : { transactionId: handoff.transactionId, scannedQrCode }),
       agentId: agent.id,
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
       deviceModel: Device.modelName,
       deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
     };

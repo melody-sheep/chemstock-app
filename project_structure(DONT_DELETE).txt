@@ -1,6 +1,6 @@
 ﻿# CHEMSTOCK-MOBILE — PROJECT STRUCTURE
 
-* Generated from the local project on 2026-10-12.
+* Generated from the local project on 2026-10-13.
 * Excludes dependency folders, build/cache output, and local environment, credential, or user-specific config files.
 
 ```
@@ -62,6 +62,8 @@ chemstock-mobile/
 |   |-- android-icon-background.png
 |   |-- android-icon-foreground.png
 |   |-- android-icon-monochrome.png
+|   |-- ChemStockLogo.png
+|   |-- CospachemLogo.png
 |   |-- favicon.png
 |   |-- icon.png
 |   `-- splash-icon.png
@@ -106,7 +108,14 @@ chemstock-mobile/
 |   |   |-- 2026-10-11_delivery_handoff_confirmation_VALIDATE.sql
 |   |   |-- 2026-10-11b_delivery_handoff_qr.sql
 |   |   |-- 2026-10-11b_delivery_handoff_qr_ROLLBACK.sql
-|   |   `-- 2026-10-11c_get_transaction_rpc_handoff_fields.sql
+|   |   |-- 2026-10-11c_get_transaction_rpc_handoff_fields.sql
+|   |   |-- 2026-10-12_notification_focus_ids.sql
+|   |   |-- 2026-10-12b_submit_stock_request_focus_id.sql
+|   |   |-- 2026-10-12c_notification_coverage.sql
+|   |   |-- 2026-10-12d_link_request_fulfillment_collector.sql
+|   |   |-- 2026-10-13_branch_report_status_column.sql
+|   |   |-- 2026-10-13b_collector_return_to_manager.sql
+|   |   `-- 2026-10-13c_collector_return_search_path.sql
 |   |-- [PROPOSAL] ChemStock.pdf
 |   `-- ChemStock_Sprint_Roadmap.pdf
 |-- src/
@@ -117,6 +126,7 @@ chemstock-mobile/
 |   |   |   |-- AnimatedTextDot.js
 |   |   |   |-- BottomActionBar.js
 |   |   |   |-- BottomNavBar.js
+|   |   |   |-- BrandedQRCode.js
 |   |   |   |-- BranchSelector.js
 |   |   |   |-- Button.js
 |   |   |   |-- CameraCaptureModal.js
@@ -137,6 +147,7 @@ chemstock-mobile/
 |   |   |   |-- InfoTooltip.js
 |   |   |   |-- Input.js
 |   |   |   |-- KeyboardWrapper.js
+|   |   |   |-- LiveStatusPill.js
 |   |   |   |-- LogCard.js
 |   |   |   |-- LogListItem.js
 |   |   |   |-- MapLegend.js
@@ -146,6 +157,7 @@ chemstock-mobile/
 |   |   |   |-- Modal.js
 |   |   |   |-- ModalHero.js
 |   |   |   |-- NoiseOverlay.js
+|   |   |   |-- PhilippinePhoneInput.js
 |   |   |   |-- PhotoProofCard.js
 |   |   |   |-- ProductChip.js
 |   |   |   |-- ProductGridTile.js
@@ -201,7 +213,9 @@ chemstock-mobile/
 |   |   |-- useKeyboard.js
 |   |   |-- useOutbox.js
 |   |   |-- useRippleAnimation.js
-|   |   `-- useScrolledToEnd.js
+|   |   |-- useScrolledToEnd.js
+|   |   |-- useUnreadNotificationCount.js
+|   |   `-- useUnseenLogCount.js
 |   |-- navigation/
 |   |   |-- AppNavigator.js
 |   |   `-- AuthStack.js
@@ -215,6 +229,7 @@ chemstock-mobile/
 |   |   |   |-- CollectorDeliveredStockScreen.js
 |   |   |   |-- CollectorDeliverStockScreen.js
 |   |   |   |-- CollectorDeliveryDetailScreen.js
+|   |   |   |-- CollectorReturnQRScreen.js
 |   |   |   |-- CollectorSettingsScreen.js
 |   |   |   `-- CollectorTripReviewScreen.js
 |   |   |-- common/
@@ -308,6 +323,7 @@ chemstock-mobile/
 |   |   |-- logger.js
 |   |   |-- productUsage.js
 |   |   |-- profilePhoto.js
+|   |   |-- quickLocation.js
 |   |   |-- routeQrScan.js
 |   |   |-- scanLookup.js
 |   |   |-- stockLogUtils.js
@@ -335,12 +351,12 @@ chemstock-mobile/
 
 ## Current source counts
 
-- JavaScript files under `src/`: 183
-- Screens under `src/screens/`: 59
-- Components under `src/components/`: 66
+- JavaScript files under `src/`: 190
+- Screens under `src/screens/`: 60
+- Components under `src/components/`: 69
 - Services under `src/services/`: 14
-- Hooks under `src/hooks/`: 10
-- Utilities under `src/utils/`: 19
-- SQL files under `capstone_docs/sql/`: 35
+- Hooks under `src/hooks/`: 12
+- Utilities under `src/utils/`: 20
+- SQL files under `capstone_docs/sql/`: 42
 
 The tree reflects files and folders currently present on this machine. It is a directory inventory, not a statement that every listed file is tracked by Git.

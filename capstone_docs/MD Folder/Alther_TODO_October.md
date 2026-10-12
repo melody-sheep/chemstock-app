@@ -63,11 +63,27 @@ SQL, both marked "confirmed run by Jay" in his notes: `2026-10-13_branch_report_
 - [ ] Transaction Report status column, Received Stocks report, Cospachem logo on a printed report.
 - [ ] After a build: the app is named "ChemStock" and shows the new icon.
 
-### Found while checking the merge (not fixed)
+### Found while checking the merge — fixed in code Oct 13, not tested on device
 
-- [ ] `NotificationsScreen.js` has no icon or filter group for the 2 new `collector_return_*` types. They show with the default bell and only under "All".
-- [ ] The middle scan button is still a no-op on `ManagerAlertsScreen`, `ManageReturnsScreen` and `ComingSoonScreen`.
-- [ ] Manager Receive Stock's "Confirm & Register" dialog still says "Backend wiring coming soon"; only the Scan QR half of that screen was connected.
+- [x] `NotificationsScreen.js` had no icon or filter group for the 2 new `collector_return_*` types. Now: "return initiated" has an orange return arrow, "return received" a green seal, and both are in the Deliveries filter.
+- [x] The middle scan button was a no-op on `ManagerAlertsScreen`, `ManageReturnsScreen` and `ComingSoonScreen`. Now it does what the role's Dashboard does: batch lookup for a Manager, `routeQrScan` for a Sales Rep, Accept Deliveries for a Collector.
+- [x] Manager Receive Stock's "Confirm & Register" could show "Backend wiring coming soon". That fake success path and its unreachable dialog are removed. Returns scanned on the screen are now listed under "Scanned or Queued Items", and the button explains that a scanned return is already in stock and that a new shipment goes through Generate New Batch. Layout and styles are unchanged.
+- [ ] Device check for the three fixes above.
+
+### First device pass on the merge — Oct 13, ~2:30 AM (one phone)
+
+| Symptom on device | Cause | Fix |
+|---|---|---|
+| Collector → Return to Manager: "function gen_random_bytes(integer) does not exist" | `initiate_collector_return` was created with `search_path = public`; `gen_random_bytes` lives in `extensions` | **Run `2026-10-13c_collector_return_search_path.sql`.** `2026-10-13b` corrected too. Not yet run |
+| Manager Receive Stock scan: "QR code not recognized" | Follow-on from the row above: no return was created, so the QR scanned (`2b516dac…`) was the release QR, which this scanner does not accept by design | None needed; retest after the SQL above |
+| Start Trip sometimes hangs before the map opens | Open-ended `getCurrentPositionAsync()` awaited before the RPC, and again by the map screen's first load | New `utils/quickLocation.js`: last known position first, then a bounded wait. The map screen no longer waits on GPS to load. Not tested |
+| "Return to Manager?" dialog icon is a solid red square | `returnBox` is a two-layer icon drawn in one colour | Dialog uses `arrowUUpLeft`. Not tested |
+
+Also added, not tested: **ChemStock logo in the centre of every QR** (new `BrandedQRCode.js`, used by all five places that draw a QR; error correction raised to H; encoded value unchanged, so old printed codes still scan). Print now captures the on-screen QR so the logo prints too.
+
+Found, not fixed: `start_delivery_trip` and `log_delivery_checkpoint` store latitude/longitude as NOT NULL, so both now stop with "Location Needed" when the phone has no position at all, instead of sending nulls. Before, a denied location permission produced a raw database error.
+
+Open question for the team: should Manager Receive Stock's "Scan QR" also accept a factory QR printed in Manila? It accepts only Collector return QRs today. Needs a decision on what such a QR would contain.
 
 ---
 
@@ -125,7 +141,7 @@ Last updated: Oct 12, ~9:00 PM. Rows up to "Notification deep links, step 1" are
 - [ ] 🟨 **Notification deep links, step 2 onward** — the 5 destination screens (`AgentStockRequest`, `SalesRepStockRequests`, `ManageReturns`, `ReturnStocksSR`, `CollectorAcceptDeliveries`) must read `focusId` and open or highlight that item. Not started.
 - [ ] Notifications: empty-state illustration from the original redesign brief. Not built. (Pull-to-refresh is done.)
 - [ ] ⬜ **Real OS push notifications.** Design was drafted in chat on Oct 12 and not saved to a file. Needs a dev build (Expo Go cannot receive push) and a Firebase project.
-- [ ] 10 screens still show a hardcoded "Online" pill: `ReturnStockVerify`, `ManagerReports`, `ReleaseStockScanReview`, `ReleaseStockRequestReview`, `ManageReturns`, `ReleaseStockMethod`, `ManageAccounts`, `ReleaseStockDelivery`, `QuickRegisterRelease`, `ReceiveStockTypeSR`.
+- [x] ~~10 screens still show a hardcoded "Online" pill~~ Fixed in code Oct 13 with a shared `LiveStatusPill.js`: `ReturnStockVerify`, `ManagerReports`, `ReleaseStockScanReview`, `ReleaseStockRequestReview`, `ManageReturns`, `ReleaseStockMethod`, `ManageAccounts`, `ReleaseStockDelivery`, `QuickRegisterRelease`, `ReceiveStockTypeSR`. Online look unchanged; offline reads "Offline · 2:10 PM". No fixed "Online" label is left in any screen. Not tested on device.
 - [ ] Remaining Manager screens with no offline fallback (e.g. Reports & Returns, Manage Accounts). Not audited.
 
 **3. Decisions needed from the team**

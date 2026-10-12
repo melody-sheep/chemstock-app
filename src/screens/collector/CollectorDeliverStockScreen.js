@@ -26,6 +26,7 @@ import useOutbox from '../../hooks/useOutbox';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import { recordLandmarkUsage } from '../../utils/landmarkUsage';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
+import { getQuickPosition, getRequiredPosition } from '../../utils/quickLocation';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -94,20 +95,23 @@ export default function CollectorDeliverStockScreen() {
     const currentAgent = await authService.getCurrentUser();
     setAgent(currentAgent);
 
-    const [result] = await Promise.all([
-      deliveryService.getMyCollectorDeliveries(currentAgent?.id),
-      (async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          try {
-            const position = await Location.getCurrentPositionAsync({});
-            setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
-          } catch (error) {
-            console.error('[ERROR] [CollectorDeliverStockScreen] Location error:', error);
-          }
-        }
-      })(),
-    ]);
+    // Location is not awaited: the map and stops must not sit behind a GPS
+    // fix, which can take 15–30s indoors. The last known position shows at
+    // once and is replaced by a fresh fix when one arrives.
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const quick = await getQuickPosition();
+      if (quick) setCurrentPosition(quick);
+      try {
+        const position = await Location.getCurrentPositionAsync({});
+        setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      } catch (error) {
+        console.error('[ERROR] [CollectorDeliverStockScreen] Location error:', error);
+      }
+    })();
+
+    const result = await deliveryService.getMyCollectorDeliveries(currentAgent?.id);
 
     const all = result.success ? result.data : [];
     setLegs(all.filter((d) => d.tripId === tripId));
@@ -199,9 +203,19 @@ export default function CollectorDeliverStockScreen() {
       if (!coords) {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const position = await Location.getCurrentPositionAsync({});
-          coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+          coords = await getRequiredPosition();
         }
+      }
+
+      // delivery_checkpoints stores latitude/longitude as NOT NULL. A
+      // checkpoint sent without them is rejected — and one queued offline
+      // without them would fail on every retry and block the whole outbox.
+      if (!coords) {
+        Alert.alert(
+          'Location Needed',
+          'Your location could not be found. Check that Location is turned on, then try again.'
+        );
+        return;
       }
 
       const checkpointPayload = {

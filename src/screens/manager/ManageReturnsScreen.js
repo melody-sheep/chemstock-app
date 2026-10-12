@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -13,6 +14,8 @@ import Button from '../../components/common/Button';
 import PhotoProofCard from '../../components/common/PhotoProofCard';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import BranchSelector from '../../components/common/BranchSelector';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import { describeReceivingScan } from '../../utils/scanLookup';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -50,6 +53,14 @@ export default function ManageReturnsScreen() {
   const [reportPhotoUrl, setReportPhotoUrl] = useState(null);
   const [isLoadingReportPhoto, setIsLoadingReportPhoto] = useState(false);
   const [isViewingReportPhoto, setIsViewingReportPhoto] = useState(false);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const currentManager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, currentManager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
+  };
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -161,10 +172,7 @@ export default function ManageReturnsScreen() {
         <SecondaryHeader height={56}>
           <View style={styles.titleRow}>
             <Text style={styles.pageTitle}>Reports & Returns</Text>
-            <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
@@ -358,8 +366,14 @@ export default function ManageReturnsScreen() {
           </>
         )}
 
-        <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="dashboard" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
 
       <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height={640}>
         {selectedReport && (

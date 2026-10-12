@@ -68,7 +68,10 @@ CREATE OR REPLACE FUNCTION public.initiate_collector_return(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+-- `extensions` is required: gen_random_bytes() lives there on Supabase.
+-- Without it: "function gen_random_bytes(integer) does not exist" (seen on
+-- device Oct 13; corrected live by 2026-10-13c_collector_return_search_path.sql).
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_txn public.transactions;

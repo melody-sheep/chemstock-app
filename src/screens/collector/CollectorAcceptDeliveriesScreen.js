@@ -146,28 +146,49 @@ export default function CollectorAcceptDeliveriesScreen() {
             <Text style={styles.emptyText}>No pending pickups right now.</Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pendingRow}>
-              {pending.map((delivery) => (
-                <View key={delivery.transactionId} style={styles.pendingCard}>
-                  <UserAvatar
-                    photoUrl={delivery.targetRecipientPhotoUrl}
-                    fallbackText={getInitials(delivery.targetRecipientName)}
-                    size={52}
-                    backgroundColor="#F1F3F6"
-                    fallbackTextColor={COLORS.primary}
-                    style={styles.avatarCircleMargin}
-                  />
-                  <Text style={styles.pendingName} numberOfLines={1}>
-                    {delivery.targetRecipientName || 'Sales Rep'}
-                  </Text>
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingBadgeText}>Pending</Text>
+              {pending.map((delivery) => {
+                const itemCount = (delivery.items || []).length;
+                const totalUnits = (delivery.items || []).reduce((s, it) => s + it.quantity, 0);
+                return (
+                  <View key={delivery.transactionId} style={styles.pendingCard}>
+                    <UserAvatar
+                      photoUrl={delivery.targetRecipientPhotoUrl}
+                      fallbackText={getInitials(delivery.targetRecipientName)}
+                      size={52}
+                      backgroundColor="#F1F3F6"
+                      fallbackTextColor={COLORS.primary}
+                      style={styles.avatarCircleMargin}
+                    />
+                    <Text style={styles.pendingName} numberOfLines={1}>
+                      {delivery.targetRecipientName || 'Sales Rep'}
+                    </Text>
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>Pending</Text>
+                    </View>
+
+                    <View style={styles.pendingMetaBlock}>
+                      <View style={styles.pendingMetaRow}>
+                        <Icon name="package" size={11} color={COLORS.textSecondary} />
+                        <Text style={styles.pendingMetaText} numberOfLines={1}>
+                          {itemCount} item{itemCount === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'}
+                        </Text>
+                      </View>
+                      {delivery.branchName ? (
+                        <View style={styles.pendingMetaRow}>
+                          <Icon name="building" size={11} color={COLORS.textSecondary} />
+                          <Text style={styles.pendingMetaText} numberOfLines={1}>
+                            {delivery.branchName}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <TouchableOpacity style={styles.viewButton} onPress={() => handleViewPending(delivery)}>
+                      <Text style={styles.viewButtonText}>View</Text>
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.pendingRole}>Sales Rep</Text>
-                  <TouchableOpacity style={styles.viewButton} onPress={() => handleViewPending(delivery)}>
-                    <Text style={styles.viewButtonText}>View</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           )}
 
@@ -176,34 +197,35 @@ export default function CollectorAcceptDeliveriesScreen() {
               <View style={[styles.sectionDot, { backgroundColor: COLORS.success }]} />
               <Text style={styles.sectionTitle}>Ready to Deliver</Text>
             </View>
-            <View>
-              <Pressable style={styles.filterButton} onPress={() => setIsMenuOpen((prev) => !prev)}>
-                <Icon name="filter" size={20} color={COLORS.primary} />
-              </Pressable>
-              {isMenuOpen && (
-                <View style={styles.filterMenu}>
-                  {SELECTION_MODES.map((mode) => (
-                    <Pressable
-                      key={mode.key}
-                      style={styles.filterMenuItem}
-                      onPress={() => handleSelectMode(mode.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.filterMenuItemText,
-                          selectionMode === mode.key && styles.filterMenuItemTextActive,
-                        ]}
-                      >
-                        {mode.label}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
+          </View>
+
+          <View style={styles.modeChipRow}>
+            {SELECTION_MODES.map((mode) => {
+              const active = selectionMode === mode.key;
+              return (
+                <Pressable
+                  key={mode.key}
+                  style={[styles.modeChip, active && styles.modeChipActive]}
+                  onPress={() => handleSelectMode(mode.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text
+                    style={[styles.modeChipText, active && styles.modeChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {mode.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <Text style={styles.sectionSubtitle}>
-            {selectionMode === 'single' ? 'Tap to start a delivery · Hold for more options' : 'Delivery via Collector'}
+            {selectionMode === 'single'
+              ? 'Tap a card to start · Hold for more options'
+              : selectionMode === 'all'
+              ? 'All ready deliveries selected — tap Next to review'
+              : 'Tap cards to select multiple — then Next'}
           </Text>
 
           {ready.length === 0 ? (
@@ -212,14 +234,25 @@ export default function CollectorAcceptDeliveriesScreen() {
             <View style={styles.readyList}>
               {ready.map((delivery) => {
                 const isSelected = selectedIds.includes(delivery.transactionId);
+                const isMultiMode = selectionMode !== 'single';
+                const itemCount = (delivery.items || []).length;
+                const totalUnits = (delivery.items || []).reduce((s, it) => s + it.quantity, 0);
                 return (
                   <TouchableOpacity
                     key={delivery.transactionId}
-                    style={styles.readyCard}
+                    style={[styles.readyCard, isMultiMode && isSelected && styles.readyCardSelected]}
                     onPress={() => handleReadyPress(delivery)}
                     onLongPress={() => handleReadyLongPress(delivery)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={isMultiMode ? { selected: isSelected } : undefined}
                   >
+                    {isMultiMode && (
+                      <View style={[styles.selectDot, isSelected && styles.selectDotActive]}>
+                        {isSelected && <Icon name="check" size={12} color="#FFFFFF" weight="bold" />}
+                      </View>
+                    )}
+
                     <UserAvatar
                       photoUrl={delivery.targetRecipientPhotoUrl}
                       fallbackText={getInitials(delivery.targetRecipientName)}
@@ -231,17 +264,20 @@ export default function CollectorAcceptDeliveriesScreen() {
                       <Text style={styles.readyName} numberOfLines={1}>
                         {delivery.targetRecipientName || 'Sales Rep'}
                       </Text>
-                      <Text style={styles.readyRole}>Sales Representative</Text>
+                      <View style={styles.readyMetaRow}>
+                        <Icon name="package" size={11} color={COLORS.textSecondary} />
+                        <Text style={styles.readyMetaText} numberOfLines={1}>
+                          {itemCount} item{itemCount === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'}
+                        </Text>
+                      </View>
                     </View>
-                    {selectionMode === 'single' ? (
+                    {!isMultiMode ? (
                       <>
                         <View style={styles.readyBadge}>
                           <Text style={styles.readyBadgeText}>Ready</Text>
                         </View>
                         <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
                       </>
-                    ) : isSelected ? (
-                      <Icon name="checkCircle" size={22} color={COLORS.success} weight="fill" />
                     ) : (
                       <View style={styles.readyBadge}>
                         <Text style={styles.readyBadgeText}>Ready</Text>
@@ -295,7 +331,10 @@ export default function CollectorAcceptDeliveriesScreen() {
       {selectionMode !== 'single' && selectedIds.length > 0 && (
         <View style={styles.nextBar}>
           <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextButtonText}>Next ({selectedIds.length})</Text>
+            <Icon name="truck" size={16} color="#FFFFFF" />
+            <Text style={styles.nextButtonText}>
+              Review {selectedIds.length} Deliver{selectedIds.length === 1 ? 'y' : 'ies'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -304,7 +343,7 @@ export default function CollectorAcceptDeliveriesScreen() {
         visible={!!returnCandidate}
         onCancel={() => setReturnCandidate(null)}
         onConfirm={handleConfirmReturn}
-        icon="returnBox"
+        icon="arrowUUpLeft"
         title="Return to Manager?"
         description={
           returnCandidate
@@ -347,12 +386,12 @@ const styles = StyleSheet.create({
   },
   pendingRow: { marginBottom: SPACING.lg },
   pendingCard: {
-    width: 140,
+    width: 170,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    padding: SPACING.sm,
+    padding: SPACING.md,
     marginRight: SPACING.sm,
     alignItems: 'center',
   },
@@ -374,6 +413,23 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   pendingBadgeText: { fontSize: 10, fontWeight: '700', color: '#B26400', fontFamily: TYPOGRAPHY.fontFamily.bold },
+  pendingMetaBlock: {
+    alignSelf: 'stretch',
+    gap: 4,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  pendingMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pendingMetaText: {
+    flexShrink: 1,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
   pendingRole: {
     fontSize: 11,
     color: COLORS.textSecondary,
@@ -390,39 +446,35 @@ const styles = StyleSheet.create({
   },
   viewButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', fontFamily: TYPOGRAPHY.fontFamily.bold },
   readyHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.sm },
-  filterButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 0.5,
-    borderColor: '#757575',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F7FEFF',
+  modeChipRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
-  filterMenu: {
-    position: 'absolute',
-    top: 40,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+  modeChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    minWidth: 100,
-    zIndex: 20,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: COLORS.borderNeutral,
+    backgroundColor: COLORS.textWhite,
   },
-  filterMenuItem: { paddingHorizontal: 14, paddingVertical: 10 },
-  filterMenuItemText: {
+  modeChipActive: {
+    backgroundColor: COLORS.textPrimary,
+    borderColor: COLORS.textPrimary,
+  },
+  modeChipText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textPrimary,
   },
-  filterMenuItemTextActive: { fontFamily: TYPOGRAPHY.fontFamily.bold, color: COLORS.primary },
+  modeChipTextActive: {
+    color: COLORS.textWhite,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   readyList: { gap: SPACING.sm },
   readyCard: {
     flexDirection: 'row',
@@ -434,6 +486,23 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     padding: SPACING.sm,
   },
+  readyCardSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '08',
+  },
+  selectDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#C0C0C0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectDotActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
   readyTextCol: { flex: 1 },
   readyName: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -441,8 +510,14 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  readyRole: {
+  readyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 2,
+  },
+  readyMetaText: {
+    flexShrink: 1,
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
@@ -456,6 +531,10 @@ const styles = StyleSheet.create({
     borderTopColor: '#E5E5E5',
   },
   nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
     backgroundColor: COLORS.primary,
     borderRadius: 12,
     height: 50,

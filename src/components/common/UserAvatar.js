@@ -1,9 +1,10 @@
 // src/components/common/UserAvatar.js
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { debugLog } from '../../utils/logger';
 
 /**
  * UserAvatar - shows a person's real profile photo if one has been set.
@@ -26,6 +27,13 @@ export default function UserAvatar({
   glyphRatio = 0.55,
   style = {},
 }) {
+  // A photo URL is a short-lived signed link, so it can be non-empty yet
+  // fail to load (expired, or the storage read was refused). Remember which
+  // URL failed and draw the initials/icon instead of an empty circle. Keyed
+  // on the URL itself, so a refreshed link gets a fresh try with no reset.
+  const [failedUrl, setFailedUrl] = useState(null);
+  const showImage = !!photoUrl && failedUrl !== photoUrl;
+
   return (
     <View
       style={[
@@ -34,8 +42,19 @@ export default function UserAvatar({
         style,
       ]}
     >
-      {photoUrl ? (
-        <Image source={{ uri: photoUrl }} style={styles.image} resizeMode="cover" />
+      {showImage ? (
+        <Image
+          source={{ uri: photoUrl }}
+          style={styles.image}
+          resizeMode="cover"
+          onError={(event) => {
+            // Logs the reason only, never the URL (it carries a signed token).
+            debugLog('warn', 'UserAvatar', 'Profile photo failed to load', {
+              reason: event?.nativeEvent?.error || 'unknown',
+            });
+            setFailedUrl(photoUrl);
+          }}
+        />
       ) : fallbackText ? (
         <Text style={[styles.fallbackText, { fontSize: Math.round(size * 0.4), color: fallbackTextColor }]}>
           {fallbackText}

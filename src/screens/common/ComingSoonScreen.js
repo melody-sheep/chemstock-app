@@ -1,11 +1,15 @@
 // src/screens/common/ComingSoonScreen.js
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import authService from '../../services/authService';
+import { describeReceivingScan } from '../../utils/scanLookup';
+import { routeQrScan } from '../../utils/routeQrScan';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -42,6 +46,27 @@ export default function ComingSoonScreen() {
   const roleLabel = ROLE_LABELS[role] || role;
   const tabLabel = tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
   const routes = ROLE_ROUTES[role] || {};
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+
+  // Same action as the middle button on each role's own Dashboard.
+  const handleFabPress = () => {
+    if (role === 'collector') {
+      navigation.navigate('CollectorAcceptDeliveries');
+    } else {
+      setIsScannerVisible(true);
+    }
+  };
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const currentUser = await authService.getCurrentUser();
+    if (role === 'salesrep') {
+      await routeQrScan({ qrCode, agentId: currentUser?.id, navigation });
+      return;
+    }
+    const summary = await describeReceivingScan(qrCode, currentUser?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
+  };
 
   const handleTabPress = (key) => {
     if (key === tabKey) return;
@@ -71,8 +96,14 @@ export default function ComingSoonScreen() {
             This section hasn't been built yet — the tab navigation itself works, this screen just isn't real yet.
           </Text>
         </View>
-        <BottomNavBar activeTab={tabKey} onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab={tabKey} onTabPress={handleTabPress} onFabPress={handleFabPress} />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </>
   );
 }

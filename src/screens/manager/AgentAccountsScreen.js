@@ -8,6 +8,7 @@ import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../c
 import Button from '../../components/common/Button';
 import LogListItem from '../../components/common/LogListItem';
 import BranchSelector from '../../components/common/BranchSelector';
+import SectionHeader from '../../components/common/SectionHeader';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
 import profileService from '../../services/profileService';
@@ -135,16 +136,24 @@ export default function AgentAccountsScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         <Header
-          showBackButton={true}
-          backButtonText="Back"
+          showBackButton
           title="Agent Accounts"
+          titleAlign="left"
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={styles.sectionTitle}>Create Agent Account</Text>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.pageTitle}>Create Agent Account</Text>
+          <Text style={styles.pageSubtitle}>
+            Set up a new Sales Rep or Collector for this branch.
+          </Text>
 
+          <SectionHeader icon="idCard" label="Agent Type" />
           <View style={styles.roleToggleRow}>
             {ROLE_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -152,8 +161,13 @@ export default function AgentAccountsScreen() {
                 style={[styles.roleChip, role === opt.value && styles.roleChipActive]}
                 onPress={() => setRole(opt.value)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityState={{ selected: role === opt.value }}
               >
-                <Text style={[styles.roleChipText, role === opt.value && styles.roleChipTextActive]}>
+                <Text
+                  style={[styles.roleChipText, role === opt.value && styles.roleChipTextActive]}
+                  numberOfLines={1}
+                >
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -161,16 +175,20 @@ export default function AgentAccountsScreen() {
           </View>
 
           {branches.length > 1 && (
-            <View style={styles.branchSection}>
-              <Text style={styles.sectionLabel}>Assign to which branch?</Text>
-              <BranchSelector
-                branches={branches}
-                selectedId={selectedBranchId}
-                onSelect={setSelectedBranchId}
-                edgePadding={0}
-              />
-            </View>
+            <>
+              <SectionHeader icon="building" label="Assign to Branch" />
+              <View style={styles.branchSection}>
+                <BranchSelector
+                  branches={branches}
+                  selectedId={selectedBranchId}
+                  onSelect={setSelectedBranchId}
+                  edgePadding={0}
+                />
+              </View>
+            </>
           )}
+
+          <SectionHeader icon="person" label="Details" />
 
           <Input
             label="Full Name"
@@ -223,7 +241,7 @@ export default function AgentAccountsScreen() {
 
           {createdAccounts.length > 0 && (
             <>
-              <Text style={[styles.sectionTitle, styles.createdTitle]}>Created This Session</Text>
+              <SectionHeader icon="checkCircle" label="Created This Session" style={styles.createdHeader} />
               <View style={styles.createdList}>
                 {createdAccounts.map((item) => (
                   <LogListItem key={item.key} icon={item.icon} iconColor={COLORS.primary} text={item.text} />
@@ -239,23 +257,26 @@ export default function AgentAccountsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: SPACING.lg, paddingBottom: 48 },
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
+  content: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING['3xl'],
+  },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
   },
-  createdTitle: { marginTop: SPACING.xl },
-  branchSection: { marginBottom: SPACING.md },
-  sectionLabel: {
+  pageSubtitle: {
+    marginTop: 4,
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
   },
+  createdHeader: { marginTop: SPACING.xl },
+  branchSection: { marginBottom: SPACING.md },
   roleToggleRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
@@ -263,24 +284,26 @@ const styles = StyleSheet.create({
   },
   roleChip: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    backgroundColor: '#FFFFFF',
+    borderColor: COLORS.borderNeutral,
+    backgroundColor: COLORS.textWhite,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   roleChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: COLORS.textPrimary,
+    borderColor: COLORS.textPrimary,
   },
   roleChipText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.textPrimary,
   },
-  roleChipTextActive: { color: '#FFFFFF' },
-  submitButton: { marginTop: SPACING.sm },
+  roleChipTextActive: { color: COLORS.textWhite },
+  submitButton: { marginTop: SPACING.md },
   createdList: { gap: SPACING.sm },
 });

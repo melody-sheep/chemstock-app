@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
@@ -116,10 +117,7 @@ export default function QuickRegisterReleaseScreen() {
         <SecondaryHeader height={56}>
           <View style={styles.titleRow}>
             <Text style={styles.urgentPageTitle}>Urgent Release!</Text>
-            <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 

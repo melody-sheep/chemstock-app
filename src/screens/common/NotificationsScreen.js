@@ -38,6 +38,8 @@ const TYPE_META = {
   delivery_disputed_collector: { icon: 'sealWarning', color: COLORS.error },
   daily_report_accepted: { icon: 'clipboardText', color: COLORS.success },
   discrepancy_found: { icon: 'warning', color: COLORS.error },
+  collector_return_initiated: { icon: 'arrowUUpLeft', color: COLORS.accentOrange },
+  collector_return_received: { icon: 'sealCheck', color: COLORS.success },
 };
 const DEFAULT_META = { icon: 'notification', color: COLORS.primary };
 
@@ -51,7 +53,7 @@ const FILTER_OPTIONS = [
     label: 'Deliveries',
     icon: 'truck',
     description: 'Handoffs and status updates',
-    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed', 'delivery_completed', 'delivery_received', 'delivery_disputed_collector'],
+    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed', 'delivery_completed', 'delivery_received', 'delivery_disputed_collector', 'collector_return_initiated', 'collector_return_received'],
   },
   {
     key: 'stockRequests',

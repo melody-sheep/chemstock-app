@@ -1,16 +1,20 @@
 // src/screens/manager/ManageAccountsScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import FilterSheet from '../../components/common/FilterSheet';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import CustomModal from '../../components/common/Modal';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
+import SectionHeader from '../../components/common/SectionHeader';
 import Input from '../../components/common/Input';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
@@ -35,6 +39,9 @@ const ROLE_DOT_COLOR = {
 };
 
 function AgentCard({ account, onMorePress }) {
+  const roleColor = ROLE_DOT_COLOR[account.role] || COLORS.textTertiary;
+  const roleLabel = ROLE_LABELS[account.role] || account.role;
+
   return (
     <View style={styles.card}>
       <UserAvatar
@@ -47,13 +54,19 @@ function AgentCard({ account, onMorePress }) {
 
       <View style={styles.cardTextCol}>
         <Text style={styles.cardName} numberOfLines={1}>{account.full_name}</Text>
-        <View style={styles.roleRow}>
-          <View style={[styles.roleDot, { backgroundColor: ROLE_DOT_COLOR[account.role] || COLORS.textTertiary }]} />
-          <Text style={styles.roleText}>{ROLE_LABELS[account.role] || account.role}</Text>
+        <View style={styles.cardMetaRow}>
+          <View style={[styles.rolePill, { backgroundColor: roleColor + '18' }]}>
+            <Text style={[styles.rolePillText, { color: roleColor }]} numberOfLines={1}>
+              {roleLabel}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.branchText} numberOfLines={1}>
-          {account.branchName || 'No branch assigned'}
-        </Text>
+        <View style={styles.branchRow}>
+          <Icon name="location" size={12} color={COLORS.textTertiary} />
+          <Text style={styles.branchText} numberOfLines={1}>
+            {account.branchName || 'No branch assigned'}
+          </Text>
+        </View>
       </View>
 
       <TouchableOpacity
@@ -70,6 +83,8 @@ function AgentCard({ account, onMorePress }) {
 
 export default function ManageAccountsScreen() {
   const navigation = useNavigation();
+  const bottomBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
   const [manager, setManager] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -203,70 +218,80 @@ export default function ManageAccountsScreen() {
 
         <SecondaryHeader height={BRANCH_HEADER_HEIGHT}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Account Management</Text>
-            <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Account Management</Text>
+              <Text style={styles.pageSubtitle}>Manage branch staff</Text>
             </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.label}>Current Branch Workspace</Text>
-          <TouchableOpacity
-            style={styles.workspaceBox}
-            onPress={handleWorkspacePress}
-            activeOpacity={branches.length > 1 ? 0.7 : 1}
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: bottomBarHeight + SPACING.md }]}
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.workspaceText} numberOfLines={1}>
-              {workspaceLabel}
-            </Text>
-            {branches.length > 1 && <Icon name="caretDown" size={16} color="#FFFFFF" />}
-          </TouchableOpacity>
+            <SectionHeader icon="building" label="Workspace" style={styles.sectionHeaderFirst} />
+            <TouchableOpacity
+              style={styles.workspaceChip}
+              onPress={handleWorkspacePress}
+              activeOpacity={branches.length > 1 ? 0.7 : 1}
+              accessibilityRole={branches.length > 1 ? 'button' : undefined}
+              accessibilityLabel="Current branch workspace"
+            >
+              <Text style={styles.workspaceChipText} numberOfLines={1}>
+                {workspaceLabel}
+              </Text>
+              {branches.length > 1 && <Icon name="caretDown" size={16} color={COLORS.textPrimary} />}
+            </TouchableOpacity>
 
-          <Text style={[styles.label, styles.filterLabel]}>View Filter (Agents)</Text>
-          <TouchableOpacity
-            style={styles.filterBar}
-            onPress={() => setIsFilterSheetVisible(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.filterBarLeft}>
-              <Icon name="idCard" size={18} color="#FFFFFF" weight="fill" />
-              <Text style={styles.filterBarText}>
+            <SectionHeader icon="filter" label="Filter Agents" />
+            <TouchableOpacity
+              style={styles.filterChip}
+              onPress={() => setIsFilterSheetVisible(true)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Filter agents by role"
+            >
+              <Icon name="idCard" size={16} color={COLORS.primary} />
+              <Text style={styles.filterChipText} numberOfLines={1}>
                 {activeFilterOption.label} ({filteredAccounts.length})
               </Text>
-            </View>
-            <Icon name="filter" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+              <Icon name="filter" size={16} color={COLORS.primary} />
+            </TouchableOpacity>
 
-          {isLoading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-          ) : filteredAccounts.length === 0 ? (
-            <Text style={styles.emptyText}>
-              {accounts.length === 0 ? 'No agent accounts yet.' : 'No accounts match this filter.'}
-            </Text>
-          ) : (
-            <View style={styles.list}>
-              {filteredAccounts.map((account) => (
-                <AgentCard key={account.id} account={account} onMorePress={handleMorePress} />
-              ))}
-            </View>
-          )}
+            <SectionHeader icon="users" label="Agents" />
 
-          <View style={{ height: 8 }} />
-        </ScrollView>
+            {isLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+              </View>
+            ) : filteredAccounts.length === 0 ? (
+              <Text style={styles.emptyText}>
+                {accounts.length === 0 ? 'No agent accounts yet.' : 'No accounts match this filter.'}
+              </Text>
+            ) : (
+              <View style={styles.list}>
+                {filteredAccounts.map((account) => (
+                  <AgentCard key={account.id} account={account} onMorePress={handleMorePress} />
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </BlurTargetView>
 
-        <View style={styles.bottomBar}>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
-            title="Create New Employee Account"
+            title="New Employee"
             icon="plus"
             iconWeight="bold"
             onPress={() => navigation.navigate('AgentAccounts')}
             variant="black"
+            height={44}
+            fontSize={14}
+            borderRadius={22}
           />
-        </View>
+        </BottomActionBar>
       </View>
 
       <FilterSheet
@@ -350,16 +375,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
   },
+  titleTextCol: { flexShrink: 1, flex: 1 },
   pageTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
   onlinePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 0,
   },
   onlineDot: {
     width: 8,
@@ -373,51 +407,47 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  content: { padding: SPACING.lg, paddingBottom: 24 },
-  label: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
+  contentTarget: { flex: 1 },
+  content: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
   },
-  filterLabel: { marginTop: SPACING.lg },
-  workspaceBox: {
+  sectionHeaderFirst: { marginTop: 0 },
+  workspaceChip: {
     height: 48,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderNeutral,
+    backgroundColor: COLORS.textWhite,
     paddingHorizontal: SPACING.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  workspaceText: {
+  workspaceChipText: {
     flex: 1,
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
   },
-  filterBar: {
+  filterChip: {
     height: 48,
-    borderRadius: 10,
-    backgroundColor: COLORS.accentOrange,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+    backgroundColor: COLORS.primary + '0D',
     paddingHorizontal: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-  },
-  filterBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
   },
-  filterBarText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#FFFFFF',
+  filterChipText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.primary,
   },
   loadingWrap: { paddingVertical: SPACING.xl, alignItems: 'center' },
   emptyText: {
@@ -431,10 +461,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.textWhite,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: COLORS.borderSubtle,
     padding: SPACING.sm,
   },
   cardTextCol: { flex: 1 },
@@ -444,25 +474,30 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  roleRow: {
+  cardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    marginTop: 2,
+    marginTop: 4,
   },
-  roleDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+  rolePill: {
+    alignSelf: 'flex-start',
+    borderRadius: 20,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
   },
-  roleText: {
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
+  rolePillText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  branchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
   },
   branchText: {
-    marginTop: 2,
+    flexShrink: 1,
     fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
@@ -491,12 +526,5 @@ const styles = StyleSheet.create({
   },
   resetModalButton: {
     marginTop: SPACING.sm,
-  },
-  bottomBar: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    backgroundColor: COLORS.background,
   },
 });

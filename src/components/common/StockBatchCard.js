@@ -94,13 +94,23 @@ export default function StockBatchCard({
 
       {!outOfStock && (
         <>
-          <Text style={styles.metaText} numberOfLines={1}>
-            ID: {batchNumber || '—'}
-          </Text>
-          <Text style={[styles.metaText, isNearExpiry && styles.metaTextUrgent]} numberOfLines={1}>
-            {expDate ? `Exp: ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
-            {isNearExpiry ? ' (Urgent!)' : ''}
-          </Text>
+          <View style={styles.metaRow}>
+            <Icon name="idCard" size={11} color={COLORS.textSecondary} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              ID: {batchNumber || '—'}
+            </Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Icon
+              name={isNearExpiry ? 'warningTriangle' : 'calendar'}
+              size={11}
+              color={isNearExpiry ? COLORS.error : COLORS.textSecondary}
+            />
+            <Text style={[styles.metaText, isNearExpiry && styles.metaTextUrgent]} numberOfLines={1}>
+              {expDate ? `Exp: ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
+              {isNearExpiry ? ' (Urgent!)' : ''}
+            </Text>
+          </View>
         </>
       )}
     </Container>
@@ -142,7 +152,7 @@ const styles = StyleSheet.create({
   thumbWrap: {
     width: '100%',
     height: 72,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E5E5',
     backgroundColor: '#FFFFFF',
@@ -163,7 +173,7 @@ const styles = StyleSheet.create({
   badge: {
     position: 'absolute',
     borderRadius: 20,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     maxWidth: CARD_WIDTH - SPACING.sm * 2 - 4,
   },
@@ -172,11 +182,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.xs + 2,
   },
   badgeTopRight: {
-    top: 4,
-    right: 4,
+    top: 6,
+    right: 6,
   },
   badgeText: {
     fontSize: 9,
@@ -187,7 +197,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success + '20',
   },
   qtyBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.success,
@@ -204,10 +214,18 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
     marginBottom: SPACING.xs,
+    minHeight: 18,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
   },
   metaText: {
-    marginTop: 2,
+    flexShrink: 1,
     fontSize: 11,
+    lineHeight: 15,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
