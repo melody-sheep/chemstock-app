@@ -22,6 +22,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
+import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import SuccessFrame from '../../components/common/SuccessFrame';
 import Stepper from '../../components/common/Stepper';
 import useActivation from '../../hooks/useActivation';
@@ -158,7 +159,7 @@ export default function ManagerActivationScreen() {
   const inputRef = useRef(null);
   
   const [managerUsername, setManagerUsername] = useState('');
-  const [managerPhone, setManagerPhone] = useState('');
+  const [managerPhoneDigits, setManagerPhoneDigits] = useState('');
   const [managerPassword, setManagerPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [step2Errors, setStep2Errors] = useState({
@@ -355,7 +356,7 @@ export default function ManagerActivationScreen() {
   const handleBackToStep1 = () => {
     try {
       setManagerUsername('');
-      setManagerPhone('');
+      setManagerPhoneDigits('');
       setManagerPassword('');
       setConfirmPassword('');
       setStep2Errors({ username: '', phone: '', password: '', confirmPassword: '' });
@@ -383,8 +384,8 @@ export default function ManagerActivationScreen() {
     }
   };
 
-  const handlePhoneChange = (text) => {
-    setManagerPhone(text);
+  const handlePhoneChange = (digits) => {
+    setManagerPhoneDigits(digits);
     if (step2Errors.phone) {
       setStep2Errors(prev => ({ ...prev, phone: '' }));
     }
@@ -430,11 +431,13 @@ export default function ManagerActivationScreen() {
       hasError = true;
     }
 
-    if (!managerPhone || !managerPhone.trim()) {
-      errors.phone = 'Please enter your phone number';
-      hasError = true;
-    } else if (managerPhone.trim().length < 7) {
-      errors.phone = 'Please enter a valid phone number';
+    if (!isValidPhNationalNumber(managerPhoneDigits)) {
+      errors.phone =
+        managerPhoneDigits.length === 0
+          ? 'Please enter your phone number'
+          : managerPhoneDigits.length < 10
+            ? `Enter all 10 digits (${managerPhoneDigits.length}/10 so far)`
+            : 'PH mobile numbers start with 9, e.g. 917 123 4567';
       hasError = true;
     }
 
@@ -470,7 +473,7 @@ export default function ManagerActivationScreen() {
 
     setStep2Errors({ username: '', phone: '', password: '', confirmPassword: '' });
 
-    const result = await completeSetup(managerUsername.trim(), managerPassword, managerPhone.trim());
+    const result = await completeSetup(managerUsername.trim(), managerPassword, toPhE164(managerPhoneDigits));
 
     if (!result.success) {
       Alert.alert('Setup Failed', result.message || 'Please try again.');
@@ -499,7 +502,7 @@ export default function ManagerActivationScreen() {
   // ============================================
   const isFormValid =
     managerUsername && managerUsername.trim().length >= 2 &&
-    managerPhone && managerPhone.trim().length >= 7 &&
+    isValidPhNationalNumber(managerPhoneDigits) &&
     managerPassword && managerPassword.length >= 8 &&
     confirmPassword &&
     managerPassword === confirmPassword &&
@@ -742,15 +745,12 @@ export default function ManagerActivationScreen() {
               returnKeyType="next"
             />
 
-            <Input
+            <PhilippinePhoneInput
               label="Phone Number"
-              required={true}
-              placeholder="Enter your phone number"
-              value={managerPhone}
+              required
+              value={managerPhoneDigits}
               onChangeText={handlePhoneChange}
               error={step2Errors.phone}
-              keyboardType="phone-pad"
-              returnKeyType="next"
             />
 
             <Input
