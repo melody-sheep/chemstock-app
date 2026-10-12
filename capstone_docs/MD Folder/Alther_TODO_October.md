@@ -1,9 +1,9 @@
 # ChemStock — Alther TODO (October 2026)
 
 Team: Alther Adrian Liga • Maria Angela U. Mantiza • Clint John Mila • Jay Fahad P. Sultan • Gio Niel P. Yecyec
-Prepared: September 12, 2026 · Updated: October 12, 2026 — living checklist, check items off as they land and update the notes if scope changes.
+Prepared: September 12, 2026 · Updated: October 13, 2026 — living checklist, check items off as they land and update the notes if scope changes.
 
-**Start with "Current status — October 12" below.** Older sections are kept as the detailed history; where they disagree with the current-status section, the current-status section is right.
+**Start with "Merged into `main` — October 13" and "Current status — October 12" below.** Older sections are kept as the detailed history; where they disagree with these two sections, these two are right.
 
 Source: raw feature list from the team (Jay), broken down into actionable frontend/backend/database tasks per POV (Manager / Sales Rep / Collector).
 
@@ -15,6 +15,59 @@ Source: raw feature list from the team (Jay), broken down into actionable fronte
 | 🟨 | In Progress |
 | 🔴 | Blocked / needs a team decision first |
 | ⬜ | Not Started |
+
+---
+
+## Merged into `main` — October 13, 2026
+
+`origin/jay` was merged into `main` on Oct 13 (merge commit `63e1120`, pushed). `origin/gio` was already contained in `jay`, so both are in. No conflicts. After the merge all 189 source files parse, every import resolves and every `navigate()` target is a registered route. **Nothing in this section has been tested on a device** except where Jay's notes say so; full detail is in `Jay_Sprint1.1.md` §66–§71.
+
+### Gio — Oct 12 (`93f9427`, `ecf06cb`, `b274ac2`, `b11b474`)
+
+| Area | What changed | Device status |
+|---|---|---|
+| Phone number input | New shared `PhilippinePhoneInput.js`: +63 prefix, 10-digit limit. Used in Manager Activation, Agent Accounts (create account) and Edit Profile | Not tested |
+| Release Stock duplicate | On the release success screen, the hardware back button and swipe-back are blocked, so the confirm form cannot be re-shown and submitted twice. Only Done leaves the screen (`ReleaseStockConfirmScreen.js`) | Not tested |
+| Dependency | `react-native-worklets` 0.10.1 added to `package.json` (needed by `babel.config.js`). Run `npm install` after pulling, or Metro fails with `Cannot read properties of undefined (reading 'transformFile')` | — |
+
+### Jay — Oct 13 (`507d839`)
+
+| Area | What changed | Device status |
+|---|---|---|
+| Collector "Return to Manager" (new) | Long-press an item in Ready to Deliver, before a trip starts, to send it back. Generates a separate `RET-` QR (`collector_returns` table, new `CollectorReturnQRScreen.js`). The Manager scans it from Receive Stock and the stock is credited back to `branch_inventory`. New statuses `returning` / `returned`, new "Returning to Manager" section on Accept Deliveries | Not tested |
+| Manager Receive Stock "Scan QR" | Was a "coming soon" alert. Now opens the scanner and confirms a Collector return (`confirm_collector_return`) | Not tested |
+| Manager Reports | "Branch Report" renamed "Transaction Report", with a Resolved / Unresolved status column. New "Received Stocks" report (Code + Total Received, one row per product). Cospachem logo on the printed and PDF output | Received Stocks duplicate rows found on device and fixed the same day; not re-tested |
+| Splash | Logo splash that fades out replaces the "Connecting to server…" text (`App.js`) | Logo sat too high on device; fix applied, not re-tested |
+| App icon | Icon and adaptive-icon layers regenerated from `ChemStockLogo.png`. Shows only in a real build, not in Expo Go | Needs a build |
+| Middle scan button | Did nothing on Manager Reports, Manager Settings, Sales Rep Reports, Sales Rep Settings and Collector Settings. Now matches each role's Dashboard | Not tested |
+| Ledger buttons | Manager Receive Stock and Add New Batches open Stock Logs. Sales Rep Receive Stock, Submit Report, Alerts & Discrepancies and Return Stocks open Sales Rep Logs | Not tested |
+| Manage Accounts | "Branch Workspace" is a working branch filter. Ledger button removed | Not tested |
+| Return Stocks (Sales Rep) | Shows product photos instead of a generic icon | Not tested |
+| Notifications | 2 new types, `collector_return_initiated` and `collector_return_received` (20 in total) | Not tested |
+
+SQL, both marked "confirmed run by Jay" in his notes: `2026-10-13_branch_report_status_column.sql`, `2026-10-13b_collector_return_to_manager.sql`.
+
+### Also on Oct 13
+
+- App display name changed from `chemstock-mobile` to **ChemStock** (`app.json` `expo.name`, commit `59094ab`). `slug` and `android.package` are unchanged. Shows only in a new build.
+
+### To check on device
+
+- [ ] Splash logo is centred on a cold launch.
+- [ ] Collector return end to end: initiate, QR shows, Manager scans it, branch stock goes up, the Collector gets the "received" notification.
+- [ ] Phone number input on Manager Activation, create account and Edit Profile.
+- [ ] Release Stock success screen: back button and swipe-back do nothing; Done works.
+- [ ] Middle scan button on the five Reports and Settings screens.
+- [ ] Ledger buttons on the six screens above.
+- [ ] Manage Accounts branch filter.
+- [ ] Transaction Report status column, Received Stocks report, Cospachem logo on a printed report.
+- [ ] After a build: the app is named "ChemStock" and shows the new icon.
+
+### Found while checking the merge (not fixed)
+
+- [ ] `NotificationsScreen.js` has no icon or filter group for the 2 new `collector_return_*` types. They show with the default bell and only under "All".
+- [ ] The middle scan button is still a no-op on `ManagerAlertsScreen`, `ManageReturnsScreen` and `ComingSoonScreen`.
+- [ ] Manager Receive Stock's "Confirm & Register" dialog still says "Backend wiring coming soon"; only the Scan QR half of that screen was connected.
 
 ---
 
@@ -82,15 +135,15 @@ Last updated: Oct 12, ~9:00 PM. Rows up to "Notification deep links, step 1" are
 - [x] ~~A daily report queued offline never tells the Sales Rep it had a discrepancy.~~ Covered by the new "Discrepancy found" notification (fires when the report reaches the server); not yet seen on device.
 
 **4. Clean-up**
-- [ ] `ReceiveStockSR.js` is no longer reachable from any screen. Delete after confirming.
+- [ ] ~~`ReceiveStockSR.js` is no longer reachable from any screen. Delete after confirming.~~ **Do not delete yet (checked Oct 13).** The scanner on `SalesRepStockScreen.js` still opens it, and Jay added a ledger button to it on Oct 13. That scan path skips `routeQrScan`, so point it at `routeQrScan` first, then delete.
 - [ ] `DateTimePicker` `onChange` is deprecated (warning only) in `RegisteredItemsList.js` and `FilterSheet.js`.
 
 **5. Still open from the earlier sweep (unchanged)**
 - [ ] Device checks for the Oct 3–6 sweep rows marked "Device check pending".
 - [ ] Print QR smoke test on all 4 screens.
 - [ ] Skeleton loading on about 12 screens.
-- [ ] Manager Receive Stock "Scan QR" is not connected.
-- [ ] `2026-10-05_reset_agent_password.sql` and `2026-10-05_daily_report_media_policy_fix.sql` — never confirmed as run.
+- [x] ~~Manager Receive Stock "Scan QR" is not connected.~~ Connected Oct 13 (Jay): it scans a Collector return QR. Not tested on device. It does not look up a receiving batch.
+- [x] ~~`2026-10-05_reset_agent_password.sql` and `2026-10-05_daily_report_media_policy_fix.sql` — never confirmed as run.~~ Both run, per `Jay_Sprint1.1.md` §65.
 - [ ] Manager Reports: one branch or all branches by default.
 - [ ] FAQ and Laws wording review by the team.
 - [ ] Database indexes.
