@@ -13,6 +13,7 @@ import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { supabase } from '../../services/supabaseClient';
 import { formatRelativeTime } from '../../utils/formatters';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 // Read-only status list of this SR's own return/resolve-discrepancy
 // requests. The submission form itself lives on ResolveDiscrepancyScreen,
@@ -68,9 +69,9 @@ export default function ReturnStocksSR() {
 
           <Text style={styles.topBarTitle}>Return Stocks</Text>
 
-          <View style={styles.iconButton}>
+          <Pressable onPress={() => navigation.navigate('SalesRepLogs')} style={styles.iconButton}>
             <Icon name="document" size={20} color="#FFFFFF" />
-          </View>
+          </Pressable>
         </View>
 
         {isLoading ? (
@@ -98,7 +99,14 @@ export default function ReturnStocksSR() {
                 >
                   <View style={styles.requestTopRow}>
                     <View style={styles.thumbnail}>
-                      <Icon name="package" size={24} color="#94a3b8" />
+                      {PRODUCT_CATALOG.find((p) => p.code === request.productCode)?.image ? (
+                        <Image
+                          source={PRODUCT_CATALOG.find((p) => p.code === request.productCode).image}
+                          style={styles.thumbnailImage}
+                        />
+                      ) : (
+                        <Icon name="package" size={24} color="#94a3b8" />
+                      )}
                     </View>
 
                     <View style={styles.requestDetails}>
@@ -233,6 +241,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+  },
+  thumbnailImage: {
+    width: '70%',
+    height: '70%',
   },
   requestDetails: {
     flex: 1,

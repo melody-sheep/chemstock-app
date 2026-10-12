@@ -220,6 +220,62 @@ class DeliveryService extends BaseService {
       return { success: false, message: error.message || 'Failed to load pending handoffs', data: [] };
     }
   }
+
+  /**
+   * Collector-facing: turns a "Ready to Deliver" item (accepted from the
+   * manager, not yet started on a trip) into a pending return instead,
+   * generating a QR only confirm_collector_return (the manager's Receive
+   * Stock scan) ever looks up.
+   */
+  async initiateCollectorReturn(agentId, transactionId) {
+    debugLog('info', 'DeliveryService', 'Initiating collector return', { agentId, transactionId });
+
+    try {
+      this.validateRequired(['agentId', 'transactionId'], { agentId, transactionId });
+
+      const { data, error } = await supabase.rpc('initiate_collector_return', {
+        p_agent_id: agentId,
+        p_transaction_id: transactionId,
+      });
+
+      if (error) {
+        console.error('[ERROR] [DeliveryService] initiate_collector_return RPC error:', error);
+        throw new Error(error.message || 'Failed to start the return');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'initiateCollectorReturn failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to start the return' };
+    }
+  }
+
+  /**
+   * Manager-facing: confirms a collector-return QR scanned from the
+   * Receive Stock screen, crediting the returned items back to branch
+   * stock. Real auth.uid() — no agentId param needed.
+   */
+  async confirmCollectorReturn(qrCode) {
+    debugLog('info', 'DeliveryService', 'Confirming collector return', { qrCode });
+
+    try {
+      this.validateRequired(['qrCode'], { qrCode });
+
+      const { data, error } = await supabase.rpc('confirm_collector_return', {
+        p_qr_code: qrCode,
+      });
+
+      if (error) {
+        console.error('[ERROR] [DeliveryService] confirm_collector_return RPC error:', error);
+        throw new Error(error.message || 'Failed to confirm the return');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'confirmCollectorReturn failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to confirm the return' };
+    }
+  }
 }
 
 const deliveryService = new DeliveryService();

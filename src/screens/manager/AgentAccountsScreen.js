@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'rea
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
 import Input from '../../components/common/Input';
+import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import Button from '../../components/common/Button';
 import LogListItem from '../../components/common/LogListItem';
 import BranchSelector from '../../components/common/BranchSelector';
@@ -24,7 +25,8 @@ export default function AgentAccountsScreen() {
   const [manager, setManager] = useState(null);
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneDigits, setPhoneDigits] = useState('');
+  const [phoneError, setPhoneError] = useState(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('sales_rep');
@@ -48,19 +50,31 @@ export default function AgentAccountsScreen() {
   const resetForm = () => {
     setFullName('');
     setUsername('');
-    setPhoneNumber('');
+    setPhoneDigits('');
+    setPhoneError(null);
     setPassword('');
     setConfirmPassword('');
     setRole('sales_rep');
   };
 
+  const handlePhoneChange = (digits) => {
+    setPhoneDigits(digits);
+    if (phoneError) setPhoneError(null);
+  };
+
   const handleCreate = async () => {
-    if (!fullName.trim() || !username.trim() || !phoneNumber.trim() || !password) {
+    if (!fullName.trim() || !username.trim() || !password) {
       Alert.alert('Missing Info', 'Please fill in all fields.');
       return;
     }
-    if (phoneNumber.trim().length < 7) {
-      Alert.alert('Invalid Phone Number', 'Please enter a valid phone number.');
+    if (!isValidPhNationalNumber(phoneDigits)) {
+      setPhoneError(
+        phoneDigits.length === 0
+          ? 'Phone number is required'
+          : phoneDigits.length < 10
+            ? `Enter all 10 digits (${phoneDigits.length}/10 so far)`
+            : 'PH mobile numbers start with 9, e.g. 917 123 4567'
+      );
       return;
     }
     if (password.length < 4) {
@@ -96,7 +110,7 @@ export default function AgentAccountsScreen() {
     // creation failing. The agent can still set it later via Edit Profile.
     const phoneResult = await profileService.updateAgentPhoneNumber({
       agentId: result.data.id,
-      phoneNumber: phoneNumber.trim(),
+      phoneNumber: toPhE164(phoneDigits),
     });
     setIsSubmitting(false);
     if (!phoneResult.success) {
@@ -174,13 +188,12 @@ export default function AgentAccountsScreen() {
             onChangeText={setUsername}
             autoCapitalize="none"
           />
-          <Input
+          <PhilippinePhoneInput
             label="Phone Number"
             required
-            placeholder="Enter phone number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
+            value={phoneDigits}
+            onChangeText={handlePhoneChange}
+            error={phoneError}
           />
           <Input
             label="Password"

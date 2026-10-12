@@ -10,6 +10,8 @@ import BottomActionBar, { useBottomActionBarHeight } from '../../components/comm
 import Icon from '../../components/common/Icon';
 import LogListItem from '../../components/common/LogListItem';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import QRScannerModal from '../../components/common/QRScannerModal';
+import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -20,17 +22,35 @@ export default function ReceiveStockScreen() {
   // cross-screen bridge wired yet, so this stays empty for now (see summary).
   const [queuedItems] = useState([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
   const bottomActionBarHeight = useBottomActionBarHeight();
 
   const handleDocumentPress = () => {
-    Alert.alert('Ledger', 'The stock ledger is coming soon.');
+    navigation.navigate('StockLogs');
   };
 
   const handleScanQR = () => {
-    Alert.alert(
-      'Scan QR',
-      "Camera-based QR scanning is coming soon. This will let you scan the factory's QR code directly."
-    );
+    setIsScannerVisible(true);
+  };
+
+  // Today the only thing a scan here resolves to is a Collector's "Return
+  // to Manager" QR (see 2026-10-13b_collector_return_to_manager.sql) —
+  // confirming it credits the returned items back to branch stock. A QR
+  // from any other flow (a factory batch, a delivery handoff) isn't
+  // recognized here and just shows a clear message instead of erroring.
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const result = await deliveryService.confirmCollectorReturn(qrCode);
+
+    if (!result.success) {
+      Alert.alert('QR Not Recognized', result.message || 'This QR code is not a pending collector return.');
+      return;
+    }
+
+    const itemSummary = (result.data?.items || [])
+      .map((item) => `${item.productName} x${item.quantity}`)
+      .join(', ') || 'Items';
+    Alert.alert('Return Confirmed', `${itemSummary} credited back to branch inventory.`);
   };
 
   const handleGenerateBatch = () => {
@@ -140,6 +160,12 @@ export default function ReceiveStockScreen() {
           title="Notice"
           description="You're about to register new batch of items to your branch inventory."
           confirmLabel="Confirm & Register"
+        />
+
+        <QRScannerModal
+          visible={isScannerVisible}
+          onClose={() => setIsScannerVisible(false)}
+          onScanned={handleScanned}
         />
       </View>
     </>

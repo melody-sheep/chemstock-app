@@ -251,7 +251,13 @@ export default function CollectorSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} fabIcon="truck" hiddenKeys={['stock', 'reports']} />
+        <BottomNavBar
+          activeTab="settings"
+          onTabPress={handleTabPress}
+          onFabPress={() => navigation.navigate('CollectorAcceptDeliveries')}
+          fabIcon="truck"
+          hiddenKeys={['stock', 'reports']}
+        />
       </View>
 
       <ConfirmationDialog

@@ -9,15 +9,18 @@ import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
+import { routeQrScan } from '../../utils/routeQrScan';
 
 export default function SalesRepSettingsScreen() {
   const navigation = useNavigation();
   const [user, setUser] = useState(null);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -38,6 +41,16 @@ export default function SalesRepSettingsScreen() {
       navigation.navigate('SalesRepReports');
     } else if (key !== 'settings') {
       Alert.alert('Coming Soon', `${key.charAt(0).toUpperCase()}${key.slice(1)} isn't built yet.`);
+    }
+  };
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    try {
+      const currentAgent = await authService.getCurrentUser();
+      await routeQrScan({ qrCode, agentId: currentAgent?.id, navigation });
+    } catch (error) {
+      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
     }
   };
 
@@ -230,7 +243,7 @@ export default function SalesRepSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
 
       <ConfirmationDialog
@@ -241,6 +254,12 @@ export default function SalesRepSettingsScreen() {
         title="Log Out"
         description="You're about to log out of ChemStock. You'll need to sign in again to access your inventory."
         confirmLabel="Log Out"
+      />
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
       />
     </>
   );

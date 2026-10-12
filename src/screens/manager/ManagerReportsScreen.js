@@ -5,21 +5,31 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { Asset } from 'expo-asset';
+import * as FileSystem from 'expo-file-system/legacy';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
+import inventoryService from '../../services/inventoryService';
 import { supabase } from '../../services/supabaseClient';
 import { formatDisplayDate } from '../../utils/formatters';
+import { describeReceivingScan } from '../../utils/scanLookup';
 
 const PERIOD_TYPES = [
   { key: 'weekly', label: 'Weekly' },
   { key: 'monthly', label: 'Monthly' },
+];
+
+const REPORT_KINDS = [
+  { key: 'transaction', label: 'Transaction Report' },
+  { key: 'received', label: 'Received Stocks' },
 ];
 
 function startOfWeek(date) {
@@ -57,7 +67,7 @@ function shiftAnchor(periodType, anchorDate, direction) {
   return next;
 }
 
-function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate }) {
+function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate, logoBase64 }) {
   const rows = products
     .map(
       (p) => `
@@ -68,6 +78,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
           <td>${p.returned}</td>
           <td class="${p.loss > 0 ? 'loss' : ''}">${p.loss}</td>
           <td class="${p.over > 0 ? 'over' : ''}">${p.over}</td>
+          <td class="${p.status === 'Unresolved' ? 'loss' : ''}">${p.status || 'Resolved'}</td>
         </tr>`
     )
     .join('');
@@ -90,7 +101,8 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
         <meta charset="utf-8" />
         <style>
           body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #272632; }
-          .company-header { text-align: center; margin-bottom: 14px; }
+          .company-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+          .company-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
           .company-name { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
           .company-address { font-size: 11px; color: #555353; margin-top: 2px; }
           .distributor-box { border-top: 1px solid #272632; border-bottom: 1px solid #272632; padding: 10px 0; margin-bottom: 14px; }
@@ -115,8 +127,11 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
       </head>
       <body>
         <div class="company-header">
-          <div class="company-name">A AND AIMEE LABORATORIES</div>
-          <div class="company-address">Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna</div>
+          ${logoBase64 ? `<img class="company-logo" src="data:image/png;base64,${logoBase64}" alt="Cospachem" />` : ''}
+          <div>
+            <div class="company-name">A AND AIMEE LABORATORIES</div>
+            <div class="company-address">Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna</div>
+          </div>
         </div>
 
         <div class="distributor-box">
@@ -132,11 +147,11 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
 
         <div class="bor-title">DISTRIBUTOR'S REPORT (BOR)</div>
 
-        <h1>${branchName} — ${periodLabel} Stock Report</h1>
+        <h1>${branchName} — ${periodLabel} Transaction Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
-            <tr><th>Code</th><th>Actual Inv</th><th>Sales</th><th>Returned</th><th>Loss</th><th>Over</th></tr>
+            <tr><th>Code</th><th>Actual Inv</th><th>Sales</th><th>Returned</th><th>Loss</th><th>Over</th><th>Status</th></tr>
           </thead>
           <tbody>${rows}</tbody>
           <tfoot>
@@ -147,6 +162,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
               <td>${totals.returned}</td>
               <td>${totals.loss}</td>
               <td>${totals.over}</td>
+              <td></td>
             </tr>
           </tfoot>
         </table>
@@ -162,18 +178,106 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
   `;
 }
 
+function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64 }) {
+  const rows = items
+    .map(
+      (i) => `
+        <tr>
+          <td>${i.productCode}</td>
+          <td>${i.quantity}</td>
+        </tr>`
+    )
+    .join('');
+
+  const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #272632; }
+          .company-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+          .company-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
+          .company-name { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+          .company-address { font-size: 11px; color: #555353; margin-top: 2px; }
+          h1 { font-size: 16px; margin-bottom: 2px; }
+          .subtitle { color: #555353; font-size: 12px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          th, td { border: 1px solid #DBE4EE; padding: 8px 10px; font-size: 12px; text-align: left; }
+          th { background: #F1F3F6; font-weight: 700; }
+          tfoot td { font-weight: 700; background: #F8FAFC; }
+          .sign-row { margin-top: 32px; font-size: 12px; }
+          .sign-row span { display: inline-block; min-width: 220px; border-bottom: 1px solid #272632; margin-right: 24px; padding-bottom: 2px; }
+        </style>
+      </head>
+      <body>
+        <div class="company-header">
+          ${logoBase64 ? `<img class="company-logo" src="data:image/png;base64,${logoBase64}" alt="Cospachem" />` : ''}
+          <div>
+            <div class="company-name">A AND AIMEE LABORATORIES</div>
+            <div class="company-address">Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna</div>
+          </div>
+        </div>
+
+        <h1>${branchName} — ${periodLabel} Received Stocks Report</h1>
+        <div class="subtitle">${periodRange}</div>
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Total Received</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <td>Total Received</td>
+              <td>${totalQuantity}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="sign-row">Manager Sign-off: <span>${managerName || ''}</span> Date: <span>${signOffDate}</span></div>
+      </body>
+    </html>
+  `;
+}
+
 export default function ManagerReportsScreen() {
   const navigation = useNavigation();
   const [manager, setManager] = useState(null);
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const [reportKind, setReportKind] = useState('transaction');
   const [periodType, setPeriodType] = useState('monthly');
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [report, setReport] = useState(null);
+  const [receivedItems, setReceivedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [managerName, setManagerName] = useState('');
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [logoBase64, setLogoBase64] = useState(null);
+
+  // Resolved once and reused on every print/export — the logo asset never
+  // changes mid-session, no reason to re-read it from disk each time.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLogo() {
+      try {
+        const asset = Asset.fromModule(require('../../../assets/CospachemLogo.png'));
+        await asset.downloadAsync();
+        const base64 = await FileSystem.readAsStringAsync(asset.localUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (!cancelled) setLogoBase64(base64);
+      } catch (error) {
+        console.error('[ERROR] [ManagerReportsScreen] Failed to load report logo:', error);
+      }
+    }
+    loadLogo();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -203,10 +307,38 @@ export default function ManagerReportsScreen() {
     if (!selectedBranchId) return;
     setIsLoading(true);
     const { start, end } = getPeriodRange(periodType, anchorDate);
-    const result = await reportService.getBranchReport(selectedBranchId, toISODate(start), toISODate(end));
-    setReport(result.success ? result.data : null);
+
+    if (reportKind === 'received') {
+      // End bound needs to cover the whole end day, not just its midnight.
+      const endOfDay = new Date(end);
+      endOfDay.setHours(23, 59, 59, 999);
+      const result = await inventoryService.getReceivingLogs([selectedBranchId], 200, start.toISOString(), endOfDay.toISOString());
+
+      // Merged by product code — the same code received across multiple
+      // batches/dates in the period shows as one row with a combined total,
+      // not one row per batch.
+      const mergedByCode = new Map();
+      (result.success ? result.data : []).forEach((batch) => {
+        (batch.branch_inventory || []).forEach((item) => {
+          const existing = mergedByCode.get(item.product_code);
+          if (existing) {
+            existing.quantity += item.received_quantity;
+          } else {
+            mergedByCode.set(item.product_code, {
+              productCode: item.product_code,
+              quantity: item.received_quantity,
+            });
+          }
+        });
+      });
+      const merged = Array.from(mergedByCode.values()).sort((a, b) => a.productCode.localeCompare(b.productCode));
+      setReceivedItems(merged);
+    } else {
+      const result = await reportService.getBranchReport(selectedBranchId, toISODate(start), toISODate(end));
+      setReport(result.success ? result.data : null);
+    }
     setIsLoading(false);
-  }, [selectedBranchId, periodType, anchorDate]);
+  }, [selectedBranchId, reportKind, periodType, anchorDate]);
 
   useEffect(() => {
     loadReport();
@@ -226,6 +358,13 @@ export default function ManagerReportsScreen() {
     }
   };
 
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    const currentManager = await authService.getCurrentUser();
+    const summary = await describeReceivingScan(qrCode, currentManager?.branchIds || []);
+    Alert.alert(summary.title, summary.message);
+  };
+
   const { start, end } = getPeriodRange(periodType, anchorDate);
   const periodLabel = periodType === 'weekly' ? 'Weekly' : 'Monthly';
   const periodRangeLabel = `${formatDisplayDate(toISODate(start))} – ${formatDisplayDate(toISODate(end))}`;
@@ -234,15 +373,26 @@ export default function ManagerReportsScreen() {
   const systemDetails = report?.systemDetails;
 
   const buildHtml = () =>
-    buildReportHtml({
-      branchName,
-      periodLabel,
-      periodRange: periodRangeLabel,
-      products,
-      systemDetails,
-      managerName,
-      signOffDate: formatDisplayDate(toISODate(new Date())),
-    });
+    reportKind === 'received'
+      ? buildReceivedStockHtml({
+          branchName,
+          periodLabel,
+          periodRange: periodRangeLabel,
+          items: receivedItems,
+          managerName,
+          signOffDate: formatDisplayDate(toISODate(new Date())),
+          logoBase64,
+        })
+      : buildReportHtml({
+          branchName,
+          periodLabel,
+          periodRange: periodRangeLabel,
+          products,
+          systemDetails,
+          managerName,
+          signOffDate: formatDisplayDate(toISODate(new Date())),
+          logoBase64,
+        });
 
   const handlePrint = async () => {
     setIsExporting(true);
@@ -304,7 +454,9 @@ export default function ManagerReportsScreen() {
 
         <SecondaryHeader height={56}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Branch Report</Text>
+            <Text style={styles.pageTitle}>
+              {reportKind === 'received' ? 'Received Stocks' : 'Transaction Report'}
+            </Text>
             <View style={styles.onlinePill}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>Online</Text>
@@ -313,6 +465,21 @@ export default function ManagerReportsScreen() {
         </SecondaryHeader>
 
         <View style={styles.controlsWrap}>
+          <View style={styles.periodTypeRow}>
+            {REPORT_KINDS.map((k) => {
+              const isActive = k.key === reportKind;
+              return (
+                <TouchableOpacity
+                  key={k.key}
+                  style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
+                  onPress={() => setReportKind(k.key)}
+                >
+                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{k.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <View style={styles.periodTypeRow}>
             {PERIOD_TYPES.map((p) => {
               const isActive = p.key === periodType;
@@ -368,31 +535,61 @@ export default function ManagerReportsScreen() {
             <Text style={styles.previewHint}>(Scroll right to review all columns)</Text>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View>
-                <View style={styles.tableHeaderRow}>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colCode]}>Code</Text>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Actual Inv</Text>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Sales</Text>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Returned</Text>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Loss</Text>
-                  <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Over</Text>
-                </View>
+              {reportKind === 'received' ? (
+                <View>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colCode]}>Code</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Total Received</Text>
+                  </View>
 
-                {products.length === 0 ? (
-                  <Text style={styles.emptyText}>No accepted reports in this period yet.</Text>
-                ) : (
-                  products.map((p) => (
-                    <View key={p.productCode} style={styles.tableRow}>
-                      <Text style={[styles.tableCell, styles.colCode]}>{p.productCode}</Text>
-                      <Text style={[styles.tableCell, styles.colNum]}>{p.actualInventory}</Text>
-                      <Text style={[styles.tableCell, styles.colNum]}>{p.sales}</Text>
-                      <Text style={[styles.tableCell, styles.colNum]}>{p.returned}</Text>
-                      <Text style={[styles.tableCell, styles.colNum, p.loss > 0 && styles.lossCell]}>{p.loss}</Text>
-                      <Text style={[styles.tableCell, styles.colNum, p.over > 0 && styles.overCell]}>{p.over}</Text>
-                    </View>
-                  ))
-                )}
-              </View>
+                  {receivedItems.length === 0 ? (
+                    <Text style={styles.emptyText}>No stock received in this period yet.</Text>
+                  ) : (
+                    receivedItems.map((item) => (
+                      <View key={item.productCode} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, styles.colCode]}>{item.productCode}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{item.quantity}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : (
+                <View>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colCode]}>Code</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Actual Inv</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Sales</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Returned</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Loss</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Over</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colStatus]}>Status</Text>
+                  </View>
+
+                  {products.length === 0 ? (
+                    <Text style={styles.emptyText}>No accepted reports in this period yet.</Text>
+                  ) : (
+                    products.map((p) => (
+                      <View key={p.productCode} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, styles.colCode]}>{p.productCode}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{p.actualInventory}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{p.sales}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{p.returned}</Text>
+                        <Text style={[styles.tableCell, styles.colNum, p.loss > 0 && styles.lossCell]}>{p.loss}</Text>
+                        <Text style={[styles.tableCell, styles.colNum, p.over > 0 && styles.overCell]}>{p.over}</Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            styles.colStatus,
+                            p.status === 'Unresolved' ? styles.lossCell : styles.resolvedCell,
+                          ]}
+                        >
+                          {p.status || 'Resolved'}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
             </ScrollView>
 
             <View style={styles.signOffCard}>
@@ -460,8 +657,14 @@ export default function ManagerReportsScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </>
   );
 }
@@ -603,8 +806,10 @@ const styles = StyleSheet.create({
   },
   colCode: { width: 120 },
   colNum: { width: 90, textAlign: 'right' },
+  colStatus: { width: 100 },
   lossCell: { color: '#B91C1C', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   overCell: { color: '#B26400', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  resolvedCell: { color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.medium, fontWeight: '600' },
   emptyText: {
     fontSize: 12,
     color: COLORS.textSecondary,

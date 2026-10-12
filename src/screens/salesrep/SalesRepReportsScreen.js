@@ -1,12 +1,13 @@
 // src/screens/salesrep/SalesRepReportsScreen.js
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import Header from '../../components/common/Header';
 import BottomNavBar from '../../components/common/BottomNavBar';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -15,6 +16,7 @@ import { SPACING } from '../../styles/spacing';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
+import { routeQrScan } from '../../utils/routeQrScan';
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -42,7 +44,7 @@ export default function SalesRepReportsScreen() {
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
   const reports = snapshot?.reports ?? [];
   const [selectedReport, setSelectedReport] = useState(null);
-
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   const handleTabPress = (key) => {
     if (key === 'dashboard') {
@@ -51,6 +53,16 @@ export default function SalesRepReportsScreen() {
       navigation.navigate('SalesRepStock');
     } else if (key === 'settings') {
       navigation.navigate('SalesRepSettings');
+    }
+  };
+
+  const handleScanned = async (qrCode) => {
+    setIsScannerVisible(false);
+    try {
+      const currentAgent = await authService.getCurrentUser();
+      await routeQrScan({ qrCode, agentId: currentAgent?.id, navigation });
+    } catch (error) {
+      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
     }
   };
 
@@ -206,7 +218,7 @@ export default function SalesRepReportsScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => {}} />
+        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
       </View>
 
       <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height={520}>
@@ -243,6 +255,12 @@ export default function SalesRepReportsScreen() {
           </ScrollView>
         )}
       </CustomModal>
+
+      <QRScannerModal
+        visible={isScannerVisible}
+        onClose={() => setIsScannerVisible(false)}
+        onScanned={handleScanned}
+      />
     </>
   );
 }

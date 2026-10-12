@@ -14,6 +14,7 @@ import CustomModal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
+import { supabase } from '../../services/supabaseClient';
 import { getInitials } from '../../utils/initials';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
@@ -71,9 +72,12 @@ export default function ManageAccountsScreen() {
   const navigation = useNavigation();
   const [manager, setManager] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [branchFilter, setBranchFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
+  const [isBranchSheetVisible, setIsBranchSheetVisible] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [accountToResetPassword, setAccountToResetPassword] = useState(null);
@@ -89,6 +93,13 @@ export default function ManageAccountsScreen() {
     ]);
     setManager(currentManager);
     setAccounts(result.success ? result.data : []);
+
+    const branchIds = currentManager?.branchIds || [];
+    if (branchIds.length > 0) {
+      const { data } = await supabase.from('branches').select('id, name').in('id', branchIds);
+      setBranches(data || []);
+    }
+
     setIsLoading(false);
   }, []);
 
@@ -101,7 +112,8 @@ export default function ManageAccountsScreen() {
   );
 
   const handleWorkspacePress = () => {
-    Alert.alert('Branch Workspace', 'Switching between individual branches is coming soon.');
+    if (branches.length <= 1) return;
+    setIsBranchSheetVisible(true);
   };
 
   const handleRemovePress = (account) => {
@@ -165,8 +177,16 @@ export default function ManageAccountsScreen() {
     setAccounts((prev) => prev.filter((a) => a.id !== accountToRemove.id));
   };
 
-  const filteredAccounts = roleFilter === 'all' ? accounts : accounts.filter((a) => a.role === roleFilter);
+  const filteredAccounts = accounts
+    .filter((a) => roleFilter === 'all' || a.role === roleFilter)
+    .filter((a) => branchFilter === 'all' || (a.branch_ids || []).includes(branchFilter));
   const activeFilterOption = ROLE_FILTER_OPTIONS.find((option) => option.key === roleFilter);
+  const branchFilterOptions = [
+    { key: 'all', label: 'All Branches' },
+    ...branches.map((b) => ({ key: b.id, label: b.name })),
+  ];
+  const workspaceLabel =
+    branchFilter === 'all' ? manager?.branchName || 'No branch assigned' : branches.find((b) => b.id === branchFilter)?.name;
 
   return (
     <>
@@ -175,8 +195,6 @@ export default function ManageAccountsScreen() {
         <Header
           showBackButton
           backButtonText="Manager Dashboard"
-          showDocumentIcon
-          onDocumentPress={() => Alert.alert('Documents', 'Coming soon.')}
           height={56}
           backgroundColor="#03045E"
           textColor="#FFFFFF"
@@ -195,11 +213,15 @@ export default function ManageAccountsScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.label}>Current Branch Workspace</Text>
-          <TouchableOpacity style={styles.workspaceBox} onPress={handleWorkspacePress} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.workspaceBox}
+            onPress={handleWorkspacePress}
+            activeOpacity={branches.length > 1 ? 0.7 : 1}
+          >
             <Text style={styles.workspaceText} numberOfLines={1}>
-              {manager?.branchName || 'No branch assigned'}
+              {workspaceLabel}
             </Text>
-            <Icon name="caretDown" size={16} color="#FFFFFF" />
+            {branches.length > 1 && <Icon name="caretDown" size={16} color="#FFFFFF" />}
           </TouchableOpacity>
 
           <Text style={[styles.label, styles.filterLabel]}>View Filter (Agents)</Text>
@@ -254,6 +276,15 @@ export default function ManageAccountsScreen() {
         options={ROLE_FILTER_OPTIONS}
         selectedKey={roleFilter}
         onSelect={setRoleFilter}
+      />
+
+      <FilterSheet
+        visible={isBranchSheetVisible}
+        onClose={() => setIsBranchSheetVisible(false)}
+        title="Filter by Branch"
+        options={branchFilterOptions}
+        selectedKey={branchFilter}
+        onSelect={setBranchFilter}
       />
 
       <ConfirmationDialog

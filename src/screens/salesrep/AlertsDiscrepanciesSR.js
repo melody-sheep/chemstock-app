@@ -223,6 +223,8 @@ export default function AlertsDiscrepanciesSR() {
           textColor="#FFFFFF"
           paddingHorizontal={SPACING.md}
           onBackPress={handleBack}
+          showDocumentIcon
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
         />
 
         <SecondaryHeader height={72}>

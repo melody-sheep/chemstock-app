@@ -1,8 +1,8 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Image, Animated, Alert, StyleSheet, Dimensions } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, getFriendlyErrorMessage } from './src/services/supabaseClient';
 import authService from './src/services/authService';
@@ -34,11 +34,34 @@ const withTimeout = (promise, ms, fallbackValue) =>
     new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
   ]);
 
+// How long the logo splash holds once the app is actually ready, so a fast
+// connection doesn't flash the logo by in a single frame — and how long the
+// fade-out itself takes.
+const SPLASH_MIN_HOLD_MS = 250;
+const SPLASH_FADE_MS = 400;
+
 export default function App() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('');
   const [initialRouteName, setInitialRouteName] = useState(null);
+  const [isSplashMounted, setIsSplashMounted] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+
+  // Crossfades the logo splash out once the app underneath is ready, instead
+  // of abruptly swapping the "Connecting to server..." view for the
+  // navigator. The navigator mounts underneath while the splash is still
+  // fully opaque, so there's nothing to flash past it.
+  useEffect(() => {
+    if (isConnecting) return;
+    const timer = setTimeout(() => {
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: SPLASH_FADE_MS,
+        useNativeDriver: true,
+      }).start(() => setIsSplashMounted(false));
+    }, SPLASH_MIN_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [isConnecting]);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -60,7 +83,6 @@ export default function App() {
       try {
         if (result.success) {
           console.log('✅ [App] Supabase connection successful!');
-          setConnectionStatus('Connected');
 
           // Test RLS policies on activation_keys only
           await testRLSPolicies();
@@ -138,76 +160,91 @@ export default function App() {
     initializeApp();
   }, []);
 
-  if (isConnecting) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <StatusBar style="auto" />
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: COLORS.background
-          }}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-            <Text style={{
-              marginTop: 20,
-              color: COLORS.textSecondary,
-              fontSize: 16
-            }}>
-              {connectionStatus || 'Connecting to server...'}
-            </Text>
-          </View>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    );
-  }
-
-  if (connectionError && __DEV__) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <StatusBar style="auto" />
-          <View style={{
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 20,
-            backgroundColor: COLORS.background
-          }}>
-            <Text style={{
-              color: COLORS.error,
-              fontSize: 18,
-              fontWeight: 'bold',
-              marginBottom: 10
-            }}>
-              Connection Error
-            </Text>
-            <Text style={{
-              color: COLORS.textSecondary,
-              textAlign: 'center',
-              marginBottom: 20
-            }}>
-              {connectionError}
-            </Text>
-            <Text style={{
-              color: COLORS.textSecondary,
-              fontSize: 12,
-              textAlign: 'center'
-            }}>
-              Check your internet connection and Supabase credentials.
-            </Text>
-          </View>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    );
-  }
+  const showErrorScreen = !isConnecting && connectionError && __DEV__;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppNavigator initialRouteName={initialRouteName || 'Login'} />
+        <StatusBar style={isSplashMounted ? 'dark' : 'auto'} />
+
+        {!isConnecting && !showErrorScreen && (
+          <AppNavigator initialRouteName={initialRouteName || 'Login'} />
+        )}
+
+        {showErrorScreen && (
+          <View style={styles.errorScreen}>
+            <Text style={styles.errorTitle}>Connection Error</Text>
+            <Text style={styles.errorMessage}>{connectionError}</Text>
+            <Text style={styles.errorHint}>
+              Check your internet connection and Supabase credentials.
+            </Text>
+          </View>
+        )}
+
+        {isSplashMounted && (
+          <Animated.View
+            style={[styles.splash, { opacity: splashOpacity }]}
+            pointerEvents={isConnecting ? 'auto' : 'none'}
+          >
+            <Image
+              source={require('./assets/ChemStockLogo.png')}
+              style={styles.splashLogo}
+              resizeMode="contain"
+            />
+          </Animated.View>
+        )}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+// Explicit window dimensions instead of StyleSheet.absoluteFillObject
+// (top/left/right/bottom: 0) — the splash is the very first thing painted
+// on cold launch, before SafeAreaProvider/GestureHandlerRootView have
+// necessarily completed their own first layout pass. Anchoring via
+// right/bottom depends on the parent already being measured; Dimensions is
+// resolved synchronously and isn't subject to that race, so the overlay
+// can't render at a stale/partial size on that very first frame.
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+  splash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+    elevation: 999,
+  },
+  splashLogo: {
+    width: 180,
+    height: 180,
+  },
+  errorScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: COLORS.background,
+  },
+  errorTitle: {
+    color: COLORS.error,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  errorMessage: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorHint: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+});

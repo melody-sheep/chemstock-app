@@ -212,9 +212,14 @@ export default function ReceiveStockSR() {
       <StatusBar style="light" />
       <View style={styles.screen}>
         <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-          <Pressable onPress={handleBack} style={styles.backButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
+          <View style={styles.topBarLeftGroup}>
+            <Pressable onPress={handleBack} style={styles.backButton}>
+              <Icon name="arrowLeft" size={20} color="#FFFFFF" />
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate('SalesRepLogs')} style={styles.backButton}>
+              <Icon name="document" size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
 
           <Text style={styles.topBarTitle}>Receive Stock</Text>
 
@@ -420,6 +425,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 18,
+  },
+  topBarLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     width: 32,

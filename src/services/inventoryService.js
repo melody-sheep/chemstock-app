@@ -158,8 +158,8 @@ class InventoryService extends BaseService {
    * the given branch(es), each with its line items, GPS, and photo metadata
    * embedded via the FK relationships — no separate queries/grouping needed.
    */
-  async getReceivingLogs(branchIds, limit = 20) {
-    debugLog('info', 'InventoryService', 'Fetching receiving logs', { branchIds, limit });
+  async getReceivingLogs(branchIds, limit = 20, startDate = null, endDate = null) {
+    debugLog('info', 'InventoryService', 'Fetching receiving logs', { branchIds, limit, startDate, endDate });
 
     if (!branchIds || branchIds.length === 0) {
       return { success: true, data: [] };
@@ -170,7 +170,7 @@ class InventoryService extends BaseService {
       // an immutable snapshot from when the batch was received, whereas
       // quantity is live current stock and drops as the batch gets
       // released (down to 0, never deleted — see 2026-08-21 migration).
-      const { data, error } = await supabase
+      let query = supabase
         .from('receiving_batches')
         .select(
           '*, gps_coordinates(latitude, longitude), media(storage_path, device_model, device_os), branch_inventory(product_code, product_name, batch_number, received_quantity, mfg_date, exp_date)'
@@ -178,6 +178,13 @@ class InventoryService extends BaseService {
         .in('branch_id', branchIds)
         .order('created_at', { ascending: false })
         .limit(limit);
+
+      // Optional period filter, for the Manager's Received Stocks report
+      // (weekly/monthly) — both bounds are inclusive ISO dates.
+      if (startDate) query = query.gte('created_at', startDate);
+      if (endDate) query = query.lte('created_at', endDate);
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('[ERROR] [InventoryService] getReceivingLogs error:', error);
