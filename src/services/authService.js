@@ -1,6 +1,7 @@
 // src/services/authService.js
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { BaseService } from './BaseService';
-import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
+import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession } from './supabaseClient';
 import { setPresenceIdentity } from './presenceService';
 import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
@@ -28,6 +29,34 @@ const MANAGER_PROFILE_CACHE_KEY = 'chemstock_manager_profile_cache';
 // focus. A result this recent is reused; login and logout clear it.
 const CURRENT_USER_TTL_MS = 60 * 1000;
 let currentUserCache = null;
+
+// One load shared by every screen that asks at the same time.
+let currentUserRequest = null;
+// Bumped on login, logout and clear, so a load that started before one of
+// those can't write the previous user back into the cache when it finishes.
+let currentUserGeneration = 0;
+
+// A Supabase token refresh retries for up to ~30 s and each try can wait the
+// full request time limit, so a load is capped here and falls back to the
+// login saved on the phone.
+const CURRENT_USER_LOAD_TIMEOUT_MS = 20 * 1000;
+const LOAD_TIMED_OUT = Symbol('load-timed-out');
+
+const withTimeout = (promise, ms, fallbackValue) => {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallbackValue), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+};
+
+const resetCurrentUser = () => {
+  currentUserCache = null;
+  currentUserRequest = null;
+  currentUserGeneration += 1;
+};
 
 class AuthService extends BaseService {
   constructor() {
@@ -77,7 +106,7 @@ class AuthService extends BaseService {
    * @param {Object} credentials - { username, password }
    */
   async login(credentials) {
-    currentUserCache = null;
+    resetCurrentUser();
     debugLog('info', 'AuthService', 'Login attempt', {
       username: credentials.username
     });
@@ -134,6 +163,9 @@ class AuthService extends BaseService {
         // No Supabase Auth session exists for agents, so persist this
         // manually — getCurrentUser() reads it back on every screen focus.
         await storage.set(AGENT_SESSION_KEY, agentUser);
+        // Mirror of the manager branch below, so the offline fallback can
+        // never restore a previous manager on this phone.
+        await storage.remove(MANAGER_PROFILE_CACHE_KEY);
 
         return {
           success: true,
@@ -247,6 +279,10 @@ class AuthService extends BaseService {
         throw authError;
       }
 
+      // A saved agent login takes priority on launch (see _loadCurrentUser),
+      // so a manager activated on a phone an agent used must clear it.
+      await storage.remove(AGENT_SESSION_KEY);
+
       debugLog('info', 'AuthService', 'Registration successful', {
         userId: authData.user.id
       });
@@ -280,7 +316,7 @@ class AuthService extends BaseService {
    */
 
   async logout() {
-    currentUserCache = null;
+    resetCurrentUser();
     setPresenceIdentity(null);
     debugLog('info', 'AuthService', 'Logout');
 
@@ -314,32 +350,106 @@ class AuthService extends BaseService {
       debugLog('debug', 'Cache', 'Current user reused', { ageMs: Date.now() - currentUserCache.fetchedAt });
       return currentUserCache.user;
     }
+    // Offline, a refetch can only fail after its timeouts — keep the user
+    // already known instead of making every screen wait for that.
+    if (currentUserCache?.user && !getConnectionStatus().online) {
+      debugLog('debug', 'Cache', 'Current user reused while offline', { ageMs: Date.now() - currentUserCache.fetchedAt });
+      return currentUserCache.user;
+    }
+    // Same offline shortcut straight after launch, before anything is in memory.
+    if (!getConnectionStatus().online) {
+      const savedUser = await this.getSavedUser();
+      if (savedUser) {
+        debugLog('info', 'Auth', 'Offline — using the login saved on this phone', { role: savedUser.role });
+        // fetchedAt 0: the first call once back online refreshes it.
+        currentUserCache = { user: savedUser, fetchedAt: 0 };
+        return savedUser;
+      }
+    }
+    if (!currentUserRequest) {
+      const request = this._loadCurrentUserCapped();
+      currentUserRequest = request;
+      request.finally(() => {
+        if (currentUserRequest === request) currentUserRequest = null;
+      }).catch(() => {});
+    } else {
+      debugLog('debug', 'Auth', 'Current user load already running, sharing it');
+    }
+    return currentUserRequest;
+  }
+
+  async _loadCurrentUserCapped() {
+    const generation = currentUserGeneration;
     const startedAt = Date.now();
-    const user = await this._loadCurrentUser();
+    let user = await withTimeout(this._loadCurrentUser(), CURRENT_USER_LOAD_TIMEOUT_MS, LOAD_TIMED_OUT);
+    const timedOut = user === LOAD_TIMED_OUT;
+    if (timedOut) {
+      user = await this.getSavedUser();
+      debugLog('warn', 'Auth', 'Current user load timed out, using the login saved on this phone', { ms: Date.now() - startedAt, found: Boolean(user) });
+    } else {
+      debugLog('info', 'Cache', 'Current user loaded from server', { ms: Date.now() - startedAt });
+    }
+    // A login or logout happened meanwhile: don't overwrite it.
+    if (generation !== currentUserGeneration) return currentUserCache?.user ?? user;
     setPresenceIdentity(user?.id);
-    debugLog('info', 'Cache', 'Current user loaded from server', { ms: Date.now() - startedAt });
-    currentUserCache = { user, fetchedAt: Date.now() };
+    // A timed-out result is stored as stale, so the next call tries again.
+    currentUserCache = { user, fetchedAt: timedOut ? 0 : Date.now() };
     return user;
   }
 
   /** Forget the cached current user, e.g. after the profile is edited. */
   clearCurrentUserCache() {
-    currentUserCache = null;
+    resetCurrentUser();
+  }
+
+  /**
+   * The last signed-in user saved on this phone, read from storage only — no
+   * network. Used when restoring a session takes too long on a bad connection.
+   * An agent session wins because a manager login always removes it, so its
+   * presence means an agent signed in last. A saved manager profile only
+   * counts while the manager's Supabase login is also still on the phone.
+   */
+  /** Id of the user already loaded in memory, or null. No storage or network. */
+  peekCurrentUserId() {
+    return currentUserCache?.user?.id ?? null;
+  }
+
+  async getSavedUser() {
+    const agentUser = await storage.get(AGENT_SESSION_KEY);
+    if (agentUser) return agentUser;
+    if (!(await hasStoredAuthSession())) return null;
+    return storage.get(MANAGER_PROFILE_CACHE_KEY);
   }
 
   async _loadCurrentUser() {
     debugLog('info', 'AuthService', 'Fetching current user');
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Checked before the Supabase session: a manager login always removes
+      // this key, so if it's here an agent signed in last. A manager session
+      // left behind by a sign-out that failed must not take over.
+      const agentUser = await storage.get(AGENT_SESSION_KEY);
+
+      const { data: { session }, error: sessionError } = agentUser
+        ? { data: { session: null }, error: null }
+        : await supabase.auth.getSession();
 
       if (sessionError) {
+        // Offline, an expired access token can't be refreshed, but the
+        // refresh token is still stored and will work once back online. Only
+        // a real auth rejection (e.g. revoked token) should log the user out.
+        if (isAuthRetryableFetchError(sessionError) || !getConnectionStatus().online) {
+          const cachedManager = await storage.get(MANAGER_PROFILE_CACHE_KEY);
+          if (cachedManager) {
+            debugLog('info', 'AuthService', 'Token refresh failed offline, restored cached manager profile', { userId: cachedManager.id });
+            return cachedManager;
+          }
+        }
         throw sessionError;
       }
 
       if (!session) {
         // No active Supabase session — fall back to a persisted agent session.
-        const agentUser = await storage.get(AGENT_SESSION_KEY);
         if (!agentUser) {
           return agentUser;
         }

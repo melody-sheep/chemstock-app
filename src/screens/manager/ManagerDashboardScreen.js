@@ -144,6 +144,7 @@ export default function ManagerDashboardScreen() {
       ...reportLogs,
       ...discrepancyLogs,
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const logsComplete = logsResult.success && deliveriesResult.success && reportsResult.success && discrepanciesResult.success;
     return {
       user: currentUser,
       totalUnits: stockResult.success
@@ -155,8 +156,10 @@ export default function ManagerDashboardScreen() {
       openDiscrepancyCount: discrepanciesResult.success
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
-      recentLogs: mergedLogs.slice(0, 3),
-      logTimes: mergedLogs.map((log) => log.created_at),
+      // The feed merges four requests; if any failed (offline), keep the last
+      // complete feed instead of saving a partial or empty one over it.
+      recentLogs: logsComplete || !prev ? mergedLogs.slice(0, 3) : prev.recentLogs,
+      logTimes: logsComplete || !prev ? mergedLogs.map((log) => log.created_at) : prev.logTimes,
       recipientNameById: agentsResult.success
         ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name]))
         : prev?.recipientNameById ?? {},

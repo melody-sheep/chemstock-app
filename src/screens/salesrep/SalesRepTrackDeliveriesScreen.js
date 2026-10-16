@@ -45,8 +45,12 @@ const loadDeliveriesData = async (previous) => {
     inventoryService.getMyDeliveries(agent?.id),
     deliveryService.getMyPendingHandoffs(agent?.id),
   ]);
-  const previousDeliveries = prev?.deliveries ?? [];
-  const baseDeliveries = result.success ? result.data : previousDeliveries;
+  // Either request failing (offline) keeps the last complete list; a missing
+  // handoff list would otherwise drop "Awaiting your confirmation".
+  if ((!result.success || !handoffsResult.success) && prev) {
+    return prev;
+  }
+  const baseDeliveries = result.success ? result.data : [];
   const handoffs = handoffsResult.success ? handoffsResult.data : [];
   const handoffsByTransaction = new Map(handoffs.map((handoff) => [handoff.transactionId, handoff]));
   const deliveriesByTransaction = new Map();

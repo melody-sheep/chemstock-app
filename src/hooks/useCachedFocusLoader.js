@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
 import { getConnectionStatus } from '../services/connectionStatus';
+import authService from '../services/authService';
 
 // Last successful result per screen, kept for the whole app session. It lives
 // outside React state so it survives the screen unmounting and remounting.
@@ -20,6 +21,31 @@ const FRESH_MS = 30 * 1000;
 // still paint the last-known data instead of a stuck skeleton. Tier 1/2 of
 // the PM's offline tiers — see Alther_TODO_October.md.
 const STORAGE_PREFIX = 'chemstock_cache_';
+
+// Saved data is kept per account, so two users of one phone (e.g. two Sales
+// Reps) each keep their own copy: switching accounts no longer leaves the
+// next person offline with an empty screen, or shows them the last person's data.
+const scopedKey = (cacheKey, userId) => `${cacheKey}:${userId || 'signed-out'}`;
+
+const resolveUserId = async () => {
+  const peeked = authService.peekCurrentUserId();
+  if (peeked) return peeked;
+  const savedUser = await authService.getSavedUser();
+  return savedUser?.id ?? null;
+};
+
+// The account a snapshot belongs to. Each screen's loader stores it under one
+// of these fields.
+const ownerOf = (data) =>
+  data?.user?.id ?? data?.agentId ?? data?.managerId ?? data?.agent?.id ?? data?.manager?.id ?? null;
+
+// Builds up to 1.0.2 saved one shared copy per screen. Reused once, only if
+// it belongs to the same account, so updating while offline isn't empty.
+const readLegacySnapshot = async (cacheKey, userId) => {
+  if (!userId) return null;
+  const legacy = await storage.get(STORAGE_PREFIX + cacheKey);
+  return legacy && ownerOf(legacy.data) === userId ? legacy : null;
+};
 
 /**
  * Loads a screen's data each time the screen comes into focus, but only shows
@@ -39,13 +65,16 @@ const STORAGE_PREFIX = 'chemstock_cache_';
  * @returns {{ data: Object|null, isLoading: boolean, refresh: Function }}
  */
 export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_MS } = {}) {
-  const [data, setData] = useState(() => snapshots.get(cacheKey)?.data ?? null);
-  const [isLoading, setIsLoading] = useState(() => !snapshots.has(cacheKey));
+  const initialKey = scopedKey(cacheKey, authService.peekCurrentUserId());
+  const [data, setData] = useState(() => snapshots.get(initialKey)?.data ?? null);
+  const [isLoading, setIsLoading] = useState(() => !snapshots.has(initialKey));
   const loadRef = useRef(load);
   loadRef.current = load;
 
   const refresh = useCallback(async ({ force = false } = {}) => {
-    let cached = snapshots.get(cacheKey);
+    const userId = await resolveUserId();
+    const key = scopedKey(cacheKey, userId);
+    let cached = snapshots.get(key);
 
     // Nothing in memory yet — e.g. the app was just (re)launched. Check disk
     // before deciding whether to show a bare skeleton. This read is async,
@@ -54,9 +83,9 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     // instead of waiting on a live request that might never arrive offline.
     if (!cached) {
       try {
-        const stored = await storage.get(STORAGE_PREFIX + cacheKey);
+        const stored = (await storage.get(STORAGE_PREFIX + key)) ?? (await readLegacySnapshot(cacheKey, userId));
         if (stored) {
-          snapshots.set(cacheKey, stored);
+          snapshots.set(key, stored);
           setData(stored.data);
           setIsLoading(false);
           cached = stored;
@@ -74,8 +103,12 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     }
 
     // Skeleton only when there's no cached result yet (memory or disk) —
-    // never on a revisit.
-    if (!cached) setIsLoading(true);
+    // never on a revisit. Clearing data here also means nothing from another
+    // account can stay on screen while this one loads.
+    if (!cached) {
+      setData(null);
+      setIsLoading(true);
+    }
     const { online: onlineBeforeLoad } = getConnectionStatus();
     debugLog('info', 'Cache', `${cached ? 'Stale, refreshing in background' : 'No cache, loading'} [${cacheKey}]`, { online: onlineBeforeLoad });
 
@@ -83,9 +116,9 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     try {
       const next = await loadRef.current(cached?.data ?? null);
       const snapshot = { data: next, fetchedAt: Date.now() };
-      snapshots.set(cacheKey, snapshot);
+      snapshots.set(key, snapshot);
       setData(next);
-      storage.set(STORAGE_PREFIX + cacheKey, snapshot); // fire-and-forget, non-blocking
+      storage.set(STORAGE_PREFIX + key, snapshot); // fire-and-forget, non-blocking
       const { online: onlineAfterLoad } = getConnectionStatus();
       if (onlineAfterLoad) {
         debugLog('info', 'Cache', `✅ [${cacheKey}] Loaded live data from server`, { ms: Date.now() - startedAt });
