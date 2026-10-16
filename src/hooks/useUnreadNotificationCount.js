@@ -2,6 +2,7 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import notificationService from '../services/notificationService';
+import { getConnectionStatus } from '../services/connectionStatus';
 
 const POLL_INTERVAL_MS = 20 * 1000;
 
@@ -22,6 +23,9 @@ export default function useUnreadNotificationCount(agentId, isReady = true) {
       if (!isReady) return undefined;
       let active = true;
       const fetchCount = async () => {
+        // Offline, polling only adds requests that wait out their timeout;
+        // the heartbeat brings the app back online and the next tick resumes.
+        if (!getConnectionStatus().online) return;
         const result = await notificationService.getMyNotifications(agentId, 1);
         if (active && result.success) setCount(result.unreadCount);
       };

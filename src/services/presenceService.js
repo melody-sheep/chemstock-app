@@ -7,6 +7,7 @@ import { debugLog } from '../utils/logger';
 import { formatRelativeTime } from '../utils/formatters';
 import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 import { getInitials } from '../utils/initials';
+import { getConnectionStatus } from './connectionStatus';
 
 const TOUCH_INTERVAL_MS = 2 * 60 * 1000;
 // Someone counts as online if their app was active within this window.
@@ -16,7 +17,8 @@ let identityId = null;
 let timer = null;
 
 const touch = async () => {
-  if (!identityId) return;
+  // Skipped offline; the next interval tick records presence once back online.
+  if (!identityId || !getConnectionStatus().online) return;
   const { error } = await supabase.rpc('touch_presence', { p_agent_id: identityId });
   if (error) debugLog('warn', 'Presence', 'Could not record presence', { message: error.message });
 };

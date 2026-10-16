@@ -134,6 +134,9 @@ export default function SalesRepDashboardScreen() {
       ...discrepancies.map((d) => ({ ...d, logType: 'discrepancy', createdAt: d.reportDate })),
     ];
     merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // If any feed request failed (offline), keep the last complete feed
+    // instead of saving a partial or empty one over it.
+    const logsComplete = logsResult.success && requestsResult.success && deliveriesResult.success && discrepanciesResult.success;
 
     return {
       user: currentUser,
@@ -151,8 +154,8 @@ export default function SalesRepDashboardScreen() {
       openDiscrepancyCount: discrepanciesResult.success
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
-      recentLogs: merged.slice(0, 3),
-      logTimes: merged.map((log) => log.createdAt),
+      recentLogs: logsComplete || !prev ? merged.slice(0, 3) : prev.recentLogs,
+      logTimes: logsComplete || !prev ? merged.map((log) => log.createdAt) : prev.logTimes,
       notificationCount: notificationsResult.success
         ? notificationsResult.unreadCount
         : prev?.notificationCount ?? 0,

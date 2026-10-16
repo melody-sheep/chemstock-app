@@ -58,9 +58,9 @@ function getLogKey(log) {
   return `acceptance-${log.acceptanceId}`;
 }
 
-// Returns the full logs snapshot. If every sub-fetch failed (e.g. fully
-// offline), keeps the previous merged list entirely rather than rebuilding
-// from a mix of fresh-but-empty pieces.
+// Returns the full logs snapshot. If any sub-fetch failed (e.g. offline),
+// keeps the previous merged list entirely rather than rebuilding from a mix
+// of fresh and missing pieces.
 const loadLogsData = async (previous) => {
   const agent = await authService.getCurrentUser();
   const prev = previous?.agentId === agent?.id ? previous : null;
@@ -71,9 +71,9 @@ const loadLogsData = async (previous) => {
     reportService.getMyDiscrepancies(agent?.id, 200),
   ]);
 
-  const allFailed =
-    !logsResult.success && !requestsResult.success && !deliveriesResult.success && !discrepanciesResult.success;
-  if (allFailed && prev) {
+  const logsComplete =
+    logsResult.success && requestsResult.success && deliveriesResult.success && discrepanciesResult.success;
+  if (!logsComplete && prev) {
     return prev;
   }
 
@@ -82,7 +82,7 @@ const loadLogsData = async (previous) => {
   );
 
   const merged = [
-    ...(logsResult.success ? logsResult.data : prev?.logs ?? []).map((log) => ({ ...log, logType: 'acceptance' })),
+    ...(logsResult.success ? logsResult.data : []).map((log) => ({ ...log, logType: 'acceptance' })),
     ...(requestsResult.success ? requestsResult.data : []).map((log) => ({ ...log, logType: 'request' })),
     ...deliveredIncoming.map((d) => ({ ...d, logType: 'delivery', createdAt: d.deliveredAt })),
     ...(discrepanciesResult.success ? discrepanciesResult.data : []).map((d) => ({

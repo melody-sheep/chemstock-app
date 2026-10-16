@@ -64,11 +64,17 @@ const loadLogsData = async (previous) => {
     reportService.getBranchDiscrepancies(200),
   ]);
 
-  const allFailed =
-    !logsResult.success && !agentsResult.success && !deliveriesResult.success &&
-    !reportsResult.success && !discrepanciesResult.success;
-  if (allFailed && prev) {
-    return prev;
+  // If any log request failed (offline), keep the last complete list instead
+  // of saving a partial one over it. (Mixing prev.logs — already a merged list
+  // — with fresh rows also duplicated deliveries and reports.)
+  const logsComplete = logsResult.success && deliveriesResult.success && reportsResult.success && discrepanciesResult.success;
+  if (!logsComplete && prev) {
+    return {
+      ...prev,
+      recipientNameById: agentsResult.success
+        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.full_name]))
+        : prev.recipientNameById,
+    };
   }
 
     // Delivery-completed entries, tagged with their own logType and
@@ -96,7 +102,7 @@ const loadLogsData = async (previous) => {
     }));
 
   const merged = [
-    ...(logsResult.success ? logsResult.data : prev?.logs ?? []),
+    ...(logsResult.success ? logsResult.data : []),
     ...deliveredLogs,
     ...reportLogs,
     ...discrepancyLogs,

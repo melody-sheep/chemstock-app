@@ -2,11 +2,11 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, Image, Animated, Alert, StyleSheet, Dimensions } from 'react-native';
+import { Image, Animated, Alert, StyleSheet, Dimensions } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
-import { supabase, testConnection, getFriendlyErrorMessage } from './src/services/supabaseClient';
+import { supabase, testConnection, hasStoredAuthSession } from './src/services/supabaseClient';
 import authService from './src/services/authService';
-import { COLORS } from './src/constants/colors';
+import SplashLoader from './src/components/common/SplashLoader';
 import { installGlobalErrorHandler } from './src/utils/logger';
 
 installGlobalErrorHandler();
@@ -22,11 +22,9 @@ const DASHBOARD_ROUTE_BY_ROLE = {
   collector: 'CollectorDashboard',
 };
 
-// Offline, a network call can take a while to actually fail rather than
-// erroring instantly — without a cap, "Connecting to server..." could sit on
-// screen far longer than it should before falling back. Caps the connection
-// probe only; session restore (see below) runs independently of it.
-const CONNECTION_PROBE_TIMEOUT_MS = 6000;
+// Cap for the one launch path that still needs the network: a manager login
+// saved on the phone with no saved profile yet.
+const SESSION_RESTORE_TIMEOUT_MS = 10000;
 
 const withTimeout = (promise, ms, fallbackValue) =>
   Promise.race([
@@ -42,7 +40,6 @@ const SPLASH_FADE_MS = 400;
 
 export default function App() {
   const [isConnecting, setIsConnecting] = useState(true);
-  const [connectionError, setConnectionError] = useState(null);
   const [initialRouteName, setInitialRouteName] = useState(null);
   const [isSplashMounted, setIsSplashMounted] = useState(true);
   const splashOpacity = useRef(new Animated.Value(1)).current;
@@ -68,57 +65,52 @@ export default function App() {
       console.log('🚀 [App] Initializing application...');
       console.log('📱 [App] Environment:', __DEV__ ? 'Development' : 'Production');
 
-      // Run the connection probe and session restore in parallel — restoring
-      // a session (Supabase session + cached profile, or a cached agent
-      // session) reads from local storage and must not sit behind a slow or
-      // hanging network probe that has nothing to do with it.
-      const [result, restoredRouteName] = await Promise.all([
-        withTimeout(testConnection(), CONNECTION_PROBE_TIMEOUT_MS, {
-          success: false,
-          error: 'Connection timed out',
-        }).catch((err) => ({ success: false, error: err.message })),
-        resolveExistingSession(),
-      ]);
-
+      // Only the session restore holds the splash. It reads the phone first,
+      // so launch no longer waits on the network at all when a login is saved.
+      let restoredRouteName = null;
       try {
-        if (result.success) {
-          console.log('✅ [App] Supabase connection successful!');
-
-          // Test RLS policies on activation_keys only
-          await testRLSPolicies();
-        } else {
-          console.error('❌ [App] Connection failed:', result.error);
-
-          // A failed probe is expected and already handled gracefully when a
-          // session was restored above (offline + cached profile/agent
-          // session) — only surface this as an error when there's truly
-          // nothing to fall back on, otherwise a dev build alerts and blocks
-          // the screen on every normal offline launch for a user who's
-          // actually fine.
-          if (!restoredRouteName) {
-            setConnectionError(result.error);
-
-            if (__DEV__) {
-              Alert.alert(
-                'Connection Issue',
-                `Cannot connect to database:\n${result.error}\n\nPlease check:\n1. Internet connection\n2. Supabase credentials\n3. Table permissions`
-              );
-            }
-          } else {
-            console.log('ℹ️ [App] Connection probe failed but a session was restored — continuing offline, not surfacing the error.');
-          }
-        }
-      } catch (err) {
-        console.error('❌ [App] Unexpected error:', err.message);
-        setConnectionError(err.message);
+        restoredRouteName = await resolveExistingSession();
       } finally {
         setIsConnecting(false);
       }
+
+      // Connection check runs after the splash has closed. It also tells the
+      // rest of the app early whether it is offline.
+      const result = await testConnection().catch((err) => ({ success: false, error: err.message }));
+      if (result.success) {
+        console.log('✅ [App] Supabase connection successful!');
+        await testRLSPolicies();
+      } else if (restoredRouteName) {
+        console.log('ℹ️ [App] Connection probe failed but a session was restored — continuing offline, not surfacing the error.');
+      } else {
+        console.error('❌ [App] Connection failed:', result.error);
+        if (__DEV__) {
+          Alert.alert(
+            'Connection Issue',
+            `Cannot connect to database:\n${result.error}\n\nPlease check:\n1. Internet connection\n2. Supabase credentials\n3. Table permissions`
+          );
+        }
+      }
+    };
+
+    // The login saved on the phone decides the first screen, with no network
+    // call. Screens refresh the profile online on their own once open.
+    const getLaunchUser = async () => {
+      const savedUser = await authService.getSavedUser();
+      if (savedUser?.role === 'sales_rep' || savedUser?.role === 'collector') return savedUser;
+      if (await hasStoredAuthSession()) {
+        if (savedUser) return savedUser;
+        // A manager login with no saved profile yet: the old, network-based
+        // restore, capped so it can't hold the splash for long.
+        const user = await withTimeout(authService.getCurrentUser(), SESSION_RESTORE_TIMEOUT_MS, null);
+        return user;
+      }
+      return null;
     };
 
     const resolveExistingSession = async () => {
       try {
-        const user = await authService.getCurrentUser();
+        const user = await getLaunchUser();
         const routeName = user?.role ? DASHBOARD_ROUTE_BY_ROLE[user.role] : null;
         if (routeName) {
           console.log('✅ [App] Existing session found, skipping Login:', user.role);
@@ -160,25 +152,13 @@ export default function App() {
     initializeApp();
   }, []);
 
-  const showErrorScreen = !isConnecting && connectionError && __DEV__;
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style={isSplashMounted ? 'dark' : 'auto'} />
 
-        {!isConnecting && !showErrorScreen && (
+        {!isConnecting && (
           <AppNavigator initialRouteName={initialRouteName || 'Login'} />
-        )}
-
-        {showErrorScreen && (
-          <View style={styles.errorScreen}>
-            <Text style={styles.errorTitle}>Connection Error</Text>
-            <Text style={styles.errorMessage}>{connectionError}</Text>
-            <Text style={styles.errorHint}>
-              Check your internet connection and Supabase credentials.
-            </Text>
-          </View>
         )}
 
         {isSplashMounted && (
@@ -191,6 +171,8 @@ export default function App() {
               style={styles.splashLogo}
               resizeMode="contain"
             />
+            {/* Absolute so the logo stays exactly centred */}
+            <SplashLoader style={styles.splashLoader} />
           </Animated.View>
         )}
       </SafeAreaProvider>
@@ -224,27 +206,10 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
   },
-  errorScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: COLORS.background,
-  },
-  errorTitle: {
-    color: COLORS.error,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  errorMessage: {
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  errorHint: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-    textAlign: 'center',
+  splashLoader: {
+    position: 'absolute',
+    top: SCREEN_HEIGHT / 2 + 110,
+    left: 0,
+    width: SCREEN_WIDTH,
   },
 });
