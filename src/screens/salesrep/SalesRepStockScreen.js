@@ -155,6 +155,7 @@ export default function SalesRepStockScreen() {
               expDate: row.exp_date,
               mfgDate: row.mfg_date,
               branchName: selectedBranch?.name,
+              hideQr: true,
             })
           }
         />

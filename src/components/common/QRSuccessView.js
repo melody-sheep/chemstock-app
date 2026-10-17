@@ -10,7 +10,10 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 // Shared post-action success layout: check icon, title, the QR, a receipt card, then Share/Done.
-export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone }) {
+// `hideQr` drops the QR code and Share button entirely (just the receipt +
+// a centered Done) — used where a role should see batch details without
+// being able to pull up/share the batch's QR code.
+export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone, hideQr = false }) {
   const qrRef = useRef(null);
   const handleShare = async () => {
     try {
@@ -20,6 +23,7 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
     }
   };
   const halfButtonWidth = Math.floor((Dimensions.get('window').width - SPACING.lg * 2 - SPACING.sm) / 2);
+  const fullButtonWidth = Dimensions.get('window').width - SPACING.lg * 2;
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
@@ -29,7 +33,7 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
 
-      <SaveableQRCode ref={qrRef} value={qrValue} size={150} style={styles.qrCard} />
+      {!hideQr && <SaveableQRCode ref={qrRef} value={qrValue} size={150} style={styles.qrCard} />}
 
       <View style={styles.receiptCard}>
         {receipt.map((row, index) => (
@@ -44,24 +48,26 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
       </View>
 
       <View style={styles.actionsRow}>
-        <Button
-          title="Share"
-          variant="outline"
-          accentColor={COLORS.accentPurple}
-          icon="send"
-          iconSize={16}
-          onPress={handleShare}
-          width={halfButtonWidth}
-          height={48}
-          fontSize={15}
-        />
+        {!hideQr && (
+          <Button
+            title="Share"
+            variant="outline"
+            accentColor={COLORS.accentPurple}
+            icon="send"
+            iconSize={16}
+            onPress={handleShare}
+            width={halfButtonWidth}
+            height={48}
+            fontSize={15}
+          />
+        )}
         <Button
           title="Done"
           variant="black"
           icon="checkmark"
           iconSize={16}
           onPress={onDone}
-          width={halfButtonWidth}
+          width={hideQr ? fullButtonWidth : halfButtonWidth}
           height={48}
           fontSize={15}
         />
@@ -78,6 +84,7 @@ QRSuccessView.propTypes = {
     PropTypes.shape({ label: PropTypes.string.isRequired, value: PropTypes.string.isRequired })
   ).isRequired,
   onDone: PropTypes.func.isRequired,
+  hideQr: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({

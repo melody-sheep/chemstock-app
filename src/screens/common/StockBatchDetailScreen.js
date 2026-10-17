@@ -16,7 +16,7 @@ import { formatDisplayDate } from '../../utils/formatters';
 export default function StockBatchDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { productName, quantity, batchNumber, expDate, mfgDate, branchName } = route.params || {};
+  const { productName, quantity, batchNumber, expDate, mfgDate, branchName, hideQr } = route.params || {};
 
   const receipt = [
     { label: 'Product', value: productName || '—' },
@@ -41,10 +41,11 @@ export default function StockBatchDetailScreen() {
         />
         <QRSuccessView
           title={productName || 'Batch Details'}
-          subtitle="Scan this code anytime to track this batch."
+          subtitle={hideQr ? 'Batch information for this product.' : 'Scan this code anytime to track this batch.'}
           qrValue={batchNumber}
           receipt={receipt}
           onDone={() => navigation.goBack()}
+          hideQr={hideQr}
         />
       </View>
     </>
