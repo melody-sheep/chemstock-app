@@ -406,10 +406,28 @@ export default function ManagerReportsScreen() {
     }
   };
 
+  // expo-print writes its generated PDF into its own cache subfolder, which
+  // neither expo-sharing's FileProvider nor a cross-module file read (tried
+  // via both expo-file-system/legacy's copyAsync and the new File API) can
+  // reliably read back on a real device/APK — each attempt surfaced a
+  // different low-level Android read-permission error even though nothing
+  // is actually wrong with the PDF itself. Asking expo-print for the PDF's
+  // bytes directly (base64) sidesteps all of that: nothing ever reads back
+  // expo-print's own output file — the bytes are written fresh into
+  // documentDirectory through the legacy module, the same one already used
+  // successfully elsewhere on this screen (the logo asset read).
+  const getShareableReportUri = async () => {
+    const { base64 } = await Print.printToFileAsync({ html: buildHtml(), base64: true });
+    const fileName = `${reportKind === 'received' ? 'Received-Stocks' : 'Transaction'}-Report-${toISODate(new Date())}.pdf`;
+    const destUri = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+    return destUri;
+  };
+
   const handleDownloadPdf = async () => {
     setIsExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildHtml() });
+      const uri = await getShareableReportUri();
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Save Report PDF' });
@@ -426,7 +444,7 @@ export default function ManagerReportsScreen() {
   const handleShareToChat = async () => {
     setIsExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: buildHtml() });
+      const uri = await getShareableReportUri();
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Report' });
