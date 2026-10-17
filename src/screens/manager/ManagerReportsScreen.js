@@ -42,8 +42,13 @@ function startOfWeek(date) {
   return d;
 }
 
+// Built from the phone's local date. toISOString() converts to UTC first,
+// which in the Philippines (UTC+8) moved every date back a day — October
+// came out as Sep 30 – Oct 30.
 function toISODate(date) {
-  return date.toISOString().slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function getPeriodRange(periodType, anchorDate) {
