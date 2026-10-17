@@ -3,6 +3,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import { shareDebugLog } from '../../utils/debugReport';
 import Header from '../../components/common/Header';
@@ -17,8 +18,15 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
 import { routeQrScan } from '../../utils/routeQrScan';
 
+// Matches BottomNavBar's own fixed bar height — the ScrollView's bottom
+// padding must clear that bar (plus its safe-area inset, which varies by
+// device and is often taller in a built APK than in Expo Go) or the last
+// row ends up hidden behind it instead of merely unscrolled-to.
+const BOTTOM_NAV_HEIGHT = 76;
+
 export default function SalesRepSettingsScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(true);
@@ -101,7 +109,13 @@ export default function SalesRepSettingsScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: BOTTOM_NAV_HEIGHT + insets.bottom + SPACING.xl },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.profileCard}>
             <UserAvatar photoUrl={user?.profilePhotoUrl} size={60} iconName="person" style={styles.avatarWrap} />
             <View style={styles.profileInfo}>
@@ -231,13 +245,19 @@ export default function SalesRepSettingsScreen() {
             </View>
           </View>
 
+          <View style={styles.groupCard}>
+            <Pressable style={styles.rowItem} onPress={handleLogout}>
+              <View style={styles.rowLeft}>
+                <View style={styles.logoutIconWrap}>
+                  <Icon name="arrowRight" size={18} color="#B91C1C" style={styles.logoutIcon} />
+                </View>
+                <Text style={styles.logoutText}>Log Out</Text>
+              </View>
+            </Pressable>
+          </View>
+
           <Pressable style={styles.debugButton} onPress={shareDebugLog} accessibilityRole="button">
             <Text style={styles.debugText}>Share Debug Log</Text>
-          </Pressable>
-
-          <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Icon name="arrowRight" size={18} color="#B91C1C" style={styles.logoutIcon} />
-            <Text style={styles.logoutText}>Log Out</Text>
           </Pressable>
 
           <View style={{ height: 24 }} />
@@ -410,23 +430,20 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textDecorationLine: 'underline',
   },
-  logoutButton: {
-    flexDirection: 'row',
+  logoutIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FBDCDC',
-    backgroundColor: '#FFF5F5',
-    borderRadius: 14,
-    height: 52,
-    gap: 8,
   },
   logoutIcon: {
     transform: [{ rotate: '180deg' }],
   },
   logoutText: {
     color: '#B91C1C',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
