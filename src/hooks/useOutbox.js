@@ -15,7 +15,9 @@ export default function useOutbox(type = null) {
     [entries, type]
   );
 
-  const retryNow = useCallback(() => outboxService.flush(), []);
+  // A manual Retry also tries items the server rejected earlier, without
+  // waiting out their retry delay.
+  const retryNow = useCallback(() => outboxService.flush({ force: true }), []);
 
   return { pending, pendingCount: pending.length, retryNow };
 }

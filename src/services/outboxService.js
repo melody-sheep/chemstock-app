@@ -79,17 +79,33 @@ async function ensurePendingDir() {
 }
 
 /**
+ * Uploads an entry's photo the first time only. The storage path is saved on
+ * the entry before the submit call, so a retry after a failed submit reuses
+ * the uploaded photo instead of uploading a new copy each time.
+ */
+async function uploadOnce(entry, upload) {
+  if (entry.uploadedPath) return entry.uploadedPath;
+  const path = await upload();
+  entry.uploadedPath = path;
+  entries = entries.map((e) => (e.id === entry.id ? { ...e, uploadedPath: path } : e));
+  await persist();
+  return path;
+}
+
+/**
  * Each entry `type` maps to an executor that replays the real service calls
- * a screen would have made live. An executor must throw on any failure
- * (network or real rejection) — the queue doesn't try to distinguish them,
- * it just retries on the next flush.
+ * a screen would have made live. An executor must throw on any failure;
+ * flush() then tells a network failure (app went offline) from a server
+ * rejection (still online) by the connection status.
  */
 const EXECUTORS = {
   daily_report: async (entry) => {
     if (!entry.localPhotoUri) {
       throw new Error('Missing handover photo for queued report');
     }
-    const storagePath = await reportService.uploadDailyReportPhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      reportService.uploadDailyReportPhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await reportService.submitDailyReport({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued report');
@@ -101,7 +117,9 @@ const EXECUTORS = {
     if (!entry.localPhotoUri) {
       throw new Error('Missing photo proof for queued return request');
     }
-    const storagePath = await inventoryService.uploadDiscrepancyPhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadDiscrepancyPhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await reportService.requestDiscrepancyResolution({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued return request');
@@ -117,7 +135,9 @@ const EXECUTORS = {
     if (!entry.localPhotoUri) {
       throw new Error('Missing photo proof for queued stock receipt');
     }
-    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await inventoryService.acceptStockRelease({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to confirm queued stock receipt');
@@ -173,7 +193,9 @@ const EXECUTORS = {
     if (!entry.payload?.scannedQrCode) {
       throw new Error('Missing scanned QR for queued handoff confirmation');
     }
-    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await inventoryService.confirmDeliveryHandoff({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to confirm queued handoff');
@@ -224,7 +246,7 @@ export async function enqueue(type, payload, photoUri = null) {
 
   entries = [...entries, entry];
   await persist();
-  debugLog('info', 'Outbox', 'Enqueued', { id, type });
+  debugLog('info', 'Queue', `enqueued ${type}`, { id, photo: Boolean(localPhotoUri) });
 
   // In case we're actually back online already (e.g. the triggering
   // failure was momentary), try right away rather than waiting for the
@@ -239,12 +261,26 @@ async function removeEntry(id) {
   await persist();
 }
 
+// An entry the server rejected (while online) waits this long before its next
+// try, growing with each rejection, instead of retrying every 45 s forever.
+// Retry on screen (retryNow) skips the wait.
+const REJECTED_RETRY_DELAYS_MS = [30 * 1000, 60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000];
+const rejectedRetryDelay = (rejections) =>
+  REJECTED_RETRY_DELAYS_MS[Math.min(rejections, REJECTED_RETRY_DELAYS_MS.length) - 1];
+
 /**
- * Replays every queued entry, in order, one at a time. Safe to call
- * whenever — a concurrent call is a no-op, and it does nothing if offline
- * or the queue is empty.
+ * Replays queued entries in order, one at a time. Safe to call whenever — a
+ * concurrent call is a no-op, and it does nothing if offline or empty.
+ *
+ * A network failure stops the whole flush (everything behind it would fail
+ * the same way). A server rejection only holds back entries of that same
+ * type, keeping their order; other types still go through, so e.g. a handoff
+ * confirmation waiting for the Collector's own sync no longer holds back the
+ * Sales Rep's report and stock requests.
+ *
+ * options.force — try every entry now, ignoring rejection waits.
  */
-export async function flush() {
+export async function flush({ force = false } = {}) {
   if (flushing) return;
   await ensureLoaded();
   if (entries.length === 0 || !getConnectionStatus().online) return;
@@ -253,13 +289,20 @@ export async function flush() {
   try {
     // Snapshot so an enqueue happening mid-flush isn't processed out of turn.
     const queue = [...entries];
+    const heldTypes = new Set();
     for (const queued of queue) {
       if (!getConnectionStatus().online) break; // went offline again mid-flush
+      if (heldTypes.has(queued.type)) continue;
 
       const executor = EXECUTORS[queued.type];
       if (!executor) {
-        debugLog('error', 'Outbox', 'No executor registered, dropping entry', { id: queued.id, type: queued.type });
+        debugLog('error', 'Queue', 'No executor registered, dropping entry', { id: queued.id, type: queued.type });
         await removeEntry(queued.id);
+        continue;
+      }
+
+      if (!force && queued.nextAttemptAt && Date.now() < queued.nextAttemptAt) {
+        heldTypes.add(queued.type);
         continue;
       }
 
@@ -267,25 +310,32 @@ export async function flush() {
 
       try {
         await executor(entry);
-        debugLog('info', 'Outbox', 'Synced', { id: entry.id, type: entry.type });
+        debugLog('info', 'Queue', `sent ${entry.type}`, { id: entry.id, attempts: entry.attempts });
         if (entry.localPhotoUri) {
           FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
         }
         await removeEntry(entry.id);
       } catch (error) {
         entry.lastError = error.message || 'Sync failed';
-        debugLog('error', 'Outbox', 'Sync attempt failed, will retry later', {
+
+        if (!getConnectionStatus().online) {
+          debugLog('warn', 'Queue', `${entry.type} not sent: offline`, { id: entry.id, attempts: entry.attempts });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          break;
+        }
+
+        entry.rejections = (queued.rejections || 0) + 1;
+        const delayMs = rejectedRetryDelay(entry.rejections);
+        entry.nextAttemptAt = Date.now() + delayMs;
+        debugLog('warn', 'Queue', `${entry.type} rejected: ${entry.lastError}`, {
           id: entry.id,
-          type: entry.type,
           attempts: entry.attempts,
-          error: entry.lastError,
+          retryInSec: Math.round(delayMs / 1000),
         });
         entries = entries.map((e) => (e.id === entry.id ? entry : e));
         await persist();
-        // Stop here rather than racing through the rest of the queue — a
-        // failure here is likely to repeat for everything behind it (same
-        // network state), and FIFO means this one goes first next time too.
-        break;
+        heldTypes.add(entry.type);
       }
     }
   } finally {
