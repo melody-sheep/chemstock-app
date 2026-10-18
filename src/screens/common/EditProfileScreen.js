@@ -8,7 +8,6 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import CustomModal from '../../components/common/Modal';
-import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import Icon from '../../components/common/Icon';
 import PhilippinePhoneInput, {
   isValidPhNationalNumber,
@@ -56,7 +55,6 @@ export default function EditProfileScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSourceModalVisible, setIsSourceModalVisible] = useState(false);
-  const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [isPhoneModalVisible, setIsPhoneModalVisible] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
@@ -114,9 +112,23 @@ export default function EditProfileScreen() {
     }
   };
 
-  const handleTakePhoto = () => {
+  // Both sources open the phone's own crop screen, square because the
+  // profile picture is shown as a circle.
+  const CROP_OPTIONS = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.7 };
+
+  const handleTakePhoto = async () => {
     setIsSourceModalVisible(false);
-    setIsCameraVisible(true);
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'ChemStock needs camera access to take your profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync(CROP_OPTIONS);
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      await savePhoto(result.assets[0].uri);
+    }
   };
 
   const handlePickFromGallery = async () => {
@@ -128,10 +140,7 @@ export default function EditProfileScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync(CROP_OPTIONS);
 
     if (!result.canceled && result.assets?.[0]?.uri) {
       await savePhoto(result.assets[0].uri);
@@ -386,15 +395,6 @@ export default function EditProfileScreen() {
           </Pressable>
         </View>
       </CustomModal>
-
-      <CameraCaptureModal
-        visible={isCameraVisible}
-        onClose={() => setIsCameraVisible(false)}
-        onCapture={(uri) => {
-          setIsCameraVisible(false);
-          savePhoto(uri);
-        }}
-      />
 
       <CustomModal visible={isPhoneModalVisible} onClose={handleCancelPhone} height="auto">
         <View style={styles.phoneModalContent}>
