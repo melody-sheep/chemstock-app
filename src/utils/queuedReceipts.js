@@ -5,6 +5,8 @@
 import outboxService from '../services/outboxService';
 
 const RECEIPT_TYPES = ['receive_stock', 'confirm_delivery_handoff'];
+// An issue report saved offline also settles the delivery on this phone.
+const HANDLED_TYPES = [...RECEIPT_TYPES, 'dispute_delivery_handoff'];
 
 /** Receipts still waiting to sync for this agent (items refused for good excluded). */
 export function getQueuedReceipts(entries, agentId) {
@@ -29,8 +31,28 @@ const identifiersOf = (entry) =>
  */
 export function findQueuedReceipt({ transactionId, qrCode } = {}, agentId, entries = outboxService.getEntries()) {
   const wanted = [transactionId, qrCode].filter(Boolean);
-  if (wanted.length === 0) return null;
-  return getQueuedReceipts(entries, agentId).find((e) => identifiersOf(e).some((id) => wanted.includes(id))) || null;
+  if (wanted.length === 0 || !agentId) return null;
+  return (
+    entries.find(
+      (e) =>
+        HANDLED_TYPES.includes(e.type) &&
+        !e.failed &&
+        e.payload?.agentId === agentId &&
+        identifiersOf(e).some((id) => wanted.includes(id))
+    ) || null
+  );
+}
+
+/**
+ * Badge status for a delivery handled offline on this phone:
+ * 'queued_issue' (issue report waiting), 'queued_waiting' (received, the
+ * Collector's side hasn't reached the server yet) or 'queued'.
+ */
+export function queuedHandoffStatus(entry) {
+  if (!entry) return null;
+  if (entry.type === 'dispute_delivery_handoff') return 'queued_issue';
+  if (entry.waitingForCollector || entry.display?.collectorPending) return 'queued_waiting';
+  return 'queued';
 }
 
 /** Backpack rows (sr_inventory shape) for queued receipts that kept a display copy. */
@@ -54,10 +76,12 @@ export function queuedUnits(entries, agentId) {
 }
 
 /** What a screen saves next to a queued receipt (never sent to the server). */
-export function receiptDisplay({ transactionId, qrCode, items }) {
+export function receiptDisplay({ transactionId, qrCode, items, collectorPending = false }) {
   return {
     transactionId: transactionId || null,
     qrCode: qrCode || null,
+    // Received before the Collector's "delivered" was on the server.
+    collectorPending,
     items: (items || []).map((item) => ({
       productCode: item.productCode,
       productName: item.productName,

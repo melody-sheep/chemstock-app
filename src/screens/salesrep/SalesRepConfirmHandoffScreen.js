@@ -15,7 +15,7 @@ import ReportHandoffIssueModal from '../../components/common/ReportHandoffIssueM
 import DeliveryHandoffStatusBadge from '../../components/common/DeliveryHandoffStatusBadge';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
-import outboxService from '../../services/outboxService';
+import outboxService, { isWaitingForCollector } from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import { findQueuedReceipt, receiptDisplay } from '../../utils/queuedReceipts';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
@@ -24,6 +24,7 @@ import { getRequiredPosition } from '../../utils/quickLocation';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError, { NO_INTERNET_MESSAGE, isNetworkError } from '../../utils/friendlyError';
 
 const DISTANCE_WARN_METERS = 50;
 
@@ -97,15 +98,49 @@ export default function SalesRepConfirmHandoffScreen() {
       qrCode: handoff?.releaseQrCode || directTransaction?.qrCode,
     }, agent.id);
     if (queued) {
-      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.', [
+      const isIssue = queued.type === 'dispute_delivery_handoff';
+      Alert.alert(
+        isIssue ? 'Issue Already Reported' : 'Already Received',
+        isIssue
+          ? 'You already reported an issue with this delivery on this phone. It will sync automatically.'
+          : 'You already received this delivery on this phone. It will sync automatically.',
+        [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     }
   }, [agent?.id]);
   const expectedQr = handoff?.releaseQrCode || effectiveDirectTx?.qrCode || null;
+
+  // A delivery still "on the way" carries no QR in the Sales Rep's list (it
+  // only comes with the Collector's handoff). Online, the scan is checked
+  // with the server; offline it is accepted for now and the server checks it
+  // when the receipt syncs (a wrong QR is refused then).
+  const needsQrLookup = !isDirectMode && !expectedQr;
+  const [qrLookup, setQrLookup] = useState({ code: null, result: null }); // 'match' | 'mismatch' | 'unchecked'
+  useEffect(() => {
+    if (!needsQrLookup || !scannedQrCode || !agent?.id) return undefined;
+    let active = true;
+    (async () => {
+      let result = 'unchecked';
+      if (getConnectionStatus().online) {
+        const res = await inventoryService.getTransactionByQrCodeForAgent(scannedQrCode, agent.id);
+        if (res.success && res.data) result = res.data.transactionId === handoff?.transactionId ? 'match' : 'mismatch';
+        else if (!isNetworkError(res.message) && getConnectionStatus().online) result = 'mismatch';
+      }
+      if (active) setQrLookup({ code: scannedQrCode, result });
+    })();
+    return () => {
+      active = false;
+    };
+  }, [needsQrLookup, scannedQrCode, agent?.id]);
+  const qrLookupResult = needsQrLookup && qrLookup.code === scannedQrCode ? qrLookup.result : null;
+  const isQrChecking = needsQrLookup && !!scannedQrCode && !qrLookupResult;
+
   const isQrValid = isDirectAwaitingScan && !fetchedDirectTx
     ? Boolean(scannedQrCode)
-    : Boolean(scannedQrCode && expectedQr && scannedQrCode === expectedQr);
+    : needsQrLookup
+      ? qrLookupResult === 'match' || qrLookupResult === 'unchecked'
+      : Boolean(scannedQrCode && expectedQr && scannedQrCode === expectedQr);
   const collectorGps = handoff?.collectorGps;
   const distanceMeters =
     collectorGps && coords
@@ -125,6 +160,10 @@ export default function SalesRepConfirmHandoffScreen() {
         const result = await inventoryService.getTransactionByQrCodeForAgent(code, currentAgent.id);
 
         if (!result.success || !result.data) {
+          if (friendlyError(result.message) === NO_INTERNET_MESSAGE) {
+            Alert.alert('Needs Internet', 'Checking a delivery QR needs an internet connection. Connect and scan again.');
+            return;
+          }
           Alert.alert('Delivery Not Found', "This QR doesn't match any delivery assigned to you.");
           return;
         }
@@ -156,7 +195,7 @@ export default function SalesRepConfirmHandoffScreen() {
         });
         setScannedQrCode(code);
       } catch (error) {
-        Alert.alert('Lookup Failed', error.message || 'Could not load this delivery.');
+        Alert.alert('Lookup Failed', friendlyError(error.message) || 'Could not load this delivery.');
       }
       return;
     }
@@ -210,7 +249,23 @@ export default function SalesRepConfirmHandoffScreen() {
       transactionId: handoff?.transactionId || effectiveDirectTx?.transactionId,
       qrCode: expectedQr || scannedQrCode,
       items: handoff?.items || effectiveDirectTx?.items,
+      collectorPending: !isDirectMode && !!handoff?.collectorPending,
     });
+    // Saved on the phone; the outbox sends it on its own, and for a collector
+    // delivery the server completes it only once the Collector's side is in.
+    const saveForLater = async (reason) => {
+      await outboxService.enqueue(outboxAction, payload, photoUri, receiptCopy);
+      const waiting = !isDirectMode && (reason === 'waiting' || receiptCopy.collectorPending);
+      Alert.alert(
+        waiting ? 'Received — Waiting for Collector' : 'Saved — Will Send Later',
+        waiting
+          ? "Saved on this phone. It completes automatically once the Collector's phone syncs their delivery — you don't need to do anything."
+          : reason === 'dropped'
+            ? 'Connection dropped. Your confirmation is saved on this phone and will sync automatically.'
+            : "You're offline. Your confirmation is saved on this phone and will sync automatically once you're back online.",
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    };
     if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
       setIsSubmitting(false);
       Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.', [
@@ -221,10 +276,7 @@ export default function SalesRepConfirmHandoffScreen() {
 
     try {
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue(outboxAction, payload, photoUri, receiptCopy);
-        Alert.alert('Saved — Will Send Later', "You're offline. Your confirmation is saved on this device and will sync automatically once you're back online.", [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+        await saveForLater('offline');
         return;
       }
 
@@ -236,10 +288,13 @@ export default function SalesRepConfirmHandoffScreen() {
         if (!result.success) throw new Error(result.message);
       } catch (liveError) {
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue(outboxAction, payload, photoUri, receiptCopy);
-          Alert.alert('Saved — Will Send Later', "Connection dropped. Your confirmation is saved on this device and will sync automatically once you're back online.", [
-            { text: 'OK', onPress: () => navigation.goBack() },
-          ]);
+          await saveForLater('dropped');
+          return;
+        }
+        // Online, but the Collector's "delivered" isn't on the server yet
+        // (they marked it offline): save it and let it complete on its own.
+        if (!isDirectMode && isWaitingForCollector(liveError.message)) {
+          await saveForLater('waiting');
           return;
         }
         throw liveError;
@@ -249,7 +304,7 @@ export default function SalesRepConfirmHandoffScreen() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert('Failed to Confirm', error.message || 'Please try again.');
+      Alert.alert('Failed to Confirm', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -259,28 +314,47 @@ export default function SalesRepConfirmHandoffScreen() {
     if (!agent || isSubmitting || isDirectMode) return false;
     setIsSubmitting(true);
 
+    const disputePayload = {
+      agentId: agent.id,
+      transactionId: handoff.transactionId,
+      reason,
+      reasonCode,
+      deviceModel: Device.modelName,
+      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+    };
+    const issueCopy = receiptDisplay({ transactionId: handoff.transactionId, qrCode: expectedQr, items: [] });
+    // Offline, or the Collector's side isn't synced yet: saved on the phone
+    // and sent automatically.
+    const saveIssueForLater = async () => {
+      await outboxService.enqueue('dispute_delivery_handoff', disputePayload, issuePhoto || null, issueCopy);
+      setIsIssueModalVisible(false);
+      Alert.alert('Issue Saved', 'Your report is saved on this phone and will be sent to your manager automatically.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+      return true;
+    };
+
     try {
-      let storagePath = null;
-      if (issuePhoto) {
-        storagePath = await inventoryService.uploadStockAcceptancePhoto(issuePhoto, agent.id);
+      if (!getConnectionStatus().online) return await saveIssueForLater();
+      let result;
+      try {
+        let storagePath = null;
+        if (issuePhoto) {
+          storagePath = await inventoryService.uploadStockAcceptancePhoto(issuePhoto, agent.id);
+        }
+        result = await inventoryService.disputeDeliveryHandoff({ ...disputePayload, storagePath });
+        if (!result.success) throw new Error(result.message);
+      } catch (liveError) {
+        if (!getConnectionStatus().online || isWaitingForCollector(liveError.message)) return await saveIssueForLater();
+        throw liveError;
       }
-      const result = await inventoryService.disputeDeliveryHandoff({
-        agentId: agent.id,
-        transactionId: handoff.transactionId,
-        reason,
-        reasonCode,
-        storagePath,
-        deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
-      });
-      if (!result.success) throw new Error(result.message);
       setIsIssueModalVisible(false);
       Alert.alert('Reported', 'Your manager has been notified and will investigate.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
       return true;
     } catch (error) {
-      Alert.alert('Failed to Report', error.message || 'Please try again.');
+      Alert.alert('Failed to Report', friendlyError(error.message) || 'Please try again.');
       return false;
     } finally {
       setIsSubmitting(false);
@@ -319,9 +393,11 @@ export default function SalesRepConfirmHandoffScreen() {
                 <Text style={styles.handoffMeta}>
                   {isDirectMode
                     ? effectiveDirectTx?.branchName || 'Scan the QR to load the delivery'
-                    : `Marked delivered ${handoff.collectorClaimedAt
-                      ? new Date(handoff.collectorClaimedAt).toLocaleString()
-                      : 'by Collector'}`}
+                    : handoff.collectorPending
+                      ? "Not marked delivered on the server yet — it's checked automatically when the Collector's phone syncs"
+                      : `Marked delivered ${handoff.collectorClaimedAt
+                        ? new Date(handoff.collectorClaimedAt).toLocaleString()
+                        : 'by Collector'}`}
                 </Text>
               </View>
             </View>
@@ -345,7 +421,9 @@ export default function SalesRepConfirmHandoffScreen() {
               <View style={styles.distanceWarn}>
                 <Icon name="warningTriangle" size={14} color={COLORS.warning} />
                 <Text style={styles.distanceWarnText}>
-                  You are {formatDistance(distanceMeters)} from where the collector marked delivered
+                  {handoff?.collectorPending
+                    ? `You are ${formatDistance(distanceMeters)} from the delivery location`
+                    : `You are ${formatDistance(distanceMeters)} from where the collector marked delivered`}
                 </Text>
               </View>
             )}
@@ -390,7 +468,16 @@ export default function SalesRepConfirmHandoffScreen() {
           {isQrValid ? (
             <View style={styles.stepDone}>
               <Icon name="checkCircle" size={18} color={COLORS.success} weight="fill" />
-              <Text style={styles.stepDoneText}>QR verified — matches this delivery</Text>
+              <Text style={styles.stepDoneText}>
+                {qrLookupResult === 'unchecked'
+                  ? "QR saved — it's checked against this delivery when you're back online"
+                  : 'QR verified — matches this delivery'}
+              </Text>
+            </View>
+          ) : isQrChecking ? (
+            <View style={styles.stepDone}>
+              <Icon name="qrCode" size={18} color={COLORS.primary} />
+              <Text style={styles.stepDoneText}>Checking QR…</Text>
             </View>
           ) : scannedQrCode ? (
             <View style={styles.stepError}>

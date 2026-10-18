@@ -5,20 +5,20 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useOutbox from '../../hooks/useOutbox';
-import { findQueuedReceipt } from '../../utils/queuedReceipts';
+import { findQueuedReceipt, queuedHandoffStatus } from '../../utils/queuedReceipts';
+import { SR_DELIVERIES_CACHE_KEY, loadDeliveriesData, isReceivable, confirmHandoffParams } from '../../utils/srDeliveries';
 import DeliveryHandoffStatusBadge from '../../components/common/DeliveryHandoffStatusBadge';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
-import inventoryService from '../../services/inventoryService';
-import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
 import { routeQrScan } from '../../utils/routeQrScan';
+import friendlyError from '../../utils/friendlyError';
 
 const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
 
@@ -39,81 +39,31 @@ function getStatusPillTextStyle(status) {
   return styles.statusPillTextPending;
 }
 
-// A failed fetch keeps the previous list instead of blanking it.
-const loadDeliveriesData = async (previous) => {
-  const agent = await authService.getCurrentUser();
-  const prev = previous?.agentId === agent?.id ? previous : null;
-  const [result, handoffsResult] = await Promise.all([
-    inventoryService.getMyDeliveries(agent?.id),
-    deliveryService.getMyPendingHandoffs(agent?.id),
-  ]);
-  // Either request failing (offline) keeps the last complete list; a missing
-  // handoff list would otherwise drop "Awaiting your confirmation".
-  if ((!result.success || !handoffsResult.success) && prev) {
-    return prev;
-  }
-  const baseDeliveries = result.success ? result.data : [];
-  const handoffs = handoffsResult.success ? handoffsResult.data : [];
-  const handoffsByTransaction = new Map(handoffs.map((handoff) => [handoff.transactionId, handoff]));
-  const deliveriesByTransaction = new Map();
-
-  baseDeliveries.forEach((delivery) => {
-    const handoff = handoffsByTransaction.get(delivery.transactionId);
-    deliveriesByTransaction.set(delivery.transactionId, {
-      ...delivery,
-      handoffStatus: handoff?.handoffStatus ?? delivery.handoffStatus,
-      handoff: handoff ?? delivery.handoff,
-    });
-  });
-
-  handoffs.forEach((handoff) => {
-    if (!deliveriesByTransaction.has(handoff.transactionId)) {
-      deliveriesByTransaction.set(handoff.transactionId, {
-        transactionId: handoff.transactionId,
-        createdAt: handoff.collectorClaimedAt,
-        deliveredAt: handoff.deliveredAt,
-        deliveryStatus: handoff.deliveryStatus || 'delivered',
-        collectorName: handoff.collectorName,
-        qrCode: handoff.releaseQrCode,
-        items: handoff.items || [],
-        handoffStatus: handoff.handoffStatus,
-        handoff,
-      });
-    }
-  });
-
-  return {
-    agentId: agent?.id,
-    deliveries: [...deliveriesByTransaction.values()].sort(
-      (a, b) => new Date(b.deliveredAt || b.createdAt).getTime() - new Date(a.deliveredAt || a.createdAt).getTime()
-    ),
-  };
-};
-
 export default function SalesRepTrackDeliveriesScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const filterPending = route.params?.filterPending === true;
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-track-deliveries', loadDeliveriesData);
+  const { data: snapshot, isLoading } = useCachedFocusLoader(SR_DELIVERIES_CACHE_KEY, loadDeliveriesData);
   // A delivery confirmed offline on this phone shows as such until it syncs.
   const { pending: queuedEntries } = useOutbox();
-  const allDeliveries = (snapshot?.deliveries ?? []).map((delivery) =>
-    delivery.handoffStatus !== 'confirmed' &&
-    findQueuedReceipt({ transactionId: delivery.transactionId, qrCode: delivery.qrCode }, snapshot?.agentId, queuedEntries)
-      ? { ...delivery, handoffStatus: 'queued' }
-      : delivery
-  );
-  const deliveries = filterPending
-    ? allDeliveries.filter((delivery) => delivery.handoffStatus === 'pending_sr')
-    : allDeliveries;
+  const allDeliveries = (snapshot?.deliveries ?? []).map((delivery) => {
+    if (delivery.handoffStatus === 'confirmed') return delivery;
+    const queued = findQueuedReceipt(
+      { transactionId: delivery.transactionId, qrCode: delivery.qrCode },
+      snapshot?.agentId,
+      queuedEntries
+    );
+    return queued ? { ...delivery, handoffStatus: queuedHandoffStatus(queued), isQueued: true } : delivery;
+  });
+  const deliveries = filterPending ? allDeliveries.filter(isReceivable) : allDeliveries;
   const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);
     try {
       const agent = await authService.getCurrentUser();
       await routeQrScan({ qrCode, agentId: agent?.id, navigation });
     } catch (error) {
-      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
+      Alert.alert('Unable to Verify QR', friendlyError(error.message) || 'Please try again.');
     }
   };
 
@@ -142,7 +92,7 @@ export default function SalesRepTrackDeliveriesScreen() {
             </Text>
             <Text style={styles.emptySubtext}>
               {filterPending
-                ? 'When a Collector marks a delivery as delivered, it will appear here for you to confirm.'
+                ? 'Deliveries on the way to you, or delivered and waiting for you, appear here for you to receive.'
                 : 'Stock your manager releases via a Collector will show up here.'}
             </Text>
             {filterPending && (
@@ -160,29 +110,19 @@ export default function SalesRepTrackDeliveriesScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {deliveries.map((delivery) => {
               const isDelivered = delivery.deliveryStatus === 'delivered';
-              const isPendingHandoff = isDelivered && delivery.handoffStatus === 'pending_sr';
+              const canReceive = !delivery.isQueued && isReceivable(delivery);
+              const badgeStatus = delivery.isQueued
+                ? delivery.handoffStatus
+                : canReceive
+                  ? isDelivered ? 'pending_sr' : 'awaiting_collector'
+                  : null;
               return (
                 <TouchableOpacity
                   key={delivery.transactionId}
                   style={styles.deliveryCard}
                   onPress={() =>
-                    isPendingHandoff
-                      ? navigation.navigate('SalesRepConfirmHandoff', {
-                          handoff: {
-                            transactionId: delivery.transactionId,
-                            collectorName: delivery.handoff?.collectorName || delivery.collectorName,
-                            collectorClaimedAt:
-                              delivery.handoff?.collectorClaimedAt ||
-                              delivery.deliveredAt ||
-                              delivery.createdAt,
-                            collectorGps: delivery.handoff?.collectorGps || delivery.destinationGps || null,
-                            releaseQrCode: delivery.handoff?.releaseQrCode || delivery.qrCode || null,
-                            items: delivery.handoff?.items || delivery.items || [],
-                            handoffStatus: delivery.handoffStatus,
-                          },
-                          // Lets the confirm screen offer "View on map".
-                          delivery: delivery.destinationGps ? delivery : null,
-                        })
+                    canReceive
+                      ? navigation.navigate('SalesRepConfirmHandoff', confirmHandoffParams(delivery))
                       : navigation.navigate('SalesRepDeliveryDetail', { delivery })
                   }
                   activeOpacity={0.7}
@@ -195,13 +135,13 @@ export default function SalesRepTrackDeliveriesScreen() {
                       From: {delivery.collectorName || 'Collector'}
                     </Text>
                     <Text style={styles.deliveryMeta}>{formatRelativeTime(delivery.createdAt)}</Text>
-                    {(isPendingHandoff || delivery.handoffStatus === 'queued') && (
+                    {!!badgeStatus && (
                       <View style={styles.handoffBadgeWrap}>
-                        <DeliveryHandoffStatusBadge status={delivery.handoffStatus} />
+                        <DeliveryHandoffStatusBadge status={badgeStatus} />
                       </View>
                     )}
                   </View>
-                  {!isPendingHandoff && (
+                  {!(isDelivered && badgeStatus === 'pending_sr') && (
                     <View style={[styles.statusPill, getStatusPillStyle(delivery.deliveryStatus)]}>
                       <Text style={[styles.statusPillText, getStatusPillTextStyle(delivery.deliveryStatus)]}>
                         {getStatusLabel(delivery)}

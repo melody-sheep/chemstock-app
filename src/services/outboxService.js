@@ -16,6 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import storage from '../utils/storage';
 import { getConnectionStatus, subscribeConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
+import { invalidateSavedData } from '../utils/dataVersion';
 import reportService from './reportService';
 import inventoryService from './inventoryService';
 import requestService from './requestService';
@@ -43,6 +44,11 @@ async function ensureLoaded() {
   if (!loadingPromise) {
     loadingPromise = (async () => {
       entries = (await storage.get(OUTBOX_KEY)) || [];
+      // An older build gave up on receipts that were only waiting for the
+      // Collector. Put them back to waiting.
+      entries = entries.map((e) =>
+        e.failed && isWaitingForCollector(e.lastError) ? { ...e, failed: false, waitingForCollector: true, rejections: 0 } : e
+      );
       loaded = true;
     })();
   }
@@ -204,6 +210,19 @@ const EXECUTORS = {
     }
     return result;
   },
+
+  // SR reports a problem with a collector delivery while offline. Waits for
+  // the Collector's sync the same way a confirmation does. The photo is optional.
+  dispute_delivery_handoff: async (entry) => {
+    const storagePath = entry.localPhotoUri
+      ? await uploadOnce(entry, () => inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId))
+      : null;
+    const result = await inventoryService.disputeDeliveryHandoff({ ...entry.payload, storagePath });
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to send queued issue report');
+    }
+    return result;
+  },
 };
 
 /** Lets a screen register an executor for a new entry type later. */
@@ -290,6 +309,14 @@ const rejectedRetryDelay = (rejections) =>
 // failures never count — they aren't rejections.
 const GIVE_UP_AFTER_REJECTIONS = 5;
 
+// The server refuses a Sales Rep's receipt (or issue report) until the
+// Collector's own "delivered" has synced. That is a wait, not a rejection:
+// it never counts toward giving up, holds back nothing else, and is retried
+// every minute for as long as it takes.
+const WAITING_RETRY_MS = 60 * 1000;
+const WAITING_FOR_COLLECTOR = [/No pending handoff for this delivery/i, /has not yet marked this delivery as delivered/i];
+export const isWaitingForCollector = (message) => WAITING_FOR_COLLECTOR.some((p) => p.test(String(message || '')));
+
 /**
  * Replays queued entries in order, one at a time. Safe to call whenever — a
  * concurrent call is a no-op, and it does nothing if offline or empty.
@@ -310,7 +337,11 @@ export async function flush({ force = false } = {}) {
   flushing = true;
   try {
     // Snapshot so an enqueue happening mid-flush isn't processed out of turn.
-    const queue = [...entries];
+    // Daily reports go first: a report covers the stock that was on the server
+    // when it was filed, so a receipt that syncs before it would make the
+    // server refuse it ("must cover exactly your in-custody products").
+    // Otherwise the order is kept.
+    const queue = [...entries].sort((a, b) => (a.type === 'daily_report' ? 0 : 1) - (b.type === 'daily_report' ? 0 : 1));
     const heldTypes = new Set();
     for (const queued of queue) {
       if (!getConnectionStatus().online) break; // went offline again mid-flush
@@ -326,7 +357,7 @@ export async function flush({ force = false } = {}) {
       }
 
       if (!force && queued.nextAttemptAt && Date.now() < queued.nextAttemptAt) {
-        heldTypes.add(queued.type);
+        if (!queued.waitingForCollector) heldTypes.add(queued.type);
         continue;
       }
 
@@ -335,6 +366,8 @@ export async function flush({ force = false } = {}) {
       try {
         await executor(entry);
         debugLog('info', 'Queue', `sent ${entry.type}`, { id: entry.id, attempts: entry.attempts });
+        // Screens showing it as "waiting to sync" reload the server's copy now.
+        invalidateSavedData();
         if (entry.localPhotoUri) {
           FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
         }
@@ -347,6 +380,15 @@ export async function flush({ force = false } = {}) {
           entries = entries.map((e) => (e.id === entry.id ? entry : e));
           await persist();
           break;
+        }
+
+        if (isWaitingForCollector(entry.lastError)) {
+          entry.waitingForCollector = true;
+          entry.nextAttemptAt = Date.now() + WAITING_RETRY_MS;
+          debugLog('info', 'Queue', `${entry.type} waiting for the Collector to sync`, { id: entry.id, attempts: entry.attempts });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          continue;
         }
 
         entry.rejections = (queued.rejections || 0) + 1;

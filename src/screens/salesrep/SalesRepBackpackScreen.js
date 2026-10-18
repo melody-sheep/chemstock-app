@@ -25,7 +25,7 @@ const BANNER_HEIGHT = 76;
 // Returns the full backpack snapshot. A request that fails keeps its value
 // from the previous snapshot instead of blanking the screen — same pattern
 // SalesRepStockScreen/the dashboards already use.
-const loadBackpackData = async (previous) => {
+export const loadBackpackData = async (previous) => {
   const currentAgent = await authService.getCurrentUser();
   const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
 

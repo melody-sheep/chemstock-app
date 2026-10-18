@@ -2,6 +2,31 @@
 import { Alert } from 'react-native';
 import inventoryService from '../services/inventoryService';
 import { findQueuedReceipt } from './queuedReceipts';
+import friendlyError, { NO_INTERNET_MESSAGE } from './friendlyError';
+import { findSavedDelivery, isReceivable, confirmHandoffParams } from './srDeliveries';
+
+// Offline: find the scanned QR in the deliveries saved on this phone, so the
+// Sales Rep can still receive a collector delivery handed over offline.
+async function routeFromSavedDeliveries({ qrCode, agentId, navigation }) {
+  const delivery = await findSavedDelivery({ qrCode }, agentId);
+  if (delivery && isReceivable(delivery)) {
+    navigation.navigate('SalesRepConfirmHandoff', confirmHandoffParams(delivery, { initialScannedQr: qrCode }));
+    return { kind: 'offline_saved_delivery' };
+  }
+  if (delivery?.handoffStatus === 'confirmed') {
+    Alert.alert('Already Confirmed', 'You already confirmed this delivery.');
+    return { kind: 'already_confirmed' };
+  }
+  if (delivery?.handoffStatus === 'disputed') {
+    Alert.alert('Already Reported', 'You already reported an issue with this delivery.');
+    return { kind: 'already_disputed' };
+  }
+  Alert.alert(
+    'Needs Internet',
+    "This QR isn't in the deliveries saved on this phone, so it can't be checked offline. Connect and scan again."
+  );
+  return { kind: 'offline' };
+}
 
 /**
  * Routes a Sales Rep's scanned QR according to the transaction's server state.
@@ -26,6 +51,11 @@ export async function routeQrScan({ qrCode, agentId, navigation }) {
   const result = await inventoryService.getTransactionByQrCodeForAgent(qrCode, agentId);
 
   if (!result.success || !result.data) {
+    // Offline the lookup can't reach the server, which says nothing about
+    // whether the delivery exists.
+    if (friendlyError(result.message) === NO_INTERNET_MESSAGE) {
+      return routeFromSavedDeliveries({ qrCode, agentId, navigation });
+    }
     Alert.alert('Delivery Not Found', "This QR doesn't match any delivery assigned to you.");
     return { kind: 'unknown' };
   }
@@ -69,6 +99,26 @@ export async function routeQrScan({ qrCode, agentId, navigation }) {
       initialScannedQr: qrCode,
     });
     return { kind: 'handoff_pending' };
+  }
+
+  // Still "on the way" on the server: the Collector may have marked it
+  // delivered offline. Let the Sales Rep receive it; it completes once the
+  // Collector's side syncs.
+  // (No handoff row yet = the Collector's 'delivered' isn't on the server.)
+  if (tx.movementType === 'collector' && !tx.handoffStatus) {
+    const saved = await findSavedDelivery({ transactionId: tx.transactionId }, agentId);
+    navigation.navigate('SalesRepConfirmHandoff', {
+      ...confirmHandoffParams({
+        transactionId: tx.transactionId,
+        deliveryStatus: 'in_transit',
+        collectorName: saved?.collectorName || tx.collectorName,
+        qrCode: tx.qrCode,
+        items: tx.items || [],
+        destinationGps: null,
+      }),
+      initialScannedQr: qrCode,
+    });
+    return { kind: 'collector_pending' };
   }
 
   if (tx.movementType === 'collector') {

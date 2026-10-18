@@ -731,13 +731,14 @@ class InventoryService extends BaseService {
       });
 
       if (error) {
-        console.error('[ERROR] [InventoryService] confirm_delivery_handoff RPC error:', error);
         throw new Error(error.message || 'Failed to confirm handoff');
       }
 
       return { success: true, data };
     } catch (error) {
-      this.log('error', 'confirmDeliveryHandoff failed', { error: error.message });
+      // "Collector hasn't synced yet" is an expected wait, not an error.
+      const waiting = /No pending handoff|has not yet marked this delivery as delivered/i.test(error.message || '');
+      this.log(waiting ? 'info' : 'error', waiting ? 'confirmDeliveryHandoff waiting for the Collector to sync' : 'confirmDeliveryHandoff failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to confirm handoff' };
     }
   }

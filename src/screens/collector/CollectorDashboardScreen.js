@@ -4,6 +4,7 @@ import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, S
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
 import useOutbox from '../../hooks/useOutbox';
@@ -23,7 +24,7 @@ import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
+import { formatRelativeTime } from '../../utils/formatters';
 
 // Same layout/spec as ManagerDashboardScreen and SalesRepDashboardScreen —
 // this constant intentionally matches theirs so the collapsing header
@@ -58,9 +59,10 @@ const MAIN_OPERATIONS = [
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
-  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox();
-  const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
+  const onlineLabel = useOnlineLabel();
   const [user, setUser] = useState(null);
+  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox(null, user?.id ?? null);
+  const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
@@ -244,7 +246,7 @@ export default function CollectorDashboardScreen() {
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
-                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                      {onlineLabel}
                     </Text>
                   </View>
 

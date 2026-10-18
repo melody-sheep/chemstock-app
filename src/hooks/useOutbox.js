@@ -7,14 +7,20 @@ import outboxService from '../services/outboxService';
  * `pending` is what's still trying to send; `failed` is what the server kept
  * rejecting and now waits for the user to Retry or Discard.
  * @param {string|null} type - e.g. 'daily_report'. Omit for every entry.
+ * @param {string|null} [agentId] - only this account's entries (one phone can
+ *   hold several accounts' items). null while the account is loading = none.
+ *   Omit for every account.
  * @returns {{ pending: Array, pendingCount: number, failed: Array, retryNow: Function, discard: Function }}
  */
-export default function useOutbox(type = null) {
+export default function useOutbox(type = null, agentId) {
   const entries = useSyncExternalStore(outboxService.subscribeOutbox, outboxService.getEntries);
 
   const ofType = useMemo(
-    () => (type ? entries.filter((e) => e.type === type) : entries),
-    [entries, type]
+    () =>
+      entries.filter(
+        (e) => (!type || e.type === type) && (agentId === undefined || (agentId && e.payload?.agentId === agentId))
+      ),
+    [entries, type, agentId]
   );
   const pending = useMemo(() => ofType.filter((e) => !e.failed), [ofType]);
   const failed = useMemo(() => ofType.filter((e) => e.failed), [ofType]);

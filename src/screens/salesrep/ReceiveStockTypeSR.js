@@ -12,6 +12,9 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { RADIUS } from '../../styles/radius';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError, { isNetworkError } from '../../utils/friendlyError';
+import { savedReceivableDeliveries } from '../../utils/srDeliveries';
+import { getConnectionStatus } from '../../services/connectionStatus';
 
 export default function ReceiveStockTypeSR() {
   const navigation = useNavigation();
@@ -37,7 +40,10 @@ export default function ReceiveStockTypeSR() {
           if (active) setPendingCount((result.data || []).length);
         } catch (error) {
           console.warn('[WARN] [ReceiveStockTypeSR] Failed to refresh pending handoff count:', error);
-          if (active) setPendingCount(0);
+          // Offline: count from the deliveries saved on this phone.
+          const agent = await authService.getCurrentUser().catch(() => null);
+          const saved = agent?.id ? await savedReceivableDeliveries(agent.id) : [];
+          if (active) setPendingCount(saved.length);
         }
       })();
       return () => {
@@ -73,9 +79,14 @@ export default function ReceiveStockTypeSR() {
         pendingCount: count,
       });
     } catch (error) {
+      // Offline: show the deliveries saved on this phone instead of a dead end.
+      if (!getConnectionStatus().online || isNetworkError(error.message)) {
+        navigation.navigate('SalesRepTrackDeliveries', { filterPending: true });
+        return;
+      }
       Alert.alert(
         'Unable to Check',
-        error.message || 'Could not load your pending deliveries. Please try again.'
+        friendlyError(error.message) || 'Could not load your pending deliveries. Please try again.'
       );
     } finally {
       setIsChecking(false);

@@ -37,6 +37,25 @@ const STATUS_META = {
     bg: '#E3F2FF',
     color: '#0085F9',
   },
+  // Received on this phone; the Collector's "delivered" hasn't synced yet.
+  queued_waiting: {
+    label: 'Received — waiting for Collector to sync',
+    bg: '#E3F2FF',
+    color: '#0085F9',
+  },
+  // Issue reported offline on this phone, not synced yet.
+  queued_issue: {
+    label: 'Issue reported — waiting to sync',
+    bg: '#FBDCDC',
+    color: '#B91C1C',
+  },
+  // Still on the way on the server; the SR can receive it once handed over
+  // (the Collector may have marked it delivered offline).
+  awaiting_collector: {
+    label: 'On the way — receive when handed to you',
+    bg: '#FFF1D6',
+    color: '#B26400',
+  },
 };
 
 export default function DeliveryHandoffStatusBadge({ status, style = {} }) {

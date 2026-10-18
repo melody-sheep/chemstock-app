@@ -5,6 +5,8 @@ import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
 import { getConnectionStatus } from '../services/connectionStatus';
 import authService from '../services/authService';
+import { setFocusedSavedAt, clearFocusedSavedAt } from '../utils/savedDataTime';
+import { getDataVersion, subscribeDataVersion } from '../utils/dataVersion';
 
 // Last successful result per screen, kept for the whole app session. It lives
 // outside React state so it survives the screen unmounting and remounting.
@@ -47,6 +49,35 @@ const readLegacySnapshot = async (cacheKey, userId) => {
   return legacy && ownerOf(legacy.data) === userId ? legacy : null;
 };
 
+/** A screen's saved data for the current account (memory, then disk), or null. */
+export async function readSavedData(cacheKey) {
+  const userId = await resolveUserId();
+  const key = scopedKey(cacheKey, userId);
+  const cached = snapshots.get(key) ?? (await storage.get(STORAGE_PREFIX + key));
+  return cached?.data ?? null;
+}
+
+/**
+ * Refreshes another screen's saved copy in the background, so screens the
+ * user hasn't opened lately aren't left with old data (and an older
+ * "as of" time) when the phone goes offline. Saves only a live result.
+ */
+export async function primeSavedData(cacheKey, load) {
+  if (!getConnectionStatus().online) return;
+  try {
+    const userId = await resolveUserId();
+    const key = scopedKey(cacheKey, userId);
+    const cached = snapshots.get(key) ?? (await storage.get(STORAGE_PREFIX + key));
+    const next = await load(cached?.data ?? null);
+    if (!getConnectionStatus().online) return;
+    const snapshot = { data: next, fetchedAt: Date.now() };
+    snapshots.set(key, snapshot);
+    storage.set(STORAGE_PREFIX + key, snapshot);
+  } catch (error) {
+    debugLog('warn', 'Cache', `[${cacheKey}] Background refresh failed`, { error: error.message });
+  }
+}
+
 /**
  * Loads a screen's data each time the screen comes into focus, but only shows
  * the loading skeleton when there is nothing to show yet — not in memory and
@@ -62,12 +93,20 @@ const readLegacySnapshot = async (cacheKey, userId) => {
  * refresh({ force: true }) refetches now, ignoring the fresh window — for
  * pull-to-refresh and polling.
  *
- * @returns {{ data: Object|null, isLoading: boolean, refresh: Function }}
+ * savedAt is when the data shown was loaded from the server (null if none).
+ * isUnavailable is true offline when nothing was saved yet, so the screen
+ * can say so instead of showing an empty state as if there were no items.
+ *
+ * @returns {{ data: Object|null, isLoading: boolean, refresh: Function, savedAt: number|null, isUnavailable: boolean }}
  */
 export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_MS } = {}) {
   const initialKey = scopedKey(cacheKey, authService.peekCurrentUserId());
   const [data, setData] = useState(() => snapshots.get(initialKey)?.data ?? null);
   const [isLoading, setIsLoading] = useState(() => !snapshots.has(initialKey));
+  // When the data shown was loaded from the server, and whether there is no
+  // real data at all (offline, nothing saved yet).
+  const [savedAt, setSavedAt] = useState(() => snapshots.get(initialKey)?.fetchedAt ?? null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
   const loadRef = useRef(load);
   loadRef.current = load;
 
@@ -96,6 +135,14 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
       }
     }
 
+    if (cached) {
+      // Also picks up a copy refreshed elsewhere (primeSavedData) while this
+      // screen stayed mounted.
+      setData(cached.data);
+      setSavedAt(cached.fetchedAt);
+      setIsUnavailable(false);
+    }
+
     if (!force && cached && Date.now() - cached.fetchedAt < freshMs) {
       const { online } = getConnectionStatus();
       debugLog('debug', 'Cache', `${online ? '✅' : '✅ OFFLINE —'} [${cacheKey}] Reused without a request`, { online, ageMs: Date.now() - cached.fetchedAt });
@@ -115,11 +162,26 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     const startedAt = Date.now();
     try {
       const next = await loadRef.current(cached?.data ?? null);
-      const snapshot = { data: next, fetchedAt: Date.now() };
+      const { online: onlineAfterLoad } = getConnectionStatus();
+      if (!onlineAfterLoad && !cached) {
+        // Every request failed and there was nothing saved: `next` is just
+        // empty defaults, not real data. Show it, but don't save it as if it
+        // were, and let the screen say it isn't saved yet instead of "none".
+        setData(next);
+        setIsUnavailable(true);
+        setSavedAt(null);
+        debugLog('warn', 'Cache', `❌ OFFLINE — [${cacheKey}] Nothing saved on this phone yet`, { ms: Date.now() - startedAt });
+        return;
+      }
+      // Offline, load() can only hand back the previous data, so keep that
+      // data's real load time; the Offline pill shows it ("as of 7:25 PM").
+      const fetchedAt = onlineAfterLoad ? Date.now() : cached.fetchedAt;
+      const snapshot = { data: next, fetchedAt };
       snapshots.set(key, snapshot);
       setData(next);
+      setIsUnavailable(false);
+      setSavedAt(fetchedAt);
       storage.set(STORAGE_PREFIX + key, snapshot); // fire-and-forget, non-blocking
-      const { online: onlineAfterLoad } = getConnectionStatus();
       if (onlineAfterLoad) {
         debugLog('info', 'Cache', `✅ [${cacheKey}] Loaded live data from server`, { ms: Date.now() - startedAt });
       } else {
@@ -135,6 +197,7 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
       if (cached) {
         debugLog('warn', 'Cache', `⚠️ [${cacheKey}] Refresh failed, kept last-known cached data on screen`, { online, error: error.message });
       } else {
+        if (!online) setIsUnavailable(true);
         debugLog('error', 'Cache', `❌ [${cacheKey}] Refresh failed and there is no cached data to fall back to — screen will show empty/error state`, { online, error: error.message });
       }
     } finally {
@@ -142,11 +205,29 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     }
   }, [cacheKey, freshMs]);
 
+  // Something reached the server since this screen last loaded (a queued
+  // item synced, a profile edit): refetch instead of reusing the saved copy,
+  // and keep doing so while the screen stays open.
+  const seenVersion = useRef(getDataVersion());
   useFocusEffect(
     useCallback(() => {
-      refresh();
+      const changed = seenVersion.current !== getDataVersion();
+      seenVersion.current = getDataVersion();
+      refresh({ force: changed });
+      return subscribeDataVersion(() => {
+        seenVersion.current = getDataVersion();
+        refresh({ force: true });
+      });
     }, [refresh])
   );
 
-  return { data, isLoading, refresh };
+  // Tell the Offline pill how old this screen's data is while it's in front.
+  useFocusEffect(
+    useCallback(() => {
+      setFocusedSavedAt(savedAt);
+      return () => clearFocusedSavedAt(savedAt);
+    }, [savedAt])
+  );
+
+  return { data, isLoading, refresh, savedAt, isUnavailable };
 }

@@ -18,6 +18,10 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
 import { RADIUS } from '../../styles/radius';
+import friendlyError, { isNetworkError } from '../../utils/friendlyError';
+import { findSavedDelivery, isReceivable, confirmHandoffParams } from '../../utils/srDeliveries';
+import { findQueuedReceipt } from '../../utils/queuedReceipts';
+import { getConnectionStatus } from '../../services/connectionStatus';
 
 const TYPE_META = {
   stock_request_submitted: { icon: 'notePencil', color: COLORS.accentGold },
@@ -170,6 +174,22 @@ export default function NotificationsScreen() {
 
     const targetTransactionId = notification.navParams?.transactionId;
 
+    // Offline, a Sales Rep's delivery opens from the copy saved on this phone
+    // (Track Deliveries), with its Receive button, instead of failing.
+    const isOfflineFailure = (message) => !getConnectionStatus().online || isNetworkError(message);
+    const openSavedDelivery = async (wantReceive) => {
+      const saved = await findSavedDelivery({ transactionId: targetTransactionId }, user?.id);
+      if (!saved) {
+        Alert.alert('Needs Internet', "This delivery isn't saved on this phone yet. Connect and try again.");
+        return;
+      }
+      if (wantReceive && isReceivable(saved)) {
+        navigation.navigate('SalesRepConfirmHandoff', confirmHandoffParams(saved));
+      } else {
+        navigation.navigate('SalesRepDeliveryDetail', { delivery: saved });
+      }
+    };
+
     if (
       notification.type === 'delivery_handoff_pending_sr' &&
       targetTransactionId
@@ -181,7 +201,8 @@ export default function NotificationsScreen() {
       try {
         const result = await deliveryService.getMyPendingHandoffs(user.id);
         if (!result.success) {
-          Alert.alert('Unable to Load Handoff', result.message || 'Please try again.');
+          if (isOfflineFailure(result.message)) return openSavedDelivery(true);
+          Alert.alert('Unable to Load Handoff', friendlyError(result.message) || 'Please try again.');
           return;
         }
 
@@ -190,16 +211,21 @@ export default function NotificationsScreen() {
         );
         if (handoff) {
           navigation.navigate('SalesRepConfirmHandoff', { handoff });
+        } else if (findQueuedReceipt({ transactionId: targetTransactionId }, user.id)) {
+          Alert.alert('Already Received', 'You already received this delivery on this phone. It completes automatically.');
         } else {
-          Alert.alert(
-            'Handoff Already Handled',
-            'This delivery is no longer waiting for your confirmation.'
-          );
+          // Already confirmed (or reported): show the delivery instead of a dead end.
+          const saved = await findSavedDelivery({ transactionId: targetTransactionId }, user.id);
+          if (saved) {
+            navigation.navigate('SalesRepDeliveryDetail', { delivery: saved });
+          } else {
+            Alert.alert('Already Handled', 'You already confirmed this delivery. It is in your Track Deliveries.');
+          }
         }
       } catch (error) {
         Alert.alert(
           'Unable to Load Handoff',
-          error.message || 'Please try again.'
+          friendlyError(error.message) || 'Please try again.'
         );
       }
       return;
@@ -216,7 +242,7 @@ export default function NotificationsScreen() {
       try {
         const result = await deliveryService.getMyCollectorDeliveries(user.id);
         if (!result.success) {
-          Alert.alert('Unable to Load Delivery', result.message || 'Please try again.');
+          Alert.alert('Unable to Load Delivery', friendlyError(result.message) || 'Please try again.');
           return;
         }
         const match = result.data.find(
@@ -230,7 +256,7 @@ export default function NotificationsScreen() {
           Alert.alert('Delivery Not Found', 'This delivery is no longer in your history.');
         }
       } catch (error) {
-        Alert.alert('Unable to Load Delivery', error.message || 'Please try again.');
+        Alert.alert('Unable to Load Delivery', friendlyError(error.message) || 'Please try again.');
       }
       return;
     }
@@ -254,7 +280,8 @@ export default function NotificationsScreen() {
       try {
         const result = await inventoryService.getMyDeliveries(user.id, 50);
         if (!result.success) {
-          Alert.alert('Unable to Load Delivery', result.message || 'Please try again.');
+          if (isOfflineFailure(result.message)) return openSavedDelivery(false);
+          Alert.alert('Unable to Load Delivery', friendlyError(result.message) || 'Please try again.');
           return;
         }
         const match = result.data.find(
@@ -266,7 +293,7 @@ export default function NotificationsScreen() {
           Alert.alert('Delivery Not Found', 'This delivery is no longer available.');
         }
       } catch (error) {
-        Alert.alert('Unable to Load Delivery', error.message || 'Please try again.');
+        Alert.alert('Unable to Load Delivery', friendlyError(error.message) || 'Please try again.');
       }
       return;
     }
