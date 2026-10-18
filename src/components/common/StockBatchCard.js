@@ -34,6 +34,7 @@ export default function StockBatchCard({
   outOfStock = false,
   wireframe = false,
   onPress = null,
+  statusLabel = null,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
@@ -50,6 +51,10 @@ export default function StockBatchCard({
     if (wireframe) {
       expiryBadge = { ...expiryBadge, color: '#757575', bg: '#F1F5F9' };
     }
+  }
+  // e.g. stock received offline, not yet synced — same blue as "Preparing".
+  if (statusLabel) {
+    expiryBadge = { label: statusLabel, color: '#0085F9', bg: '#E3F2FF' };
   }
 
   // Out-of-stock cards are muted (dimmed) in the wireframe "All Products"
@@ -125,6 +130,7 @@ StockBatchCard.propTypes = {
   expDate: PropTypes.string,
   outOfStock: PropTypes.bool,
   wireframe: PropTypes.bool,
+  statusLabel: PropTypes.string,
   onPress: PropTypes.func,
 };
 

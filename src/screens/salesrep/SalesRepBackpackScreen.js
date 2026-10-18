@@ -6,6 +6,8 @@ import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
+import { queuedBackpackRows } from '../../utils/queuedReceipts';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import StockBatchCard from '../../components/common/StockBatchCard';
@@ -39,7 +41,9 @@ export default function SalesRepBackpackScreen() {
   const navigation = useNavigation();
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-backpack', loadBackpackData);
   const agent = snapshot?.agent ?? null;
-  const items = snapshot?.items ?? [];
+  // Stock received offline shows here right away, counted in the total.
+  const { pending: queuedEntries } = useOutbox();
+  const items = [...queuedBackpackRows(queuedEntries, agent?.id), ...(snapshot?.items ?? [])];
 
   const totalUnits = items.reduce((sum, row) => sum + row.remaining_quantity, 0);
 
@@ -94,6 +98,7 @@ export default function SalesRepBackpackScreen() {
                   quantity={row.remaining_quantity}
                   batchNumber={row.batch_number}
                   expDate={row.exp_date}
+                  statusLabel={row.isQueued ? 'Received — waiting to sync' : null}
                 />
               ))}
             </View>

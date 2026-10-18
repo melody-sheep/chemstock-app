@@ -17,6 +17,7 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
+import { findQueuedReceipt, receiptDisplay } from '../../utils/queuedReceipts';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
 import { getRequiredPosition } from '../../utils/quickLocation';
@@ -86,6 +87,21 @@ export default function SalesRepConfirmHandoffScreen() {
   }, []);
 
   const effectiveDirectTx = directTransaction || fetchedDirectTx;
+
+  // Opened for a delivery already received offline on this phone (e.g. from a
+  // notification or the Delivery tab): say so instead of showing the form again.
+  useEffect(() => {
+    if (!agent?.id) return;
+    const queued = findQueuedReceipt({
+      transactionId: handoff?.transactionId || directTransaction?.transactionId,
+      qrCode: handoff?.releaseQrCode || directTransaction?.qrCode,
+    }, agent.id);
+    if (queued) {
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    }
+  }, [agent?.id]);
   const expectedQr = handoff?.releaseQrCode || effectiveDirectTx?.qrCode || null;
   const isQrValid = isDirectAwaitingScan && !fetchedDirectTx
     ? Boolean(scannedQrCode)
@@ -190,10 +206,22 @@ export default function SalesRepConfirmHandoffScreen() {
       deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
     };
     const outboxAction = isDirectMode ? 'receive_stock' : 'confirm_delivery_handoff';
+    const receiptCopy = receiptDisplay({
+      transactionId: handoff?.transactionId || effectiveDirectTx?.transactionId,
+      qrCode: expectedQr || scannedQrCode,
+      items: handoff?.items || effectiveDirectTx?.items,
+    });
+    if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
+      setIsSubmitting(false);
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+      return;
+    }
 
     try {
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue(outboxAction, payload, photoUri);
+        await outboxService.enqueue(outboxAction, payload, photoUri, receiptCopy);
         Alert.alert('Saved — Will Send Later', "You're offline. Your confirmation is saved on this device and will sync automatically once you're back online.", [
           { text: 'OK', onPress: () => navigation.goBack() },
         ]);
@@ -208,7 +236,7 @@ export default function SalesRepConfirmHandoffScreen() {
         if (!result.success) throw new Error(result.message);
       } catch (liveError) {
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue(outboxAction, payload, photoUri);
+          await outboxService.enqueue(outboxAction, payload, photoUri, receiptCopy);
           Alert.alert('Saved — Will Send Later', "Connection dropped. Your confirmation is saved on this device and will sync automatically once you're back online.", [
             { text: 'OK', onPress: () => navigation.goBack() },
           ]);

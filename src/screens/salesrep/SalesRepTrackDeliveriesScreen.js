@@ -4,6 +4,8 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
+import { findQueuedReceipt } from '../../utils/queuedReceipts';
 import DeliveryHandoffStatusBadge from '../../components/common/DeliveryHandoffStatusBadge';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
@@ -94,7 +96,14 @@ export default function SalesRepTrackDeliveriesScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const filterPending = route.params?.filterPending === true;
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-track-deliveries', loadDeliveriesData);
-  const allDeliveries = snapshot?.deliveries ?? [];
+  // A delivery confirmed offline on this phone shows as such until it syncs.
+  const { pending: queuedEntries } = useOutbox();
+  const allDeliveries = (snapshot?.deliveries ?? []).map((delivery) =>
+    delivery.handoffStatus !== 'confirmed' &&
+    findQueuedReceipt({ transactionId: delivery.transactionId, qrCode: delivery.qrCode }, snapshot?.agentId, queuedEntries)
+      ? { ...delivery, handoffStatus: 'queued' }
+      : delivery
+  );
   const deliveries = filterPending
     ? allDeliveries.filter((delivery) => delivery.handoffStatus === 'pending_sr')
     : allDeliveries;
@@ -186,7 +195,7 @@ export default function SalesRepTrackDeliveriesScreen() {
                       From: {delivery.collectorName || 'Collector'}
                     </Text>
                     <Text style={styles.deliveryMeta}>{formatRelativeTime(delivery.createdAt)}</Text>
-                    {isPendingHandoff && (
+                    {(isPendingHandoff || delivery.handoffStatus === 'queued') && (
                       <View style={styles.handoffBadgeWrap}>
                         <DeliveryHandoffStatusBadge status={delivery.handoffStatus} />
                       </View>

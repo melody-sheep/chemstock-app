@@ -31,6 +31,7 @@ const MAP_LEGEND_ITEMS = [
 const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
 
 function getStatusLabel(delivery) {
+  if (delivery.handoffStatus === 'queued') return 'Confirmed — waiting to sync';
   if (delivery.deliveryStatus === 'delivered' && delivery.handoffStatus === 'pending_sr') {
     return 'Awaiting your confirmation';
   }

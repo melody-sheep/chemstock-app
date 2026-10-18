@@ -22,6 +22,7 @@ import useOutbox from '../../hooks/useOutbox';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getQuickPosition } from '../../utils/quickLocation';
+import { getQueuedReceipts } from '../../utils/queuedReceipts';
 
 function isNearExpiry(expDate) {
   if (!expDate) return false;
@@ -82,7 +83,11 @@ export default function SubmitReportSR() {
   // came back right after saving, and a second report for the same day would
   // be rejected by the server (one report per agent per day).
   const hasQueuedReport = pendingReports.some((entry) => entry.payload?.agentId === agent?.id);
-  const isReportLocked = alreadySubmitted || hasQueuedReport;
+  // Stock received offline isn't on the server yet, so a report filed now
+  // wouldn't match the backpack and would be refused. Wait for it to sync.
+  const { pending: allPendingEntries } = useOutbox();
+  const queuedReceiptCount = getQueuedReceipts(allPendingEntries, agent?.id).length;
+  const isReportLocked = alreadySubmitted || hasQueuedReport || queuedReceiptCount > 0;
 
   // Figures are local, in-progress UI state, not part of the cached snapshot
   // — so this only resets them when the actual set of products changes (a
@@ -332,6 +337,25 @@ export default function SubmitReportSR() {
               )}
 
               <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
+
+              {queuedReceiptCount > 0 && !alreadySubmitted && (
+                <View style={styles.pendingBanner}>
+                  <View style={styles.pendingIconCircle}>
+                    <Icon name="clock" size={14} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pendingBannerTitle}>
+                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to sync
+                    </Text>
+                    <Text style={styles.pendingBannerText}>
+                      Connect to send it first, then file your report — it has to include that stock.
+                    </Text>
+                  </View>
+                  <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                    <Text style={styles.pendingRetryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
 
               {alreadySubmitted && (
                 <View style={styles.submittedBanner}>

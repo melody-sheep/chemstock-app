@@ -217,7 +217,9 @@ export function registerExecutor(type, executor) {
  * might sit around a while and the camera's own URI isn't guaranteed to
  * survive that.
  */
-export async function enqueue(type, payload, photoUri = null) {
+// `display` is an optional on-phone copy for showing the item before it syncs
+// (e.g. what was received); it is never sent to the server.
+export async function enqueue(type, payload, photoUri = null, display = null) {
   await ensureLoaded();
 
   const id = makeId();
@@ -239,6 +241,7 @@ export async function enqueue(type, payload, photoUri = null) {
     id,
     type,
     payload,
+    display,
     localPhotoUri,
     createdAt: Date.now(),
     lastAttemptAt: null,

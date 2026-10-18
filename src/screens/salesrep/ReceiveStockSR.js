@@ -16,6 +16,7 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
+import { findQueuedReceipt, receiptDisplay } from '../../utils/queuedReceipts';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOutbox from '../../hooks/useOutbox';
 import { getInitials } from '../../utils/initials';
@@ -144,9 +145,16 @@ export default function ReceiveStockSR() {
       deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
     };
 
+    const receiptCopy = receiptDisplay({ transactionId: batch.transactionId, qrCode: batch.qrCode, items: batch.items });
+    if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
+      setIsSubmitting(false);
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.');
+      return;
+    }
+
     try {
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+        await outboxService.enqueue('receive_stock', acceptPayload, photoUri, receiptCopy);
         setIsQueuedAccept(true);
         setIsAccepted(true);
         return;
@@ -160,7 +168,7 @@ export default function ReceiveStockSR() {
         }
       } catch (liveError) {
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+          await outboxService.enqueue('receive_stock', acceptPayload, photoUri, receiptCopy);
           setIsQueuedAccept(true);
           setIsAccepted(true);
           return;

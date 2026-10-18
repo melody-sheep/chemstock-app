@@ -4,6 +4,8 @@ import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet }
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
+import { queuedUnits } from '../../utils/queuedReceipts';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
@@ -164,7 +166,10 @@ export default function SalesRepDashboardScreen() {
 
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
   const user = snapshot?.user ?? null;
-  const totalUnits = snapshot?.totalUnits ?? null;
+  // Stock received offline counts right away, as in the backpack.
+  const { pending: queuedEntries } = useOutbox();
+  const queuedReceiptUnits = queuedUnits(queuedEntries, user?.id);
+  const totalUnits = snapshot?.totalUnits == null ? null : snapshot.totalUnits + queuedReceiptUnits;
   const recentLogs = snapshot?.recentLogs ?? [];
   const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;

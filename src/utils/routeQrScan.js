@@ -1,6 +1,7 @@
 // src/utils/routeQrScan.js
 import { Alert } from 'react-native';
 import inventoryService from '../services/inventoryService';
+import { findQueuedReceipt } from './queuedReceipts';
 
 /**
  * Routes a Sales Rep's scanned QR according to the transaction's server state.
@@ -14,6 +15,14 @@ export async function routeQrScan({ qrCode, agentId, navigation }) {
     return { kind: 'no_agent' };
   }
 
+  const alreadyQueued = () => {
+    Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.');
+    return { kind: 'already_queued' };
+  };
+
+  // Checked on the phone first, so it works offline too.
+  if (findQueuedReceipt({ qrCode }, agentId)) return alreadyQueued();
+
   const result = await inventoryService.getTransactionByQrCodeForAgent(qrCode, agentId);
 
   if (!result.success || !result.data) {
@@ -22,6 +31,8 @@ export async function routeQrScan({ qrCode, agentId, navigation }) {
   }
 
   const tx = result.data;
+
+  if (findQueuedReceipt({ transactionId: tx.transactionId, qrCode: tx.qrCode }, agentId)) return alreadyQueued();
 
   if (tx.handoffStatus === 'confirmed') {
     Alert.alert('Already Confirmed', 'You already confirmed this delivery.');

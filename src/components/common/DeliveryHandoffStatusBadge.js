@@ -31,6 +31,12 @@ const STATUS_META = {
     bg: '#FBDCDC',
     color: '#B91C1C',
   },
+  // Confirmed offline on this phone, not synced yet.
+  queued: {
+    label: 'Confirmed — waiting to sync',
+    bg: '#E3F2FF',
+    color: '#0085F9',
+  },
 };
 
 export default function DeliveryHandoffStatusBadge({ status, style = {} }) {
