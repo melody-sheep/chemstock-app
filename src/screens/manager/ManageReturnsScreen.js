@@ -1,8 +1,8 @@
 // src/screens/manager/ManageReturnsScreen.js
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
@@ -20,11 +20,14 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import authService from '../../services/authService';
+import requireOnline from '../../utils/requireOnline';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import reportService from '../../services/reportService';
 import agentService from '../../services/agentService';
 import requestService from '../../services/requestService';
 import { formatDisplayDate, formatRelativeTime } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
+import friendlyError from '../../utils/friendlyError';
 
 const ALL_BRANCHES_ID = 'all';
 
@@ -38,16 +41,32 @@ const RETURN_SUB_TABS = [
   { key: 'confirmed', label: 'Confirmed Returns' },
 ];
 
+const loadReturnsData = async (previous) => {
+  const manager = await authService.getCurrentUser();
+  const prev = previous?.managerId === manager?.id ? previous : null;
+  const [reportsResult, returnsResult, agentsResult, managerBranches] = await Promise.all([
+    reportService.getBranchDailyReports(50),
+    reportService.getBranchReturnRequests(100),
+    agentService.getMyAgentAccounts(),
+    requestService.getAgentBranches(manager?.branchIds || []),
+  ]);
+  return {
+    managerId: manager?.id,
+    reports: reportsResult.success ? reportsResult.data : prev?.reports ?? [],
+    returnRequests: returnsResult.success ? returnsResult.data : prev?.returnRequests ?? [],
+    photoUrlByAgentId: agentsResult.success
+      ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
+      : prev?.photoUrlByAgentId ?? {},
+    // getAgentBranches returns [] on failure too, so an empty result keeps the old list.
+    branches: managerBranches.length > 0 ? managerBranches : prev?.branches ?? [],
+  };
+};
+
 export default function ManageReturnsScreen() {
   const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState('reports');
   const [activeReturnSubTab, setActiveReturnSubTab] = useState('pending');
-  const [reports, setReports] = useState([]);
-  const [returnRequests, setReturnRequests] = useState([]);
-  const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
-  const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(ALL_BRANCHES_ID);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [reportPhotoUrl, setReportPhotoUrl] = useState(null);
@@ -62,31 +81,17 @@ export default function ManageReturnsScreen() {
     Alert.alert(summary.title, summary.message);
   };
 
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    const [manager, reportsResult, returnsResult, agentsResult] = await Promise.all([
-      authService.getCurrentUser(),
-      reportService.getBranchDailyReports(50),
-      reportService.getBranchReturnRequests(100),
-      agentService.getMyAgentAccounts(),
-    ]);
-    setReports(reportsResult.success ? reportsResult.data : []);
-    setReturnRequests(returnsResult.success ? returnsResult.data : []);
-    setPhotoUrlByAgentId(
-      agentsResult.success
-        ? Object.fromEntries(agentsResult.data.map((a) => [a.id, a.profilePhotoUrl]))
-        : {}
-    );
-    const managerBranches = await requestService.getAgentBranches(manager?.branchIds || []);
-    setBranches(managerBranches);
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  // Saved per account, so offline the last loaded lists stay on screen instead
+  // of going blank. A request that fails keeps its previous value. Refetched on
+  // every visit (freshMs 0), same as before.
+  const { data: snapshot, isLoading, refresh } = useCachedFocusLoader('manager-reports-returns', loadReturnsData, {
+    freshMs: 0,
+  });
+  const loadData = () => refresh({ force: true });
+  const reports = snapshot?.reports ?? [];
+  const returnRequests = snapshot?.returnRequests ?? [];
+  const photoUrlByAgentId = snapshot?.photoUrlByAgentId ?? {};
+  const branches = snapshot?.branches ?? [];
 
   // Resolved on-demand per selected report (not eagerly for the whole
   // list), same pattern as StockLogsScreen's shipment photo. null for an
@@ -143,11 +148,12 @@ export default function ManageReturnsScreen() {
 
   const handleAcceptReport = async () => {
     if (!selectedReport) return;
+    if (!requireOnline('Accepting a report')) return;
     setIsAccepting(true);
     const result = await reportService.acceptDailyReport(selectedReport.reportId);
     setIsAccepting(false);
     if (!result.success) {
-      Alert.alert('Failed', result.message || 'Could not accept this report.');
+      Alert.alert('Failed', friendlyError(result.message) || 'Could not accept this report.');
       return;
     }
     setSelectedReport(null);

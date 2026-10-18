@@ -8,6 +8,7 @@ import SaveableQRCode from './SaveableQRCode';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 // Shared post-action success layout: check icon, title, the QR, a receipt card, then Share/Done.
 // `hideQr` drops the QR code and Share button entirely (just the receipt +
@@ -19,7 +20,7 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
     try {
       await qrRef.current?.shareAsImage();
     } catch (error) {
-      Alert.alert('Share Failed', error.message || 'Could not share the QR code.');
+      Alert.alert('Share Failed', friendlyError(error.message) || 'Could not share the QR code.');
     }
   };
   const halfButtonWidth = Math.floor((Dimensions.get('window').width - SPACING.lg * 2 - SPACING.sm) / 2);

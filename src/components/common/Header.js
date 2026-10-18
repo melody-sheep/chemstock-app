@@ -15,7 +15,8 @@ import Svg, { Path } from 'react-native-svg';
 import Icon from './Icon';
 import UserAvatar from './UserAvatar';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
-import { formatClockTime } from '../../utils/formatters';
+import { formatAsOf } from '../../utils/formatters';
+import useSavedDataTime from '../../utils/savedDataTime';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -53,6 +54,7 @@ export default function Header({
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const connection = useConnectionStatus();
+  const savedAt = useSavedDataTime();
 
   const handleBackPress = () => {
     try {
@@ -162,7 +164,7 @@ export default function Header({
           <View style={styles.onlineContainer}>
             <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
             <Text style={[styles.onlineText, { color: textColor }, !connection.online && styles.onlineTextOffline]}>
-              {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              {connection.online ? 'Online' : `Offline · as of ${formatAsOf(savedAt ?? connection.lastOnlineAt)}`}
             </Text>
           </View>
         )}

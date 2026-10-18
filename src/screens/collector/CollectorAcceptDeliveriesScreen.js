@@ -14,6 +14,8 @@ import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
+import requireOnline from '../../utils/requireOnline';
 
 const SELECTION_MODES = [
   { key: 'all', label: 'All' },
@@ -84,6 +86,7 @@ export default function CollectorAcceptDeliveriesScreen() {
 
   const handleConfirmReturn = async () => {
     if (!agent || !returnCandidate || isReturning) return;
+    if (!requireOnline('Returning stock to the branch')) return;
     setIsReturning(true);
 
     const result = await deliveryService.initiateCollectorReturn(agent.id, returnCandidate.transactionId);
@@ -91,7 +94,7 @@ export default function CollectorAcceptDeliveriesScreen() {
 
     if (!result.success) {
       setReturnCandidate(null);
-      Alert.alert('Failed to Start Return', result.message);
+      Alert.alert('Failed to Start Return', friendlyError(result.message));
       return;
     }
 

@@ -2,14 +2,40 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Image, Animated, Alert, StyleSheet, Dimensions } from 'react-native';
+import { Image, Animated, Alert, StyleSheet, Dimensions, AppState, Platform } from 'react-native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, hasStoredAuthSession } from './src/services/supabaseClient';
 import authService from './src/services/authService';
+import { getConnectionStatus } from './src/services/connectionStatus';
 import SplashLoader from './src/components/common/SplashLoader';
-import { installGlobalErrorHandler } from './src/utils/logger';
+import { installGlobalErrorHandler, installConsoleErrorFormatter, debugLog } from './src/utils/logger';
 
 installGlobalErrorHandler();
+installConsoleErrorFormatter();
+
+const appStartedAt = Date.now();
+
+// One line describing the phone and build, so a pasted log or Share Debug Log
+// says which Android version / model / APK build it came from.
+debugLog('info', 'Launch', 'device', {
+  app: Constants.expoConfig?.version ?? null,
+  build: Constants.expoConfig?.android?.versionCode ?? null,
+  // 'storeClient' is Expo Go or a development build; 'standalone' is a release APK.
+  runtime: Constants.executionEnvironment === 'standalone' ? 'release APK' : 'Expo Go / dev build',
+  android: Device.osVersion,
+  apiLevel: Platform.Version,
+  model: Device.modelName,
+  brand: Device.brand,
+});
+
+const formatDuration = (ms) => {
+  const totalMinutes = Math.floor(ms / 60000);
+  if (totalMinutes < 1) return `${Math.round(ms / 1000)}s`;
+  const hours = Math.floor(totalMinutes / 60);
+  return hours > 0 ? `${hours}h ${totalMinutes % 60}m` : `${totalMinutes}m`;
+};
 
 // Where each role lands when a persisted session is found on launch. The
 // session itself was already being persisted (authService.js's
@@ -60,6 +86,22 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isConnecting]);
 
+  // Logs going to the background and coming back, with how long it was away —
+  // the long-idle logout problems all start with "the app was away for hours".
+  useEffect(() => {
+    let current = AppState.currentState;
+    let changedAt = Date.now();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === current) return;
+      debugLog('info', 'App', `${current} → ${next} after ${formatDuration(Date.now() - changedAt)}`, {
+        online: getConnectionStatus().online,
+      });
+      current = next;
+      changedAt = Date.now();
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     const initializeApp = async () => {
       console.log('🚀 [App] Initializing application...');
@@ -72,6 +114,9 @@ export default function App() {
         restoredRouteName = await resolveExistingSession();
       } finally {
         setIsConnecting(false);
+        debugLog('info', 'Launch', `ready in ${Date.now() - appStartedAt}ms → ${restoredRouteName || 'Login'}`, {
+          from: restoredRouteName ? 'login saved on phone' : 'no saved login',
+        });
       }
 
       // Connection check runs after the splash has closed. It also tells the

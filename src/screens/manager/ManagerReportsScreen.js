@@ -20,6 +20,7 @@ import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import inventoryService from '../../services/inventoryService';
 import { supabase } from '../../services/supabaseClient';
+import storage from '../../utils/storage';
 import { formatDisplayDate } from '../../utils/formatters';
 import { describeReceivingScan } from '../../utils/scanLookup';
 
@@ -33,6 +34,9 @@ const REPORT_KINDS = [
   { key: 'received', label: 'Received Stocks' },
 ];
 
+// Saved reports, same prefix as the other offline screen caches.
+const REPORT_CACHE_PREFIX = 'chemstock_cache_manager-report:';
+
 function startOfWeek(date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -42,8 +46,13 @@ function startOfWeek(date) {
   return d;
 }
 
+// Built from the phone's local date. toISOString() converts to UTC first,
+// which in the Philippines (UTC+8) moved every date back a day — October
+// came out as Sep 30 – Oct 30.
 function toISODate(date) {
-  return date.toISOString().slice(0, 10);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function getPeriodRange(periodType, anchorDate) {
@@ -252,6 +261,8 @@ export default function ManagerReportsScreen() {
   const [report, setReport] = useState(null);
   const [receivedItems, setReceivedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Offline, and this branch/period/report was never loaded on this phone.
+  const [isUnavailableOffline, setIsUnavailableOffline] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [managerName, setManagerName] = useState('');
@@ -292,9 +303,18 @@ export default function ManagerReportsScreen() {
         const branchIds = currentManager?.branchIds || [];
         if (branchIds.length === 0) return;
 
-        const { data } = await supabase.from('branches').select('id, name').in('id', branchIds);
+        // Offline, the branch names come from the copy saved on the phone.
+        const branchesKey = `${REPORT_CACHE_PREFIX}branches:${currentManager.id}`;
+        const { data, error } = await supabase.from('branches').select('id, name').in('id', branchIds);
         if (cancelled) return;
-        setBranches(data || []);
+        let branchList = data || [];
+        if (error) {
+          branchList = (await storage.get(branchesKey)) || [];
+        } else {
+          storage.set(branchesKey, branchList);
+        }
+        if (cancelled) return;
+        setBranches(branchList);
         setSelectedBranchId((prev) => prev || branchIds[0]);
       }
       init();
@@ -307,13 +327,32 @@ export default function ManagerReportsScreen() {
   const loadReport = useCallback(async () => {
     if (!selectedBranchId) return;
     setIsLoading(true);
+    setIsUnavailableOffline(false);
     const { start, end } = getPeriodRange(periodType, anchorDate);
+    // One saved copy per manager + report type + branch + period.
+    const cacheKey = `${REPORT_CACHE_PREFIX}${manager?.id}:${reportKind}:${selectedBranchId}:${toISODate(start)}:${periodType}`;
+    const showSavedCopy = async () => {
+      const saved = await storage.get(cacheKey);
+      if (saved) {
+        if (reportKind === 'received') setReceivedItems(saved.receivedItems || []);
+        else setReport(saved.report ?? null);
+      } else {
+        if (reportKind === 'received') setReceivedItems([]);
+        else setReport(null);
+        setIsUnavailableOffline(true);
+      }
+      setIsLoading(false);
+    };
 
     if (reportKind === 'received') {
       // End bound needs to cover the whole end day, not just its midnight.
       const endOfDay = new Date(end);
       endOfDay.setHours(23, 59, 59, 999);
       const result = await inventoryService.getReceivingLogs([selectedBranchId], 200, start.toISOString(), endOfDay.toISOString());
+      if (!result.success) {
+        await showSavedCopy();
+        return;
+      }
 
       // Merged by product code — the same code received across multiple
       // batches/dates in the period shows as one row with a combined total,
@@ -334,12 +373,18 @@ export default function ManagerReportsScreen() {
       });
       const merged = Array.from(mergedByCode.values()).sort((a, b) => a.productCode.localeCompare(b.productCode));
       setReceivedItems(merged);
+      storage.set(cacheKey, { receivedItems: merged });
     } else {
       const result = await reportService.getBranchReport(selectedBranchId, toISODate(start), toISODate(end));
-      setReport(result.success ? result.data : null);
+      if (!result.success) {
+        await showSavedCopy();
+        return;
+      }
+      setReport(result.data);
+      storage.set(cacheKey, { report: result.data });
     }
     setIsLoading(false);
-  }, [selectedBranchId, reportKind, periodType, anchorDate]);
+  }, [selectedBranchId, reportKind, periodType, anchorDate, manager?.id]);
 
   useEffect(() => {
     loadReport();
@@ -559,7 +604,7 @@ export default function ManagerReportsScreen() {
                   </View>
 
                   {receivedItems.length === 0 ? (
-                    <Text style={styles.emptyText}>No stock received in this period yet.</Text>
+                    <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
                   ) : (
                     receivedItems.map((item) => (
                       <View key={item.productCode} style={styles.tableRow}>
@@ -582,7 +627,7 @@ export default function ManagerReportsScreen() {
                   </View>
 
                   {products.length === 0 ? (
-                    <Text style={styles.emptyText}>No accepted reports in this period yet.</Text>
+                    <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No accepted reports in this period yet.'}</Text>
                   ) : (
                     products.map((p) => (
                       <View key={p.productCode} style={styles.tableRow}>

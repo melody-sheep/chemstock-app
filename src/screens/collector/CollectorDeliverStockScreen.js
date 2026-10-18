@@ -23,6 +23,7 @@ import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import outboxService from '../../services/outboxService';
 import useOutbox from '../../hooks/useOutbox';
+import useConnectionStatus from '../../hooks/useConnectionStatus';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import { recordLandmarkUsage } from '../../utils/landmarkUsage';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
@@ -33,6 +34,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { glassPanel } from '../../styles/glass';
 import { getInitials } from '../../utils/initials';
 import { getDeliveryParties } from '../../services/presenceService';
+import friendlyError from '../../utils/friendlyError';
+import requireOnline from '../../utils/requireOnline';
 
 // Marker colours match the markers StaticRouteMap draws for this screen.
 const MAP_LEGEND_ITEMS = [
@@ -45,7 +48,11 @@ const MAP_LEGEND_ITEMS = [
 // this radius — advisory only, computed from a fresh GPS fix on focus, never
 // a server-side gate. A bad fix or dead zone should never block marking a
 // real physical delivery done.
-const NEAR_THRESHOLD_METERS = 300;
+// Mark Delivered shows within this distance of a stop. Indoors (apartments,
+// multi-floor buildings) GPS can be off by tens of metres, so the phone's own
+// reported accuracy is added, up to GPS_ALLOWANCE_MAX_METERS more.
+const NEAR_THRESHOLD_METERS = 50;
+const GPS_ALLOWANCE_MAX_METERS = 50;
 // Handle row + the always-visible Finish Delivery/Go to Next Stop button,
 // so collapsing the timeline/details never hides the primary action.
 const COLLAPSED_SHEET_HEIGHT = 112;
@@ -59,6 +66,8 @@ export default function CollectorDeliverStockScreen() {
   const [agent, setAgent] = useState(null);
   const [legs, setLegs] = useState([]);
   const [currentPosition, setCurrentPosition] = useState(null);
+  const [positionAccuracy, setPositionAccuracy] = useState(null);
+  const connection = useConnectionStatus();
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckpointModalVisible, setIsCheckpointModalVisible] = useState(false);
   const [isSubmittingCheckpoint, setIsSubmittingCheckpoint] = useState(false);
@@ -84,11 +93,6 @@ export default function CollectorDeliverStockScreen() {
     }).start();
   };
 
-  const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
-  const animatedSheetHeight = sheetAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [COLLAPSED_SHEET_HEIGHT, Math.max(expandedHeight, COLLAPSED_SHEET_HEIGHT)],
-  });
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -106,6 +110,7 @@ export default function CollectorDeliverStockScreen() {
       try {
         const position = await Location.getCurrentPositionAsync({});
         setCurrentPosition({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+        setPositionAccuracy(position.coords.accuracy ?? null);
       } catch (error) {
         console.error('[ERROR] [CollectorDeliverStockScreen] Location error:', error);
       }
@@ -186,7 +191,48 @@ export default function CollectorDeliverStockScreen() {
     return closest;
   }, null);
 
-  const isNearAStop = nearestLeg && nearestLeg._meters <= NEAR_THRESHOLD_METERS;
+  const nearThreshold = NEAR_THRESHOLD_METERS + Math.min(positionAccuracy ?? 0, GPS_ALLOWANCE_MAX_METERS);
+  const isNearAStop = nearestLeg && nearestLeg._meters <= nearThreshold;
+
+  // Offline, the phone may not get a good GPS fix, so the Collector could be
+  // at the Sales Rep and still not see Mark Delivered. Offline only, a second
+  // button lets them mark it anyway; the note records that it was marked
+  // offline and how far the phone thought it was. Nothing moves until the
+  // Sales Rep scans the matching QR, and the server checks both sides.
+  const [offlineLegId, setOfflineLegId] = useState(null);
+  const offlineLeg = offlineLegId ? destinations.find((d) => d.id === offlineLegId) || null : null;
+  const targetLeg = offlineLeg || nearestLeg;
+  const canMarkOffline = !connection.online && !isNearAStop && destinations.length > 0;
+
+  // Room for the second button when it shows.
+  const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0);
+  const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
+  const animatedSheetHeight = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [collapsedHeight, Math.max(expandedHeight, collapsedHeight)],
+  });
+
+  const openOfflineMarkDelivered = (leg) => {
+    setOfflineLegId(leg.id);
+    markDeliveredOpenedAt.current = Date.now();
+    setIsMarkDeliveredModalVisible(true);
+  };
+  const handleOfflineMarkPress = () => {
+    const confirmText =
+      "You're offline and your location can't confirm you're at the stop. It will be checked when your phone syncs — the stock only moves once the Sales Rep scans the package QR.";
+    if (destinations.length === 2) {
+      Alert.alert('Which stop?', confirmText, [
+        ...destinations.map((leg) => ({ text: leg.label, onPress: () => openOfflineMarkDelivered(leg) })),
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
+    const leg = nearestLeg || destinations[0];
+    Alert.alert(`Mark Delivered — ${leg.label}?`, confirmText, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Continue', onPress: () => openOfflineMarkDelivered(leg) },
+    ]);
+  };
 
   const timeline = buildTimelineEntries({
     originLabel: 'Trip Started',
@@ -267,22 +313,28 @@ export default function CollectorDeliverStockScreen() {
       setIsCheckpointModalVisible(false);
       load();
     } catch (error) {
-      Alert.alert('Failed to Update Checkpoint', error.message || 'Please try again.');
+      Alert.alert('Failed to Update Checkpoint', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmittingCheckpoint(false);
     }
   };
 
   const handleFinishDelivery = async (note = null) => {
-    if (!agent || !nearestLeg || isFinishing) return false;
+    if (!agent || !targetLeg || isFinishing) return false;
     setIsFinishing(true);
 
     const finishPayload = {
       agentId: agent.id,
-      transactionId: nearestLeg.id,
+      transactionId: targetLeg.id,
       latitude: collectorPosition?.latitude,
       longitude: collectorPosition?.longitude,
-      label: note ? `Delivered to ${nearestLeg.label} — ${note}` : `Delivered to ${nearestLeg.label}`,
+      label: [
+        `Delivered to ${targetLeg.label}`,
+        note,
+        offlineLeg
+          ? `marked offline, ${targetLeg._meters != null ? `${formatDistance(targetLeg._meters)} from the stop` : 'location not confirmed'}`
+          : null,
+      ].filter(Boolean).join(' — '),
     };
 
     // Approximated locally for the offline case — the real answer comes
@@ -303,7 +355,7 @@ export default function CollectorDeliverStockScreen() {
         } else {
           Alert.alert(
             'Saved — Will Send Later',
-            `You're offline. Delivery to ${nearestLeg.label} is saved on this device and will sync automatically once you're back online.`
+            `You're offline. Delivery to ${targetLeg.label} is saved on this device and will sync automatically once you're back online.`
           );
           load();
         }
@@ -320,7 +372,7 @@ export default function CollectorDeliverStockScreen() {
           // Keep the QR handoff visible in the confirmation modal. The
           // collector returns to the dashboard when they tap Done there.
         } else {
-          Alert.alert('Delivery Finished', `Delivery to ${nearestLeg.label} is complete.`);
+          Alert.alert('Delivery Finished', `Delivery to ${targetLeg.label} is complete.`);
           load();
         }
       } catch (liveError) {
@@ -338,7 +390,7 @@ export default function CollectorDeliverStockScreen() {
           } else {
             Alert.alert(
               'Saved — Will Send Later',
-              `Connection dropped mid-update. Delivery to ${nearestLeg.label} is saved on this device and will sync automatically once you're back online.`
+              `Connection dropped mid-update. Delivery to ${targetLeg.label} is saved on this device and will sync automatically once you're back online.`
             );
             load();
           }
@@ -348,7 +400,7 @@ export default function CollectorDeliverStockScreen() {
       }
       return true;
     } catch (error) {
-      Alert.alert('Failed to Finish Delivery', error.message || 'Please try again.');
+      Alert.alert('Failed to Finish Delivery', friendlyError(error.message) || 'Please try again.');
       return false;
     } finally {
       setIsFinishing(false);
@@ -358,7 +410,7 @@ export default function CollectorDeliverStockScreen() {
   const handleMarkDelivered = async (note) => {
     const succeeded = await handleFinishDelivery(note);
     if (succeeded) {
-      setConfirmedQrCode(nearestLeg?.qrCode || null);
+      setConfirmedQrCode(targetLeg?.qrCode || null);
       setIsDeliveredConfirmed(true);
     }
   };
@@ -368,6 +420,7 @@ export default function CollectorDeliverStockScreen() {
     setIsMarkDeliveredModalVisible(false);
     setIsDeliveredConfirmed(false);
     setConfirmedQrCode(null);
+    setOfflineLegId(null);
     if (wasConfirmed) {
       if (undeliveredLegs.length <= 1) {
         navigation.navigate('CollectorDashboard');
@@ -379,6 +432,7 @@ export default function CollectorDeliverStockScreen() {
 
   const handleCancelTrip = async () => {
     if (!agent || !tripId || isCancelling) return;
+    if (!requireOnline('Cancelling a trip')) return;
     setIsCancelling(true);
 
     try {
@@ -390,7 +444,7 @@ export default function CollectorDeliverStockScreen() {
       navigation.navigate('CollectorDashboard');
     } catch (error) {
       setIsCancelDialogVisible(false);
-      Alert.alert('Failed to Cancel Trip', error.message || 'Please try again.');
+      Alert.alert('Failed to Cancel Trip', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsCancelling(false);
     }
@@ -470,23 +524,19 @@ export default function CollectorDeliverStockScreen() {
               <Icon name="xCircle" size={14} color={COLORS.error} weight="fill" />
               <Text style={styles.cancelPillText}>Cancel</Text>
             </Pressable>
+            {nearestLeg && isNearAStop ? (
+              <View style={styles.nearBadge} pointerEvents="none">
+                <Icon name="location" size={12} color={COLORS.success} weight="fill" />
+                <Text style={styles.nearBadgeText}>Near {nearestLeg.label}</Text>
+              </View>
+            ) : nearestLeg?.distanceLabel ? (
+              <View style={styles.nearBadge} pointerEvents="none">
+                <Icon name="navigation" size={12} color={COLORS.textSecondary} weight="fill" />
+                <Text style={styles.distanceBadgeText}>{nearestLeg.distanceLabel} to {nearestLeg.label}</Text>
+              </View>
+            ) : null}
           </View>
 
-          {nearestLeg ? (
-            <View style={styles.distanceOverlay} pointerEvents="none">
-              {isNearAStop ? (
-                <View style={styles.nearBadge}>
-                  <Icon name="location" size={12} color={COLORS.success} weight="fill" />
-                  <Text style={styles.nearBadgeText}>Near {nearestLeg.label}</Text>
-                </View>
-              ) : nearestLeg.distanceLabel ? (
-                <View style={styles.nearBadge}>
-                  <Icon name="navigation" size={12} color={COLORS.textSecondary} weight="fill" />
-                  <Text style={styles.distanceBadgeText}>{nearestLeg.distanceLabel} to {nearestLeg.label}</Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
 
           <Animated.View
             style={[
@@ -542,6 +592,16 @@ export default function CollectorDeliverStockScreen() {
                 fontSize={15}
               />
             )}
+            {canMarkOffline && (
+              <Button
+                title="Mark Delivered (Offline)"
+                variant="outline"
+                onPress={handleOfflineMarkPress}
+                height={44}
+                fontSize={14}
+                style={styles.offlineMarkButton}
+              />
+            )}
           </Animated.View>
         </View>
       </View>
@@ -567,7 +627,7 @@ export default function CollectorDeliverStockScreen() {
         visible={isMarkDeliveredModalVisible}
         onCancel={handleMarkDeliveredClose}
         onConfirm={handleMarkDelivered}
-        recipientName={nearestLeg?.label}
+        recipientName={targetLeg?.label}
         coords={collectorPosition}
         qrCode={confirmedQrCode}
         isSubmitting={isFinishing}
@@ -579,6 +639,7 @@ export default function CollectorDeliverStockScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  offlineMarkButton: { marginTop: SPACING.sm },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl },
   emptyText: { fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium, textAlign: 'center' },
 
@@ -602,13 +663,6 @@ const styles = StyleSheet.create({
   },
   cancelPillText: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
 
-  distanceOverlay: {
-    position: 'absolute',
-    top: 124,
-    left: SPACING.md,
-    right: SPACING.md,
-    alignItems: 'flex-start',
-  },
   nearBadge: {
     flexDirection: 'row',
     alignItems: 'center',

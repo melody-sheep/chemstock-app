@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useOutbox from '../../hooks/useOutbox';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
@@ -12,13 +13,12 @@ import Icon from '../../components/common/Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
-import { formatClockTime } from '../../utils/formatters';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 // A failed fetch keeps the previous list instead of blanking it.
-const loadDiscrepanciesData = async (previous) => {
+export const loadDiscrepanciesData = async (previous) => {
   const agent = await authService.getCurrentUser();
   const prev = previous?.agentId === agent?.id ? previous : null;
   const result = await reportService.getMyDiscrepancies(agent?.id, 50);
@@ -31,7 +31,8 @@ const loadDiscrepanciesData = async (previous) => {
 export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
+  const onlineLabel = useOnlineLabel();
+  const { data: snapshot, isLoading, isUnavailable } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
   const discrepancies = snapshot?.discrepancies ?? [];
   const { pending: queuedResolutions } = useOutbox('discrepancy_resolution');
   const queuedReportItemIds = new Set(queuedResolutions.map((e) => e.payload?.reportItemId));
@@ -233,7 +234,7 @@ export default function AlertsDiscrepanciesSR() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>
@@ -251,7 +252,7 @@ export default function AlertsDiscrepanciesSR() {
             </View>
 
             {pendingItems.length === 0 ? (
-              <Text style={styles.emptyText}>No pending discrepancies. Nice work!</Text>
+              <Text style={styles.emptyText}>{isUnavailable ? 'Not saved on this phone yet — connect to the internet to load it.' : 'No pending discrepancies. Nice work!'}</Text>
             ) : (
               <View style={styles.itemsList}>{pendingItems.map(renderPendingCard)}</View>
             )}
@@ -262,7 +263,7 @@ export default function AlertsDiscrepanciesSR() {
             </View>
 
             {settledItems.length === 0 ? (
-              <Text style={styles.emptyText}>No settled discrepancies yet.</Text>
+              <Text style={styles.emptyText}>{isUnavailable ? 'Not saved on this phone yet — connect to the internet to load it.' : 'No settled discrepancies yet.'}</Text>
             ) : (
               <View style={styles.itemsList}>{settledItems.map(renderSettledCard)}</View>
             )}

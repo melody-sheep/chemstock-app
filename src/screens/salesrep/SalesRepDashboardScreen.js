@@ -1,10 +1,13 @@
 // src/screens/salesrep/SalesRepDashboardScreen.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
+import { queuedUnits } from '../../utils/queuedReceipts';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
 import Header from '../../components/common/Header';
@@ -23,10 +26,38 @@ import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
-import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
+import { formatRelativeTime } from '../../utils/formatters';
 import { routeQrScan } from '../../utils/routeQrScan';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
+import { primeSavedData } from '../../hooks/useCachedFocusLoader';
+import { getConnectionStatus } from '../../services/connectionStatus';
+import { SR_DELIVERIES_CACHE_KEY, loadDeliveriesData } from '../../utils/srDeliveries';
+import { loadBackpackData } from './SalesRepBackpackScreen';
+import { loadReportStatusData } from './SubmitReportSR';
+import { loadDiscrepanciesData } from './AlertsDiscrepanciesSR';
+import { loadStockData } from './SalesRepStockScreen';
+import { loadReportsData } from './SalesRepReportsScreen';
+
+// Each time the dashboard loads live, the Sales Rep's other main screens are
+// refreshed in the background too, so if the phone goes offline they all show
+// the same up-to-date copy and "as of" time, not whatever was last opened.
+const PRIMED_SCREENS = [
+  ['sales-rep-backpack', loadBackpackData],
+  ['sales-rep-submit-report', loadReportStatusData],
+  ['sales-rep-discrepancies', loadDiscrepanciesData],
+  ['sales-rep-stock', loadStockData],
+  ['sales-rep-reports', loadReportsData],
+  [SR_DELIVERIES_CACHE_KEY, loadDeliveriesData],
+];
+const PRIME_EVERY_MS = 2 * 60 * 1000;
+let lastPrimedAt = 0;
+const primeOtherScreens = () => {
+  if (Date.now() - lastPrimedAt < PRIME_EVERY_MS) return;
+  lastPrimedAt = Date.now();
+  PRIMED_SCREENS.forEach(([key, load]) => primeSavedData(key, load));
+};
 
 // Same layout/spec as ManagerDashboardScreen — this constant intentionally
 // matches its value so the collapsing header behaves identically.
@@ -86,6 +117,7 @@ const MAIN_OPERATIONS = [
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
@@ -162,9 +194,15 @@ export default function SalesRepDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, savedAt } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  useEffect(() => {
+    if (savedAt && getConnectionStatus().online) primeOtherScreens();
+  }, [savedAt]);
   const user = snapshot?.user ?? null;
-  const totalUnits = snapshot?.totalUnits ?? null;
+  // Stock received offline counts right away, as in the backpack.
+  const { pending: queuedEntries } = useOutbox();
+  const queuedReceiptUnits = queuedUnits(queuedEntries, user?.id);
+  const totalUnits = snapshot?.totalUnits == null ? null : snapshot.totalUnits + queuedReceiptUnits;
   const recentLogs = snapshot?.recentLogs ?? [];
   const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
@@ -251,7 +289,7 @@ export default function SalesRepDashboardScreen() {
       const currentAgent = await authService.getCurrentUser();
       await routeQrScan({ qrCode, agentId: currentAgent?.id, navigation });
     } catch (error) {
-      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
+      Alert.alert('Unable to Verify QR', friendlyError(error.message) || 'Please try again.');
     }
   };
 
@@ -308,7 +346,7 @@ export default function SalesRepDashboardScreen() {
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
-                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                      {onlineLabel}
                     </Text>
                   </View>
 

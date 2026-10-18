@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
 import Header from '../../components/common/Header';
@@ -27,7 +28,7 @@ import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { formatRelativeTime, formatClockTime } from '../../utils/formatters';
+import { formatRelativeTime } from '../../utils/formatters';
 
 const SECONDARY_HEADER_HEIGHT = 100;
 
@@ -86,6 +87,7 @@ const MAIN_OPERATIONS = [
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
@@ -322,7 +324,7 @@ export default function ManagerDashboardScreen() {
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
-                      {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                      {onlineLabel}
                     </Text>
                   </View>
 

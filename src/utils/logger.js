@@ -114,6 +114,38 @@ export const clearLogBuffer = () => {
 };
 
 /**
+ * One readable line for an error object. React Native printed a raw error
+ * (often an Expo CodedError) as just "Call Stack CodedError", hiding the
+ * reason; this keeps the code, message and database details instead.
+ */
+export const describeError = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const looksLikeError =
+    value instanceof Error || ('message' in value && ('code' in value || 'stack' in value || 'details' in value));
+  if (!looksLikeError) return value;
+  const parts = [
+    value.name && value.name !== 'Error' ? value.name : null,
+    value.code ? `code ${value.code}` : null,
+    value.message || null,
+    value.details || null,
+    value.hint ? `hint: ${value.hint}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' — ') : String(value);
+};
+
+let consoleFormatterInstalled = false;
+
+/** Makes every console.error / console.warn print errors via describeError. */
+export const installConsoleErrorFormatter = () => {
+  if (consoleFormatterInstalled) return;
+  consoleFormatterInstalled = true;
+  ['error', 'warn'].forEach((method) => {
+    const original = console[method];
+    console[method] = (...args) => original(...args.map(describeError));
+  });
+};
+
+/**
  * Captures uncaught JavaScript errors (the crash/"Something went wrong"
  * cases) with the screen they happened on, then hands off to the default
  * handler so the red-box/crash behavior is unchanged.

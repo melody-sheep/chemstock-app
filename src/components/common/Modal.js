@@ -23,8 +23,13 @@ export default function CustomModal({
   backgroundColor = '#FFFFFF',
   closeOnBackdropPress = true,
   backdropOpacity = 0.2,
+  // 'sheet' (default): bottom sheet, slides up, full width, rounded top
+  // corners only. 'center': small dialog centered on screen, fades/dissolves
+  // in instead of sliding, always sized to its content (height is ignored).
+  variant = 'sheet',
 }) {
   const insets = useSafeAreaInsets();
+  const isCentered = variant === 'center';
   const handleBackdropPress = () => {
     if (closeOnBackdropPress) {
       onClose();
@@ -35,19 +40,25 @@ export default function CustomModal({
     <Modal
       visible={visible}
       transparent={true}
-      animationType="slide"
+      animationType={isCentered ? 'fade' : 'slide'}
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
-        <View style={[styles.overlay, { backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})` }]}>
+        <View
+          style={[
+            styles.overlay,
+            isCentered && styles.overlayCentered,
+            { backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})` },
+          ]}
+        >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View
               style={[
-                styles.modalContainer,
+                isCentered ? styles.centerContainer : styles.modalContainer,
                 {
-                  ...(height === 'auto' ? {} : { height }),
-                  ...(height === 'auto' && maxHeight ? { maxHeight } : {}),
-                  paddingBottom: Math.max(insets.bottom, SPACING.lg),
+                  ...(isCentered || height === 'auto' ? {} : { height }),
+                  ...(!isCentered && height === 'auto' && maxHeight ? { maxHeight } : {}),
+                  ...(isCentered ? {} : { paddingBottom: Math.max(insets.bottom, SPACING.lg) }),
                   backgroundColor: backgroundColor,
                 },
               ]}
@@ -66,6 +77,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  overlayCentered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
   modalContainer: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -74,5 +90,11 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING['3xl'],
     width: '100%',
     // Shadows removed for clean, flat design
+  },
+  centerContainer: {
+    borderRadius: 20,
+    padding: SPACING.lg,
+    width: '100%',
+    maxWidth: 340,
   },
 });

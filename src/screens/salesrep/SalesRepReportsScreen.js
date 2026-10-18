@@ -10,13 +10,15 @@ import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
-import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
+import { formatDisplayDate } from '../../utils/formatters';
 import { routeQrScan } from '../../utils/routeQrScan';
+import friendlyError from '../../utils/friendlyError';
 
 function startOfWeek(date) {
   const d = new Date(date);
@@ -28,7 +30,7 @@ function startOfWeek(date) {
 }
 
 // A failed fetch keeps the previous snapshot instead of blanking the screen.
-const loadReportsData = async (previous) => {
+export const loadReportsData = async (previous) => {
   const agent = await authService.getCurrentUser();
   const prev = previous?.agentId === agent?.id ? previous : null;
   const result = await reportService.getMyDailyReports(agent?.id, 30);
@@ -41,6 +43,7 @@ const loadReportsData = async (previous) => {
 export default function SalesRepReportsScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
   const reports = snapshot?.reports ?? [];
   const [selectedReport, setSelectedReport] = useState(null);
@@ -62,7 +65,7 @@ export default function SalesRepReportsScreen() {
       const currentAgent = await authService.getCurrentUser();
       await routeQrScan({ qrCode, agentId: currentAgent?.id, navigation });
     } catch (error) {
-      Alert.alert('Unable to Verify QR', error.message || 'Please try again.');
+      Alert.alert('Unable to Verify QR', friendlyError(error.message) || 'Please try again.');
     }
   };
 
@@ -120,7 +123,7 @@ export default function SalesRepReportsScreen() {
               <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
                 <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
                 <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
-                  {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                  {onlineLabel}
                 </Text>
               </View>
             </View>

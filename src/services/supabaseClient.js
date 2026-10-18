@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { markOnline, markOffline, getConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
+import friendlyError from '../utils/friendlyError';
 
 // ============================================
 // Supabase credentials
@@ -41,7 +42,13 @@ const RETRY_DELAY_MS = 700;
 const NOT_READ_ONLY_RPCS = new Set(['get_my_sr_report_status']);
 
 const urlOf = (input) => (typeof input === 'string' ? input : input?.url || '');
-const pathOf = (url) => url.replace(SUPABASE_URL, '').split('?')[0];
+// Storage paths are cut down to the bucket ("/storage/v1/object/sign/shipment-media/…")
+// so logs stay short and don't list user ids and file names.
+const pathOf = (url) => {
+  const path = url.replace(SUPABASE_URL, '').split('?')[0];
+  const storage = path.match(/^(\/storage\/v1\/object\/(?:sign\/|public\/)?[^/]+)\/.+/);
+  return storage ? `${storage[1]}/…` : path;
+};
 
 const isSafeToRetry = (input, init) => {
   const url = urlOf(input);
@@ -90,6 +97,30 @@ const fetchOnce = async (input, init, timeoutMs) => {
   }
 };
 
+// One log line per request: method, path, status, time, and the row count
+// when the database sends one (Content-Range, e.g. "0-2/*" = 3 rows). Read
+// from headers only — the body is never touched, so this can't affect what
+// the app receives. The 15 s heartbeat is left out to keep the log readable.
+const logResponse = (init, path, response, ms) => {
+  try {
+    if (path === '/auth/v1/health') return;
+    const method = (init?.method || 'GET').toUpperCase();
+    // Row counts only mean something for plain table reads: a database
+    // function (rpc/...) returning one JSON object always reports "1 row".
+    const isTableRead = (method === 'GET' || method === 'HEAD') && path.startsWith('/rest/v1/') && !path.includes('/rpc/');
+    const range = isTableRead && response.status !== 204 ? response.headers?.get?.('content-range') : null;
+    let rows;
+    if (range) {
+      const match = range.match(/^(\d+)-(\d+)/);
+      rows = match ? Number(match[2]) - Number(match[1]) + 1 : range.startsWith('*') ? 0 : undefined;
+    }
+    const details = rows === undefined ? { ms } : { ms, rows };
+    debugLog(response.status >= 400 ? 'warn' : 'debug', 'Net', `${method} ${path} ${response.status}`, details);
+  } catch (error) {
+    // Logging must never break a request.
+  }
+};
+
 // Every request goes through this wrapper, so the app always knows whether the
 // server is reachable (see connectionStatus.js). fetch() only rejects for a
 // network-level failure (an HTTP error status still resolves), so a rejection
@@ -105,6 +136,7 @@ const trackedFetch = async (input, init) => {
   for (let attempt = 1; ; attempt += 1) {
     try {
       const response = await fetchOnce(input, init, timeoutMs);
+      logResponse(init, path, response, Date.now() - startedAt);
       if (attempt > 1) debugLog('info', 'Net', `${path} ok on attempt ${attempt}`, { ms: Date.now() - startedAt });
       markOnline();
       return response;
@@ -214,7 +246,7 @@ export const getFriendlyErrorMessage = (error) => {
     return 'Invalid input format. Please check your data.';
   }
   
-  return error?.message || 'An unexpected error occurred.';
+  return friendlyError(error?.message) || 'An unexpected error occurred.';
 };
 
 // ============================================

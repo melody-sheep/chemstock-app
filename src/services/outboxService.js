@@ -16,6 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import storage from '../utils/storage';
 import { getConnectionStatus, subscribeConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
+import { invalidateSavedData } from '../utils/dataVersion';
 import reportService from './reportService';
 import inventoryService from './inventoryService';
 import requestService from './requestService';
@@ -43,6 +44,11 @@ async function ensureLoaded() {
   if (!loadingPromise) {
     loadingPromise = (async () => {
       entries = (await storage.get(OUTBOX_KEY)) || [];
+      // An older build gave up on receipts that were only waiting for the
+      // Collector. Put them back to waiting.
+      entries = entries.map((e) =>
+        e.failed && isWaitingForCollector(e.lastError) ? { ...e, failed: false, waitingForCollector: true, rejections: 0 } : e
+      );
       loaded = true;
     })();
   }
@@ -50,12 +56,14 @@ async function ensureLoaded() {
 }
 
 function syncIntervalState() {
-  if (entries.length > 0 && !intervalHandle) {
+  // Only items still trying need the timer; failed ones wait for the user.
+  const hasActive = entries.some((e) => !e.failed);
+  if (hasActive && !intervalHandle) {
     // Safety net for reconnecting while idle on a screen that doesn't
     // naturally trigger a request of its own — the connectionStatus
     // subscription below handles the common case.
     intervalHandle = setInterval(() => flush(), FLUSH_INTERVAL_MS);
-  } else if (entries.length === 0 && intervalHandle) {
+  } else if (!hasActive && intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
@@ -79,17 +87,33 @@ async function ensurePendingDir() {
 }
 
 /**
+ * Uploads an entry's photo the first time only. The storage path is saved on
+ * the entry before the submit call, so a retry after a failed submit reuses
+ * the uploaded photo instead of uploading a new copy each time.
+ */
+async function uploadOnce(entry, upload) {
+  if (entry.uploadedPath) return entry.uploadedPath;
+  const path = await upload();
+  entry.uploadedPath = path;
+  entries = entries.map((e) => (e.id === entry.id ? { ...e, uploadedPath: path } : e));
+  await persist();
+  return path;
+}
+
+/**
  * Each entry `type` maps to an executor that replays the real service calls
- * a screen would have made live. An executor must throw on any failure
- * (network or real rejection) — the queue doesn't try to distinguish them,
- * it just retries on the next flush.
+ * a screen would have made live. An executor must throw on any failure;
+ * flush() then tells a network failure (app went offline) from a server
+ * rejection (still online) by the connection status.
  */
 const EXECUTORS = {
   daily_report: async (entry) => {
     if (!entry.localPhotoUri) {
       throw new Error('Missing handover photo for queued report');
     }
-    const storagePath = await reportService.uploadDailyReportPhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      reportService.uploadDailyReportPhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await reportService.submitDailyReport({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued report');
@@ -101,7 +125,9 @@ const EXECUTORS = {
     if (!entry.localPhotoUri) {
       throw new Error('Missing photo proof for queued return request');
     }
-    const storagePath = await inventoryService.uploadDiscrepancyPhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadDiscrepancyPhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await reportService.requestDiscrepancyResolution({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued return request');
@@ -117,7 +143,9 @@ const EXECUTORS = {
     if (!entry.localPhotoUri) {
       throw new Error('Missing photo proof for queued stock receipt');
     }
-    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await inventoryService.acceptStockRelease({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to confirm queued stock receipt');
@@ -173,10 +201,25 @@ const EXECUTORS = {
     if (!entry.payload?.scannedQrCode) {
       throw new Error('Missing scanned QR for queued handoff confirmation');
     }
-    const storagePath = await inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId);
+    const storagePath = await uploadOnce(entry, () =>
+      inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId)
+    );
     const result = await inventoryService.confirmDeliveryHandoff({ ...entry.payload, storagePath });
     if (!result.success) {
       throw new Error(result.message || 'Failed to confirm queued handoff');
+    }
+    return result;
+  },
+
+  // SR reports a problem with a collector delivery while offline. Waits for
+  // the Collector's sync the same way a confirmation does. The photo is optional.
+  dispute_delivery_handoff: async (entry) => {
+    const storagePath = entry.localPhotoUri
+      ? await uploadOnce(entry, () => inventoryService.uploadStockAcceptancePhoto(entry.localPhotoUri, entry.payload.agentId))
+      : null;
+    const result = await inventoryService.disputeDeliveryHandoff({ ...entry.payload, storagePath });
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to send queued issue report');
     }
     return result;
   },
@@ -193,7 +236,9 @@ export function registerExecutor(type, executor) {
  * might sit around a while and the camera's own URI isn't guaranteed to
  * survive that.
  */
-export async function enqueue(type, payload, photoUri = null) {
+// `display` is an optional on-phone copy for showing the item before it syncs
+// (e.g. what was received); it is never sent to the server.
+export async function enqueue(type, payload, photoUri = null, display = null) {
   await ensureLoaded();
 
   const id = makeId();
@@ -215,6 +260,7 @@ export async function enqueue(type, payload, photoUri = null) {
     id,
     type,
     payload,
+    display,
     localPhotoUri,
     createdAt: Date.now(),
     lastAttemptAt: null,
@@ -224,7 +270,7 @@ export async function enqueue(type, payload, photoUri = null) {
 
   entries = [...entries, entry];
   await persist();
-  debugLog('info', 'Outbox', 'Enqueued', { id, type });
+  debugLog('info', 'Queue', `enqueued ${type}`, { id, photo: Boolean(localPhotoUri) });
 
   // In case we're actually back online already (e.g. the triggering
   // failure was momentary), try right away rather than waiting for the
@@ -239,12 +285,51 @@ async function removeEntry(id) {
   await persist();
 }
 
+/** Removes an item the user chose to discard, with its saved photo. */
+export async function discard(id) {
+  await ensureLoaded();
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  if (entry.localPhotoUri) {
+    FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
+  }
+  await removeEntry(id);
+  debugLog('info', 'Queue', `discarded ${entry.type}`, { id, rejections: entry.rejections || 0, reason: entry.lastError });
+}
+
+// An entry the server rejected (while online) waits this long before its next
+// try, growing with each rejection, instead of retrying every 45 s forever.
+// Retry on screen (retryNow) skips the wait.
+const REJECTED_RETRY_DELAYS_MS = [30 * 1000, 60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000];
+const rejectedRetryDelay = (rejections) =>
+  REJECTED_RETRY_DELAYS_MS[Math.min(rejections, REJECTED_RETRY_DELAYS_MS.length) - 1];
+
+// After this many server rejections the item stops retrying and is shown as
+// "couldn't be sent" with its reason, so the user can discard it. Offline
+// failures never count — they aren't rejections.
+const GIVE_UP_AFTER_REJECTIONS = 5;
+
+// The server refuses a Sales Rep's receipt (or issue report) until the
+// Collector's own "delivered" has synced. That is a wait, not a rejection:
+// it never counts toward giving up, holds back nothing else, and is retried
+// every minute for as long as it takes.
+const WAITING_RETRY_MS = 60 * 1000;
+const WAITING_FOR_COLLECTOR = [/No pending handoff for this delivery/i, /has not yet marked this delivery as delivered/i];
+export const isWaitingForCollector = (message) => WAITING_FOR_COLLECTOR.some((p) => p.test(String(message || '')));
+
 /**
- * Replays every queued entry, in order, one at a time. Safe to call
- * whenever — a concurrent call is a no-op, and it does nothing if offline
- * or the queue is empty.
+ * Replays queued entries in order, one at a time. Safe to call whenever — a
+ * concurrent call is a no-op, and it does nothing if offline or empty.
+ *
+ * A network failure stops the whole flush (everything behind it would fail
+ * the same way). A server rejection only holds back entries of that same
+ * type, keeping their order; other types still go through, so e.g. a handoff
+ * confirmation waiting for the Collector's own sync no longer holds back the
+ * Sales Rep's report and stock requests.
+ *
+ * options.force — try every entry now, ignoring rejection waits.
  */
-export async function flush() {
+export async function flush({ force = false } = {}) {
   if (flushing) return;
   await ensureLoaded();
   if (entries.length === 0 || !getConnectionStatus().online) return;
@@ -252,14 +337,27 @@ export async function flush() {
   flushing = true;
   try {
     // Snapshot so an enqueue happening mid-flush isn't processed out of turn.
-    const queue = [...entries];
+    // Daily reports go first: a report covers the stock that was on the server
+    // when it was filed, so a receipt that syncs before it would make the
+    // server refuse it ("must cover exactly your in-custody products").
+    // Otherwise the order is kept.
+    const queue = [...entries].sort((a, b) => (a.type === 'daily_report' ? 0 : 1) - (b.type === 'daily_report' ? 0 : 1));
+    const heldTypes = new Set();
     for (const queued of queue) {
       if (!getConnectionStatus().online) break; // went offline again mid-flush
+      // A failed item waits for the user (Retry or Discard) and holds nothing back.
+      if (queued.failed && !force) continue;
+      if (heldTypes.has(queued.type)) continue;
 
       const executor = EXECUTORS[queued.type];
       if (!executor) {
-        debugLog('error', 'Outbox', 'No executor registered, dropping entry', { id: queued.id, type: queued.type });
+        debugLog('error', 'Queue', 'No executor registered, dropping entry', { id: queued.id, type: queued.type });
         await removeEntry(queued.id);
+        continue;
+      }
+
+      if (!force && queued.nextAttemptAt && Date.now() < queued.nextAttemptAt) {
+        if (!queued.waitingForCollector) heldTypes.add(queued.type);
         continue;
       }
 
@@ -267,25 +365,53 @@ export async function flush() {
 
       try {
         await executor(entry);
-        debugLog('info', 'Outbox', 'Synced', { id: entry.id, type: entry.type });
+        debugLog('info', 'Queue', `sent ${entry.type}`, { id: entry.id, attempts: entry.attempts });
+        // Screens showing it as "waiting to sync" reload the server's copy now.
+        invalidateSavedData();
         if (entry.localPhotoUri) {
           FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
         }
         await removeEntry(entry.id);
       } catch (error) {
         entry.lastError = error.message || 'Sync failed';
-        debugLog('error', 'Outbox', 'Sync attempt failed, will retry later', {
+
+        if (!getConnectionStatus().online) {
+          debugLog('warn', 'Queue', `${entry.type} not sent: offline`, { id: entry.id, attempts: entry.attempts });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          break;
+        }
+
+        if (isWaitingForCollector(entry.lastError)) {
+          entry.waitingForCollector = true;
+          entry.nextAttemptAt = Date.now() + WAITING_RETRY_MS;
+          debugLog('info', 'Queue', `${entry.type} waiting for the Collector to sync`, { id: entry.id, attempts: entry.attempts });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          continue;
+        }
+
+        entry.rejections = (queued.rejections || 0) + 1;
+        if (entry.rejections >= GIVE_UP_AFTER_REJECTIONS) {
+          entry.failed = true;
+          entry.nextAttemptAt = null;
+          debugLog('warn', 'Queue', `${entry.type} gave up after ${entry.rejections} rejections: ${entry.lastError}`, {
+            id: entry.id,
+          });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          continue;
+        }
+        const delayMs = rejectedRetryDelay(entry.rejections);
+        entry.nextAttemptAt = Date.now() + delayMs;
+        debugLog('warn', 'Queue', `${entry.type} rejected: ${entry.lastError}`, {
           id: entry.id,
-          type: entry.type,
           attempts: entry.attempts,
-          error: entry.lastError,
+          retryInSec: Math.round(delayMs / 1000),
         });
         entries = entries.map((e) => (e.id === entry.id ? entry : e));
         await persist();
-        // Stop here rather than racing through the rest of the queue — a
-        // failure here is likely to repeat for everything behind it (same
-        // network state), and FIFO means this one goes first next time too.
-        break;
+        heldTypes.add(entry.type);
       }
     }
   } finally {
@@ -318,6 +444,7 @@ export function subscribeOutbox(listener) {
 
 export default {
   enqueue,
+  discard,
   flush,
   getEntries,
   getPendingCount,

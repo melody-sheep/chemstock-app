@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
@@ -20,6 +21,7 @@ import { getConnectionStatus } from '../../services/connectionStatus';
 import useOutbox from '../../hooks/useOutbox';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { formatDateTime } from '../../utils/formatters';
+import friendlyError from '../../utils/friendlyError';
 
 const SHIPMENT_BUCKET = 'shipment-media';
 const LOCATION_TIMEOUT_MS = 8000;
@@ -83,7 +85,7 @@ export default function ResolveDiscrepancyScreen() {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingSubmittedPhoto, setIsViewingSubmittedPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { pending, pendingCount, retryNow } = useOutbox('discrepancy_resolution');
+  const { pending, pendingCount, failed: failedItems, retryNow, discard } = useOutbox('discrepancy_resolution', agent?.id ?? null);
 
   const [requestDetail, setRequestDetail] = useState(null);
   const [requestPhotoUrl, setRequestPhotoUrl] = useState(null);
@@ -214,7 +216,7 @@ export default function ResolveDiscrepancyScreen() {
         const result = await reportService.requestDiscrepancyResolution({ ...requestPayload, storagePath });
 
         if (!result.success) {
-          Alert.alert('Request Failed', result.message || 'Could not submit your return request.');
+          Alert.alert('Request Failed', friendlyError(result.message) || 'Could not submit your return request.');
           return;
         }
       } catch (liveError) {
@@ -237,7 +239,7 @@ export default function ResolveDiscrepancyScreen() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert('Request Failed', error.message || 'Could not submit your return request.');
+      Alert.alert('Request Failed', friendlyError(error.message) || 'Could not submit your return request.');
     } finally {
       setIsSubmitting(false);
     }
@@ -300,6 +302,8 @@ export default function ResolveDiscrepancyScreen() {
               </Pressable>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           {isLocked && (
             <View style={[styles.statusWrap, isSettled && styles.statusWrapSettled]}>

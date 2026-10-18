@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
@@ -25,7 +26,7 @@ import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inven
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil, formatClockTime } from '../../utils/formatters';
+import { daysUntil } from '../../utils/formatters';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -65,6 +66,7 @@ const loadStockData = async (previous) => {
 export default function ManagerStockScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock', loadStockData);
   const manager = snapshot?.manager ?? null;
   const branches = snapshot?.branches ?? [];
@@ -207,7 +209,7 @@ export default function ManagerStockScreen() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>

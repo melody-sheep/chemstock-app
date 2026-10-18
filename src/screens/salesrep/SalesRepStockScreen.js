@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
@@ -27,7 +28,7 @@ import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inven
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil, formatClockTime } from '../../utils/formatters';
+import { daysUntil } from '../../utils/formatters';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -39,7 +40,7 @@ const EXPIRY_FILTER_OPTIONS = [
 // Returns the full stock snapshot. A request that fails keeps its value from
 // the previous snapshot instead of blanking the screen — same pattern the
 // dashboards already use.
-const loadStockData = async (previous) => {
+export const loadStockData = async (previous) => {
   const currentAgent = await authService.getCurrentUser();
   const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
 
@@ -66,6 +67,7 @@ const loadStockData = async (previous) => {
 export default function SalesRepStockScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-stock', loadStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
@@ -197,7 +199,7 @@ export default function SalesRepStockScreen() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>

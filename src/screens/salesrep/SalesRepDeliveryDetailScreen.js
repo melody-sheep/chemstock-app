@@ -20,6 +20,10 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import MapLegend from '../../components/common/MapLegend';
 import ConnectionPill from '../../components/common/ConnectionPill';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
+import Button from '../../components/common/Button';
+import useOutbox from '../../hooks/useOutbox';
+import { findQueuedReceipt, queuedHandoffStatus } from '../../utils/queuedReceipts';
+import { isReceivable, confirmHandoffParams } from '../../utils/srDeliveries';
 
 // Marker colours match the markers StaticRouteMap draws for this screen.
 const MAP_LEGEND_ITEMS = [
@@ -31,6 +35,10 @@ const MAP_LEGEND_ITEMS = [
 const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', delivered: 'Delivered' };
 
 function getStatusLabel(delivery) {
+  // Short: the pill shares its row with the section title.
+  if (delivery.handoffStatus === 'queued') return 'Waiting to sync';
+  if (delivery.handoffStatus === 'queued_waiting') return 'Waiting for Collector';
+  if (delivery.handoffStatus === 'queued_issue') return 'Issue — waiting to sync';
   if (delivery.deliveryStatus === 'delivered' && delivery.handoffStatus === 'pending_sr') {
     return 'Awaiting your confirmation';
   }
@@ -59,8 +67,16 @@ export default function SalesRepDeliveryDetailScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const route = useRoute();
-  const { delivery } = route.params || {};
+  const { delivery: routeDelivery } = route.params || {};
   const [currentUser, setCurrentUser] = useState(null);
+  // Received or reported on this phone but not synced yet: show that, and no
+  // second Receive button.
+  const { pending: queuedEntries } = useOutbox();
+  const queuedEntry = routeDelivery && currentUser
+    ? findQueuedReceipt({ transactionId: routeDelivery.transactionId, qrCode: routeDelivery.qrCode }, currentUser.id, queuedEntries)
+    : null;
+  const delivery = queuedEntry ? { ...routeDelivery, handoffStatus: queuedHandoffStatus(queuedEntry) } : routeDelivery;
+  const canReceive = !queuedEntry && isReceivable(delivery);
   // The collector on this delivery, with photo and online status (for the map).
   const [parties, setParties] = useState(null);
   useFocusEffect(
@@ -202,6 +218,15 @@ export default function SalesRepDeliveryDetailScreen() {
 
                   <View style={{ height: SPACING.md }} />
                 </ScrollView>
+                {canReceive && (
+                  <Button
+                    title="Receive this Delivery"
+                    variant="black"
+                    onPress={() => navigation.navigate('SalesRepConfirmHandoff', confirmHandoffParams(delivery, { delivery: null }))}
+                    height={48}
+                    fontSize={15}
+                  />
+                )}
               </>
             )}
           </Animated.View>
@@ -272,7 +297,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
   detailContent: { gap: SPACING.md, paddingBottom: SPACING.md },
   detailScroll: { flex: 1 },
   sectionLabel: {

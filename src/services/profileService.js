@@ -1,6 +1,6 @@
 // src/services/profileService.js
 import { BaseService } from './BaseService';
-import { supabase } from './supabaseClient';
+import { supabase, getFriendlyErrorMessage } from './supabaseClient';
 import { debugLog } from '../utils/logger';
 // /legacy: same reason as every other photo upload in this app — the new
 // default File/Paths API needs a native module Expo Go doesn't ship yet.
@@ -139,6 +139,92 @@ class ProfileService extends BaseService {
     } catch (error) {
       this.log('error', 'updateManagerPhoneNumber failed', { error: error.message });
       return { success: false, message: error.message || 'Failed to update phone number' };
+    }
+  }
+
+  /**
+   * Agent (sales_rep/collector) self-service password change. No Supabase
+   * Auth session to key off of, same as every other agent RPC — the
+   * current password is verified server-side by re-hashing it against the
+   * stored hash in the RPC's own UPDATE, not by a separate check here.
+   */
+  async changeAgentPassword({ agentId, currentPassword, newPassword }) {
+    debugLog('info', 'ProfileService', 'Changing agent password', { agentId });
+
+    try {
+      this.validateRequired(['agentId', 'currentPassword', 'newPassword'], {
+        agentId,
+        currentPassword,
+        newPassword,
+      });
+
+      const { error } = await supabase.rpc('change_agent_password', {
+        p_agent_id: agentId,
+        p_current_password: currentPassword,
+        p_new_password: newPassword,
+      });
+
+      if (error) {
+        console.error('[ERROR] [ProfileService] change_agent_password RPC error:', error);
+        throw new Error(
+          error.message?.includes('Current password is incorrect')
+            ? 'Current password is incorrect'
+            : error.message || 'Failed to change password'
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.log('error', 'changeAgentPassword failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to change password' };
+    }
+  }
+
+  /**
+   * Manager self-service password change. Managers are real Supabase Auth
+   * users, so this needs no RPC: re-authenticating with the current
+   * password is itself the verification step (a wrong password fails
+   * right here), then updateUser() sets the new one.
+   */
+  async changeManagerPassword({ email, currentPassword, newPassword }) {
+    debugLog('info', 'ProfileService', 'Changing manager password', {});
+
+    try {
+      this.validateRequired(['email', 'currentPassword', 'newPassword'], {
+        email,
+        currentPassword,
+        newPassword,
+      });
+
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        // Supabase returns the same generic 'Invalid login credentials' for
+        // a wrong password and for an unrecognized email alike (same
+        // mapping authService.login uses) — anything else (rate limit, no
+        // connection, etc.) is a real problem, not a wrong password, so it
+        // keeps its own message instead of being misreported as one.
+        throw new Error(
+          verifyError.message === 'Invalid login credentials'
+            ? 'Current password is incorrect'
+            : getFriendlyErrorMessage(verifyError)
+        );
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (updateError) {
+        console.error('[ERROR] [ProfileService] updateUser password error:', updateError);
+        throw new Error(updateError.message || 'Failed to change password');
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.log('error', 'changeManagerPassword failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to change password' };
     }
   }
 

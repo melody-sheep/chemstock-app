@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -20,6 +21,9 @@ import { getConnectionStatus } from '../../services/connectionStatus';
 import useOutbox from '../../hooks/useOutbox';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { getQuickPosition } from '../../utils/quickLocation';
+import { getQueuedReceipts } from '../../utils/queuedReceipts';
+import friendlyError from '../../utils/friendlyError';
 
 function isNearExpiry(expDate) {
   if (!expDate) return false;
@@ -38,7 +42,7 @@ function computeDiscrepancy(sold, ret, inCustody) {
 // same pattern Dashboard/Stock/Backpack already use. Without this, opening
 // Submit Report offline (even for the first time this session) showed "No
 // in-custody stock to report today" instead of what was actually on hand.
-const loadReportStatusData = async (previous) => {
+export const loadReportStatusData = async (previous) => {
   const currentAgent = await authService.getCurrentUser();
   const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
 
@@ -75,7 +79,18 @@ export default function SubmitReportSR() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
-  const { pendingCount, retryNow } = useOutbox('daily_report');
+  const { pending: pendingReports, pendingCount, failed: failedItems, retryNow, discard } = useOutbox('daily_report', agent?.id ?? null);
+  // A report saved offline counts as today's report too: without this the form
+  // came back right after saving, and a second report for the same day would
+  // be rejected by the server (one report per agent per day).
+  const hasQueuedReport = pendingReports.some((entry) => entry.payload?.agentId === agent?.id);
+  // Stock received but not synced yet isn't the agent's on the server, so it
+  // isn't in today's figures. The report is still allowed (a late Collector
+  // must not get the Sales Rep's day auto-filed as missing); that stock goes
+  // into the next report once it syncs. Decision: Alther, Oct 18.
+  const { pending: allPendingEntries } = useOutbox();
+  const queuedReceiptCount = getQueuedReceipts(allPendingEntries, agent?.id).length;
+  const isReportLocked = alreadySubmitted || hasQueuedReport;
 
   // Figures are local, in-progress UI state, not part of the cached snapshot
   // — so this only resets them when the actual set of products changes (a
@@ -175,8 +190,10 @@ export default function SubmitReportSR() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const position = await Location.getCurrentPositionAsync({});
-          coords = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+          // Location is optional on a daily report. An unbounded GPS wait made
+          // an offline submit take 15–20 s; this gives up after 4 s.
+          const position = await getQuickPosition({ timeoutMs: 4000 });
+          if (position) coords = position;
         }
       } catch (locationError) {
         console.error('[ERROR] [SubmitReportSR] Location error:', locationError);
@@ -222,7 +239,7 @@ export default function SubmitReportSR() {
         const result = await reportService.submitDailyReport({ ...reportPayload, storagePath });
 
         if (!result.success) {
-          Alert.alert('Submit Failed', result.message || 'Could not submit your daily report.');
+          Alert.alert('Submit Failed', friendlyError(result.message) || 'Could not submit your daily report.');
           return;
         }
       } catch (liveError) {
@@ -260,7 +277,7 @@ export default function SubmitReportSR() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      Alert.alert('Submit Failed', error.message || 'Could not upload your handover photo.');
+      Alert.alert('Submit Failed', friendlyError(error.message) || 'Could not upload your handover photo.');
     } finally {
       setIsSubmitting(false);
     }
@@ -322,6 +339,27 @@ export default function SubmitReportSR() {
                 </View>
               )}
 
+              <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
+
+              {queuedReceiptCount > 0 && !alreadySubmitted && (
+                <View style={styles.pendingBanner}>
+                  <View style={styles.pendingIconCircle}>
+                    <Icon name="clock" size={14} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pendingBannerTitle}>
+                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to sync
+                    </Text>
+                    <Text style={styles.pendingBannerText}>
+                      It isn't in today's figures. You can still file today's report — that stock will be in your next report once it syncs.
+                    </Text>
+                  </View>
+                  <Pressable onPress={retryNow} style={styles.pendingRetryButton}>
+                    <Text style={styles.pendingRetryText}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
+
               {alreadySubmitted && (
                 <View style={styles.submittedBanner}>
                   <View style={styles.submittedCheckCircle}>
@@ -369,7 +407,11 @@ export default function SubmitReportSR() {
               {items.length === 0 ? (
                 <View style={styles.emptyWrap}>
                   <Icon name="checkCircle" size={32} color={COLORS.textSecondary} />
-                  <Text style={styles.emptyText}>No in-custody stock to report today.</Text>
+                  <Text style={styles.emptyText}>
+                    {queuedReceiptCount > 0
+                      ? 'Nothing to report yet — the stock you received is still waiting to sync. It will be in your next report.'
+                      : 'No in-custody stock to report today.'}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.itemsList}>
@@ -445,7 +487,7 @@ export default function SubmitReportSR() {
                               placeholderTextColor="#B5C0CC"
                               textAlignVertical="center"
                               selectTextOnFocus
-                              editable={!alreadySubmitted && !isSubmitting}
+                              editable={!isReportLocked && !isSubmitting}
                             />
                           </View>
                           <View style={styles.figureColumn}>
@@ -469,7 +511,7 @@ export default function SubmitReportSR() {
                               placeholderTextColor="#B5C0CC"
                               textAlignVertical="center"
                               selectTextOnFocus
-                              editable={!alreadySubmitted && !isSubmitting}
+                              editable={!isReportLocked && !isSubmitting}
                             />
                           </View>
                         </View>
@@ -479,7 +521,7 @@ export default function SubmitReportSR() {
                 </View>
               )}
 
-              {!alreadySubmitted && items.length > 0 && (
+              {!isReportLocked && items.length > 0 && (
                 <View style={styles.photoSection}>
                   <Text style={styles.listTitle}>Handover Photo</Text>
                   <Text style={styles.photoSectionHint}>
@@ -504,7 +546,7 @@ export default function SubmitReportSR() {
               )}
             </ScrollView>
 
-            {!alreadySubmitted && items.length > 0 && (
+            {!isReportLocked && items.length > 0 && (
               <View style={styles.footer}>
                 <Pressable
                   style={[styles.primaryButton, (isSubmitting || !photoUri) && styles.primaryButtonDisabled]}

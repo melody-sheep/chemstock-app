@@ -24,6 +24,7 @@ import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 const catalogImageFor = (code) => PRODUCT_CATALOG.find((product) => product.code === code)?.image;
 
@@ -214,14 +215,14 @@ export default function ReleaseStockConfirmScreen() {
           console.error('[ERROR] [ReleaseStockConfirm] Failed to link request fulfillment:', linkResult.message);
           Alert.alert(
             'Stock Released — Request Not Updated',
-            `The stock was released, but the request could not be marked as fulfilled: ${linkResult.message || 'unknown error'}. Do not release it again — report this so the request can be linked.`
+            `The stock was released, but the request could not be marked as fulfilled: ${friendlyError(linkResult.message) || 'unknown error'}. Do not release it again — report this so the request can be linked.`
           );
         }
       }
 
       setQrCode(releaseResult.data.qrCode);
     } catch (error) {
-      Alert.alert('Failed to Release Stock', error.message || 'Please try again.');
+      Alert.alert('Failed to Release Stock', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }

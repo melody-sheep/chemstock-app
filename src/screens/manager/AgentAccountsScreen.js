@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
+import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import Button from '../../components/common/Button';
@@ -11,11 +12,13 @@ import BranchSelector from '../../components/common/BranchSelector';
 import SectionHeader from '../../components/common/SectionHeader';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
+import requireOnline from '../../utils/requireOnline';
 import profileService from '../../services/profileService';
 import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 const ROLE_OPTIONS = [
   { value: 'sales_rep', label: 'Sales Rep' },
@@ -91,6 +94,7 @@ export default function AgentAccountsScreen() {
       return;
     }
 
+    if (!requireOnline('Creating an account')) return;
     setIsSubmitting(true);
     const result = await agentService.createAgentAccount({
       username: username.trim(),
@@ -102,7 +106,7 @@ export default function AgentAccountsScreen() {
 
     if (!result.success) {
       setIsSubmitting(false);
-      Alert.alert('Failed', result.message);
+      Alert.alert('Failed', friendlyError(result.message));
       return;
     }
 
@@ -232,6 +236,17 @@ export default function AgentAccountsScreen() {
             autoCapitalize="none"
           />
 
+          <View style={styles.noticeBox}>
+            <View style={styles.noticeIconWrap}>
+              <Icon name="lock" size={16} color="#B26400" weight="fill" />
+            </View>
+            <Text style={styles.noticeText}>
+              <Text style={styles.noticeTextBold}>Recommended: </Text>
+              have the agent change this password themselves after their first login, from
+              Settings → Change Password.
+            </Text>
+          </View>
+
           <Button
             title={isSubmitting ? 'Creating...' : 'Create Account'}
             onPress={handleCreate}
@@ -304,6 +319,38 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   roleChipTextActive: { color: COLORS.textWhite },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#FFF4E0',
+    borderWidth: 1,
+    borderColor: '#FFE1A8',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: SPACING.sm,
+  },
+  noticeIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#FFE8BF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: '#7A4A00',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 3,
+  },
+  noticeTextBold: {
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#7A4A00',
+  },
   submitButton: { marginTop: SPACING.md },
   createdList: { gap: SPACING.sm },
 });

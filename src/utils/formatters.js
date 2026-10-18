@@ -80,6 +80,18 @@ export function formatClockTime(timestampMs) {
 }
 
 /**
+ * How old offline data is: "7:25 PM" for today, "Oct 17, 7:25 PM" before
+ * that, so a time from yesterday isn't read as today's.
+ */
+export function formatAsOf(timestampMs) {
+  if (!timestampMs) return '';
+  const time = formatClockTime(timestampMs);
+  const date = new Date(timestampMs);
+  if (date.toDateString() === new Date().toDateString()) return time;
+  return `${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
+/**
  * Clock time first, then age: "2:10 PM · 12m ago". The clock time is what
  * people read off a delivery record; the age shows how stale it is.
  */

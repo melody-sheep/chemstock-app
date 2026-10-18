@@ -13,8 +13,10 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import reportService from '../../services/reportService';
+import requireOnline from '../../utils/requireOnline';
 import { supabase } from '../../services/supabaseClient';
 import { formatDisplayDate, formatDateTime } from '../../utils/formatters';
+import friendlyError from '../../utils/friendlyError';
 
 const SHIPMENT_BUCKET = 'shipment-media';
 
@@ -62,6 +64,7 @@ export default function ReturnStockVerifyScreen() {
   }
 
   const handleApprove = () => {
+    if (!requireOnline('Approving a return')) return;
     Alert.alert(
       'Approve Return',
       `This will restock ${Math.abs(returnRequest.discrepancy)} unit(s) of ${returnRequest.productCode} into branch inventory.`,
@@ -74,7 +77,7 @@ export default function ReturnStockVerifyScreen() {
             const result = await reportService.acceptDiscrepancyResolution(returnRequest.resolutionRequestId);
             setIsSubmitting(false);
             if (!result.success) {
-              Alert.alert('Failed', result.message || 'Could not approve this return.');
+              Alert.alert('Failed', friendlyError(result.message) || 'Could not approve this return.');
               return;
             }
             navigation.goBack();
@@ -85,17 +88,19 @@ export default function ReturnStockVerifyScreen() {
   };
 
   const handleReject = async () => {
+    if (!requireOnline('Rejecting a return')) return;
     setIsSubmitting(true);
     const result = await reportService.rejectDiscrepancyResolution(
       returnRequest.resolutionRequestId,
       rejectReason.trim() || null
     );
     setIsSubmitting(false);
-    setIsRejectModalVisible(false);
     if (!result.success) {
-      Alert.alert('Failed', result.message || 'Could not reject this return.');
+      // Box stays open so the typed reason isn't lost.
+      Alert.alert('Failed', friendlyError(result.message) || 'Could not reject this return.');
       return;
     }
+    setIsRejectModalVisible(false);
     navigation.goBack();
   };
 

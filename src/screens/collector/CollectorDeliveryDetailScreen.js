@@ -24,6 +24,8 @@ import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
+import requireOnline from '../../utils/requireOnline';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -127,6 +129,7 @@ export default function CollectorDeliveryDetailScreen() {
 
   const handleAccept = async () => {
     if (!agent || !photoUri || !delivery || !isVerified || isSubmitting) return;
+    if (!requireOnline('Accepting stock')) return;
     setIsSubmitting(true);
 
     try {
@@ -147,7 +150,7 @@ export default function CollectorDeliveryDetailScreen() {
 
       setIsAccepted(true);
     } catch (error) {
-      Alert.alert('Failed to Accept Stock', error.message || 'Please try again.');
+      Alert.alert('Failed to Accept Stock', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }

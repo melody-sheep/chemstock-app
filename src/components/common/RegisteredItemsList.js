@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   dateStack: {
     marginTop: SPACING.sm,
-    gap: 4,
+    gap: 6,
   },
   itemRemoveBtn: {
     position: 'absolute',

@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
@@ -26,7 +27,7 @@ import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inven
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil, formatClockTime } from '../../utils/formatters';
+import { daysUntil } from '../../utils/formatters';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -56,6 +57,7 @@ const loadRequestableStockData = async (previous) => {
 export default function RequestStockSR() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
@@ -266,7 +268,7 @@ export default function RequestStockSR() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>

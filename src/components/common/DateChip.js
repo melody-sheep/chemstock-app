@@ -1,14 +1,18 @@
 // src/components/common/DateChip.js
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { formatDisplayDate } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
-import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-// Tappable MFG/EXP date control. Unset dates get a warning outline so they read as "tap me".
+// Tappable MFG/EXP date control. The old version only told set apart from
+// unset by a thin border color — easy to miss and easy to misread as
+// already-set when it wasn't. Unset now gets a solid amber fill with a
+// "Tap to set" call to action; set gets a solid green fill with a
+// checkmark and the actual date rendered large/bold enough to read at a
+// glance instead of a tiny 11px line.
 export default function DateChip({ label, value, onPress, accessibilityLabel }) {
   const isSet = Boolean(value);
   return (
@@ -20,11 +24,15 @@ export default function DateChip({ label, value, onPress, accessibilityLabel }) 
       accessibilityLabel={accessibilityLabel}
       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
     >
-      <View style={styles.iconSegment}>
-        <Icon name="calendar" size={12} color={COLORS.primary} />
-      </View>
-      <Text style={styles.text}>
-        {label}: {isSet ? formatDisplayDate(value) : 'Set date'}
+      <Icon
+        name={isSet ? 'checkmark' : 'calendar'}
+        size={13}
+        color={isSet ? COLORS.success : '#B26400'}
+        weight={isSet ? 'bold' : 'regular'}
+      />
+      <Text style={[styles.label, isSet ? styles.labelSet : styles.labelUnset]}>{label}</Text>
+      <Text style={[styles.value, isSet ? styles.valueSet : styles.valueUnset]}>
+        {isSet ? formatDisplayDate(value) : 'Tap to set'}
       </Text>
     </TouchableOpacity>
   );
@@ -45,31 +53,42 @@ DateChip.defaultProps = {
 const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'center',
     alignSelf: 'flex-start',
-    borderRadius: 6,
-    borderWidth: 1,
-    overflow: 'hidden',
-    backgroundColor: COLORS.textWhite,
+    gap: 5,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
   },
   chipUnset: {
-    borderColor: COLORS.warning,
+    backgroundColor: '#FFF4E0',
+    borderColor: '#FFC56A',
   },
   chipSet: {
-    borderColor: COLORS.borderLight,
+    backgroundColor: '#E8F8EE',
+    borderColor: COLORS.success,
   },
-  iconSegment: {
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    backgroundColor: COLORS.primaryLight,
-  },
-  text: {
-    alignSelf: 'center',
-    paddingVertical: 3,
-    paddingHorizontal: SPACING.xs,
+  label: {
     fontSize: 11,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  labelUnset: {
+    color: '#B26400',
+  },
+  labelSet: {
+    color: '#1E7A3A',
+  },
+  value: {
+    fontSize: 12.5,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  valueUnset: {
+    color: '#B26400',
+  },
+  valueSet: {
+    color: '#1E7A3A',
   },
 });

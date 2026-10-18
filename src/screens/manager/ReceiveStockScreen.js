@@ -14,6 +14,7 @@ import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 export default function ReceiveStockScreen() {
   const navigation = useNavigation();
@@ -45,7 +46,7 @@ export default function ReceiveStockScreen() {
     if (!result.success) {
       // A return QR scanned a second time is recognized, just already used —
       // "QR Not Recognized" over that message read as a contradiction.
-      const message = result.message || 'This QR code is not a pending collector return.';
+      const message = friendlyError(result.message) || 'This QR code is not a pending collector return.';
       const title = /already received/i.test(message) ? 'Already Received' : 'QR Not Recognized';
       Alert.alert(title, message);
       return;

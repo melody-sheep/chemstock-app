@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import Button from '../../components/common/Button';
 import UserAvatar from '../../components/common/UserAvatar';
 import QRScannerModal from '../../components/common/QRScannerModal';
@@ -15,12 +16,14 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
+import { findQueuedReceipt, receiptDisplay } from '../../utils/queuedReceipts';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useOutbox from '../../hooks/useOutbox';
 import { getInitials } from '../../utils/initials';
-import { formatClockTime } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 // Passed from ReceiveStockTypeSR. Used both pre-scan (what the user
 // *expects* to receive) and as a hard gate once a QR resolves — the server's
@@ -52,7 +55,8 @@ export default function ReceiveStockSR() {
   const [isAccepted, setIsAccepted] = useState(false);
   const [isQueuedAccept, setIsQueuedAccept] = useState(false);
   const connection = useConnectionStatus();
-  const { pendingCount, retryNow } = useOutbox('receive_stock');
+  const onlineLabel = useOnlineLabel();
+  const { pendingCount, failed: failedItems, retryNow, discard } = useOutbox('receive_stock', agent?.id ?? null);
 
   useEffect(() => {
     authService.getCurrentUser().then(setAgent);
@@ -79,7 +83,7 @@ export default function ReceiveStockSR() {
     setIsLookingUp(false);
 
     if (!result.success) {
-      setLookupError(result.message || 'Transaction not found or not assigned to you.');
+      setLookupError(friendlyError(result.message) || 'Transaction not found or not assigned to you.');
       return;
     }
     if (result.data.alreadyAccepted) {
@@ -143,9 +147,16 @@ export default function ReceiveStockSR() {
       deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
     };
 
+    const receiptCopy = receiptDisplay({ transactionId: batch.transactionId, qrCode: batch.qrCode, items: batch.items });
+    if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
+      setIsSubmitting(false);
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.');
+      return;
+    }
+
     try {
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+        await outboxService.enqueue('receive_stock', acceptPayload, photoUri, receiptCopy);
         setIsQueuedAccept(true);
         setIsAccepted(true);
         return;
@@ -159,7 +170,7 @@ export default function ReceiveStockSR() {
         }
       } catch (liveError) {
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue('receive_stock', acceptPayload, photoUri);
+          await outboxService.enqueue('receive_stock', acceptPayload, photoUri, receiptCopy);
           setIsQueuedAccept(true);
           setIsAccepted(true);
           return;
@@ -169,7 +180,7 @@ export default function ReceiveStockSR() {
 
       setIsAccepted(true);
     } catch (error) {
-      Alert.alert('Failed to Accept Stock', error.message || 'Please try again.');
+      Alert.alert('Failed to Accept Stock', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -226,7 +237,7 @@ export default function ReceiveStockSR() {
           <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>
             <View style={[styles.statusDot, !connection.online && styles.statusDotOffline]} />
             <Text style={[styles.statusText, !connection.online && styles.statusTextOffline]} numberOfLines={1}>
-              {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+              {onlineLabel}
             </Text>
           </View>
         </View>
@@ -248,6 +259,8 @@ export default function ReceiveStockSR() {
               </Pressable>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           {!batch && (
             <>
