@@ -26,9 +26,10 @@ export default function ConfirmationDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   height = 'auto',
+  variant = 'sheet',
 }) {
   return (
-    <CustomModal visible={visible} onClose={onCancel} height={height}>
+    <CustomModal visible={visible} onClose={onCancel} height={height} variant={variant}>
       <View style={styles.iconWrap}>
         <View style={styles.iconCircle}>
           <Icon name={icon} size={22} color={COLORS.error} />
@@ -43,7 +44,7 @@ export default function ConfirmationDialog({
         onPress={onConfirm}
         height={44}
         fontSize={15}
-        style={styles.confirmButton}
+        style={[styles.confirmButton, styles.fullWidthButton]}
       />
       <Button
         title={cancelLabel}
@@ -52,6 +53,7 @@ export default function ConfirmationDialog({
         height={44}
         fontSize={15}
         hasShadow={false}
+        style={styles.fullWidthButton}
       />
     </CustomModal>
   );
@@ -67,6 +69,7 @@ ConfirmationDialog.propTypes = {
   confirmLabel: PropTypes.string,
   cancelLabel: PropTypes.string,
   height: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf(['auto'])]),
+  variant: PropTypes.oneOf(['sheet', 'center']),
 };
 
 const styles = StyleSheet.create({
@@ -101,5 +104,14 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     marginBottom: SPACING.sm,
+  },
+  // Button's own default width is a hardcoded screen-width calculation,
+  // which assumes it's always sitting in a full-width bottom sheet — that
+  // breaks the 'center' variant's narrower, fixed-max-width dialog box,
+  // where it made both buttons wider than the box itself (overlapping it
+  // and each other). Filling the parent's actual width instead works
+  // correctly in both variants.
+  fullWidthButton: {
+    width: '100%',
   },
 });
