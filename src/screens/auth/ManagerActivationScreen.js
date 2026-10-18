@@ -39,7 +39,7 @@ const PasswordChecklist = ({ password }) => {
     { id: 'uppercase', label: 'A-Z', test: (p) => /[A-Z]/.test(p) },
     { id: 'lowercase', label: 'a-z', test: (p) => /[a-z]/.test(p) },
     { id: 'number', label: '0-9', test: (p) => /[0-9]/.test(p) },
-    { id: 'special', label: 'Special', test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p) },
+    { id: 'special', label: 'Special', test: (p) => /[!@#$%^&*(),.?":{}|<>_]/.test(p) },
   ];
   
   const metCount = checks.filter(c => c.test(password)).length;
@@ -454,7 +454,7 @@ export default function ManagerActivationScreen() {
     } else if (!/[0-9]/.test(managerPassword)) {
       errors.password = 'Password must contain at least one number';
       hasError = true;
-    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(managerPassword)) {
+    } else if (!/[!@#$%^&*(),.?":{}|<>_]/.test(managerPassword)) {
       errors.password = 'Password must contain at least one special character';
       hasError = true;
     }
