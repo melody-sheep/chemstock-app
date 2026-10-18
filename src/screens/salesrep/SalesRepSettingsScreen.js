@@ -66,10 +66,6 @@ export default function SalesRepSettingsScreen() {
     }
   };
 
-  const handleComingSoon = (label) => {
-    Alert.alert('Coming Soon', `${label} isn't built yet.`);
-  };
-
   const openLegalInfo = (type) => {
     navigation.navigate('LegalInfo', { type, role: 'salesrep' });
   };
@@ -131,7 +127,7 @@ export default function SalesRepSettingsScreen() {
 
             <View style={styles.rowDivider} />
 
-            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Change Password')}>
+            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('ChangePassword')}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
                   <Icon name="lock" size={18} color="#03045E" />
@@ -215,6 +211,7 @@ export default function SalesRepSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your inventory."
         }
         confirmLabel="Log Out"
+        variant="center"
       />
 
       <QRScannerModal
