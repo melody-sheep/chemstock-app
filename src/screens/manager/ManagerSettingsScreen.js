@@ -28,9 +28,7 @@ import { describeReceivingScan } from '../../utils/scanLookup';
  *
  * Static design pass: permission states below are local UI state, not
  * live device permission reads yet (matches SalesRepSettingsScreen's own
- * GPS switch / Camera "Granted" pill, which are the same for now) — same
- * for Edit Profile/Change Password, stubbed via handleComingSoon like
- * every other not-yet-built action elsewhere in this app.
+ * GPS switch / Camera "Granted" pill, which are the same for now).
  */
 // Matches BottomNavBar's own fixed bar height — the ScrollView's bottom
 // padding must clear that bar (plus its safe-area inset, which varies by
@@ -86,10 +84,6 @@ export default function ManagerSettingsScreen() {
       return;
     }
     setLocationEnabled(true);
-  };
-
-  const handleComingSoon = (label) => {
-    Alert.alert('Coming Soon', `${label} isn't built yet.`);
   };
 
   const openLegalInfo = (type) => {
@@ -153,7 +147,7 @@ export default function ManagerSettingsScreen() {
 
             <View style={styles.rowDivider} />
 
-            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Change Password')}>
+            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('ChangePassword')}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
                   <Icon name="lock" size={18} color="#03045E" />

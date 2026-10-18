@@ -33,6 +33,7 @@ import AgentStockRequestScreen from '../screens/manager/AgentStockRequestScreen'
 import ManagerSettingsScreen from '../screens/manager/ManagerSettingsScreen';
 import ComingSoonScreen from '../screens/common/ComingSoonScreen';
 import EditProfileScreen from '../screens/common/EditProfileScreen';
+import ChangePasswordScreen from '../screens/common/ChangePasswordScreen';
 import LegalInfoScreen from '../screens/common/LegalInfoScreen';
 import NotificationsScreen from '../screens/common/NotificationsScreen';
 import StockBatchDetailScreen from '../screens/common/StockBatchDetailScreen';
@@ -113,6 +114,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ComingSoon" component={ComingSoonScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="ReceiveStockTypeSR" component={ReceiveStockTypeSR} />
         <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} />

@@ -21,8 +21,7 @@ import { SHADOWS } from '../../styles/shadows';
  * (see ManagerSettingsScreen / SalesRepSettingsScreen), same structure so
  * all three roles' Settings tab + profile icon land somewhere consistent.
  * Static design pass, same caveats as the other two: permission rows are
- * local UI state, not live device reads yet; Edit Profile/Change Password
- * are handleComingSoon stubs.
+ * local UI state, not live device reads yet.
  */
 // Matches BottomNavBar's own fixed bar height — the ScrollView's bottom
 // padding must clear that bar (plus its safe-area inset, which varies by
@@ -66,10 +65,6 @@ export default function CollectorSettingsScreen() {
       return;
     }
     setLocationEnabled(true);
-  };
-
-  const handleComingSoon = (label) => {
-    Alert.alert('Coming Soon', `${label} isn't built yet.`);
   };
 
   const openLegalInfo = (type) => {
@@ -133,7 +128,7 @@ export default function CollectorSettingsScreen() {
 
             <View style={styles.rowDivider} />
 
-            <Pressable style={styles.rowItem} onPress={() => handleComingSoon('Change Password')}>
+            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('ChangePassword')}>
               <View style={styles.rowLeft}>
                 <View style={styles.rowIconWrap}>
                   <Icon name="lock" size={18} color="#03045E" />
