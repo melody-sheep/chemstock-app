@@ -1,7 +1,7 @@
 ﻿# CHEMSTOCK-MOBILE — PROJECT STRUCTURE
 
-* Generated from the local project on 2026-10-13.
-* Excludes dependency folders, build/cache output, and local environment, credential, or user-specific config files.
+* Generated from the local project on 2026-10-18.
+* Excludes dependency folders, generated build/cache output, and local environment, credential, or user-specific config files.
 
 ```
 chemstock-mobile/
@@ -126,13 +126,13 @@ chemstock-mobile/
 |   |   |   |-- AnimatedTextDot.js
 |   |   |   |-- BottomActionBar.js
 |   |   |   |-- BottomNavBar.js
-|   |   |   |-- BrandedQRCode.js
 |   |   |   |-- BranchSelector.js
+|   |   |   |-- BrandedQRCode.js
 |   |   |   |-- Button.js
 |   |   |   |-- CameraCaptureModal.js
 |   |   |   |-- Card.js
-|   |   |   |-- ColorBlobs.js
 |   |   |   |-- CollectorUpdateCheckpointModal.js
+|   |   |   |-- ColorBlobs.js
 |   |   |   |-- ConfirmationDialog.js
 |   |   |   |-- ConnectionPill.js
 |   |   |   |-- DateChip.js
@@ -157,6 +157,7 @@ chemstock-mobile/
 |   |   |   |-- Modal.js
 |   |   |   |-- ModalHero.js
 |   |   |   |-- NoiseOverlay.js
+|   |   |   |-- OutboxFailedNotice.js
 |   |   |   |-- PhilippinePhoneInput.js
 |   |   |   |-- PhotoProofCard.js
 |   |   |   |-- ProductChip.js
@@ -171,10 +172,11 @@ chemstock-mobile/
 |   |   |   |-- SaveableQRCode.js
 |   |   |   |-- ScreenContainer.js
 |   |   |   |-- SearchDropdownField.js
-|   |   |   |-- SectionHeader.js
 |   |   |   |-- SecondaryHeader.js
+|   |   |   |-- SectionHeader.js
 |   |   |   |-- SelectedProductsRow.js
 |   |   |   |-- ShipmentProofRow.js
+|   |   |   |-- SplashLoader.js
 |   |   |   |-- SpotlightHint.js
 |   |   |   |-- StatCard.js
 |   |   |   |-- StaticRouteMap.js
@@ -323,7 +325,9 @@ chemstock-mobile/
 |   |   |-- logger.js
 |   |   |-- productUsage.js
 |   |   |-- profilePhoto.js
+|   |   |-- queuedReceipts.js
 |   |   |-- quickLocation.js
+|   |   |-- requireOnline.js
 |   |   |-- routeQrScan.js
 |   |   |-- scanLookup.js
 |   |   |-- stockLogUtils.js
@@ -351,12 +355,12 @@ chemstock-mobile/
 
 ## Current source counts
 
-- JavaScript files under `src/`: 190
+- JavaScript files under `src/`: 194
 - Screens under `src/screens/`: 60
-- Components under `src/components/`: 69
+- Components under `src/components/`: 71
 - Services under `src/services/`: 14
 - Hooks under `src/hooks/`: 12
-- Utilities under `src/utils/`: 20
+- Utilities under `src/utils/`: 22
 - SQL files under `capstone_docs/sql/`: 42
 
 The tree reflects files and folders currently present on this machine. It is a directory inventory, not a statement that every listed file is tracked by Git.
