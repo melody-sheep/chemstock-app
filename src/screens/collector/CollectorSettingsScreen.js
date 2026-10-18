@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorSettingsScreen.js
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,9 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
+import SettingsDeviceSection from '../../components/common/SettingsDeviceSection';
+import { appVersionLabel } from '../../utils/appVersion';
+import useOutbox from '../../hooks/useOutbox';
 
 /**
  * CollectorSettingsScreen - third and last of the role settings screens
@@ -34,8 +37,8 @@ export default function CollectorSettingsScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
-  const [locationEnabled, setLocationEnabled] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // Items saved offline by this account, mentioned in the log-out dialog.
+  const { pendingCount: unsyncedCount } = useOutbox(null, user?.id ?? null);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   useFocusEffect(
@@ -51,21 +54,6 @@ export default function CollectorSettingsScreen() {
     } else if (key !== 'settings') {
       navigation.navigate('ComingSoon', { tabKey: key, role: 'collector' });
     }
-  };
-
-  const handleLocationToggle = (value) => {
-    if (!value) {
-      Alert.alert(
-        'Disable Location?',
-        'Geotagging is required to confirm delivery checkpoints and drop-offs. Disabling it will prevent you from completing deliveries.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Disable Anyway', style: 'destructive', onPress: () => setLocationEnabled(false) },
-        ]
-      );
-      return;
-    }
-    setLocationEnabled(true);
   };
 
   const handleComingSoon = (label) => {
@@ -144,77 +132,8 @@ export default function CollectorSettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>Privacy & Permissions</Text>
-          <View style={styles.groupCard}>
-            <View style={styles.rowItem}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="location" size={18} color="#F04D59" />
-                </View>
-                <View style={styles.toggleTextWrap}>
-                  <Text style={styles.rowLabel}>Geotagging (GPS)</Text>
-                  <Text style={styles.rowSubLabel}>Captured at every delivery checkpoint and drop-off.</Text>
-                </View>
-              </View>
-              <Switch
-                value={locationEnabled}
-                onValueChange={handleLocationToggle}
-                trackColor={{ false: '#D1D5DB', true: '#B7FFD6' }}
-                thumbColor={locationEnabled ? '#03045E' : '#FFFFFF'}
-              />
-            </View>
-
-            <View style={styles.rowDivider} />
-
-            <View style={styles.rowItem}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="camera" size={18} color="#03045E" />
-                </View>
-                <View style={styles.toggleTextWrap}>
-                  <Text style={styles.rowLabel}>Camera Access</Text>
-                  <Text style={styles.rowSubLabel}>Required for QR scanning and delivery photo proof.</Text>
-                </View>
-              </View>
-              <View style={styles.grantedPill}>
-                <Text style={styles.grantedPillText}>Granted</Text>
-              </View>
-            </View>
-
-            <View style={styles.rowDivider} />
-
-            <View style={styles.rowItem}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="document" size={18} color="#03045E" />
-                </View>
-                <View style={styles.toggleTextWrap}>
-                  <Text style={styles.rowLabel}>Gallery Access</Text>
-                  <Text style={styles.rowSubLabel}>Used only to save a generated QR code to your photos.</Text>
-                </View>
-              </View>
-              <View style={styles.grantedPill}>
-                <Text style={styles.grantedPillText}>Granted</Text>
-              </View>
-            </View>
-
-            <View style={styles.rowDivider} />
-
-            <View style={styles.rowItem}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="notification" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>Push Notifications</Text>
-              </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{ false: '#D1D5DB', true: '#B7FFD6' }}
-                thumbColor={notificationsEnabled ? '#03045E' : '#FFFFFF'}
-              />
-            </View>
-          </View>
+          <Text style={styles.sectionLabel}>Device & Sync</Text>
+          <SettingsDeviceSection agentId={user?.id} styles={styles} />
 
           <Text style={styles.sectionLabel}>About</Text>
           <View style={styles.groupCard}>
@@ -249,7 +168,7 @@ export default function CollectorSettingsScreen() {
                 </View>
                 <Text style={styles.rowLabel}>App Version</Text>
               </View>
-              <Text style={styles.rowValue}>1.0.0</Text>
+              <Text style={styles.rowValue}>{appVersionLabel()}</Text>
             </View>
           </View>
 
@@ -286,7 +205,11 @@ export default function CollectorSettingsScreen() {
         onConfirm={handleConfirmLogout}
         icon="lock"
         title="Log Out"
-        description="You're about to log out of ChemStock. You'll need to sign in again to access your deliveries."
+        description={
+          unsyncedCount > 0
+            ? `${unsyncedCount === 1 ? '1 item has not' : `${unsyncedCount} items have not`} synced yet. It stays on this phone and sends automatically once you're online — you can log out safely.`
+            : "You're about to log out of ChemStock. You'll need to sign in again to access your deliveries."
+        }
         confirmLabel="Log Out"
       />
     </>

@@ -22,6 +22,8 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
+import friendlyError from '../../utils/friendlyError';
+import { invalidateSavedData } from '../../utils/dataVersion';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -74,6 +76,7 @@ export default function EditProfileScreen() {
   );
 
   const handleBack = () => navigation.goBack();
+  const branchList = (user?.branchName || '').split(',').map((name) => name.trim()).filter(Boolean);
 
   const savePhoto = async (uri) => {
     if (!user?.id) return;
@@ -96,13 +99,16 @@ export default function EditProfileScreen() {
             });
 
       if (!result.success) {
-        Alert.alert('Update Failed', result.message || 'Could not update your profile photo.');
+        Alert.alert('Update Failed', friendlyError(result.message) || 'Could not update your profile photo.');
         return;
       }
 
+      // Every screen showing the old photo reloads, no log out needed.
+      authService.clearCurrentUserCache();
+      invalidateSavedData();
       await loadUser();
     } catch (error) {
-      Alert.alert('Update Failed', error.message || 'Could not update your profile photo.');
+      Alert.alert('Update Failed', friendlyError(error.message) || 'Could not update your profile photo.');
     } finally {
       setIsSaving(false);
     }
@@ -167,15 +173,16 @@ export default function EditProfileScreen() {
           : await profileService.updateAgentPhoneNumber({ agentId: user.id, phoneNumber });
 
       if (!result.success) {
-        Alert.alert('Update Failed', result.message || 'Could not update your phone number.');
+        Alert.alert('Update Failed', friendlyError(result.message) || 'Could not update your phone number.');
         return;
       }
 
       authService.clearCurrentUserCache();
+      invalidateSavedData();
       setIsPhoneModalVisible(false);
       await loadUser();
     } catch (error) {
-      Alert.alert('Update Failed', error.message || 'Could not update your phone number.');
+      Alert.alert('Update Failed', friendlyError(error.message) || 'Could not update your phone number.');
     } finally {
       setIsSavingPhone(false);
     }
@@ -271,17 +278,38 @@ export default function EditProfileScreen() {
 
               <View style={styles.rowDivider} />
 
-              <View style={styles.rowItem}>
-                <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name="location" size={18} color="#F04D59" />
+              {branchList.length > 1 ? (
+                // Several branches (managers): one chip each under the label,
+                // instead of squeezing them all into the value column.
+                <View style={styles.rowItemStacked}>
+                  <View style={styles.rowLeft}>
+                    <View style={styles.rowIconWrap}>
+                      <Icon name="location" size={18} color="#F04D59" />
+                    </View>
+                    <Text style={styles.rowLabel}>Branches</Text>
+                    <Text style={styles.rowCount}>{branchList.length}</Text>
                   </View>
-                  <Text style={styles.rowLabel}>Branch</Text>
+                  <View style={styles.branchChips}>
+                    {branchList.map((name) => (
+                      <View key={name} style={styles.branchChip}>
+                        <Text style={styles.branchChipText} numberOfLines={1}>{name}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                <Text style={styles.rowValue} numberOfLines={1}>
-                  {user?.branchName || 'No branch assigned'}
-                </Text>
-              </View>
+              ) : (
+                <View style={styles.rowItem}>
+                  <View style={styles.rowLeft}>
+                    <View style={styles.rowIconWrap}>
+                      <Icon name="location" size={18} color="#F04D59" />
+                    </View>
+                    <Text style={styles.rowLabel}>Branch</Text>
+                  </View>
+                  <Text style={styles.rowValue} numberOfLines={1}>
+                    {branchList[0] || 'No branch assigned'}
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.rowDivider} />
 
@@ -527,8 +555,43 @@ const styles = StyleSheet.create({
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    flexShrink: 0,
     gap: 10,
+  },
+  rowItemStacked: {
+    paddingVertical: 12,
+    gap: 10,
+  },
+  rowCount: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+    color: COLORS.primary,
+    fontSize: 11,
+    textAlign: 'center',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  branchChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingLeft: 44,
+  },
+  branchChip: {
+    maxWidth: '100%',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: '#FDEDEE',
+  },
+  branchChipText: {
+    fontSize: 12,
+    color: '#B4232F',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
   },
   rowIconWrap: {
     width: 34,
