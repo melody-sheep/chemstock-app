@@ -19,12 +19,10 @@ import { TYPOGRAPHY } from '../../styles/typography';
 export default function CollectorUpdateCheckpointModal({ visible, onClose, onConfirm, isSubmitting = false }) {
   const [label, setLabel] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setLabel('');
-      setShowSuggestions(false);
       getFrequentLandmarks(6).then(setSuggestions);
     }
   }, [visible]);
@@ -36,58 +34,79 @@ export default function CollectorUpdateCheckpointModal({ visible, onClose, onCon
   };
 
   return (
-    <CustomModal visible={visible} onClose={onClose} height={showSuggestions ? 420 : 300}>
-      <View style={styles.iconWrap}>
-        <Icon name="location" size={32} color={COLORS.primary} weight="fill" />
+    <CustomModal visible={visible} onClose={onClose} height="auto" maxHeight={520}>
+      <View style={styles.header}>
+        <View style={styles.iconCircle}>
+          <Icon name="location" size={20} color={COLORS.primary} weight="fill" />
+        </View>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Update Checkpoint</Text>
+          <Text style={styles.subtitle}>Where are you now? Type or pick a nearby landmark.</Text>
+        </View>
       </View>
-      <Text style={styles.title}>Update Checkpoint?</Text>
-      <Text style={styles.subtitle}>Select or type your closest area landmark:</Text>
 
       <View style={styles.inputRow}>
+        <Icon name="location" size={18} color={COLORS.textSecondary} />
         <TextInput
           style={styles.input}
           value={label}
           onChangeText={setLabel}
           placeholder="e.g. Iponan Market"
           placeholderTextColor={COLORS.textTertiary}
+          returnKeyType="done"
+          onSubmitEditing={handleConfirm}
         />
-        {suggestions.length > 0 && (
-          <Pressable
-            style={styles.chevronButton}
-            onPress={() => setShowSuggestions((prev) => !prev)}
-            accessibilityLabel="Show recent landmarks"
-          >
-            <Icon name="caretDown" size={18} color={COLORS.textSecondary} />
+        {!!label && (
+          <Pressable onPress={() => setLabel('')} hitSlop={8} accessibilityLabel="Clear landmark">
+            <Icon name="xCircle" size={18} color={COLORS.textTertiary} />
           </Pressable>
         )}
       </View>
 
-      {showSuggestions && (
-        <View style={styles.suggestionsList}>
-          {suggestions.map((suggestion) => (
-            <Pressable
-              key={suggestion}
-              style={styles.suggestionRow}
-              onPress={() => {
-                setLabel(suggestion);
-                setShowSuggestions(false);
-              }}
-            >
-              <Icon name="clock" size={14} color={COLORS.textSecondary} />
-              <Text style={styles.suggestionText}>{suggestion}</Text>
-            </Pressable>
-          ))}
-        </View>
+      {suggestions.length > 0 && (
+        <>
+          <Text style={styles.recentLabel}>Recent</Text>
+          <View style={styles.chips}>
+            {suggestions.map((suggestion) => {
+              const isSelected = suggestion === label.trim();
+              return (
+                <Pressable
+                  key={suggestion}
+                  style={[styles.chip, isSelected && styles.chipSelected]}
+                  onPress={() => setLabel(suggestion)}
+                >
+                  <Icon name="clock" size={12} color={isSelected ? '#FFFFFF' : COLORS.textSecondary} />
+                  <Text style={[styles.chipText, isSelected && styles.chipTextSelected]} numberOfLines={1}>
+                    {suggestion}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
       )}
 
-      <Button
-        title={isSubmitting ? 'Updating…' : 'Update'}
-        variant="black"
-        onPress={handleConfirm}
-        disabled={!label.trim() || isSubmitting}
-        style={styles.confirmButton}
-      />
-      <Button title="Cancel" variant="outline" onPress={onClose} hasShadow={false} disabled={isSubmitting} />
+      <View style={styles.buttonRow}>
+        <Button
+          title="Cancel"
+          variant="outline"
+          onPress={onClose}
+          hasShadow={false}
+          disabled={isSubmitting}
+          height={44}
+          fontSize={15}
+          style={styles.button}
+        />
+        <Button
+          title={isSubmitting ? 'Updating…' : 'Update'}
+          variant="black"
+          onPress={handleConfirm}
+          disabled={!label.trim() || isSubmitting}
+          height={44}
+          fontSize={15}
+          style={styles.button}
+        />
+      </View>
     </CustomModal>
   );
 }
@@ -100,25 +119,33 @@ CollectorUpdateCheckpointModal.propTypes = {
 };
 
 const styles = StyleSheet.create({
-  iconWrap: {
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1 },
   title: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
   },
   subtitle: {
+    marginTop: 2,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
   },
   inputRow: {
     flexDirection: 'row',
@@ -127,45 +154,58 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DBE4EE',
     borderRadius: 12,
-    paddingHorizontal: SPACING.sm,
-    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: '#F8FAFC',
   },
   input: {
     flex: 1,
-    height: 46,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    height: 44,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: '#272632',
   },
-  chevronButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  recentLabel: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  suggestionsList: {
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 12,
-    marginTop: -SPACING.sm,
-    marginBottom: SPACING.md,
-    overflow: 'hidden',
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
   },
-  suggestionRow: {
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
+    gap: 4,
+    maxWidth: '100%',
     paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#DBE4EE',
+    backgroundColor: '#FFFFFF',
   },
-  suggestionText: {
+  chipSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    flexShrink: 1,
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
     color: '#272632',
   },
-  confirmButton: {
-    marginBottom: SPACING.sm,
+  chipTextSelected: { color: '#FFFFFF' },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
   },
+  button: { flex: 1, width: 'auto' },
 });

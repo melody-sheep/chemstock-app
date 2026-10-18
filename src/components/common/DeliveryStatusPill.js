@@ -40,7 +40,7 @@ export default function DeliveryStatusPill({ status, label }) {
       <Animated.View
         style={[styles.dot, { backgroundColor: variant.color }, variant.pulse && { opacity: pulse }]}
       />
-      <Text style={[styles.label, { color: variant.color }]}>{label}</Text>
+      <Text style={[styles.label, { color: variant.color }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -59,10 +59,12 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xs,
     borderRadius: 999,
     borderWidth: 1,
+    flexShrink: 1,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   label: {
     fontSize: TYPOGRAPHY.fontSize.xs,
+    flexShrink: 1,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },

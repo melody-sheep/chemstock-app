@@ -92,10 +92,13 @@ function buildHtml({
         var style = i === 0
           ? 'font-size:12px;font-weight:700;color:#FFFFFF;'
           : 'font-size:10px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px;';
-        return '<div style="' + style + 'white-space:nowrap;line-height:1.3;">' + line + '</div>';
+        // A long line (e.g. a checkpoint note) wraps to two lines at most
+        // inside a capped width instead of running off the screen.
+        return '<div style="' + style + 'line-height:1.3;text-align:center;overflow-wrap:anywhere;' +
+          'display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:' + (i === 0 ? 1 : 2) + ';">' + line + '</div>';
       }).join('');
       return '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;' +
-        'white-space:nowrap;background:#272632;padding:6px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:center;">' +
+        'width:max-content;max-width:210px;background:#272632;padding:6px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:center;">' +
         rows + '</div>';
     }
 
