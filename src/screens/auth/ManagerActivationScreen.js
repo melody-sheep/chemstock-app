@@ -20,6 +20,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import Header from '../../components/common/Header';
+import KeyboardWrapper from '../../components/common/KeyboardWrapper';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
@@ -511,9 +512,9 @@ export default function ManagerActivationScreen() {
     !step2Errors.password &&
     !step2Errors.confirmPassword;
   
-  const bottomContainerHeight = 180 + (insets.bottom || 0);
-  // ✅ FIX: Significantly increased padding for keyboard
-  const scrollViewPaddingBottom = bottomContainerHeight + 120;
+  // The warning + button now scroll with the form, so only leave room for
+  // the phone's bottom bar.
+  const scrollViewPaddingBottom = 20 + (insets.bottom || 0);
   
   // ============================================
   // RENDER - Step 1
@@ -522,21 +523,178 @@ export default function ManagerActivationScreen() {
     const isButtonEnabled = isValidCode && branchInfo && branchInfo.names && branchInfo.names.length > 0;
     const hasBranches = branchInfo && branchInfo.names && branchInfo.names.length > 0;
     const buttonWidth = screenWidth - (SPACING.lg * 2);
-    
+
     return (
       <>
         <StatusBar style="light" />
+        <KeyboardWrapper>
+          <View style={styles.container}>
+            <Header
+              showBackButton={true}
+              backButtonText="Back to Login"
+              showOnlineStatus={true}
+              height={56}
+              backgroundColor="#03045E"
+              textColor="#FFFFFF"
+              onBackPress={handleBackToLogin}
+            />
+
+            <View style={styles.header2Container}>
+              <View style={styles.header2Row}>
+                <Text style={styles.header2Title}>Manager Account Setup</Text>
+                <View style={styles.header2Icon}>
+                  <Icon name="key" size={18} color={COLORS.primary} />
+                </View>
+              </View>
+              <Text style={styles.header2Subtitle}>
+                Enter the activation key from the developer to register your branch(es).
+              </Text>
+            </View>
+
+            <SuccessFrame
+              visible={showSuccessFrame}
+              branchCount={branchCount}
+              onFadeComplete={handleSuccessFrameFade}
+            />
+
+            <Animated.ScrollView
+              style={[
+                styles.scrollView,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateX: slideAnim }],
+                }
+              ]}
+              contentContainerStyle={styles.scrollContentStep1}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.stepperWrapper}>
+                <Stepper currentStep={1} />
+              </View>
+
+              <View style={styles.inputSection}>
+                <Input
+                  label="Activation Code"
+                  required={true}
+                  placeholder="Enter activation code"
+                  icon="key"
+                  value={activationKey}
+                  onChangeText={handleActivationInputChange}
+                  error={localError || error}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleActivationKeySubmit}
+                  inputRef={inputRef}
+                  rightIcon={
+                    <TouchableOpacity onPress={handleValidateCode} disabled={isLoading}>
+                      <Icon
+                        name="send"
+                        size={20}
+                        color={isLoading ? '#B0B0B0' : COLORS.primary}
+                        stroke={isLoading ? '#B0B0B0' : COLORS.primary}
+                        strokeWidth={1}
+                      />
+                    </TouchableOpacity>
+                  }
+                  onRightIconPress={handleValidateCode}
+                />
+
+                {isLoading && (
+                  <Text style={styles.loadingText}>Validating activation code...</Text>
+                )}
+              </View>
+
+              <View style={styles.branchContainer}>
+                <Text style={styles.branchTitle}>Location &amp; Branch Lock</Text>
+                <Text style={styles.branchSubtext}>
+                  Your branch access will be automatically verified based on the activation key
+                </Text>
+
+                <View style={[
+                  styles.branchListContainer,
+                  hasBranches ? styles.branchListContainerAdaptive : styles.branchListContainerEmpty
+                ]}>
+                  {hasBranches ? (
+                    branchInfo.names.map((name, index) => (
+                      <View key={index} style={styles.branchItem}>
+                        <Icon name="checkmark" size={16} color={COLORS.success} />
+                        <View style={styles.branchInfoContainer}>
+                          <Text style={styles.branchNameText}>{name}</Text>
+                          {branchInfo.locations && branchInfo.locations[index] && (
+                            <Text style={styles.branchLocationText}>
+                              {branchInfo.locations[index]}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <View style={styles.emptyBranchContainer}>
+                      <Icon
+                        name="building"
+                        size={16}
+                        color="#757575"
+                        stroke="#757575"
+                        strokeWidth={0.5}
+                      />
+                      <Text style={styles.emptyBranchText}>
+                        List of branches will appear here
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.bottomContainerInScroll}>
+                <View style={styles.bottomWarningWrapper}>
+                  <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                  <Text style={styles.bottomWarningTitle}>Warning</Text>
+                  <Text style={[styles.bottomWarningText, { width: buttonWidth }]}>
+                    This will set up your device for manager access. Only continue if you're authorized to manage this branch.
+                  </Text>
+                </View>
+
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.continueButton,
+                      { backgroundColor: isButtonEnabled ? '#03045E' : '#555353' }
+                    ]}
+                    onPress={handleContinue}
+                    disabled={!isButtonEnabled || isTransitioning}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.buttonContent}>
+                      <Text style={styles.buttonText}>Continue to Account Setup</Text>
+                      <Icon name="arrowRight" size={20} color="#FFFFFF" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.scrollBottomPadding} />
+            </Animated.ScrollView>
+          </View>
+        </KeyboardWrapper>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <StatusBar style="light" />
+      <KeyboardWrapper>
         <View style={styles.container}>
           <Header
             showBackButton={true}
-            backButtonText="Back to Login"
+            backButtonText="Back to Step 1"
             showOnlineStatus={true}
             height={56}
             backgroundColor="#03045E"
             textColor="#FFFFFF"
-            onBackPress={handleBackToLogin}
+            onBackPress={handleBackToStep1}
           />
-          
+
           <View style={styles.header2Container}>
             <View style={styles.header2Row}>
               <Text style={styles.header2Title}>Manager Account Setup</Text>
@@ -545,17 +703,12 @@ export default function ManagerActivationScreen() {
               </View>
             </View>
             <Text style={styles.header2Subtitle}>
-              Enter the activation key from the developer to register your branch(es).
+              Set up your manager credentials to complete the registration
             </Text>
           </View>
-          
-          <SuccessFrame 
-            visible={showSuccessFrame}
-            branchCount={branchCount}
-            onFadeComplete={handleSuccessFrameFade}
-          />
-          
-          <Animated.ScrollView 
+
+          <Animated.ScrollView
+            ref={scrollViewRef}
             style={[
               styles.scrollView,
               {
@@ -563,266 +716,101 @@ export default function ManagerActivationScreen() {
                 transform: [{ translateX: slideAnim }],
               }
             ]}
-            contentContainerStyle={styles.scrollContentStep1}
+            contentContainerStyle={[
+              styles.scrollContentStep2,
+              { paddingBottom: scrollViewPaddingBottom }
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            scrollEnabled={true}
           >
             <View style={styles.stepperWrapper}>
-              <Stepper currentStep={1} />
+              <Stepper currentStep={2} />
             </View>
-            
+
             <View style={styles.inputSection}>
               <Input
-                label="Activation Code"
+                label="Manager Username"
                 required={true}
-                placeholder="Enter activation code"
-                icon="key"
-                value={activationKey}
-                onChangeText={handleActivationInputChange}
-                error={localError || error}
-                autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleActivationKeySubmit}
-                inputRef={inputRef}
-                rightIcon={
-                  <TouchableOpacity onPress={handleValidateCode} disabled={isLoading}>
-                    <Icon 
-                      name="send" 
-                      size={20} 
-                      color={isLoading ? '#B0B0B0' : COLORS.primary}
-                      stroke={isLoading ? '#B0B0B0' : COLORS.primary}
-                      strokeWidth={1}
-                    />
-                  </TouchableOpacity>
-                }
-                onRightIconPress={handleValidateCode}
+                placeholder="Enter your full name"
+                value={managerUsername}
+                onChangeText={handleUsernameChange}
+                error={step2Errors.username}
+                autoCapitalize="words"
+                returnKeyType="next"
               />
-              
-              {isLoading && (
-                <Text style={styles.loadingText}>Validating activation code...</Text>
-              )}
-            </View>
-            
-            <View style={styles.branchContainer}>
-              <Text style={styles.branchTitle}>Location &amp; Branch Lock</Text>
-              <Text style={styles.branchSubtext}>
-                Your branch access will be automatically verified based on the activation key
-              </Text>
-              
-              <View style={[
-                styles.branchListContainer,
-                hasBranches ? styles.branchListContainerAdaptive : styles.branchListContainerEmpty
-              ]}>
-                {hasBranches ? (
-                  branchInfo.names.map((name, index) => (
-                    <View key={index} style={styles.branchItem}>
-                      <Icon name="checkmark" size={16} color={COLORS.success} />
-                      <View style={styles.branchInfoContainer}>
-                        <Text style={styles.branchNameText}>{name}</Text>
-                        {branchInfo.locations && branchInfo.locations[index] && (
-                          <Text style={styles.branchLocationText}>
-                            {branchInfo.locations[index]}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.emptyBranchContainer}>
-                    <Icon 
-                      name="building" 
-                      size={16} 
-                      color="#757575"
-                      stroke="#757575"
-                      strokeWidth={0.5}
-                    />
-                    <Text style={styles.emptyBranchText}>
-                      List of branches will appear here
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-            
-            <View style={styles.scrollBottomPadding} />
-          </Animated.ScrollView>
-          
-          <View 
-            style={[styles.bottomContainer, { bottom: 10 + (insets.bottom || 0) }]}
-            pointerEvents="box-none"
-          >
-            <View style={styles.bottomWarningWrapper}>
-              <Icon name="warningTriangle" size={28} color={COLORS.error} />
-              <Text style={styles.bottomWarningTitle}>Warning</Text>
-              <Text style={[styles.bottomWarningText, { width: buttonWidth }]}>
-                This will set up your device for manager access. Only continue if you're authorized to manage this branch.
-              </Text>
-            </View>
-            
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.continueButton,
-                  { 
-                    backgroundColor: isButtonEnabled ? '#03045E' : '#555353',
-                  }
-                ]}
-                onPress={handleContinue}
-                disabled={!isButtonEnabled || isTransitioning}
-                activeOpacity={0.8}
-              >
-                <View style={styles.buttonContent}>
-                  <Text style={styles.buttonText}>Continue to Account Setup</Text>
-                  <Icon name="arrowRight" size={20} color="#FFFFFF" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </>
-    );
-  }
-  
-  // ============================================
-  // RENDER - Step 2 (NO KeyboardWrapper - fixed bottom stays in place)
-  // ============================================
-  return (
-    <>
-      <StatusBar style="light" />
-      <View style={styles.container}>
-        <Header
-          showBackButton={true}
-          backButtonText="Back to Step 1"
-          showOnlineStatus={true}
-          height={56}
-          backgroundColor="#03045E"
-          textColor="#FFFFFF"
-          onBackPress={handleBackToStep1}
-        />
-        
-        <View style={styles.header2Container}>
-          <View style={styles.header2Row}>
-            <Text style={styles.header2Title}>Manager Account Setup</Text>
-            <View style={styles.header2Icon}>
-              <Icon name="key" size={18} color={COLORS.primary} />
-            </View>
-          </View>
-          <Text style={styles.header2Subtitle}>
-            Set up your manager credentials to complete the registration
-          </Text>
-        </View>
-        
-        <Animated.ScrollView 
-          ref={scrollViewRef}
-          style={[
-            styles.scrollView,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateX: slideAnim }],
-            }
-          ]}
-          contentContainerStyle={[
-            styles.scrollContentStep2,
-            { paddingBottom: scrollViewPaddingBottom }
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          scrollEnabled={true}
-        >
-          <View style={styles.stepperWrapper}>
-            <Stepper currentStep={2} />
-          </View>
-          
-          <View style={styles.inputSection}>
-            <Input
-              label="Manager Username"
-              required={true}
-              placeholder="Enter your full name"
-              value={managerUsername}
-              onChangeText={handleUsernameChange}
-              error={step2Errors.username}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
 
-            <PhilippinePhoneInput
-              label="Phone Number"
-              required
-              value={managerPhoneDigits}
-              onChangeText={handlePhoneChange}
-              error={step2Errors.phone}
-            />
+              <PhilippinePhoneInput
+                label="Phone Number"
+                required
+                value={managerPhoneDigits}
+                onChangeText={handlePhoneChange}
+                error={step2Errors.phone}
+              />
 
-            <Input
-              label="Manager Password"
-              required={true}
-              placeholder="Create a password"
-              secureTextEntry={true}
-              value={managerPassword}
-              onChangeText={handlePasswordChange}
-              error={step2Errors.password}
-              autoCapitalize="none"
-              returnKeyType="next"
-              inputRef={passwordInputRef}
-              onFocus={handlePasswordFocus}
-            />
-            
-            <PasswordChecklist password={managerPassword} />
-            
-            <View ref={confirmPasswordContainerRef}>
               <Input
-                label="Confirm Password,"
+                label="Manager Password"
                 required={true}
-                placeholder="Confirm your password"
+                placeholder="Create a password"
                 secureTextEntry={true}
-                value={confirmPassword}
-                onChangeText={handleConfirmPasswordChange}
-                error={step2Errors.confirmPassword}
+                value={managerPassword}
+                onChangeText={handlePasswordChange}
+                error={step2Errors.password}
                 autoCapitalize="none"
-                returnKeyType="done"
-                onSubmitEditing={handleCompleteSetup}
-                inputRef={confirmPasswordInputRef}
-                onFocus={handleConfirmPasswordFocus}
+                returnKeyType="next"
+                inputRef={passwordInputRef}
+                onFocus={handlePasswordFocus}
               />
-            </View>
-          </View>
-          
-          <View style={{ height: 20 }} />
-        </Animated.ScrollView>
-        
-        {/* ✅ FIX: Bottom container stays fixed - NO KeyboardWrapper */}
-        <View 
-          style={[styles.bottomContainer, { bottom: 10 + (insets.bottom || 0) }]}
-          pointerEvents="box-none"
-        >
-          <View style={styles.bottomWarningWrapper}>
-            <Icon name="warningTriangle" size={28} color={COLORS.error} />
-            <Text style={styles.bottomWarningTitle}>Security Notice</Text>
-            <Text style={[styles.bottomWarningText, { width: screenWidth - (SPACING.lg * 2) }]}>
-              Create a strong password (8+ chars, numbers, and symbols). Your full name will be your manager ID.
-            </Text>
-          </View>
-          
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[
-                styles.continueButton,
-                { 
-                  backgroundColor: isFormValid ? '#03045E' : '#555353',
-                }
-              ]}
-              onPress={handleCompleteSetup}
-              disabled={!isFormValid || isTransitioning}
-              activeOpacity={0.8}
-            >
-              <View style={styles.buttonContent}>
-                <Text style={styles.buttonText}>Complete Setup</Text>
-                <Icon name="arrowRight" size={20} color="#FFFFFF" />
+
+              <PasswordChecklist password={managerPassword} />
+
+              <View ref={confirmPasswordContainerRef}>
+                <Input
+                  label="Confirm Password"
+                  required={true}
+                  placeholder="Confirm your password"
+                  secureTextEntry={true}
+                  value={confirmPassword}
+                  onChangeText={handleConfirmPasswordChange}
+                  error={step2Errors.confirmPassword}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleCompleteSetup}
+                  inputRef={confirmPasswordInputRef}
+                  onFocus={handleConfirmPasswordFocus}
+                />
               </View>
-            </TouchableOpacity>
-          </View>
+            </View>
+
+            <View style={styles.bottomContainerInScroll}>
+              <View style={styles.bottomWarningWrapper}>
+                <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                <Text style={styles.bottomWarningTitle}>Security Notice</Text>
+                <Text style={[styles.bottomWarningText, { width: screenWidth - (SPACING.lg * 2) }]}>
+                  Create a strong password (8+ chars, numbers, and symbols). Your full name will be your manager ID.
+                </Text>
+              </View>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.continueButton,
+                    { backgroundColor: isFormValid ? '#03045E' : '#555353' }
+                  ]}
+                  onPress={handleCompleteSetup}
+                  disabled={!isFormValid || isTransitioning}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.buttonContent}>
+                    <Text style={styles.buttonText}>Complete Setup</Text>
+                    <Icon name="arrowRight" size={20} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={{ height: 20 }} />
+          </Animated.ScrollView>
         </View>
-      </View>
+      </KeyboardWrapper>
     </>
   );
 }
@@ -980,13 +968,9 @@ const styles = StyleSheet.create({
   scrollBottomPadding: {
     height: 20,
   },
-  bottomContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    paddingBottom: 10,
-    zIndex: 999,
+  bottomContainerInScroll: {
+    marginTop: 20,
+    paddingBottom: 20,
   },
   bottomWarningWrapper: {
     alignItems: 'center',

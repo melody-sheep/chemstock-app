@@ -4,17 +4,16 @@ import {
   View,
   StyleSheet,
   Dimensions,
-  TouchableWithoutFeedback,
   Keyboard,
   Text,
   TouchableOpacity,
   Alert,
   Platform,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import AnimatedTextDot from '../../components/common/AnimatedTextDot';
+import KeyboardWrapper from '../../components/common/KeyboardWrapper';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
@@ -27,7 +26,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import useKeyboard from '../../hooks/useKeyboard';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import { getConnectionStatus } from '../../services/connectionStatus';
 
@@ -44,7 +42,6 @@ const ANIMATION_DATA = [
 
 export default function LoginScreen() {
   const navigation = useNavigation();
-  const { isKeyboardVisible, keyboardHeight } = useKeyboard();
   const connection = useConnectionStatus();
   const [isActivationWarningVisible, setIsActivationWarningVisible] = useState(false);
 
@@ -131,14 +128,10 @@ export default function LoginScreen() {
 
   const buttonWidth = screenWidth - (SPACING.lg * 2);
 
-  // Calculate bottom sheet position
-  // When keyboard is visible, move the bottom sheet up by keyboard height
-  const bottomSheetBottom = isKeyboardVisible ? keyboardHeight : 0;
-
   return (
     <>
       <StatusBar style="light" />
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <KeyboardWrapper>
         <View style={styles.container}>
           <LinearGradient
             colors={[COLORS.secondaryLight, COLORS.background]}
@@ -156,83 +149,83 @@ export default function LoginScreen() {
             dotSize={32}
           />
 
-          {/* Bottom Sheet with dynamic position */}
-          <GlassPanel
-            intensity={40}
-            tint="light"
-            noiseOpacity={0.08}
-            style={[
-              styles.bottomSheet,
-              { bottom: bottomSheetBottom }
-            ]}
-          >
-            <View style={styles.usernameWrapper}>
-              <Input
-                icon="user"
-                placeholder="Username"
-                value={username}
-                onChangeText={setUsername}
-                error={usernameError}
-                autoCapitalize="none"
-                returnKeyType="next"
-                onSubmitEditing={handleUsernameSubmit}
-              />
-            </View>
+          <View style={styles.bottomSheetWrapper}>
+            <GlassPanel
+              intensity={40}
+              tint="light"
+              noiseOpacity={0.08}
+              style={styles.bottomSheet}
+            >
+              <View style={styles.sheetContent}>
+                <View style={styles.usernameWrapper}>
+                  <Input
+                    icon="user"
+                    placeholder="Username"
+                    value={username}
+                    onChangeText={setUsername}
+                    error={usernameError}
+                    autoCapitalize="none"
+                    returnKeyType="next"
+                    onSubmitEditing={handleUsernameSubmit}
+                  />
+                </View>
 
-            <Input
-              inputRef={passwordInputRef}
-              icon="lock"
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              error={passwordError}
-              secureTextEntry={true}
-              returnKeyType="done"
-              onSubmitEditing={handlePasswordSubmit}
-            />
+                <Input
+                  inputRef={passwordInputRef}
+                  icon="lock"
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  error={passwordError}
+                  secureTextEntry={true}
+                  returnKeyType="done"
+                  onSubmitEditing={handlePasswordSubmit}
+                />
 
-            <Button
-              title={isLoading ? "Logging in..." : "Login"}
-              onPress={handleLogin}
-              variant="black"
-              width={buttonWidth}
-              height={50}
-              fontSize={16}
-              borderRadius={12}
-              hasShadow={true}
-              style={styles.loginButton}
-              disabled={isLoading || !username.trim() || !password}
-            />
+                <Button
+                  title={isLoading ? "Logging in..." : "Login"}
+                  onPress={handleLogin}
+                  variant="black"
+                  width={buttonWidth}
+                  height={50}
+                  fontSize={16}
+                  borderRadius={12}
+                  hasShadow={true}
+                  style={styles.loginButton}
+                  disabled={isLoading || !username.trim() || !password}
+                />
 
-            <View style={styles.rowContainer}>
-              <TouchableOpacity
-                style={styles.forgotPasswordContainer}
-                onPress={handleForgotPassword}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-              </TouchableOpacity>
+                <View style={styles.rowContainer}>
+                  <TouchableOpacity
+                    style={styles.forgotPasswordContainer}
+                    onPress={handleForgotPassword}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                  </TouchableOpacity>
 
-              <View style={styles.onlineContainer}>
-                <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
-                <Text style={styles.onlineText}>{connection.online ? 'Online' : 'Offline'}</Text>
+                  <View style={styles.onlineContainer}>
+                    <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
+                    <Text style={styles.onlineText}>{connection.online ? 'Online' : 'Offline'}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.footerSection}>
+                  <View style={styles.footerDivider} />
+                  <TouchableOpacity
+                    style={styles.managerActivationButton}
+                    onPress={handleManagerActivationPress}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="key" size={14} color={COLORS.primary} />
+                    <Text style={styles.managerActivationText}>Manager Activation</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-
-            <View style={styles.footerSection}>
-              <View style={styles.footerDivider} />
-              <TouchableOpacity
-                style={styles.managerActivationButton}
-                onPress={handleManagerActivationPress}
-                activeOpacity={0.7}
-              >
-                <Icon name="key" size={14} color={COLORS.primary} />
-                <Text style={styles.managerActivationText}>Manager Activation</Text>
-              </TouchableOpacity>
-            </View>
-          </GlassPanel>
+            </GlassPanel>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </KeyboardWrapper>
 
       <Modal visible={isActivationWarningVisible} onClose={handleCancelManagerActivation} height={460}>
         <ModalHero
@@ -278,20 +271,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  bottomSheet: {
+  bottomSheetWrapper: {
     position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
+  },
+  bottomSheet: {
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 0,
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.lg,
     shadowColor: '#000000',
-    shadowOffset: {
-      width: 0,
-      height: -5,
-    },
+    shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
@@ -301,8 +292,13 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  sheetContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.lg,
+    paddingTop: SPACING.lg,
+  },
   usernameWrapper: {
-    marginTop: SPACING.lg,
+    marginTop: 0,
   },
   loginButton: {
     marginTop: 8,
