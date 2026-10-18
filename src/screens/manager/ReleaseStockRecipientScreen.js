@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
@@ -17,7 +18,6 @@ import agentService from '../../services/agentService';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
 import { getInitials } from '../../utils/initials';
-import { formatClockTime } from '../../utils/formatters';
 import { ROLES } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -34,6 +34,7 @@ export default function ReleaseStockRecipientScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const connection = useConnectionStatus();
+  const onlineLabel = useOnlineLabel();
   // Set when this screen was reached via "Prepare" on a Sales Rep's stock
   // request (AgentStockRequestScreen) — pre-fills the requester as recipient
   // and skips the manual scan/quick-register choice entirely, since the
@@ -186,7 +187,7 @@ export default function ReleaseStockRecipientScreen() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>

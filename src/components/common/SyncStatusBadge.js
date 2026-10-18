@@ -3,20 +3,22 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
-import { formatClockTime } from '../../utils/formatters';
+import { formatAsOf } from '../../utils/formatters';
+import useSavedDataTime from '../../utils/savedDataTime';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 /**
- * SyncStatusBadge - green dot "Online", or red dot with the last time the app
- * reached the server. With no `status` prop it follows the live connection
+ * SyncStatusBadge - green dot "Online", or red dot with how old the data on screen
+ * is (else the last time the app reached the server). With no `status` prop it follows the live connection
  * state; pass `status` to force a fixed state (e.g. in a preview).
  */
 export default function SyncStatusBadge({ status }) {
   const live = useConnectionStatus();
   const online = status ? status === 'online' : live.online;
+  const savedAt = useSavedDataTime();
 
-  const label = online ? 'Online' : `Offline · last online ${formatClockTime(live.lastOnlineAt)}`;
+  const label = online ? 'Online' : `Offline · as of ${formatAsOf(savedAt ?? live.lastOnlineAt)}`;
   const color = online ? COLORS.success : COLORS.error;
 
   return (

@@ -27,6 +27,7 @@ import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../c
 import SuccessFrame from '../../components/common/SuccessFrame';
 import Stepper from '../../components/common/Stepper';
 import useActivation from '../../hooks/useActivation';
+import friendlyError from '../../utils/friendlyError';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -477,7 +478,7 @@ export default function ManagerActivationScreen() {
     const result = await completeSetup(managerUsername.trim(), managerPassword, toPhE164(managerPhoneDigits));
 
     if (!result.success) {
-      Alert.alert('Setup Failed', result.message || 'Please try again.');
+      Alert.alert('Setup Failed', friendlyError(result.message) || 'Please try again.');
       return;
     }
 

@@ -22,6 +22,8 @@ import { getRequiredPosition } from '../../utils/quickLocation';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
+import requireOnline from '../../utils/requireOnline';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -87,6 +89,7 @@ export default function CollectorTripReviewScreen() {
 
   const handleStartTrip = async () => {
     if (!agent || isStarting) return;
+    if (!requireOnline('Starting a trip')) return;
     setIsStarting(true);
 
     try {
@@ -124,7 +127,7 @@ export default function CollectorTripReviewScreen() {
 
       navigation.replace('CollectorDeliverStock', { tripId: result.data.tripId });
     } catch (error) {
-      Alert.alert('Failed to Start Trip', error.message || 'Please try again.');
+      Alert.alert('Failed to Start Trip', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsStarting(false);
     }
@@ -132,6 +135,7 @@ export default function CollectorTripReviewScreen() {
 
   const handleCancelTrip = async () => {
     if (!agent || !tripId || isCancelling) return;
+    if (!requireOnline('Cancelling a trip')) return;
     setIsCancelling(true);
 
     try {
@@ -143,7 +147,7 @@ export default function CollectorTripReviewScreen() {
       navigation.navigate('CollectorAcceptDeliveries');
     } catch (error) {
       setIsCancelDialogVisible(false);
-      Alert.alert('Failed to Cancel Trip', error.message || 'Please try again.');
+      Alert.alert('Failed to Cancel Trip', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsCancelling(false);
     }

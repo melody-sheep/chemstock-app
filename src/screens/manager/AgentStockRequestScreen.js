@@ -13,6 +13,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import friendlyError from '../../utils/friendlyError';
 
 // The DB only ever tracks 3 statuses (pending/accepted/declined) —
 // fulfilled_transaction_id is what actually answers "did the release
@@ -66,7 +67,7 @@ export default function AgentStockRequestScreen() {
     setBusyRequestId(null);
 
     if (!result.success) {
-      Alert.alert('Failed to Accept Request', result.message || 'Please try again.');
+      Alert.alert('Failed to Accept Request', friendlyError(result.message) || 'Please try again.');
       return;
     }
 
@@ -89,7 +90,7 @@ export default function AgentStockRequestScreen() {
     setDeclineTarget(null);
 
     if (!result.success) {
-      Alert.alert('Failed to Decline Request', result.message || 'Please try again.');
+      Alert.alert('Failed to Decline Request', friendlyError(result.message) || 'Please try again.');
       return;
     }
     loadRequests();

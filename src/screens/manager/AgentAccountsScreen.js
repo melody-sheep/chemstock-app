@@ -17,6 +17,7 @@ import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 const ROLE_OPTIONS = [
   { value: 'sales_rep', label: 'Sales Rep' },
@@ -104,7 +105,7 @@ export default function AgentAccountsScreen() {
 
     if (!result.success) {
       setIsSubmitting(false);
-      Alert.alert('Failed', result.message);
+      Alert.alert('Failed', friendlyError(result.message));
       return;
     }
 

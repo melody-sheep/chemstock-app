@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { markOnline, markOffline, getConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
+import friendlyError from '../utils/friendlyError';
 
 // ============================================
 // Supabase credentials
@@ -245,7 +246,7 @@ export const getFriendlyErrorMessage = (error) => {
     return 'Invalid input format. Please check your data.';
   }
   
-  return error?.message || 'An unexpected error occurred.';
+  return friendlyError(error?.message) || 'An unexpected error occurred.';
 };
 
 // ============================================

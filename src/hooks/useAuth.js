@@ -7,6 +7,7 @@ import {
 } from '../utils/validationStrategies';
 import authService from '../services/authService';
 import { isRLSError } from '../services/supabaseClient';
+import friendlyError from '../utils/friendlyError';
 
 /**
  * Auth ViewModel class for OOP state management
@@ -111,7 +112,7 @@ class AuthViewModel {
       }
 
       console.warn('[WARN] [useAuth] Login failed:', result.message);
-      this.passwordError = result.message || 'Invalid username or password';
+      this.passwordError = friendlyError(result.message) || 'Invalid username or password';
       this.notifyStateChange();
       return false;
 
@@ -119,7 +120,7 @@ class AuthViewModel {
       if (isRLSError(error)) {
         this.passwordError = 'Permission denied. Please contact support.';
       } else {
-        this.passwordError = error.message || 'Login failed. Please check your connection.';
+        this.passwordError = friendlyError(error.message) || 'Login failed. Please check your connection.';
       }
 
       logError('AuthViewModel', error);

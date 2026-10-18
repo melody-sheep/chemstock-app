@@ -27,6 +27,7 @@ import agentService from '../../services/agentService';
 import requestService from '../../services/requestService';
 import { formatDisplayDate, formatRelativeTime } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
+import friendlyError from '../../utils/friendlyError';
 
 const ALL_BRANCHES_ID = 'all';
 
@@ -152,7 +153,7 @@ export default function ManageReturnsScreen() {
     const result = await reportService.acceptDailyReport(selectedReport.reportId);
     setIsAccepting(false);
     if (!result.success) {
-      Alert.alert('Failed', result.message || 'Could not accept this report.');
+      Alert.alert('Failed', friendlyError(result.message) || 'Could not accept this report.');
       return;
     }
     setSelectedReport(null);

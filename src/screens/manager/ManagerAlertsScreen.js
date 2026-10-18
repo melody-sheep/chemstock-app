@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useOnlineLabel from '../../hooks/useOnlineLabel';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
@@ -23,7 +24,7 @@ import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import agentService from '../../services/agentService';
 import requestService from '../../services/requestService';
-import { formatDisplayDate, formatClockTime } from '../../utils/formatters';
+import { formatDisplayDate } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
 
 const ALL_BRANCHES_ID = 'all';
@@ -60,7 +61,8 @@ const loadAlertsData = async (previous) => {
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-alerts', loadAlertsData);
+  const onlineLabel = useOnlineLabel();
+  const { data: snapshot, isLoading, isUnavailable } = useCachedFocusLoader('manager-alerts', loadAlertsData);
   const alerts = snapshot?.alerts ?? [];
   const photoUrlByAgentId = snapshot?.photoUrlByAgentId ?? {};
   const branches = snapshot?.branches ?? [];
@@ -128,7 +130,7 @@ export default function ManagerAlertsScreen() {
             <View style={styles.onlinePill}>
               <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
               <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {connection.online ? 'Online' : `Offline · ${formatClockTime(connection.lastOnlineAt)}`}
+                {onlineLabel}
               </Text>
             </View>
           </View>
@@ -173,7 +175,7 @@ export default function ManagerAlertsScreen() {
             </View>
 
             {sortedAlerts.length === 0 ? (
-              <Text style={styles.emptyText}>No discrepancy alerts right now.</Text>
+              <Text style={styles.emptyText}>{isUnavailable ? 'Not saved on this phone yet — connect to the internet to load it.' : 'No discrepancy alerts right now.'}</Text>
             ) : (
               <View style={styles.alertsList}>
                 {sortedAlerts.map((alert) => {

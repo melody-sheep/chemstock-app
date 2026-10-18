@@ -19,6 +19,7 @@ import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 export default function RequestListSR() {
   const navigation = useNavigation();
@@ -42,7 +43,7 @@ export default function RequestListSR() {
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
-  const { pendingCount, failed: failedItems, retryNow, discard } = useOutbox('stock_request');
+  const { pendingCount, failed: failedItems, retryNow, discard } = useOutbox('stock_request', agent?.id ?? null);
   // Chosen on Request Stock, so this list only ever sends to that branch.
   const selectedBranchId = route.params?.branchId || null;
   const branchName = route.params?.branchName || '';
@@ -157,7 +158,7 @@ export default function RequestListSR() {
 
       setIsSent(true);
     } catch (error) {
-      Alert.alert('Failed to Send Request', error.message || 'Please try again.');
+      Alert.alert('Failed to Send Request', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }

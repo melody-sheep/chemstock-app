@@ -26,6 +26,7 @@ import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import friendlyError from '../../utils/friendlyError';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -166,7 +167,7 @@ export default function ManageAccountsScreen() {
     setIsResettingPassword(false);
 
     if (!result.success) {
-      Alert.alert('Failed to Reset Password', result.message);
+      Alert.alert('Failed to Reset Password', friendlyError(result.message));
       return;
     }
 
@@ -186,7 +187,7 @@ export default function ManageAccountsScreen() {
     setAccountToRemove(null);
 
     if (!result.success) {
-      Alert.alert('Failed to Remove', result.message);
+      Alert.alert('Failed to Remove', friendlyError(result.message));
       return;
     }
 

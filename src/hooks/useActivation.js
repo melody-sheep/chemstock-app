@@ -6,6 +6,7 @@ import activationService from '../services/activationService';
 import authService from '../services/authService';
 import profileService from '../services/profileService';
 import { isRLSError, getFriendlyErrorMessage } from '../services/supabaseClient';
+import friendlyError from '../utils/friendlyError';
 
 /**
  * Activation ViewModel class for OOP state management
@@ -132,7 +133,7 @@ class ActivationViewModel {
 
       } else {
         // Set appropriate error message based on error code
-        let errorMessage = validationResult.message || 'Invalid activation code';
+        let errorMessage = friendlyError(validationResult.message) || 'Invalid activation code';
         let errorType = validationResult.errorCode || 'unknown';
 
         // Check for specific error types
@@ -170,7 +171,7 @@ class ActivationViewModel {
         this.error = 'Permission denied. Please check your activation code or contact support.';
         this.errorType = 'rls';
       } else {
-        this.error = error.message || 'Network error. Please check your connection.';
+        this.error = friendlyError(error.message) || 'Network error. Please check your connection.';
         this.errorType = 'network';
       }
 
@@ -248,7 +249,7 @@ class ActivationViewModel {
 
     } catch (error) {
       console.error('[ERROR] [useActivation] completeSetup error:', error);
-      this.error = error.message || 'Setup failed. Please try again.';
+      this.error = friendlyError(error.message) || 'Setup failed. Please try again.';
       return { success: false, message: this.error };
 
     } finally {

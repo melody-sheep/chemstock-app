@@ -24,6 +24,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatCoordinates, formatDateTime } from '../../utils/formatters';
+import friendlyError from '../../utils/friendlyError';
 
 const { width: screenWidth } = Dimensions.get('window');
 const HALF_BUTTON_WIDTH = (screenWidth - SPACING.lg * 2 - SPACING.sm) / 2;
@@ -177,7 +178,7 @@ export default function ReceiveStockPreviewScreen() {
       setQrCode(result.data.qrCode);
       setRegisteredAt(new Date());
     } catch (error) {
-      Alert.alert('Failed to Register Stock', error.message || 'Please try again.');
+      Alert.alert('Failed to Register Stock', friendlyError(error.message) || 'Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -192,7 +193,7 @@ export default function ReceiveStockPreviewScreen() {
       await qrRef.current?.shareAsImage();
     } catch (error) {
       console.error('[ERROR] [ReceiveStockPreview] Share failed:', error);
-      Alert.alert('Share Failed', error.message || 'Could not share the QR code.');
+      Alert.alert('Share Failed', friendlyError(error.message) || 'Could not share the QR code.');
     }
   };
 
