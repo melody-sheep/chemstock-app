@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
@@ -83,7 +84,7 @@ export default function ResolveDiscrepancyScreen() {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingSubmittedPhoto, setIsViewingSubmittedPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { pending, pendingCount, retryNow } = useOutbox('discrepancy_resolution');
+  const { pending, pendingCount, failed: failedItems, retryNow, discard } = useOutbox('discrepancy_resolution');
 
   const [requestDetail, setRequestDetail] = useState(null);
   const [requestPhotoUrl, setRequestPhotoUrl] = useState(null);
@@ -300,6 +301,8 @@ export default function ResolveDiscrepancyScreen() {
               </Pressable>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           {isLocked && (
             <View style={[styles.statusWrap, isSettled && styles.statusWrapSettled]}>

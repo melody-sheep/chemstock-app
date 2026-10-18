@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import Button from '../../components/common/Button';
 import UserAvatar from '../../components/common/UserAvatar';
 import QRScannerModal from '../../components/common/QRScannerModal';
@@ -52,7 +53,7 @@ export default function ReceiveStockSR() {
   const [isAccepted, setIsAccepted] = useState(false);
   const [isQueuedAccept, setIsQueuedAccept] = useState(false);
   const connection = useConnectionStatus();
-  const { pendingCount, retryNow } = useOutbox('receive_stock');
+  const { pendingCount, failed: failedItems, retryNow, discard } = useOutbox('receive_stock');
 
   useEffect(() => {
     authService.getCurrentUser().then(setAgent);
@@ -248,6 +249,8 @@ export default function ReceiveStockSR() {
               </Pressable>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           {!batch && (
             <>

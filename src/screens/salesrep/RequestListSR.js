@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import Button from '../../components/common/Button';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
@@ -41,7 +42,7 @@ export default function RequestListSR() {
   const [capturedAt] = useState(() => new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
-  const { pendingCount, retryNow } = useOutbox('stock_request');
+  const { pendingCount, failed: failedItems, retryNow, discard } = useOutbox('stock_request');
   // Chosen on Request Stock, so this list only ever sends to that branch.
   const selectedBranchId = route.params?.branchId || null;
   const branchName = route.params?.branchName || '';
@@ -209,6 +210,8 @@ export default function RequestListSR() {
               </TouchableOpacity>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           <Text style={styles.sectionTitle}>Sending to {branchName || 'branch'}</Text>
 

@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -76,7 +77,7 @@ export default function SubmitReportSR() {
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
-  const { pending: pendingReports, pendingCount, retryNow } = useOutbox('daily_report');
+  const { pending: pendingReports, pendingCount, failed: failedItems, retryNow, discard } = useOutbox('daily_report');
   // A report saved offline counts as today's report too: without this the form
   // came back right after saving, and a second report for the same day would
   // be rejected by the server (one report per agent per day).
@@ -329,6 +330,8 @@ export default function SubmitReportSR() {
                   </Pressable>
                 </View>
               )}
+
+              <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
               {alreadySubmitted && (
                 <View style={styles.submittedBanner}>

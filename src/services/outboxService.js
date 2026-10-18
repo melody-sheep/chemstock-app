@@ -50,12 +50,14 @@ async function ensureLoaded() {
 }
 
 function syncIntervalState() {
-  if (entries.length > 0 && !intervalHandle) {
+  // Only items still trying need the timer; failed ones wait for the user.
+  const hasActive = entries.some((e) => !e.failed);
+  if (hasActive && !intervalHandle) {
     // Safety net for reconnecting while idle on a screen that doesn't
     // naturally trigger a request of its own — the connectionStatus
     // subscription below handles the common case.
     intervalHandle = setInterval(() => flush(), FLUSH_INTERVAL_MS);
-  } else if (entries.length === 0 && intervalHandle) {
+  } else if (!hasActive && intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
   }
@@ -261,12 +263,29 @@ async function removeEntry(id) {
   await persist();
 }
 
+/** Removes an item the user chose to discard, with its saved photo. */
+export async function discard(id) {
+  await ensureLoaded();
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  if (entry.localPhotoUri) {
+    FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
+  }
+  await removeEntry(id);
+  debugLog('info', 'Queue', `discarded ${entry.type}`, { id, rejections: entry.rejections || 0, reason: entry.lastError });
+}
+
 // An entry the server rejected (while online) waits this long before its next
 // try, growing with each rejection, instead of retrying every 45 s forever.
 // Retry on screen (retryNow) skips the wait.
 const REJECTED_RETRY_DELAYS_MS = [30 * 1000, 60 * 1000, 2 * 60 * 1000, 5 * 60 * 1000];
 const rejectedRetryDelay = (rejections) =>
   REJECTED_RETRY_DELAYS_MS[Math.min(rejections, REJECTED_RETRY_DELAYS_MS.length) - 1];
+
+// After this many server rejections the item stops retrying and is shown as
+// "couldn't be sent" with its reason, so the user can discard it. Offline
+// failures never count — they aren't rejections.
+const GIVE_UP_AFTER_REJECTIONS = 5;
 
 /**
  * Replays queued entries in order, one at a time. Safe to call whenever — a
@@ -292,6 +311,8 @@ export async function flush({ force = false } = {}) {
     const heldTypes = new Set();
     for (const queued of queue) {
       if (!getConnectionStatus().online) break; // went offline again mid-flush
+      // A failed item waits for the user (Retry or Discard) and holds nothing back.
+      if (queued.failed && !force) continue;
       if (heldTypes.has(queued.type)) continue;
 
       const executor = EXECUTORS[queued.type];
@@ -326,6 +347,16 @@ export async function flush({ force = false } = {}) {
         }
 
         entry.rejections = (queued.rejections || 0) + 1;
+        if (entry.rejections >= GIVE_UP_AFTER_REJECTIONS) {
+          entry.failed = true;
+          entry.nextAttemptAt = null;
+          debugLog('warn', 'Queue', `${entry.type} gave up after ${entry.rejections} rejections: ${entry.lastError}`, {
+            id: entry.id,
+          });
+          entries = entries.map((e) => (e.id === entry.id ? entry : e));
+          await persist();
+          continue;
+        }
         const delayMs = rejectedRetryDelay(entry.rejections);
         entry.nextAttemptAt = Date.now() + delayMs;
         debugLog('warn', 'Queue', `${entry.type} rejected: ${entry.lastError}`, {
@@ -368,6 +399,7 @@ export function subscribeOutbox(listener) {
 
 export default {
   enqueue,
+  discard,
   flush,
   getEntries,
   getPendingCount,

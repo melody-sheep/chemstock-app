@@ -10,6 +10,7 @@ import useOutbox from '../../hooks/useOutbox';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
+import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import StatCard from '../../components/common/StatCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
@@ -57,7 +58,7 @@ const MAIN_OPERATIONS = [
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
-  const { pendingCount: outboxCount, retryNow } = useOutbox();
+  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox();
   const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
   const [user, setUser] = useState(null);
   const [pendingCount, setPendingCount] = useState(null);
@@ -298,6 +299,8 @@ export default function CollectorDashboardScreen() {
               </Pressable>
             </View>
           )}
+
+          <OutboxFailedNotice failed={failedItems} agentId={user?.id} onRetry={retryNow} onDiscard={discard} />
 
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
