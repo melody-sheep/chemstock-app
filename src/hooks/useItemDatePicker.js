@@ -1,6 +1,14 @@
 // src/hooks/useItemDatePicker.js
 import { useState } from 'react';
 
+// The day the user picked, as YYYY-MM-DD. toISOString() would give the UTC
+// day, which is a day early for picks made between 12:00 and 7:59 AM (UTC+8).
+function toLocalISODate(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 /**
  * Drives a single native date-picker instance shared across a list of items
  * (e.g. batch rows each with their own Mfg/Exp date). Centralizes the
@@ -26,7 +34,7 @@ export function useItemDatePicker(items, onDateChange) {
     const current = target;
     setTarget(null);
     if (event.type === 'set' && selectedDate && current) {
-      onDateChange(current.code, current.field, selectedDate.toISOString().slice(0, 10));
+      onDateChange(current.code, current.field, toLocalISODate(selectedDate));
     }
   };
 
