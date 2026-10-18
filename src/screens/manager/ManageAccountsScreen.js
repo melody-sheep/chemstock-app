@@ -1,9 +1,9 @@
 // src/screens/manager/ManageAccountsScreen.js
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { BlurTargetView } from 'expo-blur';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
@@ -19,6 +19,8 @@ import Input from '../../components/common/Input';
 import agentService from '../../services/agentService';
 import authService from '../../services/authService';
 import { supabase } from '../../services/supabaseClient';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import requireOnline from '../../utils/requireOnline';
 import { getInitials } from '../../utils/initials';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import { COLORS } from '../../constants/colors';
@@ -81,15 +83,28 @@ function AgentCard({ account, onMorePress }) {
   );
 }
 
+const loadAccountsData = async (previous) => {
+  const manager = await authService.getCurrentUser();
+  const prev = previous?.manager?.id === manager?.id ? previous : null;
+  const branchIds = manager?.branchIds || [];
+  const [result, branchesResult] = await Promise.all([
+    agentService.getMyAgentAccounts(),
+    branchIds.length > 0
+      ? supabase.from('branches').select('id, name').in('id', branchIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  return {
+    manager,
+    accounts: result.success ? result.data : prev?.accounts ?? [],
+    branches: !branchesResult.error ? branchesResult.data || [] : prev?.branches ?? [],
+  };
+};
+
 export default function ManageAccountsScreen() {
   const navigation = useNavigation();
   const bottomBarHeight = useBottomActionBarHeight();
   const blurTarget = useRef(null);
-  const [manager, setManager] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [branchFilter, setBranchFilter] = useState('all');
-  const [isLoading, setIsLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
   const [isBranchSheetVisible, setIsBranchSheetVisible] = useState(false);
@@ -100,31 +115,15 @@ export default function ManageAccountsScreen() {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  const loadAccounts = useCallback(async () => {
-    setIsLoading(true);
-    const [currentManager, result] = await Promise.all([
-      authService.getCurrentUser(),
-      agentService.getMyAgentAccounts(),
-    ]);
-    setManager(currentManager);
-    setAccounts(result.success ? result.data : []);
-
-    const branchIds = currentManager?.branchIds || [];
-    if (branchIds.length > 0) {
-      const { data } = await supabase.from('branches').select('id, name').in('id', branchIds);
-      setBranches(data || []);
-    }
-
-    setIsLoading(false);
-  }, []);
-
-  // Refetch every time this screen regains focus, so an account created via
-  // "Add Account" shows up immediately on the way back without a manual refresh.
-  useFocusEffect(
-    useCallback(() => {
-      loadAccounts();
-    }, [loadAccounts])
-  );
+  // Refetched every time this screen regains focus (freshMs 0), so an account
+  // created via "Add Account" shows up on the way back. Saved per account, so
+  // offline the last list stays on screen instead of "All Agents (0)".
+  const { data: snapshot, isLoading, refresh } = useCachedFocusLoader('manager-accounts', loadAccountsData, {
+    freshMs: 0,
+  });
+  const manager = snapshot?.manager ?? null;
+  const accounts = snapshot?.accounts ?? [];
+  const branches = snapshot?.branches ?? [];
 
   const handleWorkspacePress = () => {
     if (branches.length <= 1) return;
@@ -161,6 +160,7 @@ export default function ManageAccountsScreen() {
       return;
     }
 
+    if (!requireOnline('Resetting a password')) return;
     setIsResettingPassword(true);
     const result = await agentService.resetAgentPassword(accountToResetPassword.id, newPassword);
     setIsResettingPassword(false);
@@ -177,6 +177,7 @@ export default function ManageAccountsScreen() {
 
   const handleConfirmRemove = async () => {
     if (!accountToRemove || isRemoving) return;
+    if (!requireOnline('Removing an account')) return;
     setIsRemoving(true);
 
     const result = await agentService.deleteAgentAccount(accountToRemove.id);
@@ -189,7 +190,7 @@ export default function ManageAccountsScreen() {
       return;
     }
 
-    setAccounts((prev) => prev.filter((a) => a.id !== accountToRemove.id));
+    refresh({ force: true });
   };
 
   const filteredAccounts = accounts

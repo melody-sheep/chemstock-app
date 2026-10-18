@@ -11,6 +11,7 @@ import BranchSelector from '../../components/common/BranchSelector';
 import SectionHeader from '../../components/common/SectionHeader';
 import authService from '../../services/authService';
 import agentService from '../../services/agentService';
+import requireOnline from '../../utils/requireOnline';
 import profileService from '../../services/profileService';
 import requestService from '../../services/requestService';
 import { COLORS } from '../../constants/colors';
@@ -91,6 +92,7 @@ export default function AgentAccountsScreen() {
       return;
     }
 
+    if (!requireOnline('Creating an account')) return;
     setIsSubmitting(true);
     const result = await agentService.createAgentAccount({
       username: username.trim(),
