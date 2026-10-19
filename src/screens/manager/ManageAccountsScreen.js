@@ -1,6 +1,6 @@
 // src/screens/manager/ManageAccountsScreen.js
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Linking, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { BlurTargetView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
@@ -16,7 +16,9 @@ import CustomModal from '../../components/common/Modal';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import SectionHeader from '../../components/common/SectionHeader';
 import Input from '../../components/common/Input';
+import { formatPhDisplay } from '../../components/common/PhilippinePhoneInput';
 import agentService from '../../services/agentService';
+import profileService from '../../services/profileService';
 import authService from '../../services/authService';
 import { supabase } from '../../services/supabaseClient';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -41,12 +43,18 @@ const ROLE_DOT_COLOR = {
   [ROLES.COLLECTOR]: COLORS.accentPink,
 };
 
-function AgentCard({ account, onMorePress }) {
+function AgentCard({ account, onCardPress, onMorePress }) {
   const roleColor = ROLE_DOT_COLOR[account.role] || COLORS.textTertiary;
   const roleLabel = ROLE_LABELS[account.role] || account.role;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onCardPress(account)}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${account.full_name}'s details`}
+    >
       <UserAvatar
         photoUrl={account.profilePhotoUrl}
         fallbackText={getInitials(account.full_name)}
@@ -80,7 +88,7 @@ function AgentCard({ account, onMorePress }) {
       >
         <Icon name="moreVertical" size={20} color={COLORS.textSecondary} />
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -109,6 +117,9 @@ export default function ManageAccountsScreen() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
   const [isBranchSheetVisible, setIsBranchSheetVisible] = useState(false);
+  const [viewedAccount, setViewedAccount] = useState(null);
+  const [viewedPhoneNumber, setViewedPhoneNumber] = useState(null);
+  const [isLoadingPhone, setIsLoadingPhone] = useState(false);
   const [accountToRemove, setAccountToRemove] = useState(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [accountToResetPassword, setAccountToResetPassword] = useState(null);
@@ -129,6 +140,43 @@ export default function ManageAccountsScreen() {
   const handleWorkspacePress = () => {
     if (branches.length <= 1) return;
     setIsBranchSheetVisible(true);
+  };
+
+  // Phone number isn't in the account list RPC — fetched on demand via the
+  // same get_agent_profile RPC Track Deliveries already uses for this, so
+  // viewing it here needs no extra database change. Cached per agent for
+  // as long as this screen stays mounted (a ref so it doesn't trigger
+  // re-renders itself), so reopening the same card never re-fetches or
+  // re-shows the spinner.
+  const phoneNumberCache = useRef(new Map());
+
+  const handleCardPress = async (account) => {
+    setViewedAccount(account);
+
+    if (phoneNumberCache.current.has(account.id)) {
+      setViewedPhoneNumber(phoneNumberCache.current.get(account.id));
+      setIsLoadingPhone(false);
+      return;
+    }
+
+    setViewedPhoneNumber(null);
+    setIsLoadingPhone(true);
+    const result = await profileService.getAgentProfileById(account.id);
+    setIsLoadingPhone(false);
+    if (result.success) {
+      phoneNumberCache.current.set(account.id, result.data.phoneNumber);
+      setViewedPhoneNumber(result.data.phoneNumber);
+    }
+  };
+
+  const closeDetailsModal = () => {
+    setViewedAccount(null);
+    setViewedPhoneNumber(null);
+  };
+
+  const handleCallViewedAccount = () => {
+    if (!viewedPhoneNumber) return;
+    Linking.openURL(`tel:${viewedPhoneNumber}`);
   };
 
   const handleRemovePress = (account) => {
@@ -280,7 +328,12 @@ export default function ManageAccountsScreen() {
             ) : (
               <View style={styles.list}>
                 {filteredAccounts.map((account) => (
-                  <AgentCard key={account.id} account={account} onMorePress={handleMorePress} />
+                  <AgentCard
+                    key={account.id}
+                    account={account}
+                    onCardPress={handleCardPress}
+                    onMorePress={handleMorePress}
+                  />
                 ))}
               </View>
             )}
@@ -333,6 +386,104 @@ export default function ManageAccountsScreen() {
         confirmLabel={isRemoving ? 'Removing…' : 'Remove Account'}
         height={340}
       />
+
+      <CustomModal visible={!!viewedAccount} onClose={closeDetailsModal} height="auto">
+        {viewedAccount && (
+          <>
+            <View style={styles.detailsHeaderRow}>
+              <UserAvatar
+                photoUrl={viewedAccount.profilePhotoUrl}
+                fallbackText={getInitials(viewedAccount.full_name)}
+                size={56}
+                backgroundColor={COLORS.primaryLight}
+                fallbackTextColor={COLORS.primary}
+              />
+              <View style={styles.detailsHeaderTextCol}>
+                <Text style={styles.detailsName} numberOfLines={1}>{viewedAccount.full_name}</Text>
+                <View
+                  style={[
+                    styles.rolePill,
+                    { backgroundColor: (ROLE_DOT_COLOR[viewedAccount.role] || COLORS.textTertiary) + '18' },
+                  ]}
+                >
+                  <Text
+                    style={[styles.rolePillText, { color: ROLE_DOT_COLOR[viewedAccount.role] || COLORS.textTertiary }]}
+                  >
+                    {ROLE_LABELS[viewedAccount.role] || viewedAccount.role}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.detailsCard}>
+              <View style={styles.detailsRow}>
+                <View style={styles.detailsRowLeft}>
+                  <Icon name="user" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.detailsLabel}>Username</Text>
+                </View>
+                <Text style={styles.detailsValue} numberOfLines={1}>{viewedAccount.username}</Text>
+              </View>
+
+              <View style={styles.detailsDivider} />
+
+              {isLoadingPhone ? (
+                <View style={styles.detailsRow}>
+                  <View style={styles.detailsRowLeft}>
+                    <Icon name="phone" size={16} color={COLORS.textSecondary} />
+                    <Text style={styles.detailsLabel}>Phone Number</Text>
+                  </View>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                </View>
+              ) : viewedPhoneNumber ? (
+                <TouchableOpacity
+                  style={styles.detailsRow}
+                  onPress={handleCallViewedAccount}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${viewedAccount.full_name}`}
+                >
+                  <View style={styles.detailsRowLeft}>
+                    <Icon name="phone" size={16} color={COLORS.textSecondary} />
+                    <View>
+                      <Text style={styles.detailsLabel}>Phone Number</Text>
+                      <Text style={styles.phoneValue}>{formatPhDisplay(viewedPhoneNumber)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.callButton}>
+                    <Icon name="phone" size={14} color="#FFFFFF" weight="fill" />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.detailsRow}>
+                  <View style={styles.detailsRowLeft}>
+                    <Icon name="phone" size={16} color={COLORS.textSecondary} />
+                    <Text style={styles.detailsLabel}>Phone Number</Text>
+                  </View>
+                  <Text style={styles.detailsValue}>Not set</Text>
+                </View>
+              )}
+
+              <View style={styles.detailsDivider} />
+
+              <View style={styles.detailsRow}>
+                <View style={styles.detailsRowLeft}>
+                  <Icon name="location" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.detailsLabel}>Branch</Text>
+                </View>
+                <Text style={styles.detailsValue} numberOfLines={1}>
+                  {viewedAccount.branchName || 'No branch assigned'}
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              title="Close"
+              variant="outline"
+              onPress={closeDetailsModal}
+              style={styles.resetModalButton}
+            />
+          </>
+        )}
+      </CustomModal>
 
       <CustomModal visible={!!accountToResetPassword} onClose={closeResetPasswordModal} height={420}>
         <Text style={styles.resetModalTitle}>
@@ -513,6 +664,69 @@ const styles = StyleSheet.create({
   moreButton: {
     width: 32,
     height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  detailsHeaderTextCol: { flex: 1, gap: 4 },
+  detailsName: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  detailsCard: {
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    borderRadius: 12,
+    backgroundColor: COLORS.textWhite,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    paddingVertical: 12,
+  },
+  detailsRowLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  detailsLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+  },
+  detailsValue: {
+    flexShrink: 1,
+    textAlign: 'right',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#272632',
+  },
+  detailsDivider: {
+    height: 1,
+    backgroundColor: '#EEF2F7',
+  },
+  phoneValue: {
+    marginTop: 2,
+    textAlign: 'left',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  callButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
