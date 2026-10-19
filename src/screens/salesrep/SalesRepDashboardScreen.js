@@ -491,6 +491,7 @@ export default function SalesRepDashboardScreen() {
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
+          fabLabel="Scan"
         />
       </View>
 

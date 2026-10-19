@@ -190,6 +190,7 @@ export default function CollectorSettingsScreen() {
           onTabPress={handleTabPress}
           onFabPress={() => navigation.navigate('CollectorAcceptDeliveries')}
           fabIcon="truck"
+          fabLabel="Deliver"
           hiddenKeys={['stock', 'reports']}
         />
       </View>

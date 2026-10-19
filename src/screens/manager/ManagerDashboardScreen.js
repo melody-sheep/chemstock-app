@@ -475,6 +475,7 @@ export default function ManagerDashboardScreen() {
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
+          fabLabel="Scan"
         />
       </View>
 

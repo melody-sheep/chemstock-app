@@ -233,7 +233,7 @@ export default function SalesRepReportsScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
+        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
 
       <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height={520}>

@@ -108,7 +108,7 @@ export default function BottomNavBar({
   onTabPress = null,
   onFabPress = null,
   fabIcon = 'grid',
-  fabLabel = 'Menu',
+  fabLabel,
   hiddenKeys = [],
 }) {
   const insets = useSafeAreaInsets();
