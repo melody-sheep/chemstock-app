@@ -44,7 +44,7 @@ export default function SalesRepTrackDeliveriesScreen() {
   const route = useRoute();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const filterPending = route.params?.filterPending === true;
-  const { data: snapshot, isLoading } = useCachedFocusLoader(SR_DELIVERIES_CACHE_KEY, loadDeliveriesData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader(SR_DELIVERIES_CACHE_KEY, loadDeliveriesData);
   // A delivery confirmed offline on this phone shows as such until it syncs.
   const { pending: queuedEntries } = useOutbox();
   const allDeliveries = (snapshot?.deliveries ?? []).map((delivery) => {
@@ -107,7 +107,8 @@ export default function SalesRepTrackDeliveriesScreen() {
             )}
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {deliveries.map((delivery) => {
               const isDelivered = delivery.deliveryStatus === 'delivered';
               const canReceive = !delivery.isQueued && isReceivable(delivery);

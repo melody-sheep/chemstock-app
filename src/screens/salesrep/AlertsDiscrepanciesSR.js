@@ -32,7 +32,7 @@ export default function AlertsDiscrepanciesSR() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading, isUnavailable } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
+  const { data: snapshot, isLoading, isUnavailable, refreshControl } = useCachedFocusLoader('sales-rep-discrepancies', loadDiscrepanciesData);
   const discrepancies = snapshot?.discrepancies ?? [];
   const { pending: queuedResolutions } = useOutbox('discrepancy_resolution');
   const queuedReportItemIds = new Set(queuedResolutions.map((e) => e.payload?.reportItemId));
@@ -245,7 +245,8 @@ export default function AlertsDiscrepanciesSR() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Pending</Text>
               <View style={styles.pendingDot} />

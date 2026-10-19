@@ -1,5 +1,6 @@
 // src/hooks/useCachedFocusLoader.js
-import { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
@@ -229,5 +230,18 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     }, [savedAt])
   );
 
-  return { data, isLoading, refresh, savedAt, isUnavailable };
+  // Pull-to-refresh: a manual way to fetch now, next to the automatic
+  // refreshes. Offline it just ends (the saved copy stays on screen).
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullToRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await refresh({ force: true });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refresh]);
+  const refreshControl = <RefreshControl refreshing={isRefreshing} onRefresh={pullToRefresh} colors={['#03045E']} tintColor="#03045E" />;
+
+  return { data, isLoading, refresh, savedAt, isUnavailable, refreshControl };
 }

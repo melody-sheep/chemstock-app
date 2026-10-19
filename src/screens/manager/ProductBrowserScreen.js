@@ -86,7 +86,7 @@ export default function ProductBrowserScreen() {
   // getBranchStock already returns rows soonest-expiring-first, so the
   // first row seen per product code here is the batch worth surfacing.
   const stockByProduct = {};
-  stock.forEach((row) => {
+  stock.filter((row) => row.quantity > 0).forEach((row) => {
     if (!stockByProduct[row.product_code]) {
       stockByProduct[row.product_code] = { totalQty: 0, earliestRow: row };
     }

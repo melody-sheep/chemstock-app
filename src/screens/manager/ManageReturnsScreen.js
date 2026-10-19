@@ -84,7 +84,7 @@ export default function ManageReturnsScreen() {
   // Saved per account, so offline the last loaded lists stay on screen instead
   // of going blank. A request that fails keeps its previous value. Refetched on
   // every visit (freshMs 0), same as before.
-  const { data: snapshot, isLoading, refresh } = useCachedFocusLoader('manager-reports-returns', loadReturnsData, {
+  const { data: snapshot, isLoading, refresh, refreshControl } = useCachedFocusLoader('manager-reports-returns', loadReturnsData, {
     freshMs: 0,
   });
   const loadData = () => refresh({ force: true });
@@ -205,7 +205,8 @@ export default function ManageReturnsScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : activeTab === 'reports' ? (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {branchFilterOptions.length > 1 && (
               <View style={styles.branchFilterWrap}>
                 <BranchSelector
@@ -439,6 +440,12 @@ export default function ManageReturnsScreen() {
         onClose={() => setIsViewingReportPhoto(false)}
         onCapture={() => {}}
         initialUri={reportPhotoUrl}
+        readOnly
+        meta={selectedReport ? [
+          { icon: 'person', text: `Handover photo by ${selectedReport.agentName || 'Sales Rep'}` },
+          { icon: 'calendar', text: `Report for ${formatDisplayDate(selectedReport.reportDate)}` },
+          ...(selectedReport.branchName ? [{ icon: 'location', text: selectedReport.branchName }] : []),
+        ] : null}
       />
     </>
   );

@@ -4,7 +4,7 @@ import { View, Text, Image, ScrollView, StyleSheet, Alert, BackHandler } from 'r
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { getDeviceModel, getDeviceOs } from '../../utils/deviceInfo';
+import { getDeviceModel, getDeviceOs, getDeviceLabel } from '../../utils/deviceInfo';
 import QRSuccessView from '../../components/common/QRSuccessView';
 import ReleaseSummaryCard from '../../components/common/ReleaseSummaryCard';
 import PhotoProofCard from '../../components/common/PhotoProofCard';
@@ -125,7 +125,7 @@ export default function ReleaseStockConfirmScreen() {
     })();
   }, [isCollectorDelivery]);
 
-  const deviceLabel = [getDeviceModel(), getDeviceOs()].filter(Boolean).join(' - ');
+  const deviceLabel = getDeviceLabel(manager?.full_name || manager?.username);
 
   const displayItems = isQuickRegister
     ? registerItems.map((item) => ({ key: item.code, name: item.name, qty: item.registeredQty, image: item.image }))

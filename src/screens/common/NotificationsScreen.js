@@ -23,6 +23,18 @@ import { findSavedDelivery, isReceivable, confirmHandoffParams } from '../../uti
 import { findQueuedReceipt } from '../../utils/queuedReceipts';
 import { getConnectionStatus } from '../../services/connectionStatus';
 
+// Issue reports arrive as "wrong_items: note" (the reason code the server
+// stores); show the same words the Sales Rep picked.
+const ISSUE_REASON_LABELS = {
+  damaged_qr: 'QR label damaged',
+  missing_qr: 'QR label missing',
+  wrong_items: 'Wrong items received',
+  not_received: 'Did not receive stock',
+  other: 'Other issue',
+};
+const readableBody = (body) =>
+  String(body || '').replace(/(damaged_qr|missing_qr|wrong_items|not_received|other):s*/g, (m, code) => `${ISSUE_REASON_LABELS[code]} — `);
+
 const TYPE_META = {
   stock_request_submitted: { icon: 'notePencil', color: COLORS.accentGold },
   stock_request_resolved: { icon: 'sealCheck', color: COLORS.success },
@@ -34,6 +46,7 @@ const TYPE_META = {
   delivery_handoff_pending_sr: { icon: 'clockCountdown', color: '#B45309' },
   delivery_handoff_confirmed: { icon: 'sealCheck', color: COLORS.success },
   delivery_handoff_disputed: { icon: 'sealWarning', color: COLORS.error },
+  handoff_distance_warning: { icon: 'warning', color: COLORS.warning },
   stock_released_to_you: { icon: 'package', color: COLORS.accentPurple },
   stock_request_fulfilled: { icon: 'sealCheck', color: COLORS.success },
   stock_accepted: { icon: 'trayDown', color: COLORS.secondary },
@@ -57,7 +70,7 @@ const FILTER_OPTIONS = [
     label: 'Deliveries',
     icon: 'truck',
     description: 'Handoffs and status updates',
-    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed', 'delivery_completed', 'delivery_received', 'delivery_disputed_collector', 'collector_return_initiated', 'collector_return_received'],
+    types: ['delivery_assigned', 'delivery_status_update', 'delivery_handoff_pending_sr', 'delivery_handoff_confirmed', 'delivery_handoff_disputed', 'handoff_distance_warning', 'delivery_completed', 'delivery_received', 'delivery_disputed_collector', 'collector_return_initiated', 'collector_return_received'],
   },
   {
     key: 'stockRequests',
@@ -416,7 +429,7 @@ export default function NotificationsScreen() {
                       <Text style={styles.time}>{formatRelativeTime(notification.createdAt)}</Text>
                     </View>
                     <Text style={styles.body} numberOfLines={2}>
-                      {notification.body}
+                      {readableBody(notification.body)}
                     </Text>
                   </View>
                   {!notification.isRead && <View style={styles.unreadDot} />}

@@ -15,6 +15,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError, { isNetworkError } from '../../utils/friendlyError';
 import { savedReceivableDeliveries } from '../../utils/srDeliveries';
 import { getConnectionStatus } from '../../services/connectionStatus';
+import Header from '../../components/common/Header';
 
 export default function ReceiveStockTypeSR() {
   const navigation = useNavigation();
@@ -52,7 +53,6 @@ export default function ReceiveStockTypeSR() {
     }, [])
   );
 
-  const handleBack = () => navigation.goBack();
 
   const handleSelectType = async (handoffType) => {
     if (isChecking) return;
@@ -98,15 +98,15 @@ export default function ReceiveStockTypeSR() {
       <StatusBar style="light" />
       <View style={styles.screen}>
         {/* Header */}
-        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-          <Pressable onPress={handleBack} style={styles.iconButton} accessibilityLabel="Go back">
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Sales Rep Dashboard</Text>
-          <View style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" weight="fill" />
-          </View>
-        </View>
+        <Header
+          showBackButton
+          backButtonText="Sales Rep Dashboard"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          showDocumentIcon
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
+        />
 
         {/* Secondary summary bar */}
         <View style={styles.summaryBar}>

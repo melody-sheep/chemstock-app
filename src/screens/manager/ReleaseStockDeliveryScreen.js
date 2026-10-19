@@ -14,10 +14,12 @@ import BottomActionBar, { useBottomActionBarHeight } from '../../components/comm
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import MapLocationPickerModal from '../../components/common/MapLocationPickerModal';
 import PhotoProofCard from '../../components/common/PhotoProofCard';
-import { getDeviceModel } from '../../utils/deviceInfo';
+import { getDeviceLabel } from '../../utils/deviceInfo';
 import { formatCoordinates, formatDateTime } from '../../utils/formatters';
 import authService from '../../services/authService';
 import { getInitials } from '../../utils/initials';
+import { readSavedData } from '../../hooks/useCachedFocusLoader';
+import { TEAM_CACHE_KEY, loadTeamData, teamForMap } from '../../utils/teamLocations';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -42,6 +44,20 @@ export default function ReleaseStockDeliveryScreen() {
   const [originError, setOriginError] = useState(null);
   // The manager's profile, for the photo/initials on the map's origin marker.
   const [manager, setManager] = useState(null);
+  // The team on the destination map: saved copy first, then a fresh load.
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const saved = await readSavedData(TEAM_CACHE_KEY);
+      if (saved && active) setTeamMembers(await teamForMap(saved.members));
+      const fresh = await loadTeamData(saved);
+      if (active) setTeamMembers(await teamForMap(fresh.members));
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     authService.getCurrentUser().then(setManager);
@@ -211,7 +227,7 @@ export default function ReleaseStockDeliveryScreen() {
                 </View>
                 <View style={styles.metaRow}>
                   <Icon name="package" size={16} color={COLORS.textSecondary} />
-                  <Text style={styles.metaText}>{getDeviceModel()}</Text>
+                  <Text style={styles.metaText}>{getDeviceLabel(manager?.full_name || manager?.username)}</Text>
                 </View>
                 <View style={styles.metaRow}>
                   <Icon name="calendar" size={16} color={COLORS.textSecondary} />
@@ -249,6 +265,8 @@ export default function ReleaseStockDeliveryScreen() {
         originAvatarUrl={manager?.profilePhotoUrl || null}
         originInitials={getInitials(manager?.full_name || manager?.username)}
         initialCoords={destinationCoords}
+        teamMembers={teamMembers}
+        targetRecipientId={targetRecipient?.id || null}
       />
 
       <CameraCaptureModal

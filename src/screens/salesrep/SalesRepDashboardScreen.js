@@ -194,7 +194,7 @@ export default function SalesRepDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading, savedAt } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, savedAt, refreshControl } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
   useEffect(() => {
     if (savedAt && getConnectionStatus().online) primeOtherScreens();
   }, [savedAt]);
@@ -204,7 +204,10 @@ export default function SalesRepDashboardScreen() {
   const queuedReceiptUnits = queuedUnits(queuedEntries, user?.id);
   const totalUnits = snapshot?.totalUnits == null ? null : snapshot.totalUnits + queuedReceiptUnits;
   const recentLogs = snapshot?.recentLogs ?? [];
-  const pendingRequestCount = snapshot?.pendingRequestCount ?? null;
+  // Requests saved offline count right away; once synced they're in the
+  // server's count instead.
+  const queuedRequestCount = queuedEntries.filter((e) => e.type === 'stock_request' && e.payload?.agentId === user?.id).length;
+  const pendingRequestCount = snapshot?.pendingRequestCount == null ? null : snapshot.pendingRequestCount + queuedRequestCount;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
   const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
   const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
@@ -235,7 +238,7 @@ export default function SalesRepDashboardScreen() {
       const isLoss = log.discrepancyType === 'loss';
       return {
         key: `discrepancy-${log.reportItemId}`,
-        icon: 'alertTriangle',
+        icon: 'warning',
         iconColor: COLORS.error,
         text: `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
@@ -379,6 +382,7 @@ export default function SalesRepDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+          refreshControl={refreshControl}
             style={styles.content}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}

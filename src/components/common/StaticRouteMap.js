@@ -30,6 +30,8 @@ function buildHtml({
   lastCheckpointLabel,
   lastCheckpointAvatar,
   destinationAvatar,
+  originAvatar,
+  showRoute = true,
 }) {
   const extraPoints = (destinations || []).map((d) => ({ latitude: d.latitude, longitude: d.longitude }));
   const points = [originCoords, destinationCoords, lastCheckpoint, ...extraPoints].filter(Boolean);
@@ -178,7 +180,7 @@ function buildHtml({
     window.mapCommand = function (command) {
       if (command === 'zoomIn') map.zoomIn();
       else if (command === 'zoomOut') map.zoomOut();
-      else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { paddingTopLeft: [48, 200], paddingBottomRight: [80, 120], maxZoom: 16 });
     };
     var PIN_PATH = ${JSON.stringify(ICONS.mapPinFill.svg)};
     var bounds = [];
@@ -191,11 +193,14 @@ function buildHtml({
     var lastCheckpointLabel = ${lastCheckpointLabel ? JSON.stringify(lastCheckpointLabel) : 'null'};
     var lastCheckpointAvatar = ${lastCheckpointAvatar ? JSON.stringify(lastCheckpointAvatar) : 'null'};
     var destinationAvatar = ${destinationAvatar ? JSON.stringify(destinationAvatar) : 'null'};
+    var originAvatar = ${originAvatar ? JSON.stringify(originAvatar) : 'null'};
 
     if (origin) {
       var originLines = originLabel ? [originLabel, formatCoord(origin)] : null;
       L.marker([origin.latitude, origin.longitude], {
-        icon: originLines ? labeledDot('#0085F9', originLines) : dot('#0085F9'),
+        icon: originAvatar
+          ? avatarMarker(originAvatar, '#0085F9', originLines)
+          : originLines ? labeledDot('#0085F9', originLines) : dot('#0085F9'),
         interactive: false,
       }).addTo(map);
       bounds.push([origin.latitude, origin.longitude]);
@@ -222,7 +227,7 @@ function buildHtml({
     if (destinations) {
       destinations.forEach(function (d) {
         var lines = [[d.label, d.distanceLabel].filter(Boolean).join(' · '), formatCoord(d)];
-        var color = d.delivered ? '#4c9f70' : '#E63946';
+        var color = d.color || (d.delivered ? '#4c9f70' : '#E63946');
         L.marker([d.latitude, d.longitude], { icon: d.avatar ? avatarMarker(d.avatar, color, lines) : labeledPin(color, lines), interactive: false }).addTo(map);
         bounds.push([d.latitude, d.longitude]);
       });
@@ -273,12 +278,15 @@ function buildHtml({
         }
       }
     }
-    if (routePoints.length > 1) {
+    // showRoute false (e.g. the Manager's team map): just the markers.
+    if (${showRoute ? 'true' : 'false'} && routePoints.length > 1) {
       drawDashedRoute(routePoints);
     }
 
     if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [48, 96] });
+      // Keep markers (and the name tag above each) clear of the legend /
+      // Online / Cancel pills on the top-left and the zoom buttons on the right.
+      map.fitBounds(bounds, { paddingTopLeft: [48, 200], paddingBottomRight: [80, 120] });
     }
   </script>
 </body>
@@ -300,6 +308,8 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
   lastCheckpointLabel,
   lastCheckpointAvatar,
   destinationAvatar,
+  originAvatar,
+  showRoute = true,
 }, ref) {
   const webViewRef = useRef(null);
 
@@ -342,6 +352,8 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
             lastCheckpointLabel,
             lastCheckpointAvatar,
             destinationAvatar,
+            originAvatar,
+            showRoute,
           }),
         }}
         onLayout={handleLayout}

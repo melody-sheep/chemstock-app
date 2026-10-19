@@ -22,6 +22,7 @@ import useOutbox from '../../hooks/useOutbox';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { formatDateTime } from '../../utils/formatters';
 import friendlyError from '../../utils/friendlyError';
+import { getDeviceOs } from '../../utils/deviceInfo';
 
 const SHIPMENT_BUCKET = 'shipment-media';
 const LOCATION_TIMEOUT_MS = 8000;
@@ -175,6 +176,8 @@ export default function ResolveDiscrepancyScreen() {
     }
 
     setIsSubmitting(true);
+    // Shown on Return Stocks as "waiting for connection" until it syncs.
+    const returnCopy = { productCode: reportItem.productCode, productName: reportItem.productName };
     try {
       const currentAgent = agent || (await authService.getCurrentUser());
 
@@ -197,12 +200,12 @@ export default function ResolveDiscrepancyScreen() {
         latitude: coords.latitude,
         longitude: coords.longitude,
         deviceModel: Device.modelName || null,
-        deviceOs: Device.osName || null,
+        deviceOs: getDeviceOs() || null,
       };
 
       // Already known offline — don't even attempt the live call.
       if (!getConnectionStatus().online) {
-        await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri);
+        await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri, returnCopy);
         Alert.alert(
           'Saved — Will Send Later',
           "You're offline. Your return request and photo proof are saved on this device and will upload automatically once you're back online.",
@@ -224,7 +227,7 @@ export default function ResolveDiscrepancyScreen() {
         // rejection — queue it instead of showing an error. Anything else
         // (still online) is a genuine failure, handled below as before.
         if (!getConnectionStatus().online) {
-          await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri);
+          await outboxService.enqueue('discrepancy_resolution', requestPayload, photoUri, returnCopy);
           Alert.alert(
             'Saved — Will Send Later',
             "Connection dropped mid-submit. Your return request and photo proof are saved on this device and will upload automatically once you're back online.",
@@ -529,6 +532,7 @@ export default function ResolveDiscrepancyScreen() {
         onClose={() => setIsViewingSubmittedPhoto(false)}
         onCapture={() => {}}
         initialUri={displayPhotoUrl}
+        readOnly
       />
     </>
   );

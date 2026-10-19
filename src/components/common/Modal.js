@@ -1,5 +1,5 @@
 // src/components/common/Modal.js
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Modal,
@@ -11,6 +11,7 @@ import {
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import useKeyboardInset from '../../hooks/useKeyboardInset';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -30,6 +31,12 @@ export default function CustomModal({
 }) {
   const insets = useSafeAreaInsets();
   const isCentered = variant === 'center';
+  // Lifts the sheet above the keyboard in a built APK, where Android no
+  // longer resizes the screen for it (see useKeyboardInset).
+  const overlayRef = useRef(null);
+  const { inset: keyboardInset } = useKeyboardInset(overlayRef);
+  // With the keyboard open, a tall sheet must not run off the top.
+  const availableHeight = Dimensions.get('window').height - keyboardInset - insets.top - SPACING.md;
   const handleBackdropPress = () => {
     if (closeOnBackdropPress) {
       onClose();
@@ -45,10 +52,13 @@ export default function CustomModal({
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
         <View
+          ref={overlayRef}
+          collapsable={false}
           style={[
             styles.overlay,
             isCentered && styles.overlayCentered,
             { backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})` },
+            keyboardInset > 0 && { paddingBottom: keyboardInset },
           ]}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -56,7 +66,8 @@ export default function CustomModal({
               style={[
                 isCentered ? styles.centerContainer : styles.modalContainer,
                 {
-                  ...(isCentered || height === 'auto' ? {} : { height }),
+                  ...(isCentered || height === 'auto' ? {} : { height: keyboardInset > 0 ? Math.min(height, availableHeight) : height }),
+                  ...(keyboardInset > 0 ? { maxHeight: availableHeight } : {}),
                   ...(!isCentered && height === 'auto' && maxHeight ? { maxHeight } : {}),
                   ...(isCentered ? {} : { paddingBottom: Math.max(insets.bottom, SPACING.lg) }),
                   backgroundColor: backgroundColor,

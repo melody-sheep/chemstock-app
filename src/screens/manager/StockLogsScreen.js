@@ -121,7 +121,7 @@ export default function StockLogsScreen() {
   const route = useRoute();
   useMarkLogsSeen();
   const navigation = useNavigation();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
   const recipientNameById = snapshot?.recipientNameById ?? {};
   const [dateFilter, setDateFilter] = useState('all');
@@ -225,7 +225,8 @@ export default function StockLogsScreen() {
             <Text style={styles.emptyText}>No transactions in this range.</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log, index) => {
               const logKey =
                 log.id ??

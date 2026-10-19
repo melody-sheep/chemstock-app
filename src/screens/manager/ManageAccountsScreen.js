@@ -119,7 +119,7 @@ export default function ManageAccountsScreen() {
   // Refetched every time this screen regains focus (freshMs 0), so an account
   // created via "Add Account" shows up on the way back. Saved per account, so
   // offline the last list stays on screen instead of "All Agents (0)".
-  const { data: snapshot, isLoading, refresh } = useCachedFocusLoader('manager-accounts', loadAccountsData, {
+  const { data: snapshot, isLoading, refresh, isUnavailable, refreshControl } = useCachedFocusLoader('manager-accounts', loadAccountsData, {
     freshMs: 0,
   });
   const manager = snapshot?.manager ?? null;
@@ -230,6 +230,7 @@ export default function ManageAccountsScreen() {
 
         <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
           <ScrollView
+          refreshControl={refreshControl}
             contentContainerStyle={[styles.content, { paddingBottom: bottomBarHeight + SPACING.md }]}
             showsVerticalScrollIndicator={false}
           >
@@ -270,7 +271,11 @@ export default function ManageAccountsScreen() {
               </View>
             ) : filteredAccounts.length === 0 ? (
               <Text style={styles.emptyText}>
-                {accounts.length === 0 ? 'No agent accounts yet.' : 'No accounts match this filter.'}
+                {accounts.length === 0
+                  ? isUnavailable
+                    ? 'Not saved on this phone yet — connect to the internet to load your agents.'
+                    : 'No agent accounts yet.'
+                  : 'No accounts match this filter.'}
               </Text>
             ) : (
               <View style={styles.list}>

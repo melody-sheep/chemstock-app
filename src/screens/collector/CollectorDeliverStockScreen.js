@@ -206,7 +206,12 @@ export default function CollectorDeliverStockScreen() {
 
   // Room for the second button when it shows.
   const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0);
-  const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
+  // Open, the sheet fits its timeline (no empty space with one or two
+  // entries), up to 55% of the map once the trip has many stops.
+  const [timelineHeight, setTimelineHeight] = useState(0);
+  const TIMELINE_HEADER_HEIGHT = 56;
+  const fittedHeight = collapsedHeight + TIMELINE_HEADER_HEIGHT + timelineHeight;
+  const expandedHeight = mapWrapHeight ? Math.min(Math.round(mapWrapHeight * 0.55), fittedHeight) : 0;
   const animatedSheetHeight = sheetAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [collapsedHeight, Math.max(expandedHeight, collapsedHeight)],
@@ -564,7 +569,11 @@ export default function CollectorDeliverStockScreen() {
                     <Text style={styles.sectionLabel}>Current Location</Text>
                     <DeliveryStatusPill status="in_transit" label="In Transit" />
                   </View>
-                  <ScrollView style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
+                  <ScrollView
+                    style={styles.timelineScroll}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={(width, height) => setTimelineHeight(Math.ceil(height))}
+                  >
                     <DeliveryTimeline entries={timeline} emptyText="No location updates logged yet." />
                   </ScrollView>
                 </>

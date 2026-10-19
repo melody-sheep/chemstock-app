@@ -27,6 +27,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useKeyboardInset from '../../hooks/useKeyboardInset';
 import { getConnectionStatus } from '../../services/connectionStatus';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -43,6 +44,10 @@ const ANIMATION_DATA = [
 export default function LoginScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
+  // The sheet sits on the keyboard: 0 where the phone resized the screen
+  // (Expo Go), the keyboard's height in a built APK.
+  const containerRef = useRef(null);
+  const { inset: keyboardInset } = useKeyboardInset(containerRef);
   const [isActivationWarningVisible, setIsActivationWarningVisible] = useState(false);
 
   const {
@@ -132,7 +137,7 @@ export default function LoginScreen() {
     <>
       <StatusBar style="light" />
       <KeyboardWrapper>
-        <View style={styles.container}>
+        <View ref={containerRef} collapsable={false} style={styles.container}>
           <LinearGradient
             colors={[COLORS.secondaryLight, COLORS.background]}
             start={{ x: 0.5, y: 0 }}
@@ -149,7 +154,7 @@ export default function LoginScreen() {
             dotSize={32}
           />
 
-          <View style={styles.bottomSheetWrapper}>
+          <View style={[styles.bottomSheetWrapper, { bottom: keyboardInset }]}>
             <GlassPanel
               intensity={40}
               tint="light"

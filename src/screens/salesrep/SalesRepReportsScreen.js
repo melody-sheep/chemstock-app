@@ -1,8 +1,8 @@
 // src/screens/salesrep/SalesRepReportsScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import Header from '../../components/common/Header';
@@ -44,9 +44,20 @@ export default function SalesRepReportsScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
   const reports = snapshot?.reports ?? [];
   const [selectedReport, setSelectedReport] = useState(null);
+  // Opened from Submit Report's "View submitted report": show today's report.
+  const route = useRoute();
+  const openToday = route.params?.openToday === true;
+  useEffect(() => {
+    if (!openToday) return;
+    const today = reports.find((r) => new Date(r.reportDate).toDateString() === new Date().toDateString());
+    if (today) {
+      setSelectedReport(today);
+      navigation.setParams({ openToday: false });
+    }
+  }, [openToday, reports]);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
   const handleTabPress = (key) => {
@@ -117,7 +128,8 @@ export default function SalesRepReportsScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.summaryHeaderRow}>
               <Text style={styles.summaryTitle}>This Week's Summary</Text>
               <View style={[styles.statusPill, !connection.online && styles.statusPillOffline]}>

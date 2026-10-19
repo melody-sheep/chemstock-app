@@ -10,4 +10,19 @@ export const getDeviceModel = () => {
   return `${brand} ${model}`;
 };
 
-export const getDeviceOs = () => [Device.osName, Device.osVersion].filter(Boolean).join(' ');
+// Some phones (e.g. Infinix) report the whole build fingerprint as osName
+// ("Infinix/X6731-GL/…:user/release-keys"); show "Android 14" instead.
+const cleanOsName = () => {
+  const name = Device.osName?.trim();
+  if (!name || name.includes('/') || name.length > 20) return Device.platformApiLevel != null || !name ? 'Android' : name;
+  return name;
+};
+
+export const getDeviceOs = () => [cleanOsName(), Device.osVersion].filter(Boolean).join(' ');
+
+/**
+ * What screens show for "which phone": "Infinix X6731 · Rhaenyra" (who used
+ * it), else "Infinix X6731 · Android 14". The person is never stored inside
+ * the device field — who did it is already saved on its own.
+ */
+export const getDeviceLabel = (personName) => `${getDeviceModel()} · ${personName || getDeviceOs()}`;

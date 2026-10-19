@@ -7,7 +7,7 @@
 // profileService.changeAgentPassword goes through the change_agent_password
 // RPC instead, which verifies the current password server-side.
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -22,6 +22,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
 import friendlyError from '../../utils/friendlyError';
 import requireOnline from '../../utils/requireOnline';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
 // Mirrors ManagerActivationScreen's handleCompleteSetup password rule
 // exactly — this screen is shared by every role, so changing a password
@@ -138,7 +139,7 @@ export default function ChangePasswordScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.heroCard}>
             <View style={styles.iconWrap}>
               <Icon name="lock" size={24} color={COLORS.primary} weight="fill" />
@@ -214,7 +215,7 @@ export default function ChangePasswordScreen() {
           </Pressable>
 
           <View style={{ height: 24 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </>
   );

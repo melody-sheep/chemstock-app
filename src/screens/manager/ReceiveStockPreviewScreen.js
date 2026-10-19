@@ -4,7 +4,7 @@ import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Dim
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { getDeviceModel, getDeviceOs } from '../../utils/deviceInfo';
+import { getDeviceModel, getDeviceOs, getDeviceLabel } from '../../utils/deviceInfo';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Button from '../../components/common/Button';
@@ -25,6 +25,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatCoordinates, formatDateTime } from '../../utils/formatters';
 import friendlyError from '../../utils/friendlyError';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
 const { width: screenWidth } = Dimensions.get('window');
 const HALF_BUTTON_WIDTH = (screenWidth - SPACING.lg * 2 - SPACING.sm) / 2;
@@ -93,7 +94,7 @@ export default function ReceiveStockPreviewScreen() {
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
   const hasIncompleteDates = getItemsMissingDates(items).length > 0;
-  const deviceLabel = getDeviceModel();
+  const deviceLabel = getDeviceLabel(manager?.full_name || manager?.username);
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
   const branchStatusText = isLoadingManager
@@ -290,7 +291,7 @@ export default function ReceiveStockPreviewScreen() {
 
         <SubScreenSecondaryHeader title="Generate Qr Code" />
 
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           onScroll={onScroll}
@@ -378,7 +379,7 @@ export default function ReceiveStockPreviewScreen() {
             </Text>
           </View>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <BottomActionBar>
           <Button

@@ -25,6 +25,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError, { NO_INTERNET_MESSAGE, isNetworkError } from '../../utils/friendlyError';
+import { getDeviceOs } from '../../utils/deviceInfo';
 
 const DISTANCE_WARN_METERS = 50;
 
@@ -242,7 +243,7 @@ export default function SalesRepConfirmHandoffScreen() {
       latitude: position.latitude,
       longitude: position.longitude,
       deviceModel: Device.modelName,
-      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+      deviceOs: getDeviceOs(),
     };
     const outboxAction = isDirectMode ? 'receive_stock' : 'confirm_delivery_handoff';
     const receiptCopy = receiptDisplay({
@@ -320,7 +321,7 @@ export default function SalesRepConfirmHandoffScreen() {
       reason,
       reasonCode,
       deviceModel: Device.modelName,
-      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+      deviceOs: getDeviceOs(),
     };
     const issueCopy = receiptDisplay({ transactionId: handoff.transactionId, qrCode: expectedQr, items: [] });
     // Offline, or the Collector's side isn't synced yet: saved on the phone

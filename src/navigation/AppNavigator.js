@@ -27,6 +27,7 @@ import ManageReturnsScreen from '../screens/manager/ManageReturnsScreen';
 import ReturnStockVerifyScreen from '../screens/manager/ReturnStockVerifyScreen';
 import ManagerAlertsScreen from '../screens/manager/ManagerAlertsScreen';
 import ManagerReportsScreen from '../screens/manager/ManagerReportsScreen';
+import TeamMapScreen from '../screens/manager/TeamMapScreen';
 import TrackDeliveriesScreen from '../screens/manager/TrackDeliveriesScreen';
 import TrackDeliveryDetailScreen from '../screens/manager/TrackDeliveryDetailScreen';
 import AgentStockRequestScreen from '../screens/manager/AgentStockRequestScreen';
@@ -107,6 +108,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="ManagerAlerts" component={ManagerAlertsScreen} />
         <Stack.Screen name="ManagerReports" component={ManagerReportsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="TrackDeliveries" component={TrackDeliveriesScreen} />
+        <Stack.Screen name="TeamMap" component={TeamMapScreen} />
         <Stack.Screen name="TrackDeliveryDetail" component={TrackDeliveryDetailScreen} />
         <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} />
         <Stack.Screen name="ManagerSettings" component={ManagerSettingsScreen} options={{ animation: 'none' }} />

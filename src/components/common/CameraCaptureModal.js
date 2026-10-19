@@ -22,7 +22,10 @@ import { formatCoordinates, formatDateTime } from '../../utils/formatters';
  * bottom-sheet Modal, since asking for a permission doesn't need to take
  * over the whole screen the way the live camera/preview does.
  */
-export default function CameraCaptureModal({ visible, onClose, onCapture, initialUri = null }) {
+// readOnly: just view a photo already submitted (e.g. a Manager reviewing a
+// Sales Rep's handover photo) — no Retake / Use Photo, only Close, with
+// `meta` lines (who / when / where) shown when given.
+export default function CameraCaptureModal({ visible, onClose, onCapture, initialUri = null, readOnly = false, meta = null }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [previewUri, setPreviewUri] = useState(initialUri);
@@ -129,6 +132,28 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                 </View>
               )}
 
+              {readOnly && meta?.length > 0 && (
+                <View style={styles.metaStrip}>
+                  {meta.map((line) => (
+                    <View key={line.text} style={styles.metaRow}>
+                      <Icon name={line.icon} size={14} color="#FFFFFF" />
+                      <Text style={styles.metaText}>{line.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {readOnly ? (
+                <View style={styles.previewActions}>
+                  <Button
+                    title="Close"
+                    variant="outline"
+                    accentColor="#1A1A1A"
+                    onPress={handleClose}
+                    style={[styles.actionButton, styles.glassButtonSolid]}
+                  />
+                </View>
+              ) : (
               <View style={styles.previewActions}>
                 <Button
                   title="Retake"
@@ -149,6 +174,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                   style={[styles.actionButton, styles.glassButtonSolid]}
                 />
               </View>
+              )}
             </>
           ) : (
             <>
@@ -215,6 +241,8 @@ CameraCaptureModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onCapture: PropTypes.func.isRequired,
   initialUri: PropTypes.string,
+  readOnly: PropTypes.bool,
+  meta: PropTypes.arrayOf(PropTypes.shape({ icon: PropTypes.string, text: PropTypes.string })),
 };
 
 const styles = StyleSheet.create({

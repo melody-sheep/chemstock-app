@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
@@ -58,7 +58,7 @@ export default function RequestStockSR() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
   const stock = snapshot?.stock ?? [];
@@ -159,6 +159,25 @@ export default function RequestStockSR() {
     setQty(Math.min(availableFor(code), existing?.quantity || 1));
     setActiveProduct({ code, name, image: PRODUCT_CATALOG.find((p) => p.code === code)?.image });
   };
+
+  // Opened from a product's details ("Request This Product"): pick that
+  // branch and open the quantity popup for that product straight away.
+  const route = useRoute();
+  const prefillProductCode = route.params?.prefillProductCode || null;
+  const prefillBranchId = route.params?.branchId || null;
+  useEffect(() => {
+    if (prefillBranchId && branches.some((b) => b.id === prefillBranchId) && selectedBranchId !== prefillBranchId && cart.length === 0) {
+      setSelectedBranchId(prefillBranchId);
+    }
+  }, [prefillBranchId, branches]);
+  useEffect(() => {
+    if (!prefillProductCode || !selectedBranchId || isLoading) return;
+    if (prefillBranchId && selectedBranchId !== prefillBranchId) return;
+    const row = branchStock.find((r) => r.product_code === prefillProductCode);
+    if (row) openRequestModal(row.product_code, row.product_name);
+    else Alert.alert('Not Available', 'This product has no stock at the branch right now.');
+    navigation.setParams({ prefillProductCode: null });
+  }, [prefillProductCode, selectedBranchId, stock, isLoading]);
 
   const closeRequestModal = () => {
     setActiveProduct(null);
@@ -313,7 +332,8 @@ export default function RequestStockSR() {
         )}
 
         {isLoading ? (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
             <View style={styles.skeletonCardRow}>
               <SkeletonBlock width={152} height={140} borderRadius={12} />
@@ -331,7 +351,7 @@ export default function RequestStockSR() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHeaderRow}>
               <View style={[styles.statusDot, { backgroundColor: COLORS.success }]} />
               <Text style={styles.sectionTitle}>In-Stocks (Healthy Levels)</Text>

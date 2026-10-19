@@ -1,6 +1,6 @@
 // src/screens/salesrep/RequestListSR.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -20,6 +20,8 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
+import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
 
 export default function RequestListSR() {
   const navigation = useNavigation();
@@ -67,7 +69,7 @@ export default function RequestListSR() {
     })();
   }, []);
 
-  const deviceLabel = [Device.modelName, Device.osName, Device.osVersion].filter(Boolean).join(' - ');
+  const deviceLabel = getDeviceLabel(agent?.full_name || agent?.username);
 
   const handleAdjustQty = (productCode, delta) => {
     setItems((prev) =>
@@ -114,7 +116,7 @@ export default function RequestListSR() {
       latitude: coords?.latitude,
       longitude: coords?.longitude,
       deviceModel: Device.modelName,
-      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+      deviceOs: getDeviceOs(),
       items,
       // Required for multi-branch agents (e.g. Clint: Iponan + Butuan) —
       // this screen already shows "Sending to {branchName}", it just
@@ -192,7 +194,7 @@ export default function RequestListSR() {
         <Header showBackButton backButtonText="Request Stock" height={56} backgroundColor="#03045E" textColor="#FFFFFF" paddingHorizontal={SPACING.md} />
         <SubScreenSecondaryHeader title="Request List" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {pendingCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
@@ -319,7 +321,7 @@ export default function RequestListSR() {
             disabled={isSubmitting || !agent || items.length === 0 || !selectedBranchId}
             style={styles.sendButton}
           />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </>
   );

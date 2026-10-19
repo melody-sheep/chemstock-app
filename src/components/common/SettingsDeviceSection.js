@@ -138,7 +138,7 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
       ? `${pendingCount} waiting to sync`
       : 'All synced';
   const syncSub = failedCount > 0
-    ? 'Open the screen it came from to retry or discard it.'
+    ? 'The server refused it. Open the screen it came from (e.g. Submit Report) to retry or discard it.'
     : pendingCount > 0
       ? connection.online ? 'Sending automatically…' : 'Sends automatically once you are back online.'
       : 'Everything you did on this phone is on the server.';
@@ -159,7 +159,7 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
             <Text style={shared.rowSubLabel}>{syncSub}</Text>
           </View>
         </View>
-        {pendingCount + failedCount > 0 && connection.online ? (
+        {pendingCount > 0 && connection.online ? (
           <Pressable style={local.syncButton} onPress={handleSyncNow} disabled={isSyncing} accessibilityRole="button">
             {isSyncing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />

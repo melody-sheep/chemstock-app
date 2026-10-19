@@ -12,7 +12,8 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { distanceInMeters, formatDistance } from '../../utils/distance';
 import { formatPlace } from '../../utils/formatPlace';
-import { formatCoordinates } from '../../utils/formatters';
+import { formatCoordinates, formatCheckpointTime } from '../../utils/formatters';
+import { getInitials } from '../../utils/initials';
 import { debugLog } from '../../utils/logger';
 import { SAVED_PLACES } from '../../constants/savedPlaces';
 
@@ -163,17 +164,17 @@ function buildMapHtml({ initialCoords }) {
 
     var destinationMarker = null;
 
-    function placeDestination(lat, lng) {
+    function placeDestination(lat, lng, lockedTo) {
       if (destinationMarker) {
         destinationMarker.setLatLng([lat, lng]);
       } else {
         destinationMarker = L.marker([lat, lng], { icon: destinationIcon, draggable: true }).addTo(map);
         destinationMarker.on('dragend', function () {
           var pos = destinationMarker.getLatLng();
-          window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng }));
+          window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng, lockedTo: null }));
         });
       }
-      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: lat, lng: lng }));
+      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: lat, lng: lng, lockedTo: lockedTo || null }));
     }
 
     if (initial) {
@@ -183,6 +184,45 @@ function buildMapHtml({ initialCoords }) {
     map.on('click', function (e) {
       placeDestination(e.latlng.lat, e.latlng.lng);
     });
+
+    // The team (Manager only): each Sales Rep / Collector at their last
+    // recorded location. Tapping one pins the destination there.
+    window.lockOn = function (p) {
+      placeDestination(p.lat, p.lng, p.id);
+      map.setView([p.lat, p.lng], Math.max(map.getZoom(), 17));
+    };
+
+    var teamLayer = L.layerGroup().addTo(map);
+    window.setTeam = function (members) {
+      teamLayer.clearLayers();
+      var seen = {};
+      (members || []).forEach(function (m) {
+        var key = m.lat.toFixed(4) + ',' + m.lng.toFixed(4);
+        var n = seen[key] = (seen[key] || 0) + 1;
+        // Same spot as someone already drawn: offset in a small circle.
+        var angle = n * 1.2, step = n > 1 ? 0.00012 : 0;
+        m = Object.assign({}, m, { lat: m.lat + Math.sin(angle) * step, lng: m.lng + Math.cos(angle) * step, pinLat: m.lat, pinLng: m.lng });
+        var face = m.photoUrl
+          ? '<img src="' + escapeHtml(m.photoUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;" />'
+          : escapeHtml(m.initials || '');
+        var tag = !m.isTarget ? '' : '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:6px;'
+          + 'width:max-content;max-width:180px;background:#272632;color:#fff;padding:4px 8px;border-radius:8px;text-align:center;">'
+          + '<div style="font-size:11px;font-weight:700;">' + escapeHtml(m.name) + '</div>'
+          + '<div style="font-size:10px;opacity:.8;">' + escapeHtml(m.subtitle) + '</div></div>';
+        var icon = L.divIcon({
+          className: '',
+          html: '<div style="position:relative;width:40px;height:40px;">' + tag
+            + '<div style="width:40px;height:40px;border-radius:20px;border:3px solid ' + m.color + ';background:#EEF2FF;'
+            + 'overflow:hidden;display:flex;align-items:center;justify-content:center;font:700 12px sans-serif;color:#03045E;'
+            + 'box-shadow:0 2px 4px rgba(0,0,0,.35);">' + face + '</div></div>',
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
+        });
+        L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: m.isTarget ? 500 : 0 }).on('click', function () {
+          placeDestination(m.pinLat, m.pinLng, m.agentId);
+        }).addTo(teamLayer);
+      });
+    };
   </script>
 </body>
 </html>`;
@@ -196,6 +236,8 @@ function buildMapHtml({ initialCoords }) {
  * and footer float over the map as glass panels.
  */
 export default function MapLocationPickerModal({
+  teamMembers = [],
+  targetRecipientId = null,
   visible,
   onClose,
   onConfirm,
@@ -235,6 +277,22 @@ export default function MapLocationPickerModal({
   // The page only depends on the destination; the origin is pushed in below.
   // Primitives in the deps avoid rebuilding when the parent passes a new object
   // with the same values.
+  // Sales Reps on the map (they are who stock is delivered to). Tapping one
+  // locks the pin on their last recorded spot; tapping the map or dragging
+  // the pin unlocks it. The release's own recipient is listed first.
+  const salesReps = (teamMembers || [])
+    .filter((m) => m.role === 'sales_rep')
+    .sort((a, b) => (b.agentId === targetRecipientId) - (a.agentId === targetRecipientId));
+  const targetMember = salesReps.find((m) => m.agentId === targetRecipientId) || null;
+  const [lockedAgentId, setLockedAgentId] = useState(null);
+  const lockedMember = salesReps.find((m) => m.agentId === lockedAgentId) || null;
+  const lockOnTarget = () => {
+    if (!targetMember) return;
+    webViewRef.current?.injectJavaScript(
+      `window.lockOn && window.lockOn(${JSON.stringify({ lat: targetMember.latitude, lng: targetMember.longitude, id: targetMember.agentId })}); true;`
+    );
+  };
+
   const originLat = originCoords?.latitude ?? null;
   const originLng = originCoords?.longitude ?? null;
   const initialLat = initialCoords?.latitude ?? null;
@@ -263,6 +321,28 @@ export default function MapLocationPickerModal({
   useEffect(() => {
     pushOrigin();
   }, [originLat, originLng, originAvatarUrl, originInitials]);
+
+  const pushTeam = () => {
+    if (!webViewRef.current) return;
+    const payload = JSON.stringify(
+      salesReps.map((m) => ({
+        agentId: m.agentId,
+        isTarget: m.agentId === targetRecipientId,
+        lat: m.latitude,
+        lng: m.longitude,
+        name: m.fullName,
+        subtitle: `${m.role === 'collector' ? 'Collector' : 'Sales Rep'} · ${formatCheckpointTime(m.capturedAt)}`,
+        color: m.role === 'collector' ? '#F4A825' : '#E63946',
+        photoUrl: m.photoUrl || null,
+        initials: getInitials(m.fullName),
+      }))
+    );
+    webViewRef.current.injectJavaScript(`window.setTeam && window.setTeam(${payload}); true;`);
+  };
+
+  useEffect(() => {
+    pushTeam();
+  }, [teamMembers, targetRecipientId]);
 
   // Sends a command to the map page, e.g. sendMapCommand('flyTo', lat, lng).
   const sendMapCommand = (command, ...args) => {
@@ -341,7 +421,8 @@ export default function MapLocationPickerModal({
 
   const handleMessage = (event) => {
     try {
-      const { lat, lng } = JSON.parse(event.nativeEvent.data);
+      const { lat, lng, lockedTo } = JSON.parse(event.nativeEvent.data);
+      setLockedAgentId(lockedTo || null);
       debugLog('info', 'MapPicker', 'Pin set', { lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) });
       setPickedCoords({ latitude: lat, longitude: lng });
     } catch (error) {
@@ -351,10 +432,17 @@ export default function MapLocationPickerModal({
 
   const handleShow = () => {
     setPickedCoords(initialCoords || null);
+    setLockedAgentId(null);
   };
 
   const handleConfirm = () => {
     if (!pickedCoords) return;
+    // Locked on a Sales Rep: no "far from you" warning — the point is
+    // where they are, not where the Manager is.
+    if (lockedMember) {
+      onConfirm(pickedCoords);
+      return;
+    }
     debugLog('info', 'MapPicker', 'Confirm pressed', {
       distanceM: distanceMeters === null ? null : Math.round(distanceMeters),
       farWarning: distanceMeters !== null && distanceMeters > FAR_PIN_WARNING_METERS,
@@ -386,7 +474,10 @@ export default function MapLocationPickerModal({
           ref={webViewRef}
           key={visible ? 'open' : 'closed'}
           source={{ html: mapHtml }}
-          onLoadEnd={pushOrigin}
+          onLoadEnd={() => {
+            pushOrigin();
+            pushTeam();
+          }}
           onMessage={handleMessage}
           style={StyleSheet.absoluteFill}
           originWhitelist={['*']}
@@ -477,6 +568,14 @@ export default function MapLocationPickerModal({
         </View>
 
         <View style={[styles.glass, styles.footer, { bottom: insets.bottom + FOOTER_OFFSET }]}>
+          {targetMember && lockedAgentId !== targetMember.agentId && (
+            <TouchableOpacity style={styles.lockButton} onPress={lockOnTarget} activeOpacity={0.8}>
+              <Icon name="location" size={16} color={COLORS.primary} />
+              <Text style={styles.lockButtonText} numberOfLines={1}>
+                Deliver to {targetMember.fullName}'s location
+              </Text>
+            </TouchableOpacity>
+          )}
           {pickedCoords && (
             <View style={styles.insightCard}>
               <View style={styles.insightRow}>
@@ -496,6 +595,14 @@ export default function MapLocationPickerModal({
               <Text style={styles.addressText} numberOfLines={2}>
                 {pickedAddress || 'Finding address…'}
               </Text>
+              {lockedMember && (
+                <View style={styles.lockedRow}>
+                  <Icon name="lock" size={13} color={COLORS.success} />
+                  <Text style={styles.lockedText} numberOfLines={1}>
+                    Locked on {lockedMember.fullName} · last seen {formatCheckpointTime(lockedMember.capturedAt)}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
           <Button
@@ -526,12 +633,27 @@ MapLocationPickerModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onConfirm: PropTypes.func.isRequired,
   originCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
+  teamMembers: PropTypes.array,
   originAvatarUrl: PropTypes.string,
   originInitials: PropTypes.string,
   initialCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
 };
 
 const styles = StyleSheet.create({
+  lockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    alignSelf: 'flex-start',
+    marginBottom: SPACING.sm,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 999,
+    backgroundColor: '#EEF0FF',
+  },
+  lockButtonText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.primary },
+  lockedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  lockedText: { flex: 1, fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Shared glass look for every floating panel.

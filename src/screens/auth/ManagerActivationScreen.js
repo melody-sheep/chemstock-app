@@ -21,6 +21,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import Header from '../../components/common/Header';
 import KeyboardWrapper from '../../components/common/KeyboardWrapper';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
@@ -29,7 +30,7 @@ import Stepper from '../../components/common/Stepper';
 import useActivation from '../../hooks/useActivation';
 import friendlyError from '../../utils/friendlyError';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
 // ============================================
 // ULTRA COMPACT PASSWORD CHECKLIST - 2 COLUMNS
@@ -257,37 +258,6 @@ export default function ManagerActivationScreen() {
   // ============================================
   // SCROLL HELPERS - USING measureLayout FOR ACCURACY
   // ============================================
-  const scrollToPasswordInput = () => {
-    try {
-      setTimeout(() => {
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({
-            y: 200,
-            animated: true,
-          });
-        }
-      }, 400);
-    } catch (err) {
-      console.error('[ERROR] [ManagerActivationScreen] Scroll error:', err);
-    }
-  };
-
-  const scrollToConfirmPasswordInput = () => {
-    try {
-      setTimeout(() => {
-        if (scrollViewRef.current) {
-          // Fallback: scroll to 55% of screen height
-          const scrollAmount = screenHeight * 0.55;
-          scrollViewRef.current.scrollTo({
-            y: scrollAmount,
-            animated: true,
-          });
-        }
-      }, 500);
-    } catch (err) {
-      console.error('[ERROR] [ManagerActivationScreen] Scroll error:', err);
-    }
-  };
   
   // ============================================
   // HANDLERS - Step 1
@@ -401,14 +371,6 @@ export default function ManagerActivationScreen() {
     if (confirmPassword && text === confirmPassword) {
       setStep2Errors(prev => ({ ...prev, confirmPassword: '' }));
     }
-  };
-
-  const handlePasswordFocus = () => {
-    scrollToPasswordInput();
-  };
-
-  const handleConfirmPasswordFocus = () => {
-    scrollToConfirmPasswordInput();
   };
 
   const handleConfirmPasswordChange = (text) => {
@@ -558,7 +520,8 @@ export default function ManagerActivationScreen() {
               onFadeComplete={handleSuccessFrameFade}
             />
 
-            <Animated.ScrollView
+            <KeyboardAwareScrollView
+              animated
               style={[
                 styles.scrollView,
                 {
@@ -674,7 +637,7 @@ export default function ManagerActivationScreen() {
                 </View>
               </View>
               <View style={styles.scrollBottomPadding} />
-            </Animated.ScrollView>
+            </KeyboardAwareScrollView>
           </View>
         </KeyboardWrapper>
       </>
@@ -708,7 +671,8 @@ export default function ManagerActivationScreen() {
             </Text>
           </View>
 
-          <Animated.ScrollView
+          <KeyboardAwareScrollView
+              animated
             ref={scrollViewRef}
             style={[
               styles.scrollView,
@@ -760,7 +724,6 @@ export default function ManagerActivationScreen() {
                 autoCapitalize="none"
                 returnKeyType="next"
                 inputRef={passwordInputRef}
-                onFocus={handlePasswordFocus}
               />
 
               <PasswordChecklist password={managerPassword} />
@@ -778,7 +741,6 @@ export default function ManagerActivationScreen() {
                   returnKeyType="done"
                   onSubmitEditing={handleCompleteSetup}
                   inputRef={confirmPasswordInputRef}
-                  onFocus={handleConfirmPasswordFocus}
                 />
               </View>
             </View>
@@ -809,7 +771,7 @@ export default function ManagerActivationScreen() {
               </View>
             </View>
             <View style={{ height: 20 }} />
-          </Animated.ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </KeyboardWrapper>
     </>
