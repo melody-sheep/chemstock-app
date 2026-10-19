@@ -15,7 +15,7 @@ import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import MapLocationPickerModal from '../../components/common/MapLocationPickerModal';
 import PhotoProofCard from '../../components/common/PhotoProofCard';
 import { getDeviceLabel } from '../../utils/deviceInfo';
-import { formatCoordinates, formatDateTime } from '../../utils/formatters';
+import { formatCoordinates, formatDateTime, formatCheckpointTime } from '../../utils/formatters';
 import authService from '../../services/authService';
 import { getInitials } from '../../utils/initials';
 import { readSavedData } from '../../hooks/useCachedFocusLoader';
@@ -66,6 +66,10 @@ export default function ReleaseStockDeliveryScreen() {
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [destinationAddress, setDestinationAddress] = useState(null);
   const [isMapVisible, setIsMapVisible] = useState(false);
+  // Seeds where the map opens/centers (e.g. "Go to last location") without
+  // counting as an actual confirmed destination — only handleConfirmDestination
+  // (the modal's own Confirm button) is allowed to set that.
+  const [focusCoords, setFocusCoords] = useState(null);
 
   const [deliveryPhotoUri, setDeliveryPhotoUri] = useState(null);
   const [photoCapturedAt, setPhotoCapturedAt] = useState(null);
@@ -116,6 +120,7 @@ export default function ReleaseStockDeliveryScreen() {
   const handleConfirmDestination = async (coords) => {
     setDestinationCoords(coords);
     setIsMapVisible(false);
+    setFocusCoords(null);
     setDestinationAddress(null);
     try {
       const results = await Location.reverseGeocodeAsync(coords);
@@ -123,6 +128,28 @@ export default function ReleaseStockDeliveryScreen() {
     } catch (geocodeError) {
       console.error('[ERROR] [ReleaseStockDelivery] Destination reverse geocode failed:', geocodeError);
     }
+  };
+
+  // The Sales Rep this delivery is ultimately headed to, at wherever the app
+  // last recorded them — lets the manager jump straight to that spot on the
+  // map instead of having to search for them there.
+  const targetSalesRep = teamMembers.find(
+    (m) => m.agentId === targetRecipient?.id && m.latitude != null && m.longitude != null
+  );
+  const isAtTargetLocation =
+    !!targetSalesRep &&
+    !!destinationCoords &&
+    destinationCoords.latitude === targetSalesRep.latitude &&
+    destinationCoords.longitude === targetSalesRep.longitude;
+
+  // Opens the map already centered/pinned at the Sales Rep's last recorded
+  // spot via focusCoords (not destinationCoords — the manager still taps
+  // "Confirm Location" inside to actually finalize it, same as pinning
+  // anywhere else; just opening the map shouldn't count as confirming).
+  const handleGoToTargetLocation = () => {
+    if (!targetSalesRep) return;
+    setFocusCoords({ latitude: targetSalesRep.latitude, longitude: targetSalesRep.longitude });
+    setIsMapVisible(true);
   };
 
   const canProceed = !!originCoords && !!destinationCoords && !!deliveryPhotoUri;
@@ -185,6 +212,24 @@ export default function ReleaseStockDeliveryScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Deliver to (destination)</Text>
+
+          {targetSalesRep && !isAtTargetLocation && (
+            <TouchableOpacity style={styles.lastLocationCard} onPress={handleGoToTargetLocation} activeOpacity={0.7}>
+              <View style={styles.lastLocationIconWrap}>
+                <Icon name="location" size={16} color={COLORS.primary} weight="fill" />
+              </View>
+              <View style={styles.originTextWrap}>
+                <Text style={styles.lastLocationTitle}>
+                  Go to {targetSalesRep.fullName}'s last recorded location
+                </Text>
+                <Text style={styles.lastLocationMeta}>
+                  Last seen {formatCheckpointTime(targetSalesRep.capturedAt)}
+                </Text>
+              </View>
+              <Icon name="arrowRight" size={16} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.destinationCard, destinationCoords && styles.destinationCardFilled]}
             onPress={() => setIsMapVisible(true)}
@@ -199,6 +244,12 @@ export default function ReleaseStockDeliveryScreen() {
                   </Text>
                 </View>
                 {destinationAddress && <Text style={styles.originAddressText}>{destinationAddress}</Text>}
+                {isAtTargetLocation && (
+                  <View style={styles.lockedBadge}>
+                    <Icon name="checkmark" size={12} color={COLORS.success} weight="bold" />
+                    <Text style={styles.lockedBadgeText}>{targetSalesRep.fullName}'s last location</Text>
+                  </View>
+                )}
                 <Text style={styles.destinationChangeText}>Tap to change</Text>
               </View>
             ) : (
@@ -259,12 +310,15 @@ export default function ReleaseStockDeliveryScreen() {
 
       <MapLocationPickerModal
         visible={isMapVisible}
-        onClose={() => setIsMapVisible(false)}
+        onClose={() => {
+          setIsMapVisible(false);
+          setFocusCoords(null);
+        }}
         onConfirm={handleConfirmDestination}
         originCoords={originCoords}
         originAvatarUrl={manager?.profilePhotoUrl || null}
         originInitials={getInitials(manager?.full_name || manager?.username)}
-        initialCoords={destinationCoords}
+        initialCoords={destinationCoords || focusCoords}
         teamMembers={teamMembers}
         targetRecipientId={targetRecipient?.id || null}
       />
@@ -333,6 +387,48 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
+  },
+  lastLocationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight,
+    backgroundColor: COLORS.primary + '0D',
+  },
+  lastLocationIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryLight,
+  },
+  lastLocationTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  lastLocationMeta: {
+    marginTop: 1,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  lockedBadgeText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: COLORS.success,
   },
   destinationCard: {
     alignItems: 'center',
