@@ -64,7 +64,7 @@ export default function TrackDeliveriesScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const focusId = route.params?.focusId || null;
-  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-track-deliveries', loadDeliveriesData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-track-deliveries', loadDeliveriesData);
   const deliveries = snapshot?.deliveries ?? [];
   const recipientNameById = snapshot?.recipientNameById ?? {};
   const recipientPhotoById = snapshot?.recipientPhotoById ?? {};
@@ -103,6 +103,14 @@ export default function TrackDeliveriesScreen() {
           textColor="#FFFFFF"
         />
         <SubScreenSecondaryHeader title="Track Deliveries" />
+        <TouchableOpacity style={styles.teamBar} onPress={() => navigation.navigate('TeamMap')} activeOpacity={0.8}>
+          <Icon name="location" size={18} color={COLORS.primary} />
+          <View style={styles.teamBarText}>
+            <Text style={styles.teamBarTitle}>Team Locations</Text>
+            <Text style={styles.teamBarSub}>Where each Sales Rep and Collector was last recorded</Text>
+          </View>
+          <Icon name="arrowRight" size={16} color={COLORS.primary} />
+        </TouchableOpacity>
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -117,7 +125,8 @@ export default function TrackDeliveriesScreen() {
             </Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {deliveries.map((delivery) => {
               const isDelivered = delivery.delivery_status === 'delivered';
               const collectorName = recipientNameById[delivery.received_by] || 'Collector';
@@ -163,6 +172,21 @@ export default function TrackDeliveriesScreen() {
 }
 
 const styles = StyleSheet.create({
+  teamBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DBE4EE',
+    backgroundColor: '#FFFFFF',
+  },
+  teamBarText: { flex: 1 },
+  teamBarTitle: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
+  teamBarSub: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary, marginTop: 1 },
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl },
   content: { padding: SPACING.lg, gap: SPACING.sm },

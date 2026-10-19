@@ -8,6 +8,8 @@ import { formatRelativeTime } from '../utils/formatters';
 import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
 import { getInitials } from '../utils/initials';
 import { getConnectionStatus } from './connectionStatus';
+import storage from '../utils/storage';
+import { photoForMap, savedPhotoDataUri } from '../utils/offlinePhoto';
 
 const TOUCH_INTERVAL_MS = 2 * 60 * 1000;
 // Someone counts as online if their app was active within this window.
@@ -67,26 +69,40 @@ export function describePresence(lastSeenAt, now = Date.now()) {
  * presence, shaped as map avatars: { photoUrl, initials, online, statusLabel }.
  * Returns null on any failure, so the map falls back to plain markers.
  */
+const PARTIES_CACHE_PREFIX = 'chemstock_parties:';
+
 export async function getDeliveryParties(agentId, transactionId) {
   if (!agentId || !transactionId) return null;
   const { data, error } = await supabase.rpc('get_delivery_parties', {
     p_agent_id: agentId,
     p_transaction_id: transactionId,
   });
+  // Offline: the last copy saved for this delivery, with photos from the
+  // phone instead of blank avatars.
+  const cacheKey = `${PARTIES_CACHE_PREFIX}${agentId}:${transactionId}`;
   if (error || !data) {
     debugLog('warn', 'Presence', 'Could not load delivery parties', { message: error?.message });
-    return null;
+    const saved = await storage.get(cacheKey);
+    if (!saved) return null;
+    const restore = async (person) =>
+      person ? { ...person, photoUrl: await savedPhotoDataUri(person.id), ...describePresence(person.lastSeenAt) } : null;
+    const [collector, salesRep] = await Promise.all([restore(saved.collector), restore(saved.salesRep)]);
+    return { collector, salesRep };
   }
   const toAvatar = async (person) => {
     if (!person) return null;
+    const remoteUrl = await resolveProfilePhotoUrl(person.photoPath);
     return {
       id: person.id,
       fullName: person.fullName,
-      photoUrl: await resolveProfilePhotoUrl(person.photoPath),
+      photoUrl: await photoForMap(person.id, remoteUrl),
       initials: getInitials(person.fullName),
+      lastSeenAt: person.lastSeenAt,
       ...describePresence(person.lastSeenAt),
     };
   };
   const [collector, salesRep] = await Promise.all([toAvatar(data.collector), toAvatar(data.salesRep)]);
+  const strip = (p) => (p ? { id: p.id, fullName: p.fullName, initials: p.initials, lastSeenAt: p.lastSeenAt } : null);
+  storage.set(cacheKey, { collector: strip(collector), salesRep: strip(salesRep) });
   return { collector, salesRep };
 }

@@ -24,6 +24,7 @@ import Button from '../../components/common/Button';
 import useOutbox from '../../hooks/useOutbox';
 import { findQueuedReceipt, queuedHandoffStatus } from '../../utils/queuedReceipts';
 import { isReceivable, confirmHandoffParams } from '../../utils/srDeliveries';
+import { useMapPhoto } from '../../utils/offlinePhoto';
 
 // Marker colours match the markers StaticRouteMap draws for this screen.
 const MAP_LEGEND_ITEMS = [
@@ -69,6 +70,8 @@ export default function SalesRepDeliveryDetailScreen() {
   const route = useRoute();
   const { delivery: routeDelivery } = route.params || {};
   const [currentUser, setCurrentUser] = useState(null);
+  // Own photo on the map, from the phone when offline.
+  const myMapPhoto = useMapPhoto(currentUser?.id, currentUser?.profilePhotoUrl || null);
   // Received or reported on this phone but not synced yet: show that, and no
   // second Receive button.
   const { pending: queuedEntries } = useOutbox();
@@ -154,7 +157,11 @@ export default function SalesRepDeliveryDetailScreen() {
             lastCheckpoint={delivery.lastCheckpoint}
             lastCheckpointLabel={`${delivery.collectorName || 'Collector'} (Collector)`}
             lastCheckpointAvatar={parties?.collector || undefined}
-            destinationAvatar={currentUser ? { photoUrl: currentUser.profilePhotoUrl || null, initials: getInitials(currentUser.full_name || currentUser.username) } : undefined}
+            // No checkpoint yet: the Collector is shown (photo + name) at the
+            // trip start instead of a bare dot. Fixed point, not live tracking.
+            originLabel={delivery.lastCheckpoint ? undefined : `${delivery.collectorName || 'Collector'} (Collector) · trip start`}
+            originAvatar={delivery.lastCheckpoint ? undefined : parties?.collector || undefined}
+            destinationAvatar={currentUser ? { photoUrl: myMapPhoto, initials: getInitials(currentUser.full_name || currentUser.username) } : undefined}
             style={styles.mapFill} showScale/>
           <MapZoomControls
             onZoomIn={() => mapRef.current?.zoomIn()}

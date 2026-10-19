@@ -181,7 +181,7 @@ export default function ManagerDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
   const user = snapshot?.user ?? null;
   const totalUnits = snapshot?.totalUnits ?? null;
   const recentLogs = snapshot?.recentLogs ?? [];
@@ -232,7 +232,7 @@ export default function ManagerDashboardScreen() {
       const isLoss = log.discrepancyType === 'loss';
       return {
         key: `discrepancy-${log.reportItemId}`,
-        icon: 'alertTriangle',
+        icon: 'warning',
         iconColor: COLORS.error,
         text: `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
@@ -357,6 +357,7 @@ export default function ManagerDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+          refreshControl={refreshControl}
             style={styles.content}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}

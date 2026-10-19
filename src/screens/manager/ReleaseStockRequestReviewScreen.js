@@ -94,6 +94,21 @@ export default function ReleaseStockRequestReviewScreen() {
   const releaseItems = items.filter((item) => item.releaseQty > 0);
   const totalUnits = releaseItems.reduce((sum, item) => sum + item.releaseQty, 0);
 
+  // Products where the amount being released no longer matches what the
+  // Sales Rep asked for, so the Manager knows they're changing the request.
+  const changedFromRequest = isLoading
+    ? []
+    : (requestedItems || [])
+        .map((req) => ({
+          productCode: req.productCode,
+          productName: req.productName,
+          requestedQty: req.quantity,
+          releasingQty: items
+            .filter((item) => item.productCode === req.productCode)
+            .reduce((sum, item) => sum + item.releaseQty, 0),
+        }))
+        .filter((row) => row.releasingQty !== row.requestedQty);
+
   const handleNext = () => {
     if (releaseItems.length === 0) return;
     const params = { recipient, targetRecipient, branchId, movementType, items: releaseItems, requestId };
@@ -193,6 +208,21 @@ export default function ReleaseStockRequestReviewScreen() {
             </>
           )}
 
+          {changedFromRequest.length > 0 && (
+            <View style={styles.changedBanner}>
+              <Icon name="warning" size={16} color="#B26400" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.changedTitle}>You're changing the Sales Rep's request</Text>
+                {changedFromRequest.map((row) => (
+                  <Text key={row.productCode} style={styles.changedText}>
+                    {row.productName}: requested {row.requestedQty}, releasing {row.releasingQty}
+                  </Text>
+                ))}
+                <Text style={styles.changedText}>They will receive these amounts instead of what they asked for.</Text>
+              </View>
+            </View>
+          )}
+
           {releaseItems.length > 0 && (
             <Text style={styles.summaryText}>
               📦 {releaseItems.length} item{releaseItems.length === 1 ? '' : 's'}, {totalUnits} units to release
@@ -262,6 +292,29 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.error,
+  },
+  changedBanner: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginTop: SPACING.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE1A8',
+    backgroundColor: '#FFF4E0',
+  },
+  changedTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#7A4A00',
+    marginBottom: 2,
+  },
+  changedText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: '#7A4A00',
+    marginTop: 2,
   },
   emptyBox: {
     alignItems: 'center',
