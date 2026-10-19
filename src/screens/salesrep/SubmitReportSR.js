@@ -494,8 +494,8 @@ export default function SubmitReportSR() {
                                 setFocusedField((current) => (current === `${item.productCode}:sold` ? null : current))
                               }
                               keyboardType="number-pad"
-                              placeholder={focusedField === `${item.productCode}:sold` ? '' : '0'}
-                              placeholderTextColor="#B5C0CC"
+                              placeholder="0"
+                              placeholderTextColor={focusedField === `${item.productCode}:sold` ? 'transparent' : '#B5C0CC'}
                               textAlignVertical="center"
                               selectTextOnFocus
                               editable={!isReportLocked && !isSubmitting}
@@ -518,8 +518,8 @@ export default function SubmitReportSR() {
                                 setFocusedField((current) => (current === `${item.productCode}:returns` ? null : current))
                               }
                               keyboardType="number-pad"
-                              placeholder={focusedField === `${item.productCode}:returns` ? '' : '0'}
-                              placeholderTextColor="#B5C0CC"
+                              placeholder="0"
+                              placeholderTextColor={focusedField === `${item.productCode}:returns` ? 'transparent' : '#B5C0CC'}
                               textAlignVertical="center"
                               selectTextOnFocus
                               editable={!isReportLocked && !isSubmitting}
