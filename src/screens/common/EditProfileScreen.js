@@ -23,6 +23,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
 import friendlyError from '../../utils/friendlyError';
 import { invalidateSavedData } from '../../utils/dataVersion';
+import { getDeviceOs } from '../../utils/deviceInfo';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -87,13 +88,13 @@ export default function EditProfileScreen() {
           ? await profileService.updateManagerProfilePhoto({
               storagePath,
               deviceModel: Device.modelName || null,
-              deviceOs: Device.osName || null,
+              deviceOs: getDeviceOs() || null,
             })
           : await profileService.updateAgentProfilePhoto({
               agentId: user.id,
               storagePath,
               deviceModel: Device.modelName || null,
-              deviceOs: Device.osName || null,
+              deviceOs: getDeviceOs() || null,
             });
 
       if (!result.success) {

@@ -68,7 +68,7 @@ export default function SalesRepStockScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-stock', loadStockData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-stock', loadStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
   const stock = snapshot?.stock ?? [];
@@ -158,6 +158,8 @@ export default function SalesRepStockScreen() {
               mfgDate: row.mfg_date,
               branchName: selectedBranch?.name,
               hideQr: true,
+              productCode: row.product_code,
+              branchId: selectedBranch?.id,
             })
           }
         />
@@ -254,7 +256,8 @@ export default function SalesRepStockScreen() {
         </View>
 
         {isLoading ? (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
             <View style={styles.skeletonCardRow}>
               <SkeletonBlock width={152} height={140} borderRadius={12} />
@@ -272,7 +275,7 @@ export default function SalesRepStockScreen() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <StockSectionHeader
               dotColor={COLORS.success}
               label="In-Stock"

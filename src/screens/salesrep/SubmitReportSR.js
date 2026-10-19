@@ -1,6 +1,6 @@
 // src/screens/salesrep/SubmitReportSR.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -24,6 +24,8 @@ import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getQuickPosition } from '../../utils/quickLocation';
 import { getQueuedReceipts } from '../../utils/queuedReceipts';
 import friendlyError from '../../utils/friendlyError';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
+import { getDeviceOs } from '../../utils/deviceInfo';
 
 function isNearExpiry(expDate) {
   if (!expDate) return false;
@@ -63,7 +65,7 @@ export const loadReportStatusData = async (previous) => {
 
 export default function SubmitReportSR() {
   const navigation = useNavigation();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
   const agent = snapshot?.agent ?? null;
   const reportDate = snapshot?.reportDate ?? null;
   const alreadySubmitted = snapshot?.alreadySubmitted ?? false;
@@ -213,7 +215,7 @@ export default function SubmitReportSR() {
         latitude: coords.latitude,
         longitude: coords.longitude,
         deviceModel: Device.modelName || null,
-        deviceOs: Device.osName || null,
+        deviceOs: getDeviceOs() || null,
         items: reportItems,
       };
 
@@ -309,7 +311,8 @@ export default function SubmitReportSR() {
           </View>
         ) : (
           <>
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
               {/* Only an SR assigned to more than one branch ever sees this —
                   informational only, derived automatically from which branch
                   their current stock came from, never something to pick. */}
@@ -370,6 +373,14 @@ export default function SubmitReportSR() {
                     <Text style={styles.submittedBannerText}>
                       You've already filed today's daily report. Come back tomorrow to submit the next one.
                     </Text>
+                    <Pressable
+                      onPress={() => navigation.navigate('SalesRepReports', { openToday: true })}
+                      style={styles.viewReportButton}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.viewReportText}>View submitted report</Text>
+                      <Icon name="arrowRight" size={14} color="#1E7A3A" />
+                    </Pressable>
                   </View>
                 </View>
               )}
@@ -544,7 +555,7 @@ export default function SubmitReportSR() {
                   </Pressable>
                 </View>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             {!isReportLocked && items.length > 0 && (
               <View style={styles.footer}>
@@ -613,6 +624,25 @@ const styles = StyleSheet.create({
     color: '#1D6A3A',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
+  },
+  viewReportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BFE8CC',
+  },
+  viewReportText: {
+    fontSize: 12,
+    color: '#1E7A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   photoSection: {
     marginTop: 4,

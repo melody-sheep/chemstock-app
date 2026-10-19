@@ -1,6 +1,7 @@
 // src/components/common/PhotoProofCard.js
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { debugLog } from '../../utils/logger';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { COLORS } from '../../constants/colors';
@@ -10,6 +11,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
 // Photo Proof card matching Receive Stock: the captured photo with an expand badge that
 // opens the full-size viewer, then a "From … to …" line. The viewer is owned by the screen.
 export default function PhotoProofCard({ photoUri, onView, fromLabel, toName }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [photoUri]);
   return (
     <View style={styles.card}>
       <TouchableOpacity
@@ -19,8 +22,21 @@ export default function PhotoProofCard({ photoUri, onView, fromLabel, toName }) 
         accessibilityLabel="View full-size photo"
         accessibilityRole="button"
       >
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.image} resizeMode="cover" />
+        {photoUri && !failed ? (
+          <Image
+            source={{ uri: photoUri }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={(event) => {
+              setFailed(true);
+              debugLog('warn', 'Photo', 'Proof photo could not load', { error: event?.nativeEvent?.error });
+            }}
+          />
+        ) : failed ? (
+          <View style={styles.empty}>
+            <Icon name="camera" size={28} color={COLORS.textSecondary} />
+            <Text style={styles.failedText}>Photo couldn't load — check your connection and reopen.</Text>
+          </View>
         ) : (
           <View style={styles.empty}>
             <Icon name="camera" size={28} color={COLORS.textSecondary} />
@@ -79,6 +95,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  failedText: { marginTop: 6, paddingHorizontal: 16, fontSize: 12, color: COLORS.textSecondary, textAlign: 'center' },
   expandBadge: {
     position: 'absolute',
     bottom: SPACING.sm,

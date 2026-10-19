@@ -26,6 +26,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
 import requireOnline from '../../utils/requireOnline';
+import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -81,7 +82,7 @@ export default function CollectorDeliveryDetailScreen() {
     });
   }, []);
 
-  const deviceLabel = [Device.modelName, Device.osName, Device.osVersion].filter(Boolean).join(' - ');
+  const deviceLabel = getDeviceLabel(agent?.full_name || agent?.username);
   const totalUnits = (delivery?.items || []).reduce((sum, item) => sum + item.quantity, 0);
 
   const handleBack = () => navigation.goBack();
@@ -140,7 +141,7 @@ export default function CollectorDeliveryDetailScreen() {
         latitude: coords?.latitude,
         longitude: coords?.longitude,
         deviceModel: Device.modelName,
-        deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+        deviceOs: getDeviceOs(),
         storagePath,
       });
 

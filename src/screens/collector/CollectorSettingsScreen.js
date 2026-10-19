@@ -206,7 +206,6 @@ export default function CollectorSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your deliveries."
         }
         confirmLabel="Log Out"
-        variant="center"
       />
     </>
   );

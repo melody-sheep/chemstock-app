@@ -3,10 +3,10 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
+import useOutbox from '../../hooks/useOutbox';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
@@ -14,6 +14,7 @@ import reportService from '../../services/reportService';
 import { supabase } from '../../services/supabaseClient';
 import { formatRelativeTime } from '../../utils/formatters';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import Header from '../../components/common/Header';
 
 // Read-only status list of this SR's own return/resolve-discrepancy
 // requests. The submission form itself lives on ResolveDiscrepancyScreen,
@@ -22,6 +23,7 @@ const STATUS_META = {
   pending: { label: 'Pending', bg: '#FFF1D6', text: '#B26400' },
   accepted: { label: 'Accepted', bg: '#EAFBF2', text: '#1E7A3A' },
   rejected: { label: 'Rejected', bg: '#FBDCDC', text: '#B91C1C' },
+  queued: { label: 'Pending', bg: '#E3F2FF', text: '#0085F9' },
 };
 
 const SHIPMENT_BUCKET = 'shipment-media';
@@ -39,13 +41,21 @@ const loadReturnRequestsData = async (previous) => {
 
 export default function ReturnStocksSR() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-return-requests', loadReturnRequestsData);
-  const requests = snapshot?.requests ?? [];
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-return-requests', loadReturnRequestsData);
+  // Requests sent while offline show first, as pending, until they sync.
+  const { pending: queuedReturns } = useOutbox('discrepancy_resolution', snapshot?.agentId ?? null);
+  const queuedRequests = queuedReturns.map((entry) => ({
+    resolutionRequestId: `queued-${entry.id}`,
+    productCode: entry.display?.productCode || 'Return request',
+    productName: entry.display?.productName || '',
+    createdAt: new Date(entry.createdAt).toISOString(),
+    status: 'queued',
+    isQueued: true,
+  }));
+  const requests = [...queuedRequests, ...(snapshot?.requests ?? [])];
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
 
-  const handleBack = () => navigation.goBack();
 
   const handleOpenRequest = async (request) => {
     setSelectedRequest(request);
@@ -62,17 +72,15 @@ export default function ReturnStocksSR() {
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-          <Pressable onPress={handleBack} style={styles.iconButton}>
-            <Icon name="arrowLeft" size={20} color="#FFFFFF" />
-          </Pressable>
-
-          <Text style={styles.topBarTitle}>Return Stocks</Text>
-
-          <Pressable onPress={() => navigation.navigate('SalesRepLogs')} style={styles.iconButton}>
-            <Icon name="document" size={20} color="#FFFFFF" />
-          </Pressable>
-        </View>
+        <Header
+          showBackButton
+          title="Return Stocks"
+          height={56}
+          backgroundColor="#03045E"
+          textColor="#FFFFFF"
+          showDocumentIcon
+          onDocumentPress={() => navigation.navigate('SalesRepLogs')}
+        />
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
@@ -80,14 +88,15 @@ export default function ReturnStocksSR() {
           </View>
         ) : requests.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="returnBox" size={32} color={COLORS.textSecondary} />
+            <Icon name="returns" size={32} color={COLORS.textSecondary} />
             <Text style={styles.emptyText}>No return requests yet.</Text>
             <Text style={styles.emptySubtext}>
               Requests you send from a discrepancy alert will show up here.
             </Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {requests.map((request) => {
               const meta = STATUS_META[request.status] || STATUS_META.pending;
 
@@ -95,7 +104,7 @@ export default function ReturnStocksSR() {
                 <Pressable
                   key={request.resolutionRequestId}
                   style={styles.requestCard}
-                  onPress={() => handleOpenRequest(request)}
+                  onPress={() => !request.isQueued && handleOpenRequest(request)}
                 >
                   <View style={styles.requestTopRow}>
                     <View style={styles.thumbnail}>
@@ -119,6 +128,10 @@ export default function ReturnStocksSR() {
                       <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
                     </View>
                   </View>
+
+                  {request.isQueued && (
+                    <Text style={styles.queuedNote}>Waiting for connection — sends automatically once you're online.</Text>
+                  )}
 
                   {request.status === 'rejected' && request.rejectReason && (
                     <Text style={styles.rejectReasonText}>Reason: {request.rejectReason}</Text>
@@ -274,6 +287,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: '#B91C1C',
+  },
+  queuedNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#0085F9',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   modalTitle: {
     fontSize: 17,

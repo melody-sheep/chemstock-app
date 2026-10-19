@@ -100,7 +100,7 @@ export default function SalesRepLogsScreen() {
   const route = useRoute();
   useMarkLogsSeen();
   const navigation = useNavigation();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-logs', loadLogsData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
   const [dateFilter, setDateFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
@@ -182,7 +182,8 @@ export default function SalesRepLogsScreen() {
             <Text style={styles.emptyText}>No transactions in this range.</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {filteredLogs.map((log) => {
               const cardType =
                 log.logType === 'discrepancy'

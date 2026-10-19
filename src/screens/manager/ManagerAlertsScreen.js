@@ -62,7 +62,7 @@ export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading, isUnavailable } = useCachedFocusLoader('manager-alerts', loadAlertsData);
+  const { data: snapshot, isLoading, isUnavailable, refreshControl } = useCachedFocusLoader('manager-alerts', loadAlertsData);
   const alerts = snapshot?.alerts ?? [];
   const photoUrlByAgentId = snapshot?.photoUrlByAgentId ?? {};
   const branches = snapshot?.branches ?? [];
@@ -141,7 +141,8 @@ export default function ManagerAlertsScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {branchFilterOptions.length > 1 && (
               <View style={styles.branchFilterWrap}>
                 <BranchSelector

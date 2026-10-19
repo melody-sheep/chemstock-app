@@ -67,7 +67,7 @@ export default function ManagerStockScreen() {
   const navigation = useNavigation();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading } = useCachedFocusLoader('manager-stock', loadStockData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-stock', loadStockData);
   const manager = snapshot?.manager ?? null;
   const branches = snapshot?.branches ?? [];
   const stock = snapshot?.stock ?? [];
@@ -264,7 +264,8 @@ export default function ManagerStockScreen() {
         </View>
 
         {isLoading ? (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
             <View style={styles.skeletonCardRow}>
               <SkeletonBlock width={152} height={140} borderRadius={12} />
@@ -282,7 +283,7 @@ export default function ManagerStockScreen() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <StockSectionHeader
               dotColor={COLORS.success}
               label="In-Stock"

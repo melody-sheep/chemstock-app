@@ -56,6 +56,13 @@ export default function Header({
   const connection = useConnectionStatus();
   const savedAt = useSavedDataTime();
 
+  // One header style everywhere: "← Title", left-aligned. A plain "Back"
+  // label is dropped (the arrow says it), and so is any back label when the
+  // header has its own title (was "← Back  My Backpack").
+  const hasTitle = Boolean(title && title !== '');
+  const backLabel = hasTitle || backButtonText === 'Back' ? null : backButtonText;
+  const alignTitle = showBackButton ? 'left' : titleAlign;
+
   const handleBackPress = () => {
     try {
       if (onBackPress) {
@@ -96,9 +103,9 @@ export default function Header({
             accessibilityRole="button"
           >
             <ArrowLeftBold size={20} color={textColor} />
-            {backButtonText && (
+            {backLabel && (
               <Text style={[styles.backText, { color: textColor }]}>
-                {backButtonText}
+                {backLabel}
               </Text>
             )}
           </TouchableOpacity>
@@ -133,7 +140,7 @@ export default function Header({
         {/* Left-aligned title when a back button is present — renders
             right after the back icon so the header reads "← Log Detail"
             instead of centering the title and leaving an empty gap. */}
-        {!showProfileIcon && showBackButton && titleAlign === 'left' && title && title !== '' && (
+        {!showProfileIcon && showBackButton && alignTitle === 'left' && hasTitle && (
           <Text
             style={[styles.leftTitle, styles.backButtonTitle, { color: textColor }]}
             numberOfLines={1}
@@ -142,7 +149,7 @@ export default function Header({
           </Text>
         )}
 
-        {!showProfileIcon && !showBackButton && titleAlign === 'left' && title && title !== '' && (
+        {!showProfileIcon && !showBackButton && alignTitle === 'left' && hasTitle && (
           <Text style={[styles.leftTitle, { color: textColor }]}>
             {title}
           </Text>
@@ -151,7 +158,7 @@ export default function Header({
 
       {/* Center Section */}
       <View style={styles.centerSection}>
-        {!showProfileIcon && titleAlign === 'center' && title && title !== '' && (
+        {!showProfileIcon && alignTitle === 'center' && hasTitle && (
           <Text style={[styles.title, { color: textColor }]}>
             {title}
           </Text>

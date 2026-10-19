@@ -46,7 +46,7 @@ const loadRequestsData = async (previous) => {
 };
 
 export default function SalesRepStockRequestsScreen() {
-  const { data: snapshot, isLoading } = useCachedFocusLoader('sales-rep-stock-requests', loadRequestsData);
+  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-stock-requests', loadRequestsData);
   const requests = snapshot?.requests ?? [];
 
   // Requests queued offline (not yet synced) are otherwise invisible here
@@ -86,7 +86,8 @@ export default function SalesRepStockRequestsScreen() {
             <Text style={styles.emptySubtext}>Requests you send to your manager will show up here.</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {allRequests.map((request) => {
               const displayStatus = request.isQueued ? 'queued' : getDisplayStatus(request);
               const meta = STATUS_META[displayStatus];

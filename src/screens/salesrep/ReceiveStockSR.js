@@ -24,6 +24,7 @@ import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
+import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
 
 // Passed from ReceiveStockTypeSR. Used both pre-scan (what the user
 // *expects* to receive) and as a hard gate once a QR resolves — the server's
@@ -62,7 +63,7 @@ export default function ReceiveStockSR() {
     authService.getCurrentUser().then(setAgent);
   }, []);
 
-  const deviceLabel = [Device.modelName, Device.osName, Device.osVersion].filter(Boolean).join(' - ');
+  const deviceLabel = getDeviceLabel(agent?.full_name || agent?.username);
 
   const handleBack = () => navigation.goBack();
 
@@ -144,7 +145,7 @@ export default function ReceiveStockSR() {
       latitude: coords?.latitude,
       longitude: coords?.longitude,
       deviceModel: Device.modelName,
-      deviceOs: `${Device.osName || ''} ${Device.osVersion || ''}`.trim(),
+      deviceOs: getDeviceOs(),
     };
 
     const receiptCopy = receiptDisplay({ transactionId: batch.transactionId, qrCode: batch.qrCode, items: batch.items });
