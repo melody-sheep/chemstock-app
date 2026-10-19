@@ -218,6 +218,7 @@ export default function ManagerSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your branch."
         }
         confirmLabel="Log Out"
+        variant="center"
       />
 
       <QRScannerModal

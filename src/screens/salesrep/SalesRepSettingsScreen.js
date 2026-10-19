@@ -211,6 +211,7 @@ export default function SalesRepSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your inventory."
         }
         confirmLabel="Log Out"
+        variant="center"
       />
 
       <QRScannerModal
