@@ -6,6 +6,7 @@ import CustomModal from './Modal';
 import Button from './Button';
 import Icon from './Icon';
 import CameraCaptureModal from './CameraCaptureModal';
+import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -60,7 +61,7 @@ export default function ReportHandoffIssueModal({
   return (
     <>
       <CustomModal visible={visible} onClose={handleCancel} height="auto">
-        <View style={styles.content}>
+        <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.iconWrap}>
             <View style={styles.iconCircle}>
               <Icon name="sealWarning" size={26} color={COLORS.error} />
@@ -150,7 +151,7 @@ export default function ReportHandoffIssueModal({
           >
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
-        </View>
+        </KeyboardAwareScrollView>
       </CustomModal>
 
       <CameraCaptureModal

@@ -1,6 +1,6 @@
 // src/screens/manager/AddNewBatchesScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -18,6 +18,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { recordProductUsage } from '../../utils/productUsage';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { getItemsMissingDates } from '../../utils/batchItemValidation';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
 const PLACEHOLDER_IMAGE = require('../../../assets/image/empty_box1.png');
 
@@ -147,7 +148,7 @@ export default function AddNewBatchesScreen() {
 
         <SubScreenSecondaryHeader title="Add New Batches" />
 
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -197,7 +198,7 @@ export default function AddNewBatchesScreen() {
             📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
           </Text>
 
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <BottomActionBar>
           <Button

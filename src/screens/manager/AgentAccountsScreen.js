@@ -1,6 +1,6 @@
 // src/screens/manager/AgentAccountsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
@@ -19,6 +19,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
+import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
 const ROLE_OPTIONS = [
   { value: 'sales_rep', label: 'Sales Rep' },
@@ -147,7 +148,7 @@ export default function AgentAccountsScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -264,7 +265,7 @@ export default function AgentAccountsScreen() {
               </View>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </>
   );
