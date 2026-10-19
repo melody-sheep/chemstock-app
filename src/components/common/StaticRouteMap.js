@@ -181,6 +181,15 @@ function buildHtml({
       if (command === 'zoomIn') map.zoomIn();
       else if (command === 'zoomOut') map.zoomOut();
       else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { paddingTopLeft: [48, 200], paddingBottomRight: [80, 120], maxZoom: 16 });
+      else if (command.indexOf('focusOn:') === 0) {
+        var parts = command.slice(8).split(',');
+        var lat = parseFloat(parts[0]);
+        var lng = parseFloat(parts[1]);
+        var zoom = parseFloat(parts[2]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          map.setView([lat, lng], isNaN(zoom) ? 16 : zoom, { animate: true });
+        }
+      }
     };
     var PIN_PATH = ${JSON.stringify(ICONS.mapPinFill.svg)};
     var bounds = [];
@@ -318,6 +327,10 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
     zoomIn: () => sendMapCommand('zoomIn'),
     zoomOut: () => sendMapCommand('zoomOut'),
     recenter: () => sendMapCommand('recenter'),
+    // Pans/zooms straight to a single point — e.g. TeamMapScreen jumping to
+    // the person whose name card was just tapped, rather than the
+    // fit-everything-in-view behavior `recenter` does.
+    focusOn: (latitude, longitude, zoom = 16) => sendMapCommand(`focusOn:${latitude},${longitude},${zoom}`),
   }));
 
   const sendMapCommand = (command) => {

@@ -4,9 +4,10 @@
 // checkpoint, daily report or stock request), with when that was. Not live
 // tracking — the app only knows a location when the agent does something.
 import React, { useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
+import Icon from '../../components/common/Icon';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import MapZoomControls from '../../components/common/MapZoomControls';
 import MapLegend from '../../components/common/MapLegend';
@@ -47,6 +48,14 @@ export default function TeamMapScreen() {
   }, [members]);
 
   const photoOf = (m) => (getConnectionStatus().online ? m.photoUrl : offlinePhotos[m.agentId] || null);
+
+  const handleSelectMember = (m) => {
+    if (m.latitude == null || m.longitude == null) {
+      Alert.alert('No Location Yet', `${m.fullName} hasn't had a location recorded yet.`);
+      return;
+    }
+    mapRef.current?.focusOn(m.latitude, m.longitude);
+  };
   const located = members.filter((m) => m.latitude != null && m.longitude != null);
   const markers = located.map((m) => ({
     id: m.agentId,
@@ -94,8 +103,15 @@ export default function TeamMapScreen() {
           )}
           {members.map((m) => {
             const presence = describePresence(m.lastSeenAt);
+            const isLocated = m.latitude != null && m.longitude != null;
             return (
-              <Pressable key={m.agentId} style={styles.row} disabled>
+              <Pressable
+                key={m.agentId}
+                style={({ pressed }) => [styles.row, pressed && isLocated && styles.rowPressed]}
+                onPress={() => handleSelectMember(m)}
+                accessibilityRole="button"
+                accessibilityLabel={isLocated ? `Show ${m.fullName}'s last location on the map` : `${m.fullName} has no location recorded yet`}
+              >
                 <UserAvatar photoUrl={photoOf(m)} fallbackText={getInitials(m.fullName)} size={40} />
                 <View style={styles.rowText}>
                   <Text style={styles.rowName} numberOfLines={1}>{m.fullName}</Text>
@@ -109,6 +125,7 @@ export default function TeamMapScreen() {
                   </Text>
                 </View>
                 <View style={[styles.roleDot, { backgroundColor: ROLE_COLOR[m.role] || ROLE_COLOR.sales_rep }]} />
+                {isLocated && <Icon name="arrowRight" size={16} color="#94a3b8" />}
               </Pressable>
             );
           })}
@@ -144,6 +161,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#EAEFF5',
     backgroundColor: '#FFFFFF',
+  },
+  rowPressed: {
+    backgroundColor: '#F7F9FC',
+    borderColor: COLORS.primaryLight,
   },
   rowText: { flex: 1 },
   rowName: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
