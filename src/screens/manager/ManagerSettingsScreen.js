@@ -203,7 +203,7 @@ export default function ManagerSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
 
       <ConfirmationDialog
@@ -218,6 +218,7 @@ export default function ManagerSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your branch."
         }
         confirmLabel="Log Out"
+        variant="center"
       />
 
       <QRScannerModal

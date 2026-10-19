@@ -96,7 +96,12 @@ export default function ComingSoonScreen() {
             This section hasn't been built yet — the tab navigation itself works, this screen just isn't real yet.
           </Text>
         </View>
-        <BottomNavBar activeTab={tabKey} onTabPress={handleTabPress} onFabPress={handleFabPress} />
+        <BottomNavBar
+          activeTab={tabKey}
+          onTabPress={handleTabPress}
+          onFabPress={handleFabPress}
+          fabLabel={role === 'collector' ? 'Deliver' : 'Scan'}
+        />
       </View>
 
       <QRScannerModal

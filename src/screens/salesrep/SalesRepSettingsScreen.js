@@ -196,7 +196,7 @@ export default function SalesRepSettingsScreen() {
           <View style={{ height: 24 }} />
         </ScrollView>
 
-        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
+        <BottomNavBar activeTab="settings" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
 
       <ConfirmationDialog
@@ -211,6 +211,7 @@ export default function SalesRepSettingsScreen() {
             : "You're about to log out of ChemStock. You'll need to sign in again to access your inventory."
         }
         confirmLabel="Log Out"
+        variant="center"
       />
 
       <QRScannerModal

@@ -315,7 +315,7 @@ export default function SalesRepStockScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="stock" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
+        <BottomNavBar activeTab="stock" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
 
       <QRScannerModal

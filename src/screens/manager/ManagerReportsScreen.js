@@ -718,7 +718,7 @@ export default function ManagerReportsScreen() {
           </ScrollView>
         )}
 
-        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} />
+        <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
 
       <QRScannerModal

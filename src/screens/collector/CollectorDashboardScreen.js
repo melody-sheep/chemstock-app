@@ -425,6 +425,7 @@ export default function CollectorDashboardScreen() {
           onFabPress={handleFabPress}
           hiddenKeys={['stock', 'reports']}
           fabIcon="truck"
+          fabLabel="Deliver"
         />
       </View>
     </>

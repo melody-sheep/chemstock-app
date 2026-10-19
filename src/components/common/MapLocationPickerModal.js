@@ -56,7 +56,7 @@ const FOOTER_OFFSET = 28;
 // The origin marker is NOT baked into the page: it is pushed in later with
 // window.setOrigin(), so a GPS fix that arrives after the map has loaded shows
 // up without reloading the page (which would drop a pin the manager placed).
-function buildMapHtml({ initialCoords }) {
+function buildMapHtml({ initialCoords, initialLockedTo = null }) {
   const center = initialCoords || FALLBACK_CENTER;
   const initialJson = initialCoords ? JSON.stringify(initialCoords) : 'null';
 
@@ -178,7 +178,7 @@ function buildMapHtml({ initialCoords }) {
     }
 
     if (initial) {
-      placeDestination(initial.latitude, initial.longitude);
+      placeDestination(initial.latitude, initial.longitude, ${initialLockedTo ? JSON.stringify(initialLockedTo) : 'null'});
     }
 
     map.on('click', function (e) {
@@ -238,6 +238,9 @@ function buildMapHtml({ initialCoords }) {
 export default function MapLocationPickerModal({
   teamMembers = [],
   targetRecipientId = null,
+  // Opens with the pin already locked on this Sales Rep (e.g. from the
+  // "Go to <SR>'s last recorded location" card on the release screen).
+  initialLockedAgentId = null,
   visible,
   onClose,
   onConfirm,
@@ -301,8 +304,9 @@ export default function MapLocationPickerModal({
     () =>
       buildMapHtml({
         initialCoords: initialLat === null ? null : { latitude: initialLat, longitude: initialLng },
+        initialLockedTo: initialLockedAgentId,
       }),
-    [initialLat, initialLng]
+    [initialLat, initialLng, initialLockedAgentId]
   );
 
   // Show the current-location marker whenever a fix exists, including fixes
@@ -432,7 +436,7 @@ export default function MapLocationPickerModal({
 
   const handleShow = () => {
     setPickedCoords(initialCoords || null);
-    setLockedAgentId(null);
+    setLockedAgentId(initialLockedAgentId || null);
   };
 
   const handleConfirm = () => {
@@ -634,6 +638,8 @@ MapLocationPickerModal.propTypes = {
   onConfirm: PropTypes.func.isRequired,
   originCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
   teamMembers: PropTypes.array,
+  targetRecipientId: PropTypes.string,
+  initialLockedAgentId: PropTypes.string,
   originAvatarUrl: PropTypes.string,
   originInitials: PropTypes.string,
   initialCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
