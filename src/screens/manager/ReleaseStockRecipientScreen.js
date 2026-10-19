@@ -30,6 +30,17 @@ const ROLE_TABS = [
   { key: ROLES.COLLECTOR, label: 'Collector', subtitle: 'Middleman / Bridge' },
 ];
 
+// Same accent-per-role scheme as ManageAccountsScreen's agent role pill,
+// so the two screens read consistently.
+const ROLE_DOT_COLOR = {
+  [ROLES.SALES_REP]: COLORS.accentOrange,
+  [ROLES.COLLECTOR]: COLORS.accentPink,
+};
+const ROLE_BADGE_COLORS = {
+  [ROLES.SALES_REP]: { bg: ROLE_DOT_COLOR[ROLES.SALES_REP] + '18', text: ROLE_DOT_COLOR[ROLES.SALES_REP] },
+  [ROLES.COLLECTOR]: { bg: ROLE_DOT_COLOR[ROLES.COLLECTOR] + '18', text: ROLE_DOT_COLOR[ROLES.COLLECTOR] },
+};
+
 export default function ReleaseStockRecipientScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -292,9 +303,11 @@ export default function ReleaseStockRecipientScreen() {
                       backgroundColor={COLORS.primaryLight}
                       fallbackTextColor={COLORS.primary}
                     />
-                    <Text style={styles.agentRoleLabel}>
-                      {activeRole === ROLES.SALES_REP ? 'Sales Rep' : 'Collector'}
-                    </Text>
+                    <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[activeRole].bg }]}>
+                      <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[activeRole].text }]}>
+                        {activeRole === ROLES.SALES_REP ? 'SALES REP' : 'COLLECTOR'}
+                      </Text>
+                    </View>
                     <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
                   </TouchableOpacity>
                 );
@@ -304,7 +317,14 @@ export default function ReleaseStockRecipientScreen() {
 
           {isCollectorRole && selectedAgent && (
             <>
-              <Text style={styles.targetRepLabel}>Deliver to (Sales Rep)</Text>
+              <View style={styles.targetRepLabelRow}>
+                <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[ROLES.SALES_REP].bg }]}>
+                  <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[ROLES.SALES_REP].text }]}>
+                    SALES REP
+                  </Text>
+                </View>
+                <Text style={styles.targetRepLabel}>Deliver to</Text>
+              </View>
               {targetReps.length === 0 ? (
                 <Text style={styles.emptyText}>No sales reps found for your branch.</Text>
               ) : (
@@ -330,7 +350,11 @@ export default function ReleaseStockRecipientScreen() {
                           backgroundColor={COLORS.primaryLight}
                           fallbackTextColor={COLORS.primary}
                         />
-                        <Text style={styles.agentRoleLabel}>Sales Rep</Text>
+                        <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[ROLES.SALES_REP].bg }]}>
+                          <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[ROLES.SALES_REP].text }]}>
+                            SALES REP
+                          </Text>
+                        </View>
                         <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
                       </TouchableOpacity>
                     );
@@ -454,8 +478,13 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
   },
-  targetRepLabel: {
+  targetRepLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
     marginTop: SPACING.md,
+  },
+  targetRepLabel: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -492,11 +521,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
+  roleBadge: {
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
   agentRoleLabel: {
-    fontSize: 10,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
+    fontSize: 9,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    letterSpacing: 0.4,
   },
   agentName: {
     fontSize: 11,
