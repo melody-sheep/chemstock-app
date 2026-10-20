@@ -201,6 +201,19 @@ console.log('[INFO] [supabaseClient] Supabase client initialized');
 const AUTH_STORAGE_KEY = `sb-${SUPABASE_URL.replace(/^https?:\/\//, '').split('.')[0]}-auth-token`;
 
 /**
+ * Removes the manager's saved Supabase login from this phone. Used by log
+ * out when the server couldn't be reached: supabase-js leaves the login in
+ * place if its sign-out request fails, which kept an offline log-out stuck.
+ */
+export const clearStoredAuthSession = async () => {
+  try {
+    await AsyncStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch (error) {
+    // Nothing more to do — the login is cleared on the next successful sign-out.
+  }
+};
+
+/**
  * Whether a manager's Supabase login is saved on this phone. Reads storage
  * only — unlike auth.getSession(), it never tries to refresh the token over
  * the network, so it can't hold up app launch.

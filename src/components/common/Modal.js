@@ -51,7 +51,7 @@ export default function CustomModal({
     <Modal
       visible={visible}
       transparent={true}
-      animationType={isCentered ? 'fade' : 'slide'}
+      animationType={isCentered ? 'none' : 'slide'}
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={handleBackdropPress}>

@@ -1,7 +1,7 @@
 // src/services/authService.js
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { BaseService } from './BaseService';
-import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession } from './supabaseClient';
+import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession, clearStoredAuthSession } from './supabaseClient';
 import { setPresenceIdentity } from './presenceService';
 import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
@@ -51,6 +51,9 @@ const withTimeout = (promise, ms, fallbackValue) => {
     }),
   ]).finally(() => clearTimeout(timer));
 };
+
+// How long log out waits for the server to end the session before moving on.
+const LOGOUT_SERVER_WAIT_MS = 4000;
 
 const resetCurrentUser = () => {
   currentUserCache = null;
@@ -320,26 +323,42 @@ class AuthService extends BaseService {
     setPresenceIdentity(null);
     debugLog('info', 'AuthService', 'Logout');
 
+    // Always clear both cached sessions — harmless no-op for whichever
+    // auth mode the current user wasn't using, and prevents a stale
+    // profile from a previous account leaking into the offline fallback
+    // below for whoever logs in next on this device.
     try {
-      // Always clear both cached sessions — harmless no-op for whichever
-      // auth mode the current user wasn't using, and prevents a stale
-      // profile from a previous account leaking into the offline fallback
-      // below for whoever logs in next on this device.
       await storage.remove(AGENT_SESSION_KEY);
       await storage.remove(MANAGER_PROFILE_CACHE_KEY);
-
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-
-      this.currentSession = null;
-      debugLog('info', 'AuthService', 'Logout successful');
-
     } catch (error) {
-      this.handleError(error);
-      throw error;
+      debugLog('warn', 'AuthService', 'Could not clear the saved profile on log out', { error: error.message });
     }
+
+    // Log out never fails and never makes the user wait on the network:
+    // offline it goes straight through, online the server gets a few
+    // seconds to end the session. If it can't, the saved login is removed
+    // from this phone anyway (it expires on the server by itself).
+    if (getConnectionStatus().online) {
+      let timer;
+      try {
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise((resolve) => {
+            timer = setTimeout(resolve, LOGOUT_SERVER_WAIT_MS);
+          }),
+        ]);
+      } catch (error) {
+        debugLog('warn', 'AuthService', 'Server sign-out failed, logging out on this phone only', { error: error.message });
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      debugLog('info', 'AuthService', 'Offline — logging out on this phone only');
+    }
+    await clearStoredAuthSession();
+
+    this.currentSession = null;
+    debugLog('info', 'AuthService', 'Logout successful');
   }
 
   /**

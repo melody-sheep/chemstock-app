@@ -1,5 +1,5 @@
 // src/screens/collector/CollectorSettingsScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -61,9 +61,17 @@ export default function CollectorSettingsScreen() {
 
   const handleLogout = () => setShowLogoutDialog(true);
 
+  // A second tap while logging out is ignored.
+  const isLoggingOut = useRef(false);
   const handleConfirmLogout = async () => {
+    if (isLoggingOut.current) return;
+    isLoggingOut.current = true;
     setShowLogoutDialog(false);
-    await authService.logout();
+    try {
+      await authService.logout();
+    } finally {
+      isLoggingOut.current = false;
+    }
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
