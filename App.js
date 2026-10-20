@@ -10,6 +10,7 @@ import { supabase, testConnection, hasStoredAuthSession } from './src/services/s
 import authService from './src/services/authService';
 import { getConnectionStatus } from './src/services/connectionStatus';
 import SplashLoader from './src/components/common/SplashLoader';
+import PermissionsPrompt from './src/components/common/PermissionsPrompt';
 import { installGlobalErrorHandler, installConsoleErrorFormatter, debugLog } from './src/utils/logger';
 import { installKeyboardDebug } from './src/utils/keyboardDebug';
 
@@ -208,6 +209,9 @@ export default function App() {
         {!isConnecting && (
           <AppNavigator initialRouteName={initialRouteName || 'Login'} />
         )}
+
+        {/* First launch after a fresh install: ask for location + camera once. */}
+        {!isConnecting && <PermissionsPrompt />}
 
         {isSplashMounted && (
           <Animated.View
