@@ -135,13 +135,13 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
   const syncLabel = failedCount > 0
     ? `${failedCount} couldn't be sent`
     : pendingCount > 0
-      ? `${pendingCount} waiting to sync`
-      : 'All synced';
+      ? `${pendingCount} waiting to send`
+      : 'All sent';
   const syncSub = failedCount > 0
-    ? 'The server refused it. Open the screen it came from (e.g. Submit Report) to retry or discard it.'
+    ? 'It was not accepted. Open the screen it came from (e.g. Submit Report) to retry or discard it.'
     : pendingCount > 0
       ? connection.online ? 'Sending automatically…' : 'Sends automatically once you are back online.'
-      : 'Everything you did on this phone is on the server.';
+      : 'Everything you did on this phone has been sent.';
 
   return (
     <View style={shared.groupCard}>
@@ -155,7 +155,7 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
             <Icon name="clock" size={18} color="#03045E" />
           </View>
           <View style={local.textWrap}>
-            <Text style={shared.rowLabel}>Offline Sync</Text>
+            <Text style={shared.rowLabel}>Saved Offline</Text>
             <Text style={shared.rowSubLabel}>{syncSub}</Text>
           </View>
         </View>
@@ -164,7 +164,7 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
             {isSyncing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={local.syncButtonText}>Sync now</Text>
+              <Text style={local.syncButtonText}>Send now</Text>
             )}
           </Pressable>
         ) : (

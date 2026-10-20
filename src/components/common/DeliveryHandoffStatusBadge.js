@@ -33,19 +33,19 @@ const STATUS_META = {
   },
   // Confirmed offline on this phone, not synced yet.
   queued: {
-    label: 'Confirmed — waiting to sync',
+    label: 'Confirmed — waiting to send',
     bg: '#E3F2FF',
     color: '#0085F9',
   },
   // Received on this phone; the Collector's "delivered" hasn't synced yet.
   queued_waiting: {
-    label: 'Received — waiting for Collector to sync',
+    label: 'Received — waiting for the Collector to go online',
     bg: '#E3F2FF',
     color: '#0085F9',
   },
   // Issue reported offline on this phone, not synced yet.
   queued_issue: {
-    label: 'Issue reported — waiting to sync',
+    label: 'Issue reported — waiting to send',
     bg: '#FBDCDC',
     color: '#B91C1C',
   },

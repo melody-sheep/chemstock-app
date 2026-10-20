@@ -211,7 +211,7 @@ export default function CollectorSettingsScreen() {
         title="Log Out"
         description={
           unsyncedCount > 0
-            ? `${unsyncedCount === 1 ? '1 item has not' : `${unsyncedCount} items have not`} synced yet. It stays on this phone and sends automatically once you're online — you can log out safely.`
+            ? `${unsyncedCount === 1 ? '1 item has not' : `${unsyncedCount} items have not`} been sent yet. It stays on this phone and sends automatically once you're online — you can log out safely.`
             : "You're about to log out of ChemStock. You'll need to sign in again to access your deliveries."
         }
         confirmLabel="Log Out"

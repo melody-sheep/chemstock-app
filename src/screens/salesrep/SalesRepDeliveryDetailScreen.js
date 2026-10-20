@@ -37,9 +37,9 @@ const STATUS_LABELS = { not_delivered: 'Pending', in_transit: 'In Transit', deli
 
 function getStatusLabel(delivery) {
   // Short: the pill shares its row with the section title.
-  if (delivery.handoffStatus === 'queued') return 'Waiting to sync';
+  if (delivery.handoffStatus === 'queued') return 'Waiting to send';
   if (delivery.handoffStatus === 'queued_waiting') return 'Waiting for Collector';
-  if (delivery.handoffStatus === 'queued_issue') return 'Issue — waiting to sync';
+  if (delivery.handoffStatus === 'queued_issue') return 'Issue — waiting to send';
   if (delivery.deliveryStatus === 'delivered' && delivery.handoffStatus === 'pending_sr') {
     return 'Awaiting your confirmation';
   }

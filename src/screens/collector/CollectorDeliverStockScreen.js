@@ -287,7 +287,7 @@ export default function CollectorDeliverStockScreen() {
         setIsCheckpointModalVisible(false);
         Alert.alert(
           'Saved — Will Send Later',
-          "You're offline. This checkpoint is saved on this device and will sync automatically once you're back online."
+          "You're offline. This checkpoint is saved on this device and will be sent automatically once you're back online."
         );
         return;
       }
@@ -307,7 +307,7 @@ export default function CollectorDeliverStockScreen() {
           setIsCheckpointModalVisible(false);
           Alert.alert(
             'Saved — Will Send Later',
-            "Connection dropped mid-update. This checkpoint is saved on this device and will sync automatically once you're back online."
+            "Connection dropped mid-update. This checkpoint is saved on this device and will be sent automatically once you're back online."
           );
           return;
         }
@@ -360,7 +360,7 @@ export default function CollectorDeliverStockScreen() {
         } else {
           Alert.alert(
             'Saved — Will Send Later',
-            `You're offline. Delivery to ${targetLeg.label} is saved on this device and will sync automatically once you're back online.`
+            `You're offline. Delivery to ${targetLeg.label} is saved on this device and will be sent automatically once you're back online.`
           );
           load();
         }
@@ -395,7 +395,7 @@ export default function CollectorDeliverStockScreen() {
           } else {
             Alert.alert(
               'Saved — Will Send Later',
-              `Connection dropped mid-update. Delivery to ${targetLeg.label} is saved on this device and will sync automatically once you're back online.`
+              `Connection dropped mid-update. Delivery to ${targetLeg.label} is saved on this device and will be sent automatically once you're back online.`
             );
             load();
           }
@@ -483,7 +483,7 @@ export default function CollectorDeliverStockScreen() {
           />
           <Text style={styles.emptyText}>
             {hasQueuedStops
-              ? 'All stops are marked delivered. Waiting for network to sync.'
+              ? 'All stops are marked delivered. It will be sent once you are back online.'
               : 'All deliveries in this trip are complete.'}
           </Text>
         </View>

@@ -178,7 +178,7 @@ export default function SubmitReportSR() {
 
   const handleFinalize = async () => {
     if (items.length === 0) {
-      Alert.alert('Nothing to Report', 'You have no in-custody stock to report today.');
+      Alert.alert('Nothing to Report', 'You have no stock with you to report today.');
       return;
     }
     if (!photoUri) {
@@ -411,7 +411,7 @@ export default function SubmitReportSR() {
                     </View>
                     <Text style={styles.statValue}>{totals.returns}</Text>
                   </View>
-                  <Text style={styles.statLabel}>Return</Text>
+                  <Text style={styles.statLabel}>Returned</Text>
                 </View>
               </View>
 
@@ -420,12 +420,15 @@ export default function SubmitReportSR() {
                   <Icon name="checkCircle" size={32} color={COLORS.textSecondary} />
                   <Text style={styles.emptyText}>
                     {queuedReceiptCount > 0
-                      ? 'Nothing to report yet — the stock you received is still waiting to sync. It will be in your next report.'
-                      : 'No in-custody stock to report today.'}
+                      ? 'Nothing to report yet — the stock you received has not been sent yet. It will be in your next report.'
+                      : 'No stock with you to report today.'}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.itemsList}>
+                  <Text style={styles.figuresHint}>
+                    Sold = sold to customers. Returned to branch = unsold stock you hand back to the branch today.
+                  </Text>
                   {items.map((item) => {
                     const f = figures[item.productCode] || { sold: '', returns: '' };
                     const discrepancy = computeDiscrepancy(f.sold, f.returns, item.inCustodyQuantity);
@@ -504,7 +507,7 @@ export default function SubmitReportSR() {
                           <View style={styles.figureColumn}>
                             <View style={styles.figureLabelRow}>
                               <Icon name="returns" size={11} color="#272632" />
-                              <Text style={styles.figureLabel}>Returns</Text>
+                              <Text style={styles.figureLabel}>Returned to branch</Text>
                             </View>
                             <TextInput
                               style={styles.figureInput}
@@ -646,6 +649,11 @@ const styles = StyleSheet.create({
   },
   photoSection: {
     marginTop: 4,
+  },
+  figuresHint: {
+    fontSize: 11,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   photoSectionHint: {
     fontSize: 11,
