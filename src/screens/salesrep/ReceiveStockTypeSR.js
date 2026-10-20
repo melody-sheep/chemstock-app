@@ -1,6 +1,7 @@
 // src/screens/salesrep/ReceiveStockTypeSR.js
 import React, { useState, useCallback } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#1E7A3A',
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',

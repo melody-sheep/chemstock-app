@@ -1,9 +1,10 @@
 // src/components/common/RegisteredItemsList.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from './Icon';
+import SectionHeader from './SectionHeader';
 import DateChip from './DateChip';
 import SpotlightHint from './SpotlightHint';
 import QuantityStepper from './QuantityStepper';
@@ -32,8 +33,21 @@ export default function RegisteredItemsList({
   sectionTitle = 'Items To Be Registered',
   cardHeaderTitle = 'List of Items',
   emptyText = 'Search and select products above to add them here',
+  // true: the heading uses the icon + uppercase label look of Manage Accounts
+  labelHeader = false,
+  // Review screens: the quantity is shown as text with a pencil, and the pencil
+  // calls onEditQuantity (the screen sends the manager back to change it).
+  quantityLocked = false,
+  onEditQuantity,
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  // Adding a product always opens the list so every item is on screen — a
+  // list folded earlier must not hide the product that was just picked.
+  const previousCount = useRef(items.length);
+  useEffect(() => {
+    if (items.length > previousCount.current) setIsExpanded(true);
+    previousCount.current = items.length;
+  }, [items.length]);
   const visibleItems = isExpanded ? items : items.slice(0, 1);
   const datePicker = useItemDatePicker(items, onDateChange);
   const dateHint = useFirstTimeHint('registered_items_mfg_exp_dates');
@@ -61,7 +75,11 @@ export default function RegisteredItemsList({
   return (
     <>
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+        {labelHeader ? (
+          <SectionHeader icon="clipboardText" size="md" label={sectionTitle} style={styles.labelHeaderSpacing} />
+        ) : (
+          <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+        )}
         {items.length > 0 && <View style={styles.statusDot} />}
       </View>
 
@@ -86,15 +104,27 @@ export default function RegisteredItemsList({
               accessibilityLabel={isExpanded ? `Collapse ${cardHeaderTitle}` : `Expand ${cardHeaderTitle}`}
               accessibilityRole="button"
             >
-              <Text style={styles.cardHeaderText}>{cardHeaderTitle}</Text>
-              <Icon
-                name="caretDown"
-                size={16}
-                color="#FFFFFF"
-                weight="bold"
-                style={{ transform: [{ rotate: isExpanded ? '0deg' : '180deg' }] }}
-              />
+              <Text style={styles.cardHeaderText}>
+                {cardHeaderTitle} <Text style={styles.cardHeaderCount}>({items.length})</Text>
+              </Text>
+              {items.length > 1 && (
+                <View style={styles.cardHeaderAction}>
+                  <Text style={styles.cardHeaderActionText}>{isExpanded ? 'Hide' : 'Show all'}</Text>
+                  <Icon
+                    name="caretDown"
+                    size={16}
+                    color="#FFFFFF"
+                    weight="bold"
+                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+                  />
+                </View>
+              )}
             </TouchableOpacity>
+            {!isExpanded && items.length > 1 && (
+              <View style={styles.showingRow}>
+                <Text style={styles.showingText}>Showing 1 of {items.length} items</Text>
+              </View>
+            )}
 
             {visibleItems.map((item, index) => (
               <View
@@ -105,7 +135,8 @@ export default function RegisteredItemsList({
                   <Image
                     source={item.image || PLACEHOLDER_IMAGE}
                     style={item.image ? styles.itemThumb : styles.itemThumbPlaceholder}
-                    resizeMode={item.image ? 'cover' : 'contain'}
+                    resizeMode="contain"
+                    resizeMethod="scale"
                   />
                 </View>
 
@@ -142,15 +173,32 @@ export default function RegisteredItemsList({
                   accessibilityRole="button"
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Icon name="trashSimple" size={18} color={COLORS.error} weight="duotone" />
+                  <Icon name="trash" size={16} color={COLORS.error} weight="fill" />
                 </TouchableOpacity>
 
                 <View style={styles.itemStepperWrap}>
-                  <QuantityStepper
-                    value={item.registeredQty}
-                    onChange={(qty) => onSetQty(item.code, qty)}
-                    label={item.name}
-                  />
+                  {quantityLocked ? (
+                    <View style={styles.qtyLocked}>
+                      <Text style={styles.qtyLockedLabel}>Qty</Text>
+                      <Text style={styles.qtyLockedValue}>{item.registeredQty}</Text>
+                      <TouchableOpacity
+                        style={styles.qtyEditBtn}
+                        onPress={onEditQuantity}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Edit quantity of ${item.name}`}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Icon name="pencilSimpleLine" size={16} color="#E0436B" weight="bold" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <QuantityStepper
+                      value={item.registeredQty}
+                      onChange={(qty) => onSetQty(item.code, qty)}
+                      label={item.name}
+                    />
+                  )}
                 </View>
               </View>
             ))}
@@ -188,6 +236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.xs,
   },
+  labelHeaderSpacing: { marginTop: SPACING.md, marginBottom: 0 },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -239,6 +288,31 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#FFFFFF',
   },
+  cardHeaderCount: {
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: '#C9CDD6',
+  },
+  cardHeaderAction: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cardHeaderActionText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: '#C9CDD6',
+  },
+  showingRow: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    backgroundColor: '#F4F6FA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  showingText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+  },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,7 +346,7 @@ const styles = StyleSheet.create({
   itemInfo: {
     flex: 1,
     paddingTop: SPACING.sm,
-    paddingBottom: 48,
+    paddingBottom: 56,
     paddingLeft: SPACING.sm,
     paddingRight: 40,
   },
@@ -290,12 +364,48 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: SPACING.sm,
     right: SPACING.sm,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FDECEC',
+  },
+  qtyLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 32,
+    paddingLeft: 10,
+    paddingRight: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E4E7EE',
+    backgroundColor: '#FFFFFF',
+  },
+  qtyLockedLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+  },
+  qtyLockedValue: {
+    minWidth: 20,
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  qtyEditBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F6C1D0',
   },
   itemStepperWrap: {
     position: 'absolute',

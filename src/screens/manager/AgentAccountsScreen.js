@@ -1,6 +1,7 @@
 // src/screens/manager/AgentAccountsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';

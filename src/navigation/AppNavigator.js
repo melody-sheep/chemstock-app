@@ -1,6 +1,6 @@
 // src/navigation/AppNavigator.js
 import React, { useEffect } from 'react';
-import { Alert } from 'react-native';
+import Alert from '../utils/appAlert';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { debugLog, setCurrentScreen } from '../utils/logger';
 import { supabase } from '../services/supabaseClient';

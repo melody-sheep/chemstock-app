@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepTrackDeliveriesScreen.js
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
   statusPillInTransit: { backgroundColor: '#E3F2FF' },
   statusPillDelivered: { backgroundColor: '#EAFBF2' },
   statusPillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },

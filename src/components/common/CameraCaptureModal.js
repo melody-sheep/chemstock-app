@@ -149,6 +149,9 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                     title="Close"
                     variant="outline"
                     accentColor="#1A1A1A"
+                    height={48}
+                    fontSize={16}
+                    borderRadius={24}
                     onPress={handleClose}
                     style={[styles.actionButton, styles.glassButtonSolid]}
                   />
@@ -160,18 +163,25 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                   variant="outline"
                   accentColor="#FFFFFF"
                   icon="returns"
-                  iconSize={18}
+                  iconSize={20}
+                  height={48}
+                  fontSize={16}
+                  borderRadius={24}
                   onPress={handleRetake}
                   style={[styles.actionButton, styles.glassButton]}
                 />
                 <Button
                   title="Use Photo"
-                  variant="outline"
-                  accentColor="#1A1A1A"
+                  variant="fill"
+                  accentColor="#0085F9"
                   icon="checkmark"
-                  iconSize={18}
+                  iconSize={20}
+                  iconWeight="bold"
+                  height={48}
+                  fontSize={16}
+                  borderRadius={24}
                   onPress={handleUsePhoto}
-                  style={[styles.actionButton, styles.glassButtonSolid]}
+                  style={styles.actionButton}
                 />
               </View>
               )}
@@ -308,8 +318,10 @@ const styles = StyleSheet.create({
   },
   previewActions: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    padding: SPACING.lg,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
     backgroundColor: '#000000',
   },
   actionButton: { flex: 1 },

@@ -13,6 +13,7 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -113,7 +114,13 @@ export default function CollectorDashboardScreen() {
         tripsById.get(leg.tripId).legs.push(leg);
       }
     });
-    setActiveTrips(Array.from(tripsById.values()));
+    // total = every stop of the trip (delivered ones are no longer in transit), for the progress bar.
+    setActiveTrips(
+      Array.from(tripsById.values()).map((trip) => ({
+        ...trip,
+        total: Math.max(trip.legs.length, all.filter((d) => d.tripId === trip.tripId).length),
+      }))
+    );
 
     setLogTimes(all.filter((d) => d.stage === 'delivered').map((d) => d.deliveredAt || d.createdAt));
     setRecentLogs(
@@ -291,7 +298,7 @@ export default function CollectorDashboardScreen() {
                 <Icon name="clock" size={14} color={COLORS.textWhite} />
               </View>
               <View style={styles.pendingTextCol}>
-                <Text style={styles.pendingBannerTitle}>Pending — {outboxCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerTitle}>Pending — {outboxCount} waiting to send</Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
                 </Text>
@@ -303,6 +310,32 @@ export default function CollectorDashboardScreen() {
           )}
 
           <OutboxFailedNotice failed={failedItems} agentId={user?.id} onRetry={retryNow} onDiscard={discard} />
+
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Needs attention"
+              storageKey="collector-needs-attention"
+              icon="notification"
+              emptyText="All caught up. Nothing is waiting for you."
+              rows={[
+                pendingCount > 0 && {
+                  key: 'pickups', icon: 'clockCountdown', tone: 'warn', label: 'Pending pickups',
+                  value: String(pendingCount), onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+                },
+                visibleActiveTrips.length > 0 && {
+                  key: 'trips', icon: 'truck', tone: 'warn',
+                  label: visibleActiveTrips.length === 1 ? 'Delivery in progress' : 'Deliveries in progress',
+                  value: `${visibleActiveTrips.reduce((sum, trip) => sum + trip.legs.length, 0)} stop${visibleActiveTrips.reduce((sum, trip) => sum + trip.legs.length, 0) === 1 ? '' : 's'} left`,
+                  onPress: () => navigation.navigate('CollectorTripReview', { tripId: visibleActiveTrips[0].tripId }),
+                },
+                outboxCount > 0 && {
+                  key: 'queued', icon: 'clock', tone: 'info', label: 'Waiting to send', value: String(outboxCount),
+                },
+              ]}
+            />
+          )}
 
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
@@ -355,8 +388,16 @@ export default function CollectorDashboardScreen() {
                         {trip.legs.map((leg) => leg.targetRecipientName || 'Sales Rep').join(', ')}
                       </Text>
                       <Text style={styles.activeMeta}>
-                        {trip.legs.length} stop{trip.legs.length === 1 ? '' : 's'} · In Transit
+                        {Math.max(0, (trip.total || trip.legs.length) - trip.legs.length)} of {trip.total || trip.legs.length} delivered · Next: {trip.legs[0]?.targetRecipientName || 'Sales Rep'}
                       </Text>
+                      <View style={styles.progressTrack}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${Math.round((Math.max(0, (trip.total || trip.legs.length) - trip.legs.length) / (trip.total || trip.legs.length)) * 100)}%` },
+                          ]}
+                        />
+                      </View>
                     </View>
                     <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
                   </TouchableOpacity>
@@ -534,7 +575,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -546,7 +587,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textWhite,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -595,6 +636,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: '#E8ECF2', marginTop: 8, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: COLORS.success },
   activeMeta: {
     marginTop: 2,
     fontSize: TYPOGRAPHY.fontSize.xs,

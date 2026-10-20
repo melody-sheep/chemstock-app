@@ -9,7 +9,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const QRCode = require('qrcode');
+const { qrWithLogo } = require('./utils/qrLogo');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -396,7 +396,7 @@ app.get('/api/keys/:id/qr', async (req, res) => {
     const { data: key } = await supabase.from('activation_keys').select('code').eq('id', req.params.id).maybeSingle();
     if (!key) return fail(res, 404, 'Key not found.');
     activity.log(adminAuth.whoIs(req), 'qr_shown', { target: activity.maskCode(key.code) });
-    const dataUrl = await QRCode.toDataURL(key.code, { margin: 1, width: 320, color: { dark: '#03045E', light: '#FFFFFF' } });
+    const dataUrl = await qrWithLogo(key.code);
     res.json({ success: true, data: { dataUrl } });
   } catch (error) {
     fail(res, 500, error.message);

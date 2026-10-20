@@ -1,6 +1,7 @@
 // src/screens/manager/ManagerReportsScreen.js
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
@@ -818,7 +819,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLight,
   },
   branchChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     color: COLORS.textSecondary,
   },
@@ -840,7 +841,7 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   previewHint: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
     marginBottom: 10,
@@ -857,7 +858,7 @@ const styles = StyleSheet.create({
   tableCell: {
     paddingVertical: 8,
     paddingHorizontal: 10,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: '#272632',
   },
@@ -902,7 +903,7 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   signOffDate: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -950,7 +951,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   detailsRow: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },

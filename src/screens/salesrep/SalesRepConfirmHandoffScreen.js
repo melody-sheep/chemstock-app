@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepConfirmHandoffScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -750,7 +751,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)',
   },
   photoBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#FFFFFF',

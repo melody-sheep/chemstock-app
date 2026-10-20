@@ -2,7 +2,8 @@
 // Shared across all three roles, same precedent as ComingSoonScreen/
 // EditProfileScreen — one screen, reached from each dashboard's bell icon.
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -563,7 +564,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   time: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textTertiary,
   },

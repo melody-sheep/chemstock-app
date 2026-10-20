@@ -21,7 +21,7 @@ export default function ProductGridTile({ product, selected, onPress, width }) {
     >
       {selected && (
         <View style={styles.checkBadge}>
-          <Icon name="checkmark" size={10} color={COLORS.textWhite} />
+          <Icon name="checkmark" size={13} color={COLORS.textWhite} weight="bold" />
         </View>
       )}
       <Image source={product.image || PLACEHOLDER_IMAGE} style={styles.thumb} resizeMode="contain" />
@@ -48,38 +48,39 @@ ProductGridTile.defaultProps = {
 const styles = StyleSheet.create({
   tile: {
     alignItems: 'center',
-    gap: 2,
-    padding: SPACING.xs,
-    borderRadius: 2,
+    gap: 4,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: '#C9CCD6',
     backgroundColor: COLORS.textWhite,
   },
   tileSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primaryLight,
+    borderColor: '#0085F9',
+    backgroundColor: '#DCEBFF',
   },
   checkBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
+    top: 0,
+    right: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 0,
+    backgroundColor: '#0085F9',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
   },
   thumb: {
-    width: 48,
-    height: 48,
-    backgroundColor: COLORS.textWhite,
+    width: 56,
+    height: 56,
+    backgroundColor: 'transparent',
   },
   name: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
     alignSelf: 'stretch',

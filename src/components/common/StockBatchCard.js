@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     right: 6,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.success + '20',
   },
   qtyBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.success,
@@ -233,8 +233,8 @@ const styles = StyleSheet.create({
   },
   metaText: {
     flexShrink: 1,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,

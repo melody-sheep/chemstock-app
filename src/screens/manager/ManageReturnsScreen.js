@@ -1,11 +1,13 @@
 // src/screens/manager/ManageReturnsScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -61,6 +63,19 @@ const loadReturnsData = async (previous) => {
     branches: managerBranches.length > 0 ? managerBranches : prev?.branches ?? [],
   };
 };
+
+// Friendly empty state: an icon, a short title and a hint of what shows up here.
+function EmptyState({ icon, title, text }) {
+  return (
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIconCircle}>
+        <Icon name={icon} size={28} color={COLORS.textSecondary} />
+      </View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyText}>{text}</Text>
+    </View>
+  );
+}
 
 export default function ManageReturnsScreen() {
   const navigation = useNavigation();
@@ -175,9 +190,12 @@ export default function ManageReturnsScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56}>
+        <SecondaryHeader height={76}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Reports & Returns</Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Reports & Returns</Text>
+              <Text style={styles.pageSubtitle}>Review what your team sent in</Text>
+            </View>
             <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
@@ -185,6 +203,9 @@ export default function ManageReturnsScreen() {
         <View style={styles.tabRow}>
           {TABS.map((tab) => {
             const isActive = tab.key === activeTab;
+            // How many are waiting for the manager on this tab.
+            const waitingCount =
+              tab.key === 'reports' ? reports.filter((r) => r.status === 'pending').length : pendingReturns.length;
             return (
               <TouchableOpacity
                 key={tab.key}
@@ -195,6 +216,11 @@ export default function ManageReturnsScreen() {
                 <Text style={[styles.tabButtonText, isActive && styles.tabButtonTextActive]}>
                   {tab.label}
                 </Text>
+                {waitingCount > 0 && (
+                  <View style={styles.tabBadge}>
+                    <Text style={styles.tabBadgeText}>{waitingCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -213,16 +239,18 @@ export default function ManageReturnsScreen() {
                   branches={branchFilterOptions}
                   selectedId={selectedBranchId}
                   onSelect={setSelectedBranchId}
+                  scrollable
+                  scrollBleed={SPACING.lg}
                 />
               </View>
             )}
             {pendingReports.length === 0 && reviewedReports.length === 0 ? (
-              <Text style={styles.emptyText}>No daily reports submitted yet.</Text>
+              <EmptyState icon="clipboardText" title="No reports yet" text="Daily reports from your Sales Reps show up here." />
             ) : (
               <>
                 {pendingReports.length > 0 && (
                   <>
-                    <Text style={styles.sectionLabel}>Pending Review</Text>
+                    <SectionHeader icon="clipboardText" size="md" label={`Pending review (${pendingReports.length})`} style={styles.sectionLabel} />
                     <View style={styles.cardsGroup}>
                       {pendingReports.map((report) => (
                         <TouchableOpacity
@@ -257,7 +285,7 @@ export default function ManageReturnsScreen() {
 
                 {reviewedReports.length > 0 && (
                   <>
-                    <Text style={styles.sectionLabel}>Reviewed</Text>
+                    <SectionHeader icon="checkCircle" size="md" label={`Reviewed (${reviewedReports.length})`} style={styles.sectionLabel} />
                     <View style={styles.cardsGroup}>
                       {reviewedReports.map((report) => (
                         <TouchableOpacity
@@ -280,6 +308,7 @@ export default function ManageReturnsScreen() {
                           <View style={[styles.statusBadge, styles.statusBadgeConfirmed]}>
                             <Text style={[styles.statusBadgeText, styles.statusBadgeTextConfirmed]}>Accepted</Text>
                           </View>
+                          <Icon name="arrowRight" size={18} color="#94a3b8" style={styles.chevron} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -302,7 +331,7 @@ export default function ManageReturnsScreen() {
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.subTabButtonText, isActive && styles.subTabButtonTextActive]}>
-                      {tab.label}
+                      {tab.key === 'pending' ? 'Pending' : 'Confirmed'} ({tab.key === 'pending' ? pendingReturns.length : confirmedReturns.length})
                     </Text>
                   </TouchableOpacity>
                 );
@@ -311,9 +340,15 @@ export default function ManageReturnsScreen() {
 
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
               {visibleReturns.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No {activeReturnSubTab === 'pending' ? 'pending' : 'confirmed'} returns right now.
-                </Text>
+                <EmptyState
+                  icon="returns"
+                  title={activeReturnSubTab === 'pending' ? 'Nothing pending' : 'No confirmed returns yet'}
+                  text={
+                    activeReturnSubTab === 'pending'
+                      ? 'New returns from your team show up here.'
+                      : 'Returns you accept or reject are listed here.'
+                  }
+                />
               ) : (
                 visibleReturns.map((item) => (
                   <TouchableOpacity
@@ -460,6 +495,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
   },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
   pageTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -484,9 +527,27 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 8,
     paddingVertical: 10,
     borderRadius: 9,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   tabButtonActive: {
     backgroundColor: '#FFFFFF',
@@ -514,41 +575,42 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   subTabButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    flex: 1,
+    height: 36,
+    paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: '#F1F3F6',
+    borderWidth: 1.5,
+    borderColor: '#D5DAE3',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   subTabButtonActive: {
-    backgroundColor: COLORS.primaryLight,
+    borderColor: '#0085F9',
+    backgroundColor: '#EAF4FF',
   },
   subTabButtonText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.textSecondary,
   },
   subTabButtonTextActive: {
-    color: COLORS.primary,
+    color: '#0085F9',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    paddingBottom: 96,
+    paddingTop: SPACING.md,
+    paddingBottom: 150,
     gap: SPACING.sm,
   },
   branchFilterWrap: {
-    marginHorizontal: -SPACING.lg,
-    marginBottom: 14,
+    marginBottom: SPACING.xs,
   },
   sectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
     marginTop: SPACING.sm,
     marginBottom: SPACING.xs,
   },
@@ -556,18 +618,36 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
+  emptyWrap: { alignItems: 'center', paddingTop: SPACING.xl * 2, gap: SPACING.xs },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F1F3F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.xs,
+  },
+  emptyTitle: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
+    textAlign: 'center',
   },
   returnCard: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     padding: 12,
     gap: 12,
   },
@@ -587,7 +667,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   returnDate: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 3,
@@ -607,7 +687,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FBDCDC',
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -674,12 +754,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   modalItemName: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   modalItemFigure: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },

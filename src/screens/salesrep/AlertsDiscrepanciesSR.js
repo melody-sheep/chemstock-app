@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   missingBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   settledBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -433,24 +433,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   itemMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   queuedRequestText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
   },
   pendingRequestText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#B26400',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
   },
   rejectedRequestText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#B91C1C',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   figureLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

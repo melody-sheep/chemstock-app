@@ -1,6 +1,7 @@
 // src/screens/manager/ManagerDashboardScreen.js
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, Animated, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -12,6 +13,7 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -364,6 +366,31 @@ export default function ManagerDashboardScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Needs attention"
+              storageKey="manager-needs-attention"
+              icon="notification"
+              emptyText="All caught up. Nothing is waiting for you."
+              rows={[
+                pendingRequestCount > 0 && {
+                  key: 'requests', icon: 'peopleGroup', tone: 'warn', label: 'Stock requests',
+                  value: String(pendingRequestCount), onPress: () => navigation.navigate('AgentStockRequest'),
+                },
+                pendingReportCount > 0 && {
+                  key: 'reports', icon: 'clipboardText', tone: 'warn', label: 'Reports to accept',
+                  value: String(pendingReportCount), onPress: () => navigation.navigate('ManageReturns'),
+                },
+                openDiscrepancyCount > 0 && {
+                  key: 'discrepancies', icon: 'warningTriangle', tone: 'alert', label: 'Discrepancies to review',
+                  value: String(openDiscrepancyCount), onPress: () => navigation.navigate('ManagerAlerts'),
+                },
+              ]}
+            />
+          )}
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>

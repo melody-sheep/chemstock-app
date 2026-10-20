@@ -1,6 +1,7 @@
 // src/screens/collector/CollectorDeliverStockScreen.js
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Animated, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Animated, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -686,8 +687,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  nearBadgeText: { fontSize: 11, color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  distanceBadgeText: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
+  nearBadgeText: { fontSize: 12, color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  distanceBadgeText: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
 
   zoomControls: { position: 'absolute', top: SPACING.md, right: SPACING.md },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -722,7 +723,7 @@ const styles = StyleSheet.create({
   },
   sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sheetToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },

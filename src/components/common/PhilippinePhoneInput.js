@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     }),
   },
   counterText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: '#94a3b8',
     paddingRight: SPACING.md,

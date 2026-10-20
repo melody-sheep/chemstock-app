@@ -1,6 +1,7 @@
 // src/screens/salesrep/SubmitReportSR.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Pressable, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -367,7 +368,7 @@ export default function SubmitReportSR() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pendingBannerTitle}>
-                      Pending — {pendingCount} waiting to sync
+                      Pending — {pendingCount} waiting to send
                     </Text>
                     <Text style={styles.pendingBannerText}>
                       Saved on this device. Sends automatically once you're back online.
@@ -388,7 +389,7 @@ export default function SubmitReportSR() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pendingBannerTitle}>
-                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to sync
+                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to send
                     </Text>
                     <Text style={styles.pendingBannerText}>
                       It isn't in today's figures. You can still file today's report — that stock will be in your next report once it syncs.
@@ -650,7 +651,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   submittedBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#1D6A3A',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -678,12 +679,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   figuresHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   photoSectionHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginBottom: 10,
@@ -743,7 +744,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   branchText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
@@ -773,7 +774,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -785,7 +786,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -823,7 +824,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 6,
@@ -877,7 +878,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   nearExpiryText: {
-    fontSize: 8,
+    fontSize: 11,
     color: '#B26400',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -913,7 +914,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FBDCDC',
   },
   discBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
@@ -936,7 +937,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   itemMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -955,7 +956,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   figureLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

@@ -4,7 +4,8 @@
 // checkpoint, daily report or stock request), with when that was. Not live
 // tracking — the app only knows a location when the agent does something.
 import React, { useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';

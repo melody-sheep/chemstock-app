@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   text: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     letterSpacing: 0.2,

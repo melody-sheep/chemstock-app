@@ -1,10 +1,15 @@
 // src/screens/manager/AddNewBatchesScreen.js
-import React, { useCallback, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
-import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
+import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
@@ -21,6 +26,7 @@ import { getItemsMissingDates } from '../../utils/batchItemValidation';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
 const PLACEHOLDER_IMAGE = require('../../../assets/image/empty_box1.png');
+const HEADER_HEIGHT = 76;
 
 export default function AddNewBatchesScreen() {
   const navigation = useNavigation();
@@ -33,6 +39,7 @@ export default function AddNewBatchesScreen() {
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
 
   const handleDocumentPress = () => {
     navigation.navigate('StockLogs');
@@ -146,14 +153,23 @@ export default function AddNewBatchesScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SubScreenSecondaryHeader title="Add New Batches" />
+        <SecondaryHeader height={HEADER_HEIGHT}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Add New Batches</Text>
+              <Text style={styles.pageSubtitle}>Pick products, set dates, photo the waybill</Text>
+            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
+          </View>
+        </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <KeyboardAwareScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.sectionTitle}>Search Product:</Text>
+          <SectionHeader icon="package" size="md" label="Search product" style={styles.sectionHeaderFirst} />
           <SearchDropdownField
             value={searchText}
             onChangeText={setSearchText}
@@ -178,32 +194,42 @@ export default function AddNewBatchesScreen() {
             </View>
           )}
 
-          <SelectedProductsRow items={items} onRemove={handleRemoveProduct} />
+          {/* Nothing to show until a product is picked (the list below already says so). */}
+          {items.length > 0 && <SelectedProductsRow items={items} onRemove={handleRemoveProduct} labelHeader />}
 
           <RegisteredItemsList
             items={items}
             onSetQty={handleSetQty}
             onDateChange={handleDateChange}
             onRemove={handleRemoveProduct}
+            labelHeader
+            emptyText="Pick a product above to add it here."
           />
 
-          <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
+          <SectionHeader icon="camera" size="md" label="Waybill / invoice photo" style={styles.sectionHeaderSpaced} />
           <ShipmentProofRow
             photoUri={photoUri}
             onOpenCamera={handleOpenCamera}
             onViewPhoto={photoUri ? handleViewPhoto : undefined}
           />
 
-          <Text style={styles.summaryText}>
-            📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
-          </Text>
+          <View style={styles.summaryChip}>
+            <Icon name="package" size={16} color={COLORS.primary} />
+            <Text style={styles.summaryText}>
+              {items.length} item{items.length === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'}
+            </Text>
+          </View>
 
         </KeyboardAwareScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
-            title="Save to Preview"
+            title="Save & Review"
             onPress={handleSaveToPreview}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
             style={!isFormComplete ? styles.saveButtonDisabled : undefined}
           />
         </BottomActionBar>
@@ -224,10 +250,55 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentTarget: { flex: 1 },
   content: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
     paddingBottom: 48,
     gap: SPACING.md,
+  },
+  // Each label sits well below the group before it and close above what it names.
+  sectionHeaderFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  sectionHeaderSpaced: { marginTop: SPACING.md, marginBottom: 0 },
+  titleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+  },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
+  },
+  summaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    paddingHorizontal: SPACING.md,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF0FF',
   },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
@@ -265,7 +336,6 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   summaryText: {
-    textAlign: 'center',
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,

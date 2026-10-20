@@ -135,7 +135,7 @@ export default function CollectorSettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>Device & Sync</Text>
+          <Text style={styles.sectionLabel}>Device & Sending</Text>
           <SettingsDeviceSection agentId={user?.id} styles={styles} />
 
           <Text style={styles.sectionLabel}>About</Text>
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   profileBranch: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rowSubLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   grantedPillText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

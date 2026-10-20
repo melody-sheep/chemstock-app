@@ -1,7 +1,9 @@
 // src/screens/manager/ReleaseStockConfirmScreen.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, ScrollView, StyleSheet, Alert, BackHandler } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, BackHandler } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { getDeviceModel, getDeviceOs, getDeviceLabel } from '../../utils/deviceInfo';
@@ -12,7 +14,10 @@ import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { formatDateTime } from '../../utils/formatters';
 import Header from '../../components/common/Header';
-import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
@@ -46,6 +51,10 @@ export default function ReleaseStockConfirmScreen() {
     requestId,
   } = route.params;
   const isQuickRegister = mode === 'quickRegister';
+  const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
+  // Full-size look at the handover photo from the evidence card (view only, no retake).
+  const [isEvidenceVisible, setIsEvidenceVisible] = useState(false);
   // Collector releases arrive here from ReleaseStockDeliveryScreen, which
   // already captured the origin GPS point and the handover photo — this
   // screen only needs to fetch/capture those itself for a direct release.
@@ -280,9 +289,21 @@ export default function ReleaseStockConfirmScreen() {
       <StatusBar style="light" />
       <View style={styles.container}>
         <Header showBackButton backButtonText="Pick Products" height={56} backgroundColor="#03045E" textColor="#FFFFFF" paddingHorizontal={SPACING.md} />
-        <SubScreenSecondaryHeader title="Confirm & Finish" />
+        <SecondaryHeader height={76}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Confirm & Finish</Text>
+              <Text style={styles.pageSubtitle}>Check everything, then log it</Text>
+            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
+          </View>
+        </SecondaryHeader>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.lg }]}
+          showsVerticalScrollIndicator={false}
+        >
           {hasRegistered && (
             <View style={styles.recoveryBanner}>
               <Icon name="checkCircle" size={16} color={COLORS.success} weight="fill" />
@@ -294,70 +315,110 @@ export default function ReleaseStockConfirmScreen() {
 
           {isCollectorDelivery ? (
             <>
-              <Text style={styles.sectionTitle}>Recipients</Text>
+              <SectionHeader icon="users" size="md" label="Recipients" style={styles.labelFirst} />
               <View style={styles.recipientsCard}>
-                <View style={styles.recipientRow}>
-                  <UserAvatar
-                    photoUrl={recipient.profilePhotoUrl}
-                    fallbackText={getInitials(recipient.fullName)}
-                    size={36}
-                    backgroundColor={COLORS.primaryLight}
-                    fallbackTextColor={COLORS.primary}
-                  />
-                  <View style={styles.recipientTextWrap}>
-                    <Text style={styles.recipientName}>
-                      {recipient.fullName} <Text style={styles.recipientRole}>(Collector)</Text>
-                    </Text>
-                    <Text style={styles.recipientHandover}>Handover type: Delivery via Collector</Text>
-                  </View>
-                </View>
-                {targetRecipient && (
-                  <View style={styles.recipientRow}>
+                <View style={styles.recipientsRow}>
+                  <View style={styles.summaryPerson}>
                     <UserAvatar
-                      photoUrl={targetRecipient.profilePhotoUrl}
-                      fallbackText={getInitials(targetRecipient.fullName)}
-                      size={36}
+                      photoUrl={recipient.profilePhotoUrl}
+                      fallbackText={getInitials(recipient.fullName)}
+                      size={40}
                       backgroundColor={COLORS.primaryLight}
                       fallbackTextColor={COLORS.primary}
                     />
-                    <View style={styles.recipientTextWrap}>
-                      <Text style={styles.recipientName}>
-                        {targetRecipient.fullName} <Text style={styles.recipientRole}>(Sales Representative)</Text>
-                      </Text>
-                      <Text style={styles.recipientHandover}>Handover type: Delivery via Collector</Text>
+                    <View style={styles.summaryTextCol}>
+                      <Text style={styles.summaryCaption}>Collector</Text>
+                      <Text style={styles.summaryName}>{recipient.fullName}</Text>
                     </View>
                   </View>
-                )}
+                  {targetRecipient && (
+                    <>
+                      <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
+                      <View style={styles.summaryPerson}>
+                        <UserAvatar
+                          photoUrl={targetRecipient.profilePhotoUrl}
+                          fallbackText={getInitials(targetRecipient.fullName)}
+                          size={40}
+                          backgroundColor={COLORS.primaryLight}
+                          fallbackTextColor={COLORS.primary}
+                        />
+                        <View style={styles.summaryTextCol}>
+                          <Text style={styles.summaryCaption}>Sales Rep</Text>
+                          <Text style={styles.summaryName}>{targetRecipient.fullName}</Text>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </View>
+                <View style={styles.handoverRow}>
+                  <Icon name="truck" size={14} color={COLORS.textSecondary} />
+                  <Text style={styles.handoverText}>Handover type: Delivery via Collector</Text>
+                </View>
               </View>
 
-              <Text style={styles.sectionTitle}>Items to Release</Text>
+              <SectionHeader icon="package" size="md" label="Items to release" style={styles.labelSpaced} />
               <ReleaseSummaryCard
                 totalUnits={totalUnits}
                 recipientLine={`Recipient: ${targetRecipient?.fullName || recipient.fullName} (via ${recipient.fullName})`}
                 items={displayItems}
+                defaultOpen={false}
               />
 
-              <Text style={styles.sectionTitle}>Chain of Custody Evidence</Text>
+              <SectionHeader icon="location" size="md" label="Chain of custody" style={styles.labelSpaced} />
               <View style={styles.custodyCard}>
+                <View style={styles.custodyTop}>
+                  {deliveryPhotoUri ? (
+                    <TouchableOpacity
+                      style={styles.evidenceThumbWrap}
+                      onPress={() => setIsEvidenceVisible(true)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel="View the handover photo"
+                    >
+                      <Image source={{ uri: deliveryPhotoUri }} style={styles.evidenceThumb} resizeMode="cover" />
+                      <View style={styles.evidenceExpand}>
+                        <Icon name="expand" size={12} color="#FFFFFF" />
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
+                  <View style={styles.custodyLines}>
+                    <View style={styles.metaRow}>
+                      <Icon name="location" size={16} color={COLORS.success} />
+                      <View style={styles.metaTextCol}>
+                        <Text style={styles.metaCaption}>From</Text>
+                        <Text style={styles.metaText}>
+                          {originCoords ? `${originCoords.latitude.toFixed(5)}, ${originCoords.longitude.toFixed(5)}` : '—'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.metaRow}>
+                      <Icon name="location" size={16} color={COLORS.error} />
+                      <View style={styles.metaTextCol}>
+                        <Text style={styles.metaCaption}>Delivered to</Text>
+                        <Text style={styles.metaText}>
+                          {destinationCoords ? `${destinationCoords.latitude.toFixed(5)}, ${destinationCoords.longitude.toFixed(5)}` : '—'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.custodyDivider} />
                 <View style={styles.metaRow}>
-                  <Icon name="location" size={16} color={COLORS.success} />
-                  <Text style={styles.metaText}>
-                    From: {originCoords ? `${originCoords.latitude.toFixed(5)}, ${originCoords.longitude.toFixed(5)}` : '—'}
-                  </Text>
+                  <Icon name="home" size={15} color={COLORS.primary} />
+                  <Text style={styles.metaTextSmall}>{branchName ?? 'Loading branch…'}</Text>
                 </View>
                 <View style={styles.metaRow}>
-                  <Icon name="location" size={16} color={COLORS.error} />
-                  <Text style={styles.metaText}>
-                    Delivered to: {destinationCoords ? `${destinationCoords.latitude.toFixed(5)}, ${destinationCoords.longitude.toFixed(5)}` : '—'}
-                  </Text>
+                  <Icon name="phone" size={15} color={COLORS.textSecondary} />
+                  <Text style={styles.metaTextSmall}>{deviceLabel || 'Unknown device'}</Text>
                 </View>
-                {deliveryPhotoUri && (
-                  <Image source={{ uri: deliveryPhotoUri }} style={styles.photoPreview} resizeMode="cover" />
-                )}
+                <View style={styles.metaRow}>
+                  <Icon name="clock" size={15} color={COLORS.textSecondary} />
+                  <Text style={styles.metaTextSmall}>{capturedAt.toLocaleString()}</Text>
+                </View>
               </View>
 
               <View style={styles.qrVerificationBanner}>
-                <Icon name="lock" size={14} color={COLORS.error} />
+                <Icon name="lock" size={14} color="#D98200" />
                 <Text style={styles.qrVerificationText}>
                   QR verification required from both parties upon final handover
                 </Text>
@@ -365,14 +426,20 @@ export default function ReleaseStockConfirmScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.sectionTitle}>Summary</Text>
+              <SectionHeader icon="package" size="md" label="Summary" style={styles.labelFirst} />
               <ReleaseSummaryCard
                 totalUnits={totalUnits}
                 recipientLine={`Recipient: ${recipient.fullName}`}
                 items={displayItems}
+                defaultOpen={false}
               />
 
-              <Text style={styles.sectionTitle}>{isQuickRegister ? 'Shipment Proof (Handover)' : 'Take Photo Proof'}</Text>
+              <SectionHeader
+                icon="camera"
+                size="md"
+                label={isQuickRegister ? 'Shipment proof (handover)' : 'Photo proof'}
+                style={styles.labelSpaced}
+              />
               {!isQuickRegister && (
                 <ShipmentProofRow
                   photoUri={photoUri}
@@ -387,41 +454,54 @@ export default function ReleaseStockConfirmScreen() {
                 fromLabel={`From ${manager?.full_name || manager?.username || 'you'} to`}
                 toName={recipient.fullName}
               />
+
+              <SectionHeader icon="clipboardText" size="md" label="Transaction details" style={styles.labelSpaced} />
+              <View style={styles.metaCard}>
+                <View style={styles.metaRow}>
+                  <Icon name="location" size={16} color={COLORS.error} />
+                  <Text style={styles.metaText}>
+                    {coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : locationError || 'Locating…'}
+                  </Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Icon name="home" size={16} color={COLORS.primary} />
+                  <Text style={styles.metaText}>{branchName ?? 'Loading branch…'}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Icon name="phone" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.metaText}>{deviceLabel || 'Unknown device'}</Text>
+                </View>
+                <View style={styles.metaRow}>
+                  <Icon name="clock" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.metaText}>{capturedAt.toLocaleString()}</Text>
+                </View>
+              </View>
             </>
           )}
+        </ScrollView>
+        </BlurTargetView>
 
-          <Text style={styles.sectionTitle}>Transaction Details</Text>
-          <View style={styles.metaCard}>
-            {!isCollectorDelivery && (
-              <View style={styles.metaRow}>
-                <Icon name="location" size={16} color={COLORS.error} />
-                <Text style={styles.metaText}>
-                  {coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : locationError || 'Locating…'}
-                </Text>
-              </View>
-            )}
-            <View style={styles.metaRow}>
-              <Icon name="home" size={16} color={COLORS.primary} />
-              <Text style={styles.metaText}>{branchName ?? 'Loading branch…'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Icon name="phone" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.metaText}>{deviceLabel || 'Unknown device'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Icon name="clock" size={16} color={COLORS.textSecondary} />
-              <Text style={styles.metaText}>{capturedAt.toLocaleString()}</Text>
-            </View>
-          </View>
-
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
+          {!photoUri && !isSubmitting && <Text style={styles.barHint}>Take the handover photo to continue.</Text>}
           <Button
             title={isSubmitting ? 'Releasing…' : 'Confirm & Log Release'}
             variant="black"
             onPress={handleConfirmRelease}
             loading={isSubmitting}
             disabled={isSubmitting || !manager || !photoUri}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
-        </ScrollView>
+        </BottomActionBar>
+
+        <CameraCaptureModal
+          visible={isEvidenceVisible}
+          onClose={() => setIsEvidenceVisible(false)}
+          onCapture={() => {}}
+          initialUri={deliveryPhotoUri}
+          readOnly
+        />
 
         <CameraCaptureModal
           visible={isCameraVisible}
@@ -436,7 +516,39 @@ export default function ReleaseStockConfirmScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.md },
+  contentTarget: { flex: 1 },
+  content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.sm },
+  titleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+  },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
+  },
+  labelFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  labelSpaced: { marginTop: SPACING.md, marginBottom: 0 },
   recoveryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -452,36 +564,32 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
-  sectionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
-  },
   recipientsCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,
   },
-  recipientRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  recipientTextWrap: { flex: 1 },
-  recipientName: {
+  recipientsRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  summaryPerson: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  summaryTextCol: { flex: 1 },
+  summaryCaption: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  summaryName: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  recipientRole: {
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
-  },
-  recipientHandover: {
-    marginTop: 2,
-    fontSize: 11,
+  handoverRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  handoverText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -489,48 +597,80 @@ const styles = StyleSheet.create({
   custodyCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,
+  },
+  custodyTop: { flexDirection: 'row', gap: SPACING.md, alignItems: 'center' },
+  custodyLines: { flex: 1, gap: SPACING.sm },
+  custodyDivider: { height: 1, backgroundColor: '#EEEEEE' },
+  evidenceThumbWrap: { width: 84, height: 84, borderRadius: 10, overflow: 'hidden', backgroundColor: '#F1F5F9' },
+  evidenceThumb: { width: '100%', height: '100%' },
+  evidenceExpand: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qrVerificationBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
     padding: SPACING.sm,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.error + '30',
-    backgroundColor: COLORS.error + '0D',
+    borderColor: '#F59E0B66',
+    backgroundColor: '#FFF3E0',
   },
   qrVerificationText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.error,
-  },
-  photoPreview: {
-    width: '100%',
-    height: 160,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    color: '#8A5A00',
   },
   metaCard: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
     gap: SPACING.sm,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  metaTextCol: { flex: 1 },
+  metaCaption: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
   metaText: {
     flex: 1,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#272632',
+  },
+  metaTextSmall: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  barHint: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
   },
 });

@@ -1,6 +1,7 @@
 // src/screens/salesrep/RequestListSR.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -202,7 +203,7 @@ export default function RequestListSR() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.pendingBannerTitle}>
-                  Pending — {pendingCount} waiting to sync
+                  Pending — {pendingCount} waiting to send
                 </Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
@@ -355,7 +356,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -367,7 +368,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -430,7 +431,7 @@ const styles = StyleSheet.create({
   },
   itemMeta: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
@@ -454,7 +455,7 @@ const styles = StyleSheet.create({
   removeBtn: { padding: 4 },
   shortText: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.error,

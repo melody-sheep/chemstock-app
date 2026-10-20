@@ -1,18 +1,18 @@
 // src/screens/auth/ManagerActivationScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  Alert,
   Dimensions,
   Platform,
   Keyboard,
   Animated,
   findNodeHandle,
 } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -26,6 +26,7 @@ import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import SuccessFrame from '../../components/common/SuccessFrame';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import Stepper from '../../components/common/Stepper';
 import useActivation from '../../hooks/useActivation';
 import friendlyError from '../../utils/friendlyError';
@@ -156,6 +157,7 @@ export default function ManagerActivationScreen() {
   // ============================================
   const [currentStep, setCurrentStep] = useState(1);
   const [showSuccessFrame, setShowSuccessFrame] = useState(false);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [branchCount, setBranchCount] = useState(0);
   const [localError, setLocalError] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -217,12 +219,12 @@ export default function ManagerActivationScreen() {
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(slideAnim, {
           toValue: direction === 'forward' ? -30 : 30,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start(() => {
         if (direction === 'forward') {
@@ -238,12 +240,12 @@ export default function ManagerActivationScreen() {
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(slideAnim, {
             toValue: 0,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]).start(() => {
           setIsTransitioning(false);
@@ -279,17 +281,28 @@ export default function ManagerActivationScreen() {
     }, 300);
   };
 
-  const handleValidateCode = async () => {
+  // A scanned QR holds the activation code: fill it in and validate it.
+  const handleScannedCode = (data) => {
+    const scanned = String(data || '').trim();
+    if (!scanned) return;
+    setActivationKey(scanned);
     setLocalError('');
+    setTimeout(() => handleValidateCode(scanned), 250);
+  };
+
+  const handleValidateCode = async (codeOverride) => {
+    setLocalError('');
+    // (the send icon passes a press event here, so only a string counts)
+    const code = typeof codeOverride === 'string' ? codeOverride : activationKey;
 
     try {
-      if (!activationKey || !activationKey.trim()) {
+      if (!code || !code.trim()) {
         console.warn('[WARN] [ManagerActivationScreen] Empty activation code');
         setLocalError('Please enter an activation code');
         return;
       }
 
-      if (activationKey.trim().length < 4) {
+      if (code.trim().length < 4) {
         console.warn('[WARN] [ManagerActivationScreen] Activation code too short');
         setLocalError('Activation code must be at least 4 characters');
         return;
@@ -532,6 +545,8 @@ export default function ManagerActivationScreen() {
               contentContainerStyle={styles.scrollContentStep1}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              scrollEnabled
             >
               <View style={styles.stepperWrapper}>
                 <Stepper currentStep={1} />
@@ -567,7 +582,27 @@ export default function ManagerActivationScreen() {
                 {isLoading && (
                   <Text style={styles.loadingText}>Validating activation code...</Text>
                 )}
+
+                <TouchableOpacity
+                  style={styles.scanButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setIsScannerVisible(true);
+                  }}
+                  disabled={isLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan the activation QR code"
+                >
+                  <Icon name="qrCode" size={18} color={COLORS.primary} />
+                  <Text style={styles.scanButtonText}>Scan QR code instead</Text>
+                </TouchableOpacity>
               </View>
+
+              <QRScannerModal
+                visible={isScannerVisible}
+                onClose={() => setIsScannerVisible(false)}
+                onScanned={handleScannedCode}
+              />
 
               <View style={styles.branchContainer}>
                 <Text style={styles.branchTitle}>Location &amp; Branch Lock</Text>
@@ -687,6 +722,7 @@ export default function ManagerActivationScreen() {
             ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             scrollEnabled={true}
           >
             <View style={styles.stepperWrapper}>
@@ -842,6 +878,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     marginTop: 12,
   },
+  scanButton: {
+    marginTop: SPACING.sm,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  scanButtonText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   loadingText: {
     marginTop: SPACING.xs,
     fontSize: 12,
@@ -863,7 +916,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   branchSubtext: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -910,7 +963,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   branchLocationText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -952,7 +1005,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   bottomWarningText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -1012,7 +1065,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   strengthLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     textAlign: 'right',
@@ -1045,7 +1098,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#757575',

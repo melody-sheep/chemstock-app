@@ -7,9 +7,9 @@ import {
   Keyboard,
   Text,
   TouchableOpacity,
-  Alert,
   Platform,
 } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import AnimatedTextDot from '../../components/common/AnimatedTextDot';

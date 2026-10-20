@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   },
   sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sheetToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   partyRoleText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
   },
   itemBatch: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   },
   itemCountText: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -631,7 +631,7 @@ const styles = StyleSheet.create({
   },
   partyModalPhoneTextWrap: { flex: 1 },
   partyModalPhoneLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     textTransform: 'uppercase',

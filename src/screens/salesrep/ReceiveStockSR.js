@@ -1,6 +1,7 @@
 // src/screens/salesrep/ReceiveStockSR.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -250,7 +251,7 @@ export default function ReceiveStockSR() {
                 <Icon name="clock" size={14} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.pendingBannerTitle}>Pending — {pendingCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerTitle}>Pending — {pendingCount} waiting to send</Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
                 </Text>
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#1E7A3A',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -518,7 +519,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -530,7 +531,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -590,7 +591,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   scanSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -712,7 +713,7 @@ const styles = StyleSheet.create({
   },
   itemMeta: {
     color: '#555353',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
@@ -737,7 +738,7 @@ const styles = StyleSheet.create({
   },
   requiredText: {
     color: '#BE123C',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -797,7 +798,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: '#272632',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     flexShrink: 1,

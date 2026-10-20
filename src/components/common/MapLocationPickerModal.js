@@ -1,6 +1,7 @@
 // src/components/common/MapLocationPickerModal.js
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, ScrollView, Keyboard } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
@@ -16,6 +17,7 @@ import { formatCoordinates, formatCheckpointTime } from '../../utils/formatters'
 import { getInitials } from '../../utils/initials';
 import { debugLog } from '../../utils/logger';
 import { SAVED_PLACES } from '../../constants/savedPlaces';
+import { getRecentPlaces, rememberPlace, searchPlacesOnline } from '../../utils/placeSearch';
 
 // Wait this long after the last drag/tap before looking up the address, so a
 // drag doesn't trigger a lookup on every frame.
@@ -24,12 +26,21 @@ const ADDRESS_LOOKUP_DELAY_MS = 400;
 // Pins farther than this from the manager's position ask for confirmation.
 // GPS drift is usually well under this, so a larger pin is a deliberate choice.
 const FAR_PIN_WARNING_METERS = 200;
+// Distance tiers for the trail of arrowheads and the distance chip: green under
+// 500 m, orange up to 5 km, red beyond that.
+// A pin this close to the recipient's last recorded spot counts as "at" it.
+const AT_RECIPIENT_METERS = 50;
+const NEAR_PIN_METERS = 500;
+const MID_PIN_METERS = 5000;
+const TIER_GREEN = '#2E9E5B';
+const TIER_ORANGE = '#F59E0B';
+const TIER_RED = '#E63946';
 
 // Search: wait for typing to pause, and show at most this many results.
 const SEARCH_DEBOUNCE_MS = 400;
 const SEARCH_MIN_LENGTH = 2;
 const SEARCH_MIN_ONLINE_LENGTH = 3;
-const MAX_SEARCH_RESULTS = 5;
+const MAX_SEARCH_RESULTS = 8;
 
 // Floating panel heights and the zoom column's position below the search bar.
 const SEARCH_BAR_HEIGHT = 48;
@@ -82,6 +93,27 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
       font: 600 14px -apple-system, Roboto, sans-serif;
     }
     .me-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    /* Destination pin: a soft red glow that pulses, lifts and grows while dragged. */
+    .dest-wrap { position: relative; width: 44px; height: 44px; }
+    .dest-glow {
+      position: absolute; left: 50%; top: 34px; width: 30px; height: 12px; margin-left: -15px;
+      border-radius: 50%; background: rgba(230, 57, 70, 0.45);
+      animation: dest-glow 1.8s ease-out infinite;
+    }
+    .dest-pin {
+      display: block; transform-origin: 50% 90%;
+      transition: transform 0.15s ease, filter 0.15s ease;
+      filter: drop-shadow(0 0 6px rgba(230, 57, 70, 0.75)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+    }
+    .leaflet-marker-dragging .dest-pin {
+      transform: translateY(-12px) scale(1.18);
+      filter: drop-shadow(0 0 12px rgba(230, 57, 70, 0.95)) drop-shadow(0 8px 6px rgba(0, 0, 0, 0.3));
+    }
+    .leaflet-marker-dragging .dest-glow { animation: none; transform: scale(1.5); opacity: 0.6; }
+    @keyframes dest-glow {
+      0% { transform: scale(0.5); opacity: 0.9; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
     @keyframes me-pulse {
       0% { transform: scale(0.6); opacity: 1; }
       100% { transform: scale(1.5); opacity: 0; }
@@ -138,6 +170,7 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
         map.setView(originLatLng, 16);
         hasCentered = true;
       }
+      drawTrail();
     };
 
     // Zoom and recenter buttons are drawn in React Native, so they call in here.
@@ -150,38 +183,127 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
         map.setView(originLatLng, Math.max(map.getZoom(), 16));
       } else if (command === 'flyTo') {
         map.setView([lat, lng], 16);
+      } else if (command === 'unlock') {
+        window.unlockPin();
       }
     };
 
     // Same map-pin glyph as the app's "location" icon, in the app's error colour.
     var destinationIcon = L.divIcon({
       className: '',
-      html: '<svg width="44" height="44" viewBox="0 0 256 256" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">'
-        + '<path fill="${COLORS.error}" stroke="#FFFFFF" stroke-width="14" stroke-linejoin="round" paint-order="stroke" d="' + PIN_PATH + '"/></svg>',
+      html: '<div class="dest-wrap"><div class="dest-glow"></div>'
+        + '<svg class="dest-pin" width="44" height="44" viewBox="0 0 256 256">'
+        + '<path fill="${COLORS.error}" stroke="#FFFFFF" stroke-width="14" stroke-linejoin="round" paint-order="stroke" d="' + PIN_PATH + '"/></svg></div>',
       iconSize: [44, 44],
       iconAnchor: [22, 40],
     });
 
     var destinationMarker = null;
+    // While the pin is locked on a Sales Rep it cannot be dragged and map taps
+    // are ignored; the Unlock button (React Native) is the only way out.
+    var pinLocked = false;
+    // Trail of small arrowheads (the tip of the navigation arrow) from where you are to
+    // the pin, always visible. Its colour shows how far the pin is; while the pin is being
+    // dragged the arrowheads get bigger and glow.
+    var trailLayer = L.layerGroup().addTo(map);
+    var trailDragging = false;
+    var trailQueued = false;
+    function trailColor(meters) {
+      if (meters <= ${NEAR_PIN_METERS}) return '${TIER_GREEN}';
+      if (meters <= ${MID_PIN_METERS}) return '${TIER_ORANGE}';
+      return '${TIER_RED}';
+    }
+    function trailIcon(color, deg, dragging) {
+      var size = dragging ? 18 : 14;
+      var glow = dragging ? 'filter:drop-shadow(0 0 4px ' + color + ') drop-shadow(0 0 9px ' + color + ');' : '';
+      return L.divIcon({
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: '<svg width="' + size + '" height="' + size + '" viewBox="0 0 14 14" style="display:block;transform:rotate(' + deg + 'deg);'
+          + 'opacity:' + (dragging ? 1 : 0.85) + ';' + glow + '">'
+          + '<path d="M1 1 L13 7 L1 13 L4.5 7 Z" fill="' + color + '" stroke="#FFFFFF" stroke-width="1.2" stroke-linejoin="round" paint-order="stroke"/></svg>',
+      });
+    }
+    function drawTrail() {
+      trailLayer.clearLayers();
+      if (!originLatLng || !destinationMarker) return;
+      var to = destinationMarker.getLatLng();
+      var a = map.latLngToContainerPoint(originLatLng);
+      var b = map.latLngToContainerPoint(to);
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.sqrt(dx * dx + dy * dy);
+      var startGap = 36, endGap = 16, step = trailDragging ? 30 : 26;
+      if (len < startGap + endGap + step * 0.5) return;
+      var deg = Math.atan2(dy, dx) * 180 / Math.PI;
+      var color = trailColor(map.distance(originLatLng, to));
+      var count = Math.min(80, Math.floor((len - startGap - endGap) / step) + 1);
+      for (var i = 0; i < count; i++) {
+        var t = startGap + i * step;
+        var p = L.point(a.x + dx / len * t, a.y + dy / len * t);
+        L.marker(map.containerPointToLatLng(p), {
+          icon: trailIcon(color, deg, trailDragging), interactive: false, keyboard: false, zIndexOffset: -100,
+        }).addTo(trailLayer);
+      }
+    }
+    // While dragging this runs on every move, so draw at most once per frame.
+    function queueTrail() {
+      if (trailQueued) return;
+      trailQueued = true;
+      requestAnimationFrame(function () {
+        trailQueued = false;
+        drawTrail();
+      });
+    }
+    map.on('zoomend', drawTrail);
+
+    function applyPinLock() {
+      if (!destinationMarker) return;
+      if (pinLocked) {
+        destinationMarker.dragging.disable();
+      } else {
+        destinationMarker.dragging.enable();
+      }
+    }
 
     function placeDestination(lat, lng, lockedTo) {
+      pinLocked = !!lockedTo;
       if (destinationMarker) {
         destinationMarker.setLatLng([lat, lng]);
       } else {
-        destinationMarker = L.marker([lat, lng], { icon: destinationIcon, draggable: true }).addTo(map);
+        destinationMarker = L.marker([lat, lng], { icon: destinationIcon, draggable: true, zIndexOffset: 900 }).addTo(map);
+        destinationMarker.on('dragstart', function () {
+          trailDragging = true;
+          drawTrail();
+        });
+        destinationMarker.on('drag', queueTrail);
         destinationMarker.on('dragend', function () {
+          trailDragging = false;
+          drawTrail();
           var pos = destinationMarker.getLatLng();
           window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng, lockedTo: null }));
         });
       }
+      applyPinLock();
+      drawTrail();
       window.ReactNativeWebView.postMessage(JSON.stringify({ lat: lat, lng: lng, lockedTo: lockedTo || null }));
     }
+
+    // Called from React Native (Unlock button): the pin stays where it is but is free again.
+    window.unlockPin = function () {
+      if (!destinationMarker) return;
+      pinLocked = false;
+      applyPinLock();
+      var pos = destinationMarker.getLatLng();
+      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: pos.lat, lng: pos.lng, lockedTo: null }));
+    };
 
     if (initial) {
       placeDestination(initial.latitude, initial.longitude, ${initialLockedTo ? JSON.stringify(initialLockedTo) : 'null'});
     }
 
     map.on('click', function (e) {
+      if (pinLocked) return;
       placeDestination(e.latlng.lat, e.latlng.lng);
     });
 
@@ -223,6 +345,11 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
         }).addTo(teamLayer);
       });
     };
+
+    // Everything above is defined: tell React Native it can send the manager's position and
+    // the team now. (Pushing on the WebView's own "load ended" can arrive before this page's
+    // scripts have run, in which case the position is silently dropped and the map opens blank.)
+    window.ReactNativeWebView.postMessage(JSON.stringify({ ready: true }));
   </script>
 </body>
 </html>`;
@@ -276,6 +403,13 @@ export default function MapLocationPickerModal({
   const distanceMeters = distanceInMeters(originCoords, pickedCoords);
   const distanceLabel =
     distanceMeters === null ? (originCoords ? null : 'Locating you…') : `${formatDistance(distanceMeters)} away`;
+  // Same green / orange / red tiers as the arrowhead trail on the map.
+  let distanceTier = { color: COLORS.primary, background: COLORS.primaryLight };
+  if (distanceMeters !== null) {
+    if (distanceMeters <= NEAR_PIN_METERS) distanceTier = { color: TIER_GREEN, background: '#E8F5E9' };
+    else if (distanceMeters <= MID_PIN_METERS) distanceTier = { color: '#D98200', background: '#FFF3E0' };
+    else distanceTier = { color: TIER_RED, background: '#FDECEA' };
+  }
 
   // The page only depends on the destination; the origin is pushed in below.
   // Primitives in the deps avoid rebuilding when the parent passes a new object
@@ -361,6 +495,8 @@ export default function MapLocationPickerModal({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState(null);
+  // While the search box is in use the sheet and zoom buttons step aside, so the results have the room.
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const trimmedQuery = searchQuery.trim();
 
   useEffect(() => {
@@ -375,22 +511,39 @@ export default function MapLocationPickerModal({
     const timer = setTimeout(async () => {
       setIsSearching(true);
       const needle = trimmedQuery.toLowerCase();
-      const local = SAVED_PLACES.filter((place) => place.name.toLowerCase().includes(needle));
+      // Offline first: the curated list, then places picked before on this phone.
+      const recent = await getRecentPlaces();
+      const local = [...SAVED_PLACES, ...recent]
+        .filter((place) => place.name.toLowerCase().includes(needle))
+        .slice(0, MAX_SEARCH_RESULTS);
 
+      // Then online: OpenStreetMap search, and the phone's own geocoder if that finds
+      // nothing or fails. With no connection both fail quietly and the offline results stay.
       let online = [];
       let onlineFailed = false;
       if (local.length < MAX_SEARCH_RESULTS && trimmedQuery.length >= SEARCH_MIN_ONLINE_LENGTH) {
+        let osmFailed = false;
         try {
-          const found = await Location.geocodeAsync(trimmedQuery);
-          online = found.slice(0, MAX_SEARCH_RESULTS).map((point, index) => ({
-            id: `online-${index}`,
-            name: trimmedQuery,
-            latitude: point.latitude,
-            longitude: point.longitude,
-          }));
+          online = await searchPlacesOnline(trimmedQuery, MAX_SEARCH_RESULTS);
         } catch (error) {
-          onlineFailed = true;
-          console.error('[ERROR] [MapLocationPickerModal] Geocode failed:', error);
+          osmFailed = true;
+          console.error('[ERROR] [MapLocationPickerModal] Place search failed:', error);
+        }
+        if (online.length === 0) {
+          let geocoderFailed = false;
+          try {
+            const found = await Location.geocodeAsync(trimmedQuery);
+            online = found.slice(0, MAX_SEARCH_RESULTS).map((point, index) => ({
+              id: `online-${index}`,
+              name: trimmedQuery,
+              latitude: point.latitude,
+              longitude: point.longitude,
+            }));
+          } catch (error) {
+            geocoderFailed = true;
+            console.error('[ERROR] [MapLocationPickerModal] Geocode failed:', error);
+          }
+          onlineFailed = osmFailed && geocoderFailed;
         }
       }
 
@@ -418,6 +571,9 @@ export default function MapLocationPickerModal({
   }, [trimmedQuery]);
 
   const handleSelectPlace = (place) => {
+    rememberPlace(place);
+    Keyboard.dismiss();
+    setIsSearchFocused(false);
     setSearchQuery('');
     setSearchResults([]);
     sendMapCommand('flyTo', place.latitude, place.longitude);
@@ -425,7 +581,13 @@ export default function MapLocationPickerModal({
 
   const handleMessage = (event) => {
     try {
-      const { lat, lng, lockedTo } = JSON.parse(event.nativeEvent.data);
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.ready) {
+        pushOrigin();
+        pushTeam();
+        return;
+      }
+      const { lat, lng, lockedTo } = data;
       setLockedAgentId(lockedTo || null);
       debugLog('info', 'MapPicker', 'Pin set', { lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) });
       setPickedCoords({ latitude: lat, longitude: lng });
@@ -441,6 +603,28 @@ export default function MapLocationPickerModal({
 
   const handleConfirm = () => {
     if (!pickedCoords) return;
+    // The pin is not where this release's recipient was last seen (and not locked on
+    // them): make the Manager acknowledge it before it is used.
+    const awayFromRecipient = targetMember
+      ? distanceInMeters(pickedCoords, { latitude: targetMember.latitude, longitude: targetMember.longitude })
+      : null;
+    if (
+      targetMember &&
+      lockedAgentId !== targetMember.agentId &&
+      awayFromRecipient !== null &&
+      awayFromRecipient > AT_RECIPIENT_METERS
+    ) {
+      debugLog('info', 'MapPicker', 'Off-recipient confirm', { awayM: Math.round(awayFromRecipient) });
+      Alert.alert(
+        'Different location',
+        `This pin is ${formatDistance(awayFromRecipient)} from where ${targetMember.fullName} was last seen (${formatCheckpointTime(targetMember.capturedAt)}). The delivery will go to this spot, not to ${targetMember.fullName}'s last recorded location.`,
+        [
+          { text: 'Go back', style: 'cancel' },
+          { text: 'Use this location', onPress: () => onConfirm(pickedCoords) },
+        ]
+      );
+      return;
+    }
     // Locked on a Sales Rep: no "far from you" warning — the point is
     // where they are, not where the Manager is.
     if (lockedMember) {
@@ -489,7 +673,11 @@ export default function MapLocationPickerModal({
 
         <View style={[styles.glass, styles.header, { top: insets.top + SPACING.sm }]}>
           <Text style={styles.title}>Pin Delivery Destination</Text>
-          <Text style={styles.subtitle}>Tap the map, or drag the pin to adjust</Text>
+          <Text style={styles.subtitle}>
+            {lockedMember
+              ? `Pinned on ${lockedMember.fullName}'s last location`
+              : 'Tap the map, or drag the pin to adjust'}
+          </Text>
         </View>
 
         <View style={[styles.glass, styles.searchBar, { top: insets.top + HEADER_OFFSET }]}>
@@ -501,6 +689,8 @@ export default function MapLocationPickerModal({
             placeholderTextColor={COLORS.textTertiary}
             style={styles.searchInput}
             returnKeyType="search"
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
             autoCorrect={false}
             accessibilityLabel="Search for a place"
           />
@@ -516,8 +706,9 @@ export default function MapLocationPickerModal({
           )}
         </View>
 
-        {trimmedQuery.length >= SEARCH_MIN_LENGTH && (
+        {isSearchFocused && trimmedQuery.length >= SEARCH_MIN_LENGTH && (
           <View style={[styles.glass, styles.searchResults, { top: insets.top + HEADER_OFFSET + SEARCH_BAR_HEIGHT + SPACING.xs }]}>
+            <ScrollView style={styles.resultsScroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {searchResults.map((place) => (
               <TouchableOpacity
                 key={place.id || `${place.latitude}-${place.longitude}`}
@@ -530,7 +721,7 @@ export default function MapLocationPickerModal({
                 <View style={styles.resultTextWrap}>
                   <Text style={styles.resultName} numberOfLines={1}>{place.name}</Text>
                   <Text style={styles.resultMeta} numberOfLines={1}>
-                    {formatCoordinates(place.latitude, place.longitude)}
+                    {place.detail || formatCoordinates(place.latitude, place.longitude)}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -538,9 +729,11 @@ export default function MapLocationPickerModal({
             {(isSearching || searchMessage) && (
               <Text style={styles.searchMessage}>{isSearching ? 'Searching…' : searchMessage}</Text>
             )}
+            </ScrollView>
           </View>
         )}
 
+        {!isSearchFocused && (
         <View style={[styles.glass, styles.controls, { top: insets.top + CONTROLS_OFFSET }]}>
           <TouchableOpacity
             style={styles.controlButton}
@@ -570,7 +763,9 @@ export default function MapLocationPickerModal({
             <Icon name="navigation" size={20} color={originLat === null ? COLORS.textTertiary : COLORS.primary} />
           </TouchableOpacity>
         </View>
+        )}
 
+        {!isSearchFocused && (
         <View style={[styles.glass, styles.footer, { bottom: insets.bottom + FOOTER_OFFSET }]}>
           {targetMember && lockedAgentId !== targetMember.agentId && (
             <TouchableOpacity style={styles.lockButton} onPress={lockOnTarget} activeOpacity={0.8}>
@@ -582,11 +777,14 @@ export default function MapLocationPickerModal({
           )}
           {pickedCoords && (
             <View style={styles.insightCard}>
+              <Text style={styles.addressText} numberOfLines={2}>
+                {pickedAddress || 'Finding address…'}
+              </Text>
               <View style={styles.insightRow}>
                 {distanceLabel && (
-                  <View style={styles.distanceChip}>
-                    <Icon name="navigation" size={14} color={COLORS.primary} />
-                    <Text style={styles.distanceText}>{distanceLabel}</Text>
+                  <View style={[styles.distanceChip, { backgroundColor: distanceTier.background }]}>
+                    <Icon name="navigation" size={14} color={distanceTier.color} />
+                    <Text style={[styles.distanceText, { color: distanceTier.color }]}>{distanceLabel}</Text>
                   </View>
                 )}
                 <View style={styles.coordsRow}>
@@ -596,37 +794,58 @@ export default function MapLocationPickerModal({
                   </Text>
                 </View>
               </View>
-              <Text style={styles.addressText} numberOfLines={2}>
-                {pickedAddress || 'Finding address…'}
-              </Text>
               {lockedMember && (
-                <View style={styles.lockedRow}>
-                  <Icon name="lock" size={13} color={COLORS.success} />
-                  <Text style={styles.lockedText} numberOfLines={1}>
-                    Locked on {lockedMember.fullName} · last seen {formatCheckpointTime(lockedMember.capturedAt)}
-                  </Text>
+                <View style={styles.lockedBar}>
+                  <Icon name="lock" size={16} color={COLORS.success} weight="fill" />
+                  <View style={styles.lockedTextCol}>
+                    <Text style={styles.lockedText} numberOfLines={1}>
+                      Locked on {lockedMember.fullName}
+                    </Text>
+                    <Text style={styles.lockedMeta} numberOfLines={1}>
+                      Last seen {formatCheckpointTime(lockedMember.capturedAt)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.unlockButton}
+                    onPress={() => sendMapCommand('unlock')}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Unlock the pin to choose another place"
+                  >
+                    <Icon name="pencilSimpleLine" size={14} color={COLORS.success} />
+                    <Text style={styles.unlockText}>Unlock</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
           )}
-          <Button
-            title="Confirm Location"
-            variant="black"
-            onPress={handleConfirm}
-            disabled={!pickedCoords}
-            height={44}
-            fontSize={15}
-            style={styles.actionButton}
-          />
-          <Button
-            title="Cancel"
-            variant="outline"
-            onPress={onClose}
-            height={44}
-            fontSize={15}
-            style={styles.actionButton}
-          />
+          <View style={styles.actionRow}>
+            <View style={styles.cancelCol}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                onPress={onClose}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+                style={styles.actionButton}
+              />
+            </View>
+            <View style={styles.confirmCol}>
+              <Button
+                title="Confirm Location"
+                variant="black"
+                onPress={handleConfirm}
+                disabled={!pickedCoords}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+                style={styles.actionButton}
+              />
+            </View>
+          </View>
         </View>
+        )}
       </View>
     </Modal>
   );
@@ -658,8 +877,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF0FF',
   },
   lockButtonText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.primary },
-  lockedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  lockedText: { flex: 1, fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
+  lockedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs,
+    padding: SPACING.sm,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+  },
+  lockedTextCol: { flex: 1 },
+  lockedText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
+  lockedMeta: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, fontWeight: '400', color: COLORS.textSecondary },
+  unlockButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 32,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.success,
+  },
+  unlockText: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
+  actionRow: { flexDirection: 'row', gap: SPACING.sm },
+  cancelCol: { flex: 1 },
+  confirmCol: { flex: 2 },
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Shared glass look for every floating panel.
@@ -697,6 +941,7 @@ const styles = StyleSheet.create({
   },
 
   searchBar: {
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     left: SPACING.md,
     right: SPACING.md,
     height: SEARCH_BAR_HEIGHT,
@@ -715,16 +960,20 @@ const styles = StyleSheet.create({
   },
   // Results sit beside the zoom column, not over it.
   searchResults: {
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
     left: SPACING.md,
-    right: SPACING.md + 56,
+    right: SPACING.md,
     padding: SPACING.xs,
   },
+  resultsScroll: { maxHeight: 300 },
   resultRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#DDDDDD',
   },
   resultTextWrap: { flex: 1 },
   resultName: {
@@ -797,9 +1046,9 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   addressText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
   },
   // Confirm and Cancel stack as full-width rows inside the footer.

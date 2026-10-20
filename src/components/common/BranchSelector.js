@@ -1,6 +1,6 @@
 // src/components/common/BranchSelector.js
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -30,12 +30,67 @@ export default function BranchSelector({
   edgePadding = null,
   truncateToFirstWord = false,
   compact = false,
+  // The chosen chip grows to show its whole name; the others share the rest.
+  expandActive = false,
+  // Opt-in: one swipeable row, every chip as wide as its full name (nothing is
+  // cut off). scrollBleed lets the row run to the screen edge past the
+  // page padding (pass the padding the screen's content has).
+  scrollable = false,
+  scrollBleed = 0,
 }) {
+  // Scrollable row only: remember where each chip sits, and slide the chosen one into view.
+  const scrollRef = useRef(null);
+  const chipLayouts = useRef({});
+  useEffect(() => {
+    if (!scrollable) return;
+    const layout = chipLayouts.current[selectedId];
+    if (layout && scrollRef.current) {
+      scrollRef.current.scrollTo({ x: Math.max(0, layout.x - (scrollBleed || SPACING.md)), animated: true });
+    }
+  }, [selectedId, scrollable, scrollBleed]);
+
   if (branches.length <= 1) return null;
 
   // edgePadding: the horizontal padding of the screen's content (pass e.g.
   // SPACING.md), so the first chip lines up with the page title above it.
   const rowStyle = edgePadding !== null ? { paddingHorizontal: edgePadding } : null;
+
+  if (scrollable) {
+    // Pressable chips, same size selected or not (so choosing one never
+    // re-lays-out the row), spaced with margins, as the flex row below.
+    return (
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        style={scrollBleed ? { marginHorizontal: -scrollBleed } : null}
+        contentContainerStyle={[styles.scrollRow, { paddingHorizontal: scrollBleed }]}
+      >
+        {branches.map((branch) => {
+          const active = branch.id === selectedId;
+          const fullName = branch.name || '';
+          return (
+            <Pressable
+              key={branch.id}
+              style={({ pressed }) => [styles.scrollChip, active && styles.chipActive, pressed && styles.chipPressed]}
+              onPress={() => onSelect(branch.id)}
+              onLayout={(event) => {
+                chipLayouts.current[branch.id] = event.nativeEvent.layout;
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={fullName}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                {fullName}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={[styles.row, compact && styles.rowCompact, rowStyle]}>
@@ -52,6 +107,7 @@ export default function BranchSelector({
               styles.chip,
               compact && styles.chipCompact,
               active && styles.chipActive,
+              active && expandActive && styles.chipExpanded,
               pressed && styles.chipPressed,
             ]}
             onPress={() => onSelect(branch.id)}
@@ -76,6 +132,9 @@ BranchSelector.propTypes = {
   edgePadding: PropTypes.number,
   truncateToFirstWord: PropTypes.bool,
   compact: PropTypes.bool,
+  expandActive: PropTypes.bool,
+  scrollable: PropTypes.bool,
+  scrollBleed: PropTypes.number,
 };
 
 // Neutral chips (dark text, grey outline) so the selector doesn't read as a
@@ -118,6 +177,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipActive: { backgroundColor: COLORS.textPrimary, borderColor: COLORS.textPrimary },
+  scrollRow: { paddingTop: SPACING.sm, paddingBottom: SPACING.xs, alignItems: 'center' },
+  scrollChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    marginRight: SPACING.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderNeutral,
+    backgroundColor: COLORS.textWhite,
+    justifyContent: 'center',
+  },
+  chipExpanded: { flex: 0, flexShrink: 0, maxWidth: '100%', paddingHorizontal: SPACING.md },
   chipPressed: { opacity: 0.7 },
   chipText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

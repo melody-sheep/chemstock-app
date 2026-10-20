@@ -1,6 +1,7 @@
 // src/screens/manager/AgentStockRequestScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  statusBadgeText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold },
+  statusBadgeText: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold },
   requestMeta: {
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

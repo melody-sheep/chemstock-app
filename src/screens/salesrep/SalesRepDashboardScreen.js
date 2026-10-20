@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepDashboardScreen.js
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -14,6 +15,7 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -27,6 +29,7 @@ import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
+import { manilaToday } from '../../utils/expiry';
 import { routeQrScan } from '../../utils/routeQrScan';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -139,7 +142,7 @@ export default function SalesRepDashboardScreen() {
     // A different account must never see the last account's numbers.
     const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
-    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult, notificationsResult] =
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult, notificationsResult, lastReportResult] =
       await Promise.all([
         inventoryService.getSrInventory(currentUser?.id),
         inventoryService.getSrActivityLogs(currentUser?.id, 3),
@@ -147,6 +150,7 @@ export default function SalesRepDashboardScreen() {
         inventoryService.getMyDeliveries(currentUser?.id, 10),
         reportService.getMyDiscrepancies(currentUser?.id, 50),
         notificationService.getMyNotifications(currentUser?.id),
+        reportService.getMyDailyReports(currentUser?.id, 1),
       ]);
 
     const requests = requestsResult.success ? requestsResult.data : [];
@@ -191,6 +195,10 @@ export default function SalesRepDashboardScreen() {
       notificationCount: notificationsResult.success
         ? notificationsResult.unreadCount
         : prev?.notificationCount ?? 0,
+      // Day of the latest report filed (or auto-filed), for the "Today" card.
+      lastReportDate: lastReportResult.success
+        ? lastReportResult.data?.[0]?.reportDate ?? null
+        : prev?.lastReportDate ?? null,
     };
   };
 
@@ -209,6 +217,9 @@ export default function SalesRepDashboardScreen() {
   const queuedRequestCount = queuedEntries.filter((e) => e.type === 'stock_request' && e.payload?.agentId === user?.id).length;
   const pendingRequestCount = snapshot?.pendingRequestCount == null ? null : snapshot.pendingRequestCount + queuedRequestCount;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
+  // "Today" card: is today's report in, waiting to send, or still to do.
+  const reportQueued = queuedEntries.some((e) => e.type === 'daily_report' && e.payload?.agentId === user?.id);
+  const reportDoneToday = snapshot?.lastReportDate === manilaToday();
   const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
   const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
   const notificationCount = liveUnreadCount ?? snapshot?.notificationCount ?? 0;
@@ -389,6 +400,37 @@ export default function SalesRepDashboardScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Today"
+              storageKey="sales-rep-today"
+              icon="clock"
+              emptyText="Nothing to do right now."
+              rows={[
+                totalUnits !== null && {
+                  key: 'backpack', icon: 'backpack', tone: 'info', label: 'In your backpack',
+                  value: `${totalUnits.toLocaleString()} item${totalUnits === 1 ? '' : 's'}`,
+                  onPress: () => navigation.navigate('SalesRepBackpack'),
+                },
+                reportQueued
+                  ? { key: 'report', icon: 'clipboardText', tone: 'info', label: 'Daily report', value: 'Waiting to send', onPress: () => navigation.navigate('SubmitReportSR') }
+                  : reportDoneToday
+                    ? { key: 'report', icon: 'clipboardText', tone: 'good', label: 'Daily report', value: 'Submitted', onPress: () => navigation.navigate('SubmitReportSR') }
+                    : totalUnits > 0 && { key: 'report', icon: 'clipboardText', tone: 'warn', label: 'Daily report', value: 'Due today', onPress: () => navigation.navigate('SubmitReportSR') },
+                pendingRequestCount > 0 && {
+                  key: 'requests', icon: 'peopleGroup', tone: 'warn', label: 'Stock requests',
+                  value: `${pendingRequestCount} pending`, onPress: () => navigation.navigate('SalesRepStockRequests'),
+                },
+                openDiscrepancyCount > 0 && {
+                  key: 'discrepancies', icon: 'warningTriangle', tone: 'alert', label: 'To resolve',
+                  value: String(openDiscrepancyCount), onPress: () => navigation.navigate('AlertsDiscrepanciesSR'),
+                },
+              ]}
+            />
+          )}
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>

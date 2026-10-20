@@ -191,7 +191,7 @@ const local = StyleSheet.create({
     paddingVertical: 5,
   },
   pillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },

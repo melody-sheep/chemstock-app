@@ -1,6 +1,7 @@
 // src/screens/manager/ManageAccountsScreen.js
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Linking, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Linking, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { BlurTargetView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
@@ -650,7 +651,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   rolePillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
@@ -662,7 +663,7 @@ const styles = StyleSheet.create({
   },
   branchText: {
     flexShrink: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textTertiary,

@@ -1,21 +1,27 @@
 // src/components/common/QRSuccessView.js
 import React, { useRef } from 'react';
-import { View, Text, ScrollView, Alert, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Dimensions, StyleSheet } from 'react-native';
+import { BlurTargetView } from 'expo-blur';
+import Alert from '../../utils/appAlert';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import Button from './Button';
 import SaveableQRCode from './SaveableQRCode';
+import BottomActionBar, { useBottomActionBarHeight } from './BottomActionBar';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
 
-// Shared post-action success layout: check icon, title, the QR, a receipt card, then Share/Done.
-// `hideQr` drops the QR code and Share button entirely (just the receipt +
-// a centered Done) — used where a role should see batch details without
-// being able to pull up/share the batch's QR code.
+// Shared post-action success layout: check icon, title, the QR (compact, with the batch code on
+// one line), a receipt card, and Share/Done fixed in a glass bar at the bottom so they never need
+// a scroll. `hideQr` drops the QR code and Share button entirely (just the receipt + a full-width
+// Done) — used where a role should see batch details without being able to pull up/share the
+// batch's QR code.
 export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone, hideQr = false }) {
   const qrRef = useRef(null);
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const handleShare = async () => {
     try {
       await qrRef.current?.shareAsImage();
@@ -27,53 +33,63 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
   const fullButtonWidth = Dimensions.get('window').width - SPACING.lg * 2;
 
   return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.screen} showsVerticalScrollIndicator={false}>
-      <View style={styles.successIcon}>
-        <Icon name="successCircle" size={64} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
-      </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+    <View style={styles.root}>
+      <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[styles.screen, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Icon name="successCircle" size={48} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
 
-      {!hideQr && <SaveableQRCode ref={qrRef} value={qrValue} size={150} style={styles.qrCard} />}
+          {!hideQr && <SaveableQRCode ref={qrRef} value={qrValue} size={156} compact style={styles.qrCard} />}
 
-      <View style={styles.receiptCard}>
-        {receipt.map((row, index) => (
-          <React.Fragment key={row.label}>
-            {index > 0 && <View style={styles.receiptDivider} />}
-            <View style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>{row.label}</Text>
-              <Text style={styles.receiptValue} numberOfLines={1}>{row.value}</Text>
-            </View>
-          </React.Fragment>
-        ))}
-      </View>
+          <View style={styles.receiptCard}>
+            {receipt.map((row, index) => (
+              <React.Fragment key={row.label}>
+                {index > 0 && <View style={styles.receiptDivider} />}
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>{row.label}</Text>
+                  <Text style={styles.receiptValue}>{row.value}</Text>
+                </View>
+              </React.Fragment>
+            ))}
+          </View>
+        </ScrollView>
+      </BlurTargetView>
 
-      <View style={styles.actionsRow}>
-        {!hideQr && (
+      <BottomActionBar variant="glass" blurTarget={blurTarget}>
+        <View style={styles.actionsRow}>
+          {!hideQr && (
+            <Button
+              title="Share"
+              variant="outline"
+              accentColor={COLORS.primary}
+              icon="send"
+              iconSize={16}
+              onPress={handleShare}
+              width={halfButtonWidth}
+              height={48}
+              fontSize={15}
+              borderRadius={24}
+            />
+          )}
           <Button
-            title="Share"
-            variant="outline"
-            accentColor={COLORS.accentPurple}
-            icon="send"
+            title="Done"
+            variant="black"
+            icon="checkmark"
             iconSize={16}
-            onPress={handleShare}
-            width={halfButtonWidth}
+            onPress={onDone}
+            width={hideQr ? fullButtonWidth : halfButtonWidth}
             height={48}
             fontSize={15}
+            borderRadius={24}
           />
-        )}
-        <Button
-          title="Done"
-          variant="black"
-          icon="checkmark"
-          iconSize={16}
-          onPress={onDone}
-          width={hideQr ? fullButtonWidth : halfButtonWidth}
-          height={48}
-          fontSize={15}
-        />
-      </View>
-    </ScrollView>
+        </View>
+      </BottomActionBar>
+    </View>
   );
 }
 
@@ -89,15 +105,21 @@ QRSuccessView.propTypes = {
 };
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  contentTarget: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   screen: {
     flexGrow: 1,
+    alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
-    paddingBottom: SPACING['3xl'],
-    gap: SPACING.sm,
+    gap: SPACING.xs,
   },
   title: {
     marginTop: SPACING.xs,
@@ -106,29 +128,26 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
-    alignSelf: 'center',
   },
   subtitle: {
+    marginBottom: SPACING.xs,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    alignSelf: 'center',
-  },
-  successIcon: {
-    alignSelf: 'center',
   },
   qrCard: {
-    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
+    paddingHorizontal: SPACING.md,
   },
   receiptCard: {
-    alignSelf: 'stretch',
-    marginTop: SPACING.md,
-    padding: SPACING.md,
+    width: '100%',
+    padding: SPACING.sm,
+    marginBottom: SPACING.sm,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: '#E5E5E5',
     backgroundColor: COLORS.textWhite,
   },
   receiptRow: {
@@ -140,7 +159,7 @@ const styles = StyleSheet.create({
   },
   receiptDivider: {
     height: 1,
-    backgroundColor: COLORS.borderLight,
+    backgroundColor: '#F0F0F0',
   },
   receiptLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -157,9 +176,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   actionsRow: {
-    alignSelf: 'stretch',
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginTop: SPACING.lg,
   },
 });

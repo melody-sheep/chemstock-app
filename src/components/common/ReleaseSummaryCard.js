@@ -15,10 +15,10 @@ const CHEVRON_DURATION_MS = 150;
 
 // Orange release summary: total + recipient header (the whole header toggles
 // the list), then one row per product.
-export default function ReleaseSummaryCard({ totalUnits, recipientLine, items }) {
-  const [isOpen, setIsOpen] = useState(true);
+export default function ReleaseSummaryCard({ totalUnits, recipientLine, items, defaultOpen = true }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   // 1 = open (chevron points down), 0 = closed (chevron points right).
-  const chevronProgress = useRef(new Animated.Value(1)).current;
+  const chevronProgress = useRef(new Animated.Value(defaultOpen ? 1 : 0)).current;
   const itemCount = items.length;
 
   const toggle = () => {
@@ -84,6 +84,8 @@ ReleaseSummaryCard.propTypes = {
       image: PropTypes.any,
     })
   ).isRequired,
+  // false: the item list starts closed (the header still shows the total and recipient).
+  defaultOpen: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({

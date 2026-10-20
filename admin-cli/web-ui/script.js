@@ -844,7 +844,7 @@
               <button class="btn btn-sm" data-action="copy-suggestion">${icon('copy')} Copy</button></div>
              <div class="checks"><span class="ok">${icon('shield-check')}Very strong · never used before</span></div>`
           : `<div class="field"><label class="field-label" for="f-code">Your key</label>
-              <input id="f-code" class="input mono" placeholder="At least 12 letters and numbers" value="${esc(form.custom)}" autocomplete="off" spellcheck="false" maxlength="64" />
+              <input id="f-code" class="input mono" placeholder="At least 8 characters (letters, numbers, symbols)" value="${esc(form.custom)}" autocomplete="off" spellcheck="false" maxlength="64" />
              </div><div id="strength-box">${strengthHtml(form.custom)}</div>`
       }
       <div class="notice notice-info">${icon('info')}<div>Valid for <b>${form.days} days</b> — until ${fmtDate(Date.now() + form.days * 86400000)}.

@@ -15,11 +15,12 @@ import { TYPOGRAPHY } from '../../styles/typography';
  *   - StockLogDetailScreen (Manager)
  *   - SalesRepLogDetailScreen (SR)
  */
-export default function SectionHeader({ icon, label, style = {} }) {
+export default function SectionHeader({ icon, label, style = {}, size = 'sm' }) {
+  const large = size === 'md';
   return (
     <View style={[styles.row, style]}>
-      {!!icon && <Icon name={icon} size={14} color={COLORS.textTertiary} />}
-      <Text style={styles.label}>{label}</Text>
+      {!!icon && <Icon name={icon} size={large ? 18 : 14} color={large ? COLORS.textSecondary : COLORS.textTertiary} />}
+      <Text style={[styles.label, large && styles.labelLarge]}>{label}</Text>
     </View>
   );
 }
@@ -28,6 +29,8 @@ SectionHeader.propTypes = {
   icon: PropTypes.string,
   label: PropTypes.string.isRequired,
   style: PropTypes.object,
+  // 'sm' (default) is the compact label; 'md' is a larger, easier-to-read one.
+  size: PropTypes.oneOf(['sm', 'md']),
 };
 
 const styles = StyleSheet.create({
@@ -45,5 +48,10 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  labelLarge: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    letterSpacing: 0.6,
   },
 });

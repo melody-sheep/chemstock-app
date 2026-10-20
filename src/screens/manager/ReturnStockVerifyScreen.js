@@ -1,6 +1,7 @@
 // src/screens/manager/ReturnStockVerifyScreen.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, TextInput, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   itemFullName: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -427,7 +428,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: '#272632',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },

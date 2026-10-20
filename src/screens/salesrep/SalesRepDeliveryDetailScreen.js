@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sheetToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },

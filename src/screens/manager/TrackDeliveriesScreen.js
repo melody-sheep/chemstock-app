@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   statusPillInTransit: { backgroundColor: '#E3F2FF' },
   statusPillDelivered: { backgroundColor: '#EAFBF2' },
   statusPillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },

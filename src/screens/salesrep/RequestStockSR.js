@@ -4,7 +4,8 @@
 // request is made against what the branch can supply. Tapping a card opens a
 // quantity popup and adds the product to the request list.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -586,7 +587,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   inCartText: {
-    fontSize: 9,
+    fontSize: 11,
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,

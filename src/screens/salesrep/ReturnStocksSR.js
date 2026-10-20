@@ -275,13 +275,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   requestMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 4,
   },
   statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  statusBadgeText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  statusBadgeText: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   rejectReasonText: {
     marginTop: 8,
     fontSize: 12,

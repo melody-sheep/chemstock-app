@@ -1,5 +1,5 @@
 // src/utils/routeQrScan.js
-import { Alert } from 'react-native';
+import Alert from './appAlert';
 import inventoryService from '../services/inventoryService';
 import { findQueuedReceipt } from './queuedReceipts';
 import friendlyError, { NO_INTERNET_MESSAGE } from './friendlyError';
@@ -41,7 +41,7 @@ export async function routeQrScan({ qrCode, agentId, navigation }) {
   }
 
   const alreadyQueued = () => {
-    Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.');
+    Alert.alert('Already Received', 'You already received this delivery on this phone. It will be sent automatically once you are online.');
     return { kind: 'already_queued' };
   };
 

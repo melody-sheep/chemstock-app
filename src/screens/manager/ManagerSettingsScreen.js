@@ -1,6 +1,7 @@
 // src/screens/manager/ManagerSettingsScreen.js
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -153,7 +154,7 @@ export default function ManagerSettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>Device & Sync</Text>
+          <Text style={styles.sectionLabel}>Device & Sending</Text>
           <SettingsDeviceSection agentId={user?.id} styles={styles} />
 
           <Text style={styles.sectionLabel}>About</Text>
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   profileBranch: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rowSubLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -366,7 +367,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   grantedPillText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

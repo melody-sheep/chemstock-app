@@ -250,15 +250,16 @@ function buildHtml({
     } else if (destination) {
       routePoints.push([destination.latitude, destination.longitude]);
     }
-    // Dashed route made only of arrowheads. The colour blends from the
-    // collector (orange) at the start of the route to the Sales Rep (red) at the end.
-    function mixHex(a, b, t) {
-      var pa = [1, 3, 5].map(function (i) { return parseInt(a.substr(i, 2), 16); });
-      var pb = [1, 3, 5].map(function (i) { return parseInt(b.substr(i, 2), 16); });
-      return '#' + pa.map(function (v, i) {
-        return Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0');
-      }).join('');
+    // Dashed route made only of arrowheads. The part still to travel is coloured by how far
+    // it is: green up to 200 m, orange up to 1 km, red beyond. The part already travelled
+    // (start -> the latest checkpoint) is grey.
+    var ROUTE_GREEN = '#2E9E5B', ROUTE_ORANGE = '#F59E0B', ROUTE_RED = '#E63946', ROUTE_DONE = '#9AA0A6';
+    function tierColor(meters) {
+      if (meters <= 200) return ROUTE_GREEN;
+      if (meters <= 1000) return ROUTE_ORANGE;
+      return ROUTE_RED;
     }
+    var travelledLegs = (origin && lastCheckpoint) ? 1 : 0;
     function arrowIcon(color, rotationDeg) {
       return L.divIcon({
         className: '',
@@ -275,13 +276,13 @@ function buildHtml({
         var a = points[i], b = points[i + 1];
         // Bearing from north, clockwise: the arrow is drawn pointing up, so this is its rotation.
         var bearing = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+        var legColor = i < travelledLegs ? ROUTE_DONE : tierColor(L.latLng(a[0], a[1]).distanceTo(L.latLng(b[0], b[1])));
         for (var k = 0; k < stepsPerLeg; k += 2) {
           // Arrows sit on the even steps, so they form the dashed line by themselves.
           var t0 = k / stepsPerLeg, t1 = (k + 1) / stepsPerLeg;
           var p0 = [a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0];
           var p1 = [a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1];
-          var progress = (i + (t0 + t1) / 2) / legs;
-          var color = mixHex('#F4A825', '#E63946', progress);
+          var color = legColor;
           var mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
           L.marker(mid, { icon: arrowIcon(color, bearing), interactive: false, zIndexOffset: -1000 }).addTo(map);
         }

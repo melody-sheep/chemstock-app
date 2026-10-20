@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  statusBadgeText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold },
+  statusBadgeText: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold },
   requestMeta: {
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

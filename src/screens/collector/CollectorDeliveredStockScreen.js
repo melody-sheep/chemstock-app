@@ -175,5 +175,5 @@ const styles = StyleSheet.create({
   itemIconImage: { width: '100%', height: '100%' },
   itemTextWrap: { flex: 1 },
   itemName: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
-  itemMeta: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
+  itemMeta: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
 });

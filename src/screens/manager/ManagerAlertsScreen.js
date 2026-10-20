@@ -1,6 +1,7 @@
 // src/screens/manager/ManagerAlertsScreen.js
 import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   sortPillText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     color: COLORS.textSecondary,
   },
@@ -547,7 +548,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   alertMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -563,7 +564,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   branchBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.primary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
   },
   missingText: {
     marginTop: 4,
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.error,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -603,20 +604,20 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   agentRole: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   settledTag: {
     marginLeft: 'auto',
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.success,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   pendingTag: {
     marginLeft: 'auto',
-    fontSize: 10,
+    fontSize: 11,
     color: '#B26400',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   figurePillText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -656,7 +657,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   modalMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     flexShrink: 1,
@@ -706,7 +707,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.error + '08',
   },
   modalFigureLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },

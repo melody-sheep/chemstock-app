@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   indexBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',

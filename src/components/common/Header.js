@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   notificationBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',

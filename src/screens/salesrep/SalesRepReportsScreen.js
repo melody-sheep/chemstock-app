@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepReportsScreen.js
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
@@ -324,7 +325,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#1E7A3A',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 1,
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   submitBannerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -447,7 +448,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   autoFiledTag: {
-    fontSize: 9,
+    fontSize: 11,
     color: '#B91C1C',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF1D6',
   },
   reportStatusText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -486,7 +487,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   figureLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginBottom: 2,
@@ -532,12 +533,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   modalItemName: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   modalItemFigure: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },

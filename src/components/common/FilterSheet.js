@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
   },
   dateInputLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textTertiary,
   },

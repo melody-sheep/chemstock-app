@@ -9,7 +9,9 @@ import {
 
 export default function KeyboardWrapper({ children }) {
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    // accessible={false}: otherwise Android treats this whole layer as one
+    // tappable control and drags that start on empty background don't scroll.
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
         {children}
       </View>

@@ -1,6 +1,7 @@
 // src/screens/common/EditProfileScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#EEF2FF',
     color: COLORS.primary,
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -728,7 +729,7 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.regular,

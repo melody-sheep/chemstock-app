@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)',
   },
   photoBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#FFFFFF',

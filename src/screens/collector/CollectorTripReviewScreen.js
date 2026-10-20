@@ -1,7 +1,8 @@
 // src/screens/collector/CollectorTripReviewScreen.js
 import React, { useCallback, useState } from 'react';
 import { getDeliveryParties } from '../../services/presenceService';
-import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, Linking, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Linking, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -475,7 +476,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   routeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textTertiary,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -514,7 +515,7 @@ const styles = StyleSheet.create({
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   statusPillActive: { backgroundColor: '#E3F2FF' },
   statusPillDone: { backgroundColor: '#EAFBF2' },
-  statusPillText: { fontSize: 10, fontWeight: '700', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily.bold },
+  statusPillText: { fontSize: 11, fontWeight: '700', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily.bold },
   legBlock: { gap: SPACING.sm, marginBottom: SPACING.sm },
   itemsCard: {
     borderWidth: 1,
@@ -548,7 +549,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   qrTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: SPACING.sm,
   },
-  noticeText: { flex: 1, fontSize: 11, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
+  noticeText: { flex: 1, fontSize: 12, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
   buttonRow: { flexDirection: 'column', gap: SPACING.sm },
   actionButton: { width: '100%' },
   partyModalContent: { alignItems: 'center', paddingTop: 4, paddingBottom: 8 },
@@ -639,7 +640,7 @@ const styles = StyleSheet.create({
   },
   partyModalPhoneTextWrap: { flex: 1 },
   partyModalPhoneLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     textTransform: 'uppercase',

@@ -11,6 +11,7 @@ import authService from './src/services/authService';
 import { getConnectionStatus } from './src/services/connectionStatus';
 import SplashLoader from './src/components/common/SplashLoader';
 import PermissionsPrompt from './src/components/common/PermissionsPrompt';
+import AppAlertHost from './src/components/common/AppAlertHost';
 import { installGlobalErrorHandler, installConsoleErrorFormatter, debugLog } from './src/utils/logger';
 installGlobalErrorHandler();
 installConsoleErrorFormatter();
@@ -181,6 +182,9 @@ export default function App() {
 
         {/* First launch after a fresh install: ask for location + camera once. */}
         {!isConnecting && <PermissionsPrompt />}
+
+        {/* Every message in the app (was the grey system popup) is drawn here. */}
+        <AppAlertHost />
 
         {isSplashMounted && (
           <Animated.View

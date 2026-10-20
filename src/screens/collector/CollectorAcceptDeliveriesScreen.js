@@ -1,6 +1,7 @@
 // src/screens/collector/CollectorAcceptDeliveriesScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -415,7 +416,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     marginTop: 4,
   },
-  pendingBadgeText: { fontSize: 10, fontWeight: '700', color: '#B26400', fontFamily: TYPOGRAPHY.fontFamily.bold },
+  pendingBadgeText: { fontSize: 11, fontWeight: '700', color: '#B26400', fontFamily: TYPOGRAPHY.fontFamily.bold },
   pendingMetaBlock: {
     alignSelf: 'stretch',
     gap: 4,
@@ -429,12 +430,12 @@ const styles = StyleSheet.create({
   },
   pendingMetaText: {
     flexShrink: 1,
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   pendingRole: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -526,7 +527,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   readyBadge: { backgroundColor: '#EAFBF2', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  readyBadgeText: { fontSize: 10, fontWeight: '700', color: '#1E7A3A', fontFamily: TYPOGRAPHY.fontFamily.bold },
+  readyBadgeText: { fontSize: 11, fontWeight: '700', color: '#1E7A3A', fontFamily: TYPOGRAPHY.fontFamily.bold },
   nextBar: {
     padding: SPACING.md,
     backgroundColor: '#FFFFFF',

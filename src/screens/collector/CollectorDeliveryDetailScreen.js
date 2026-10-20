@@ -1,6 +1,7 @@
 // src/screens/collector/CollectorDeliveryDetailScreen.js
 import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -481,7 +482,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   routeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textTertiary,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -555,7 +556,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   itemName: { color: '#272632', fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  itemMeta: { color: '#555353', fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
+  itemMeta: { color: '#555353', fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
   qrSection: {
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   qrTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -600,7 +601,7 @@ const styles = StyleSheet.create({
   },
   verifyButtonDone: { borderColor: COLORS.success },
   verifyButtonLabel: { flex: 1, fontSize: 12, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.medium },
-  errorInlineText: { fontSize: 11, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.medium },
+  errorInlineText: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.medium },
   photoCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -611,7 +612,7 @@ const styles = StyleSheet.create({
   },
   photoHeaderRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
   requiredPill: { backgroundColor: '#FFF1F2', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
-  requiredText: { color: '#BE123C', fontSize: 10, fontWeight: '700', fontFamily: TYPOGRAPHY.fontFamily.bold },
+  requiredText: { color: '#BE123C', fontSize: 11, fontWeight: '700', fontFamily: TYPOGRAPHY.fontFamily.bold },
   photoPlaceholder: {
     borderWidth: 1.5,
     borderColor: '#D7E3F1',
@@ -710,7 +711,7 @@ const styles = StyleSheet.create({
   },
   partyModalPhoneTextWrap: { flex: 1 },
   partyModalPhoneLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     textTransform: 'uppercase',

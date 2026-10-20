@@ -1,6 +1,7 @@
 // src/components/common/OutboxFailedNotice.js
 import React from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -92,11 +93,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   retryButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#B91C1C' },
-  retryText: { fontSize: 11, color: '#FFFFFF', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  retryText: { fontSize: 12, color: '#FFFFFF', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   itemTextCol: { flex: 1 },
   itemLabel: { fontSize: 12, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  itemReason: { fontSize: 11, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
+  itemReason: { fontSize: 12, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
   discardButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -105,5 +106,5 @@ const styles = StyleSheet.create({
     borderColor: '#B91C1C',
     backgroundColor: '#FFFFFF',
   },
-  discardText: { fontSize: 11, color: '#B91C1C', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  discardText: { fontSize: 12, color: '#B91C1C', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
 });
