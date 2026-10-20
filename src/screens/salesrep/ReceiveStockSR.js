@@ -151,7 +151,7 @@ export default function ReceiveStockSR() {
     const receiptCopy = receiptDisplay({ transactionId: batch.transactionId, qrCode: batch.qrCode, items: batch.items });
     if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
       setIsSubmitting(false);
-      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.');
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will be sent automatically once you are online.');
       return;
     }
 

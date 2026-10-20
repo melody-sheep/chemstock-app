@@ -3,6 +3,18 @@ import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage } from './supabaseClient';
 import { debugLog, logError } from '../utils/logger';
 
+// Activation codes are secrets: logs only ever show the first and last 2 characters.
+const maskCode = (code) => {
+  const text = String(code || '').trim();
+  return text.length <= 4 ? '****' : `${text.slice(0, 2)}…${text.slice(-2)}`;
+};
+
+const REASON_MESSAGES = {
+  NOT_FOUND: 'Invalid activation code. Please check and try again.',
+  ALREADY_USED: 'This activation code has already been used.',
+  EXPIRED: 'Activation code has expired.',
+};
+
 class ActivationService extends BaseService {
   constructor() {
     super('ActivationService');
@@ -15,7 +27,7 @@ class ActivationService extends BaseService {
    * @returns {Promise<Object>} Validation result
    */
   async validateKey(key) {
-    debugLog('info', 'ActivationService', 'Validating activation key', { key });
+    debugLog('info', 'ActivationService', 'Validating activation key', { key: maskCode(key) });
 
     try {
       const trimmedKey = key?.trim() || '';
@@ -38,11 +50,18 @@ class ActivationService extends BaseService {
         };
       }
 
-      const { data, error } = await supabase
-        .from('activation_keys')
-        .select('*')
-        .eq('code', trimmedKey)
-        .limit(1);
+      // The keys table isn't readable from the app: the server checks this
+      // one code and returns only its own details.
+      const { data: checked, error } = await supabase.rpc('check_activation_code', { p_code: trimmedKey });
+      if (!error && checked && checked.valid === false) {
+        return {
+          success: false,
+          message: REASON_MESSAGES[checked.reason] || REASON_MESSAGES.NOT_FOUND,
+          data: null,
+          errorCode: checked.reason || 'NOT_FOUND'
+        };
+      }
+      const data = !error && checked?.valid ? [{ ...checked, is_used: false }] : [];
 
       if (error && isRLSError(error)) {
         console.warn('[WARN] [ActivationService] RLS error validating key:', error.message);
@@ -153,7 +172,7 @@ class ActivationService extends BaseService {
    * @returns {Promise<Object>} Activation result
    */
   async activateManager(key, userId, userData = {}) {
-  debugLog('info', 'ActivationService', 'Activating manager', { key, userId });
+  debugLog('info', 'ActivationService', 'Activating manager', { key: maskCode(key), userId });
 
   try {
     this.validateRequired(['key', 'userId'], { key, userId });
@@ -212,7 +231,7 @@ class ActivationService extends BaseService {
       };
     }
 
-    this.log('error', 'Activation error', { key, userId, error: error.message });
+    this.log('error', 'Activation error', { key: maskCode(key), userId, error: error.message });
 
     return {
       success: false,
@@ -230,52 +249,18 @@ class ActivationService extends BaseService {
         return false;
       }
 
-      const { data, error } = await supabase
-        .from('activation_keys')
-        .select('id, code, is_used')
-        .eq('code', trimmedKey)
-        .limit(1);
+      const { data, error } = await supabase.rpc('check_activation_code', { p_code: trimmedKey });
 
       if (error) {
-        console.error('[ERROR] [ActivationService] Error checking key:', error);
+        console.error('[ERROR] [ActivationService] Error checking key:', error.message);
         return false;
       }
 
-      const exists = data && data.length > 0;
-
-      if (exists) {
-        const record = data[0];
-        return !record.is_used;
-      }
-
-      return false;
+      return Boolean(data?.valid);
 
     } catch (error) {
       console.error('[ERROR] [ActivationService] Error in checkKeyExists:', error);
       return false;
-    }
-  }
-
-  async getAllKeys() {
-    try {
-      const { data, error } = await supabase
-        .from('activation_keys')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('[ERROR] [ActivationService] Error getting all keys:', error);
-        if (isRLSError(error)) {
-          throw new Error('Permission denied to view keys.');
-        }
-        throw error;
-      }
-
-      return data || [];
-
-    } catch (error) {
-      this.handleError(error);
-      return [];
     }
   }
 }

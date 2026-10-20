@@ -1,43 +1,29 @@
 // admin-cli/utils/crypto.js
 const crypto = require('crypto');
+const KeyStrength = require('./keyStrength');
+
+const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'; // no 0/O, 1/l/I look-alikes
+
+/** A random character from CHARS with no modulo bias. */
+function randomChar() {
+  const limit = 256 - (256 % CHARS.length);
+  for (;;) {
+    const byte = crypto.randomBytes(1)[0];
+    if (byte < limit) return CHARS[byte % CHARS.length];
+  }
+}
 
 /**
- * Generate a secure random activation code
- * @param {number} length - Length of the code (default: 16)
- * @returns {string} Secure random alphanumeric code
+ * A secure random activation code that also passes the strength rules
+ * (mixed case + digits, no sequences) — regenerated until it does.
+ * @param {number} length - default 16
  */
 function generateSecureActivationCode(length = 16) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let code = '';
-  const randomBytes = crypto.randomBytes(length);
-  
-  for (let i = 0; i < length; i++) {
-    const index = randomBytes[i] % chars.length;
-    code += chars[index];
+  for (;;) {
+    let code = '';
+    for (let i = 0; i < length; i += 1) code += randomChar();
+    if (KeyStrength.check(code).level === 'very_strong') return code;
   }
-  
-  return code;
 }
 
-/**
- * Generate a secure random password
- * @param {number} length - Length of the password (default: 8)
- * @returns {string} Secure random alphanumeric password
- */
-function generateSecurePassword(length = 8) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  const randomBytes = crypto.randomBytes(length);
-  
-  for (let i = 0; i < length; i++) {
-    const index = randomBytes[i] % chars.length;
-    password += chars[index];
-  }
-  
-  return password;
-}
-
-module.exports = {
-  generateSecureActivationCode,
-  generateSecurePassword
-};
+module.exports = { generateSecureActivationCode };

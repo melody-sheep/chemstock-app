@@ -63,6 +63,43 @@ export const loadReportStatusData = async (previous) => {
   };
 };
 
+/**
+ * Sold / Returned box. Android's own centring (textAlign: 'center') moves the
+ * cursor between the middle and the right edge whenever the box is emptied,
+ * so the box centres a small input that grows with the digits instead: the
+ * cursor always sits right after the number. Tapping anywhere on the box
+ * focuses it. Autofill is off — Android offered saved phone numbers here.
+ */
+function FigureInput({ value, onChangeText, onFocus, onBlur, focused, editable }) {
+  const inputRef = useRef(null);
+  return (
+    <Pressable
+      style={[styles.figureInput, focused && styles.figureInputFocused]}
+      onPress={() => inputRef.current?.focus()}
+      disabled={!editable}
+    >
+      <TextInput
+        ref={inputRef}
+        style={styles.figureInputText}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        keyboardType="number-pad"
+        placeholder={focused ? '' : '0'}
+        placeholderTextColor="#B5C0CC"
+        autoComplete="off"
+        importantForAutofill="no"
+        autoCorrect={false}
+        contextMenuHidden
+        selectTextOnFocus
+        maxLength={5}
+        editable={editable}
+      />
+    </Pressable>
+  );
+}
+
 export default function SubmitReportSR() {
   const navigation = useNavigation();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
@@ -178,7 +215,7 @@ export default function SubmitReportSR() {
 
   const handleFinalize = async () => {
     if (items.length === 0) {
-      Alert.alert('Nothing to Report', 'You have no in-custody stock to report today.');
+      Alert.alert('Nothing to Report', 'You have no stock with you to report today.');
       return;
     }
     if (!photoUri) {
@@ -411,7 +448,7 @@ export default function SubmitReportSR() {
                     </View>
                     <Text style={styles.statValue}>{totals.returns}</Text>
                   </View>
-                  <Text style={styles.statLabel}>Return</Text>
+                  <Text style={styles.statLabel}>Returned</Text>
                 </View>
               </View>
 
@@ -420,12 +457,15 @@ export default function SubmitReportSR() {
                   <Icon name="checkCircle" size={32} color={COLORS.textSecondary} />
                   <Text style={styles.emptyText}>
                     {queuedReceiptCount > 0
-                      ? 'Nothing to report yet — the stock you received is still waiting to sync. It will be in your next report.'
-                      : 'No in-custody stock to report today.'}
+                      ? 'Nothing to report yet — the stock you received has not been sent yet. It will be in your next report.'
+                      : 'No stock with you to report today.'}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.itemsList}>
+                  <Text style={styles.figuresHint}>
+                    Sold = sold to customers. Returned to branch = unsold stock you hand back to the branch today.
+                  </Text>
                   {items.map((item) => {
                     const f = figures[item.productCode] || { sold: '', returns: '' };
                     const discrepancy = computeDiscrepancy(f.sold, f.returns, item.inCustodyQuantity);
@@ -482,8 +522,7 @@ export default function SubmitReportSR() {
                               <Icon name="checkCircle" size={11} color="#272632" />
                               <Text style={styles.figureLabel}>Sold</Text>
                             </View>
-                            <TextInput
-                              style={styles.figureInput}
+                            <FigureInput
                               value={f.sold}
                               onChangeText={(v) => updateFigure(item.productCode, 'sold', v)}
                               onFocus={() => {
@@ -493,21 +532,16 @@ export default function SubmitReportSR() {
                               onBlur={() =>
                                 setFocusedField((current) => (current === `${item.productCode}:sold` ? null : current))
                               }
-                              keyboardType="number-pad"
-                              placeholder="0"
-                              placeholderTextColor={focusedField === `${item.productCode}:sold` ? 'transparent' : '#B5C0CC'}
-                              textAlignVertical="center"
-                              selectTextOnFocus
+                              focused={focusedField === `${item.productCode}:sold`}
                               editable={!isReportLocked && !isSubmitting}
                             />
                           </View>
                           <View style={styles.figureColumn}>
                             <View style={styles.figureLabelRow}>
                               <Icon name="returns" size={11} color="#272632" />
-                              <Text style={styles.figureLabel}>Returns</Text>
+                              <Text style={styles.figureLabel}>Returned to branch</Text>
                             </View>
-                            <TextInput
-                              style={styles.figureInput}
+                            <FigureInput
                               value={f.returns}
                               onChangeText={(v) => updateFigure(item.productCode, 'returns', v)}
                               onFocus={() => {
@@ -517,11 +551,7 @@ export default function SubmitReportSR() {
                               onBlur={() =>
                                 setFocusedField((current) => (current === `${item.productCode}:returns` ? null : current))
                               }
-                              keyboardType="number-pad"
-                              placeholder="0"
-                              placeholderTextColor={focusedField === `${item.productCode}:returns` ? 'transparent' : '#B5C0CC'}
-                              textAlignVertical="center"
-                              selectTextOnFocus
+                              focused={focusedField === `${item.productCode}:returns`}
                               editable={!isReportLocked && !isSubmitting}
                             />
                           </View>
@@ -646,6 +676,11 @@ const styles = StyleSheet.create({
   },
   photoSection: {
     marginTop: 4,
+  },
+  figuresHint: {
+    fontSize: 11,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   photoSectionHint: {
     fontSize: 11,
@@ -931,13 +966,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
     height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  figureInputFocused: {
+    borderColor: '#03045E',
+  },
+  // Sized to its digits (never stretched), so Android never re-centres it.
+  figureInputText: {
+    minWidth: 2,
+    height: 40,
     paddingVertical: 0,
-    paddingHorizontal: 4,
+    paddingHorizontal: 0,
     includeFontPadding: false,
-    textAlign: 'center',
+    textAlign: 'left',
     textAlignVertical: 'center',
     fontSize: 14,
-    lineHeight: 18,
     color: '#03045E',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

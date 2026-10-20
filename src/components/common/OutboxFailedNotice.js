@@ -54,7 +54,7 @@ export default function OutboxFailedNotice({ failed, agentId, onRetry, onDiscard
           <View style={styles.itemTextCol}>
             <Text style={styles.itemLabel}>{TYPE_LABELS[entry.type] || entry.type}</Text>
             <Text style={styles.itemReason} numberOfLines={3}>
-              {entry.lastError || 'Refused by the server.'}
+              {entry.lastError || 'It was not accepted.'}
             </Text>
           </View>
           <Pressable onPress={() => confirmDiscard(entry)} style={styles.discardButton} accessibilityRole="button">

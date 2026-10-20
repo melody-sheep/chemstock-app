@@ -17,6 +17,9 @@ import storage from '../utils/storage';
 import { getConnectionStatus, subscribeConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
 import { invalidateSavedData } from '../utils/dataVersion';
+import authService from './authService';
+import { clientIdFor } from '../utils/idempotency';
+import { manilaDateOf } from '../utils/expiry';
 import reportService from './reportService';
 import inventoryService from './inventoryService';
 import requestService from './requestService';
@@ -34,6 +37,19 @@ let intervalHandle = null;
 const listeners = new Set();
 
 const notify = () => listeners.forEach((listener) => listener());
+
+// Every queued item belongs to the account that made it. One phone can be
+// shared (e.g. two Sales Reps), so an item is only ever sent while its own
+// account is logged in — never under someone else's login, or nobody's.
+// Items from older builds have no ownerId; the payload's agentId says whose they are.
+export const ownerOf = (entry) => entry?.ownerId ?? entry?.payload?.agentId ?? null;
+
+export async function currentUserId() {
+  const peeked = authService.peekCurrentUserId();
+  if (peeked) return peeked;
+  const savedUser = await authService.getSavedUser();
+  return savedUser?.id ?? null;
+}
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -114,7 +130,13 @@ const EXECUTORS = {
     const storagePath = await uploadOnce(entry, () =>
       reportService.uploadDailyReportPhoto(entry.localPhotoUri, entry.payload.agentId)
     );
-    const result = await reportService.submitDailyReport({ ...entry.payload, storagePath });
+    // The day the phone saved it, so a report saved before midnight and sent
+    // after is still filed under its own day (N2).
+    const result = await reportService.submitDailyReport({
+      ...entry.payload,
+      storagePath,
+      reportDate: manilaDateOf(entry.payload.savedAt ?? entry.createdAt),
+    });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued report');
     }
@@ -182,7 +204,11 @@ const EXECUTORS = {
   // call actually runs. Queuing that would strand the Collector on a
   // screen with nothing to show. Not on the PM's list either.
   finish_delivery_leg: async (entry) => {
-    const result = await deliveryService.finishDeliveryLeg(entry.payload);
+    // deliveredAt: the time it was tapped, not the time it synced (N16).
+    const result = await deliveryService.finishDeliveryLeg({
+      ...entry.payload,
+      deliveredAt: entry.payload.savedAt ?? new Date(entry.createdAt).toISOString(),
+    });
     if (!result.success) {
       throw new Error(result.message || 'Failed to submit queued delivery confirmation');
     }
@@ -256,10 +282,13 @@ export async function enqueue(type, payload, photoUri = null, display = null) {
     }
   }
 
+  // clientId: lets the server recognise a repeat of this same item (same id
+  // as a live attempt that just failed). savedAt: when the user did it.
   const entry = {
     id,
     type,
-    payload,
+    ownerId: payload?.agentId ?? (await currentUserId()),
+    payload: { ...payload, clientId: payload?.clientId ?? clientIdFor(type, payload), savedAt: payload?.savedAt ?? new Date().toISOString() },
     display,
     localPhotoUri,
     createdAt: Date.now(),
@@ -315,6 +344,15 @@ const GIVE_UP_AFTER_REJECTIONS = 5;
 // every minute for as long as it takes.
 const WAITING_RETRY_MS = 60 * 1000;
 const WAITING_FOR_COLLECTOR = [/No pending handoff for this delivery/i, /has not yet marked this delivery as delivered/i];
+// What the server says when the same thing was already done. Only for the
+// actions where that always means "my earlier try got through".
+const ALREADY_DONE = {
+  receive_stock: /This stock has already been accepted/i,
+  confirm_delivery_handoff: /This handoff is already confirmed/i,
+  dispute_delivery_handoff: /This handoff is already disputed/i,
+};
+const isAlreadyDone = (type, message) => Boolean(ALREADY_DONE[type]?.test(String(message || '')));
+
 export const isWaitingForCollector = (message) => WAITING_FOR_COLLECTOR.some((p) => p.test(String(message || '')));
 
 /**
@@ -333,6 +371,9 @@ export async function flush({ force = false } = {}) {
   if (flushing) return;
   await ensureLoaded();
   if (entries.length === 0 || !getConnectionStatus().online) return;
+  // Nobody logged in: nothing is sent until its owner logs back in.
+  const me = await currentUserId();
+  if (!me) return;
 
   flushing = true;
   try {
@@ -348,6 +389,9 @@ export async function flush({ force = false } = {}) {
       // A failed item waits for the user (Retry or Discard) and holds nothing back.
       if (queued.failed && !force) continue;
       if (heldTypes.has(queued.type)) continue;
+      // Another account's item waits on the phone for that account's next login.
+      const owner = ownerOf(queued);
+      if (owner && owner !== me) continue;
 
       const executor = EXECUTORS[queued.type];
       if (!executor) {
@@ -374,6 +418,18 @@ export async function flush({ force = false } = {}) {
         await removeEntry(entry.id);
       } catch (error) {
         entry.lastError = error.message || 'Sync failed';
+
+        // The server did it already (an earlier try got through but its reply
+        // was lost): that's done, not a failure.
+        if (getConnectionStatus().online && isAlreadyDone(entry.type, entry.lastError)) {
+          debugLog('info', 'Queue', `${entry.type} was already done on the server`, { id: entry.id });
+          invalidateSavedData();
+          if (entry.localPhotoUri) {
+            FileSystem.deleteAsync(entry.localPhotoUri, { idempotent: true }).catch(() => {});
+          }
+          await removeEntry(entry.id);
+          continue;
+        }
 
         if (!getConnectionStatus().online) {
           debugLog('warn', 'Queue', `${entry.type} not sent: offline`, { id: entry.id, attempts: entry.attempts });

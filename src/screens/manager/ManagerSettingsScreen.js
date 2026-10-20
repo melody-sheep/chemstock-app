@@ -1,5 +1,5 @@
 // src/screens/manager/ManagerSettingsScreen.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -79,9 +79,17 @@ export default function ManagerSettingsScreen() {
 
   const handleLogout = () => setShowLogoutDialog(true);
 
+  // A second tap while logging out is ignored.
+  const isLoggingOut = useRef(false);
   const handleConfirmLogout = async () => {
+    if (isLoggingOut.current) return;
+    isLoggingOut.current = true;
     setShowLogoutDialog(false);
-    await authService.logout();
+    try {
+      await authService.logout();
+    } finally {
+      isLoggingOut.current = false;
+    }
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 
@@ -214,7 +222,7 @@ export default function ManagerSettingsScreen() {
         title="Log Out"
         description={
           unsyncedCount > 0
-            ? `${unsyncedCount === 1 ? '1 item has not' : `${unsyncedCount} items have not`} synced yet. It stays on this phone and sends automatically once you're online — you can log out safely.`
+            ? `${unsyncedCount === 1 ? '1 item has not' : `${unsyncedCount} items have not`} been sent yet. It stays on this phone and sends automatically once you're online — you can log out safely.`
             : "You're about to log out of ChemStock. You'll need to sign in again to access your branch."
         }
         confirmLabel="Log Out"

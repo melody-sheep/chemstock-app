@@ -1,7 +1,7 @@
 // src/services/authService.js
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { BaseService } from './BaseService';
-import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession } from './supabaseClient';
+import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession, clearStoredAuthSession } from './supabaseClient';
 import { setPresenceIdentity } from './presenceService';
 import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
@@ -50,6 +50,24 @@ const withTimeout = (promise, ms, fallbackValue) => {
       timer = setTimeout(() => resolve(fallbackValue), ms);
     }),
   ]).finally(() => clearTimeout(timer));
+};
+
+// How long log out waits for the server to end the session before moving on.
+const LOGOUT_SERVER_WAIT_MS = 4000;
+
+// Set while this app itself logs in or out, so the "signed out" event those
+// cause isn't mistaken for the server ending the login (see endedByServer).
+let ownAuthChanges = 0;
+const duringOwnAuthChange = async (work) => {
+  ownAuthChanges += 1;
+  try {
+    return await work();
+  } finally {
+    // supabase-js fires its event just after the call returns.
+    setTimeout(() => {
+      ownAuthChanges -= 1;
+    }, 1000);
+  }
 };
 
 const resetCurrentUser = () => {
@@ -106,6 +124,10 @@ class AuthService extends BaseService {
    * @param {Object} credentials - { username, password }
    */
   async login(credentials) {
+    return duringOwnAuthChange(() => this._login(credentials));
+  }
+
+  async _login(credentials) {
     resetCurrentUser();
     debugLog('info', 'AuthService', 'Login attempt', {
       username: credentials.username
@@ -134,6 +156,11 @@ class AuthService extends BaseService {
         // lookup below and was reported as wrong credentials.
         if (!getConnectionStatus().online) {
           throw new Error('No internet connection. Signing in needs a connection — please reconnect and try again.');
+        }
+        // Locked after too many wrong passwords (verify_agent_login): say so
+        // instead of falling through to "Invalid username or password".
+        if (/Too many failed attempts/i.test(agentLoginError.message || '')) {
+          throw new Error(agentLoginError.message);
         }
       }
 
@@ -184,6 +211,9 @@ class AuthService extends BaseService {
             { p_username: trimmedUsername }
           );
 
+          if (/Too many failed attempts/i.test(lookupError?.message || '')) {
+            throw new Error(lookupError.message);
+          }
           if (lookupError || !resolvedEmail) {
             console.warn('[WARN] [AuthService] Username not found:', email);
             throw new Error('Invalid username or password');
@@ -316,30 +346,50 @@ class AuthService extends BaseService {
    */
 
   async logout() {
+    return duringOwnAuthChange(() => this._logout());
+  }
+
+  async _logout() {
     resetCurrentUser();
     setPresenceIdentity(null);
     debugLog('info', 'AuthService', 'Logout');
 
+    // Always clear both cached sessions — harmless no-op for whichever
+    // auth mode the current user wasn't using, and prevents a stale
+    // profile from a previous account leaking into the offline fallback
+    // below for whoever logs in next on this device.
     try {
-      // Always clear both cached sessions — harmless no-op for whichever
-      // auth mode the current user wasn't using, and prevents a stale
-      // profile from a previous account leaking into the offline fallback
-      // below for whoever logs in next on this device.
       await storage.remove(AGENT_SESSION_KEY);
       await storage.remove(MANAGER_PROFILE_CACHE_KEY);
-
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw error;
-      }
-
-      this.currentSession = null;
-      debugLog('info', 'AuthService', 'Logout successful');
-
     } catch (error) {
-      this.handleError(error);
-      throw error;
+      debugLog('warn', 'AuthService', 'Could not clear the saved profile on log out', { error: error.message });
     }
+
+    // Log out never fails and never makes the user wait on the network:
+    // offline it goes straight through, online the server gets a few
+    // seconds to end the session. If it can't, the saved login is removed
+    // from this phone anyway (it expires on the server by itself).
+    if (getConnectionStatus().online) {
+      let timer;
+      try {
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise((resolve) => {
+            timer = setTimeout(resolve, LOGOUT_SERVER_WAIT_MS);
+          }),
+        ]);
+      } catch (error) {
+        debugLog('warn', 'AuthService', 'Server sign-out failed, logging out on this phone only', { error: error.message });
+      } finally {
+        clearTimeout(timer);
+      }
+    } else {
+      debugLog('info', 'AuthService', 'Offline — logging out on this phone only');
+    }
+    await clearStoredAuthSession();
+
+    this.currentSession = null;
+    debugLog('info', 'AuthService', 'Logout successful');
   }
 
   /**
@@ -395,6 +445,37 @@ class AuthService extends BaseService {
     // A timed-out result is stored as stale, so the next call tries again.
     currentUserCache = { user, fetchedAt: timedOut ? 0 : Date.now() };
     return user;
+  }
+
+  /**
+   * Called when supabase-js reports the manager's login was removed. That
+   * only happens when the server refused the saved login (being offline
+   * never removes it) — e.g. it was revoked or reused. Returns true when a
+   * manager was using the app and has to log in again; the saved profile is
+   * cleared so the phone doesn't keep treating them as logged in.
+   */
+  async endedByServer() {
+    if (ownAuthChanges > 0) return false;
+    if (await storage.get(AGENT_SESSION_KEY)) return false; // agents don't use Supabase logins
+    if (!(await storage.get(MANAGER_PROFILE_CACHE_KEY))) return false;
+    debugLog('warn', 'AuthService', 'Manager login was ended by the server, asking to log in again');
+    resetCurrentUser();
+    setPresenceIdentity(null);
+    await storage.remove(MANAGER_PROFILE_CACHE_KEY).catch(() => {});
+    return true;
+  }
+
+  /**
+   * Resumes a Manager activation that stopped after the login account was
+   * made (N5): signs in with the email + password just entered, so the
+   * activation step can run again instead of failing on "already registered".
+   */
+  async signInForActivation(email, password) {
+    const { data, error } = await duringOwnAuthChange(() => supabase.auth.signInWithPassword({ email, password }));
+    if (error) throw error;
+    await storage.remove(AGENT_SESSION_KEY);
+    resetCurrentUser();
+    return { user: data.user, session: data.session };
   }
 
   /** Forget the cached current user, e.g. after the profile is edited. */

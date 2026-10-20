@@ -1,7 +1,6 @@
 // src/hooks/useKeyboardInset.js
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, Keyboard, TextInput } from 'react-native';
-import { logKeyboardMeasure } from '../utils/keyboardDebug';
 
 // Expo SDK 57 builds force Android edge-to-edge, where the screen is no
 // longer shrunk for the keyboard (softwareKeyboardLayoutMode "resize" is
@@ -29,7 +28,6 @@ export default function useKeyboardInset(viewRef) {
         const node = viewRef?.current;
         const apply = (bottom) => {
           const inset = Math.max(0, Math.round(bottom - keyboardTop));
-          logKeyboardMeasure(node ? 'view' : 'window', { viewBottom: Math.round(bottom), keyboardTop: Math.round(keyboardTop), inset });
           setState({ inset, keyboardTop, isVisible: true });
         };
         // A view was asked for but isn't on screen (e.g. a closed popup): nothing to keep clear.

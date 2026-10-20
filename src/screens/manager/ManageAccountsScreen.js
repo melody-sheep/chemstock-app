@@ -149,9 +149,13 @@ export default function ManageAccountsScreen() {
   // re-renders itself), so reopening the same card never re-fetches or
   // re-shows the spinner.
   const phoneNumberCache = useRef(new Map());
+  // The number couldn't be loaded (offline or a server error) — not the same
+  // as the agent having no number, so it isn't shown as "Not set".
+  const [phoneUnavailable, setPhoneUnavailable] = useState(false);
 
   const handleCardPress = async (account) => {
     setViewedAccount(account);
+    setPhoneUnavailable(false);
 
     if (phoneNumberCache.current.has(account.id)) {
       setViewedPhoneNumber(phoneNumberCache.current.get(account.id));
@@ -166,6 +170,8 @@ export default function ManageAccountsScreen() {
     if (result.success) {
       phoneNumberCache.current.set(account.id, result.data.phoneNumber);
       setViewedPhoneNumber(result.data.phoneNumber);
+    } else {
+      setPhoneUnavailable(true);
     }
   };
 
@@ -418,7 +424,7 @@ export default function ManageAccountsScreen() {
             <View style={styles.detailsCard}>
               <View style={styles.detailsRow}>
                 <View style={styles.detailsRowLeft}>
-                  <Icon name="user" size={16} color={COLORS.textSecondary} />
+                  <Icon name="profile" size={16} color={COLORS.textSecondary} />
                   <Text style={styles.detailsLabel}>Username</Text>
                 </View>
                 <Text style={styles.detailsValue} numberOfLines={1}>{viewedAccount.username}</Text>
@@ -458,7 +464,7 @@ export default function ManageAccountsScreen() {
                     <Icon name="phone" size={16} color={COLORS.textSecondary} />
                     <Text style={styles.detailsLabel}>Phone Number</Text>
                   </View>
-                  <Text style={styles.detailsValue}>Not set</Text>
+                  <Text style={styles.detailsValue}>{phoneUnavailable ? 'Connect to load' : 'Not set'}</Text>
                 </View>
               )}
 

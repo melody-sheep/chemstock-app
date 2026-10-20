@@ -1,705 +1,636 @@
 // admin-cli/server.js
 // ============================================
 // 🚀 CHEMSTOCK ADMIN SERVER
-// ============================================
-// SECURITY FEATURES IMPLEMENTED:
-//   ✅ Rate limiting (prevents brute force)
-//   ✅ Audit logging (tracks all actions)
-//   ✅ Environment variables (no hardcoded keys)
-//   ✅ Request validation
-//   ✅ Error handling
+// Runs on this computer only (127.0.0.1). Every /api route except health and
+// login needs a logged-in admin (utils/adminAuth.js). It holds the
+// service-role key, so it never sends that key or secrets to the page.
 // ============================================
 
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const QRCode = require('qrcode');
 
-// ============================================
-// 🔧 ENVIRONMENT CONFIGURATION
-// ============================================
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { supabase } = require('./config/supabase');
-const { generateSecureActivationCode, generateSecurePassword } = require('./utils/crypto');
-
-// ============================================
-// 🏢 BRANCH RESOLUTION
-// Activation keys need real branch_ids (not just free-text names) so
-// activate_manager() can copy them onto the manager's profile, and so every
-// agent account that manager later creates inherits real branch scoping.
-// Matches existing branches by name (case-insensitive) and creates any
-// that don't exist yet — the form stays exactly as-is, this just resolves
-// what's typed into it against the branches table.
-// ============================================
-async function resolveBranchIds(branches) {
-  const branchIds = [];
-
-  for (const branch of branches) {
-    const { data: existing, error: findError } = await supabase
-      .from('branches')
-      .select('id')
-      .ilike('name', branch.name)
-      .maybeSingle();
-
-    if (findError) {
-      throw new Error(`Failed to look up branch "${branch.name}": ${findError.message}`);
-    }
-
-    if (existing) {
-      branchIds.push(existing.id);
-      continue;
-    }
-
-    const { data: created, error: createError } = await supabase
-      .from('branches')
-      .insert([{ name: branch.name, city: branch.location || null }])
-      .select('id')
-      .single();
-
-    if (createError) {
-      throw new Error(`Failed to create branch "${branch.name}": ${createError.message}`);
-    }
-
-    console.log(`✅ [Branches] Created new branch: ${branch.name} (${created.id})`);
-    branchIds.push(created.id);
-  }
-
-  return branchIds;
-}
-
-// Import rate limiters
-const {
-  activationLimiter,
-  generateKeyLimiter,
-  revokeKeyLimiter,
-  globalLimiter
-} = require('./utils/rateLimiter');
-
-// Import audit logger
+const { generateSecureActivationCode } = require('./utils/crypto');
+const KeyStrength = require('./utils/keyStrength');
+const { findSimilar } = require('./utils/branchMatch');
+const places = require('./utils/places');
+const adminAuth = require('./utils/adminAuth');
+const { generateKeyLimiter, revokeKeyLimiter, globalLimiter } = require('./utils/rateLimiter');
 const { auditLogger } = require('./utils/auditLogger');
+const activity = require('./utils/activityLog');
+
+const PORT = process.env.PORT || 3001;
+// Only this computer can open the admin tool — not other devices on the Wi-Fi.
+const HOST = '127.0.0.1';
+const ALLOWED_ORIGINS = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+const PHOTO_BUCKET = 'shipment-media';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+// Activation codes are secrets: logs show only the first and last 2 characters.
+const maskCode = (code) => {
+  const text = String(code || '');
+  return text.length <= 4 ? '****' : `${text.slice(0, 2)}…${text.slice(-2)}`;
+};
+
+// activation_keys timestamps are stored without a time zone (written as UTC).
+const asUtc = (value) => {
+  if (!value) return null;
+  const text = String(value);
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(text) ? text : `${text}Z`);
+};
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-
-console.log('🚀 [Server] Initializing...');
-console.log(`🔒 [Security] Rate limiting ENABLED`);
-console.log(`📊 [Security] Audit logging ${process.env.AUDIT_LOG_ENABLED !== 'false' ? 'ENABLED' : 'DISABLED'}`);
-console.log(`🌍 [Environment] ${process.env.NODE_ENV || 'development'}`);
+const webUiPath = path.join(__dirname, 'web-ui');
 
 // ============================================
-// ✅ CHECK DEPENDENCIES
+// 🔒 MIDDLEWARE
 // ============================================
-try {
-  console.log('📦 [Server] Checking dependencies...');
-  console.log(`   - express: ${require('express/package.json').version}`);
-  console.log(`   - cors: ${require('cors/package.json').version}`);
-  console.log('✅ [Server] Dependencies OK');
-} catch (err) {
-  console.error('❌ [Server] Missing dependencies:', err.message);
-  console.log('💡 Run: npm install express cors');
-  process.exit(1);
-}
-
-// ============================================
-// ✅ CHECK SUPABASE CONFIG
-// ============================================
-try {
-  console.log('📦 [Server] Checking Supabase config...');
-  const { supabase: sb } = require('./config/supabase');
-  console.log('✅ [Server] Supabase config OK');
-} catch (err) {
-  console.error('❌ [Server] Supabase config error:', err.message);
-  console.log('💡 Check your .env file');
-  process.exit(1);
-}
-
-// ============================================
-// ✅ MIDDLEWARE
-// ============================================
-console.log('🔧 [Server] Setting up middleware...');
-
-// CORS with security headers
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// JSON parser with size limit
-app.use(express.json({ limit: '10mb' }));
-
-// ✅ Apply global rate limiting (applies to ALL requests)
+app.use(express.json({ limit: '100kb' }));
 app.use(globalLimiter);
-
-// Security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; " +
+      "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+  );
   next();
 });
 
-// Serve static files from web-ui directory
-const webUiPath = path.join(__dirname, 'web-ui');
-console.log(`📁 [Server] Serving static files from: ${webUiPath}`);
+app.use(adminAuth.requireSameOrigin(ALLOWED_ORIGINS));
+app.post('/api/auth/login', adminAuth.login);
+app.post('/api/auth/logout', adminAuth.logout);
+app.get('/api/auth/me', adminAuth.me);
+app.get('/api/health', (req, res) => res.json({ status: 'OK', timestamp: new Date().toISOString() }));
+app.use('/api', adminAuth.requireAdmin);
 
-if (!fs.existsSync(webUiPath)) {
-  console.error(`❌ [Server] web-ui directory not found at: ${webUiPath}`);
-  console.log('💡 Create the web-ui directory with index.html, style.css, and script.js');
-  process.exit(1);
-}
-
+app.use('/vendor/phosphor', express.static(path.join(__dirname, 'node_modules/@phosphor-icons/web/src')));
+app.get('/shared/keyStrength.js', (req, res) => res.sendFile(path.join(__dirname, 'utils/keyStrength.js')));
 app.use(express.static(webUiPath));
 
-// ============================================
-// 📊 REQUEST LOGGING
-// ============================================
-app.use((req, res, next) => {
-  console.log(`📊 [${req.method}] ${req.path} from ${req.ip}`);
-  next();
-});
+const clientInfo = (req) => ({ ipAddress: req.ip, userAgent: req.headers['user-agent'] || 'unknown' });
 
-// ============================================
-// 📊 API ROUTES
-// ============================================
+// Writes to the audit log; actions the table doesn't allow yet (before
+// 2026-10-20d is run) are only printed, never break the request.
+const ACTIVITY_NAMES = {
+  generate_key: 'key_generated',
+  revoke_key: 'key_revoked',
+  extend_key: 'key_extended',
+  deactivate_manager: 'manager_deactivated',
+  reactivate_manager: 'manager_reactivated',
+  update_manager_branches: 'manager_branches_changed',
+  update_branch: 'branch_edited',
+};
 
-// ============================================
-// Health check (no rate limiting)
-// ============================================
-app.get('/api/health', (req, res) => {
-  console.log('📊 [API] Health check');
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    message: 'ChemStock Admin API is running',
-    security: {
-      rateLimiting: true,
-      auditLogging: process.env.AUDIT_LOG_ENABLED !== 'false',
-      environment: process.env.NODE_ENV || 'development'
-    }
+async function audit(req, action, { code = '-', email = null, status = 'success', error = null, branchId = null } = {}) {
+  const { ipAddress, userAgent } = clientInfo(req);
+  if (ACTIVITY_NAMES[action]) {
+    activity.log(adminAuth.whoIs(req), ACTIVITY_NAMES[action], {
+      target: email || (branchId ? `branch ${branchId}` : null),
+      details: code && code !== '-' ? { key: activity.maskCode(code) } : error ? { error } : null,
+      status,
+    });
+  }
+  await auditLogger.logActivation({
+    action, activationKey: code, managerEmail: email, status, ipAddress, userAgent, errorMessage: error, branchId,
   });
-});
+}
+
+const fail = (res, status, error, extra = {}) => res.status(status).json({ success: false, error, ...extra });
 
 // ============================================
-// Get all activation keys
+// 📦 DATA HELPERS
 // ============================================
-app.get('/api/keys', async (req, res) => {
-  console.log('📊 [API] GET /api/keys');
-  
+async function loadBranches() {
+  const { data, error } = await supabase.from('branches').select('*').order('name');
+  if (error) throw error;
+  return data || [];
+}
+
+async function loadProfiles(roles) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('id, username, full_name, email, role, branch_ids, phone_number, created_at, last_seen_at, profile_media_id, created_by')
+    .in('role', roles);
+  if (error) throw error;
+  return data || [];
+}
+
+async function revokedCodes() {
+  const { data } = await supabase
+    .from('activation_audit_log')
+    .select('activation_key')
+    .eq('action', 'revoke_key')
+    .eq('status', 'success');
+  return new Set((data || []).map((r) => r.activation_key));
+}
+
+function keyStatus(key, revoked) {
+  if (key.is_used) return revoked.has(key.code) ? 'revoked' : 'used';
+  const expires = asUtc(key.expires_at);
+  if (expires && expires < new Date()) return 'expired';
+  return 'available';
+}
+
+async function signedPhotoUrls(profiles) {
+  const mediaIds = profiles.map((p) => p.profile_media_id).filter(Boolean);
+  if (mediaIds.length === 0) return {};
+  const { data: media } = await supabase.from('media').select('id, storage_path').in('id', mediaIds);
+  const paths = (media || []).map((m) => m.storage_path);
+  if (paths.length === 0) return {};
+  const { data: signed } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 60 * 60);
+  const byPath = Object.fromEntries((signed || []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl]));
+  return Object.fromEntries((media || []).map((m) => [m.id, byPath[m.storage_path] || null]));
+}
+
+async function authUsersById() {
+  const users = {};
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    (data?.users || []).forEach((u) => { users[u.id] = u; });
+    if (!data?.users || data.users.length < 1000) break;
+  }
+  return users;
+}
+
+const isBanned = (user) => Boolean(user?.banned_until && new Date(user.banned_until) > new Date());
+
+// ============================================
+// 📊 DASHBOARD
+// ============================================
+app.get('/api/stats', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('activation_keys')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('❌ [API] Error fetching keys:', error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    console.log(`✅ [API] Retrieved ${data?.length || 0} keys`);
-    res.json({ success: true, data: data || [] });
+    const [{ data: keys, error }, revoked, branches, managers] = await Promise.all([
+      supabase.from('activation_keys').select('code, is_used, expires_at'),
+      revokedCodes(),
+      loadBranches(),
+      loadProfiles(['manager']),
+    ]);
+    if (error) throw error;
+    const counts = { total: keys.length, available: 0, used: 0, expired: 0, revoked: 0, expiringSoon: 0 };
+    const weekAhead = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    keys.forEach((k) => {
+      const status = keyStatus(k, revoked);
+      counts[status] += 1;
+      const expires = asUtc(k.expires_at);
+      if (status === 'available' && expires && expires.getTime() < weekAhead) counts.expiringSoon += 1;
+    });
+    res.json({ success: true, data: { ...counts, branches: branches.length, managers: managers.length } });
   } catch (error) {
-    console.error('❌ [API] Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    fail(res, 500, error.message);
   }
 });
 
 // ============================================
-// Generate new activation key
-// 🔒 Protected by: generateKeyLimiter
-// 🔒 Audited by: auditLogger
+// 🔑 ACTIVATION KEYS
 // ============================================
-app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
-  console.log('📊 [API] POST /api/keys/generate');
-  console.log('📊 [API] Request body:', req.body);
-  
-  const { 
-    code, 
-    managerName, 
-    managerEmail, 
-    branchNames, 
-    branchLocations, 
-    daysValid,
-    generatePassword 
-  } = req.body;
+app.get('/api/keys', async (req, res) => {
+  try {
+    const [{ data, error }, revoked, managers] = await Promise.all([
+      supabase.from('activation_keys').select('*').order('created_at', { ascending: false }),
+      revokedCodes(),
+      loadProfiles(['manager']),
+    ]);
+    if (error) throw error;
+    const managerByEmail = Object.fromEntries(managers.map((m) => [String(m.email).toLowerCase(), m.full_name]));
+    res.json({
+      success: true,
+      data: data.map((k) => ({
+        id: k.id,
+        code: k.code,
+        managerName: k.manager_name,
+        managerEmail: k.manager_email,
+        branchNames: k.branch_names || [],
+        branchLocations: k.branch_locations || [],
+        status: keyStatus(k, revoked),
+        createdAt: asUtc(k.created_at),
+        expiresAt: asUtc(k.expires_at),
+        usedAt: asUtc(k.used_at),
+        activatedBy: k.is_used ? managerByEmail[String(k.manager_email).toLowerCase()] || null : null,
+      })),
+    });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
 
-  // Get client info for audit
-  const ipAddress = req.ip || req.connection.remoteAddress;
-  const userAgent = req.headers['user-agent'] || 'unknown';
+// Live checks for the Generate Key form.
+app.post('/api/keys/check-code', async (req, res) => {
+  const code = String(req.body?.code || '').trim();
+  if (!code) return res.json({ success: true, data: { exists: false } });
+  const { data } = await supabase.from('activation_keys').select('id').eq('code', code).maybeSingle();
+  res.json({ success: true, data: { exists: Boolean(data) } });
+});
+
+app.get('/api/keys/suggest', (req, res) => res.json({ success: true, data: { code: generateSecureActivationCode(16) } }));
+
+app.get('/api/check-email', async (req, res) => {
+  try {
+    const email = String(req.query.email || '').trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(email)) return res.json({ success: true, data: { valid: false } });
+    const [{ data: profile }, { data: keys }, revoked] = await Promise.all([
+      supabase.from('user_profiles').select('id, full_name, role, branch_ids').ilike('email', email).maybeSingle(),
+      supabase.from('activation_keys').select('code, manager_name, is_used, expires_at').ilike('manager_email', email),
+      revokedCodes(),
+    ]);
+    const openKey = (keys || []).find((k) => keyStatus(k, revoked) === 'available');
+    let branchNames = [];
+    if (profile?.branch_ids?.length) {
+      const { data: b } = await supabase.from('branches').select('name').in('id', profile.branch_ids);
+      branchNames = (b || []).map((x) => x.name);
+    }
+    res.json({
+      success: true,
+      data: {
+        valid: true,
+        account: profile ? { name: profile.full_name, role: profile.role, branches: branchNames } : null,
+        openKey: openKey ? { managerName: openKey.manager_name, expiresAt: asUtc(openKey.expires_at) } : null,
+      },
+    });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+/**
+ * POST /api/keys/generate
+ * { managerName, managerEmail, daysValid, code?, acceptMedium?,
+ *   branches: [{ id } | { name, city, region, address, createAnyway? }] }
+ */
+app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
+  const body = req.body || {};
+  const managerName = String(body.managerName || '').trim().replace(/\s+/g, ' ');
+  const managerEmail = String(body.managerEmail || '').trim().toLowerCase();
+  const daysValid = Math.min(Math.max(parseInt(body.daysValid, 10) || 30, 1), 365);
+  const requested = Array.isArray(body.branches) ? body.branches : [];
+
+  if (managerName.length < 3) return fail(res, 400, 'Enter the manager’s full name.');
+  if (!EMAIL_PATTERN.test(managerEmail)) return fail(res, 400, 'Enter a valid email address.');
+  if (requested.length === 0) return fail(res, 400, 'Pick at least one branch.');
 
   try {
-    // Validate required fields
-    if (!managerName || !managerEmail || !branchNames || branchNames.length === 0) {
-      const error = 'Manager name, email, and at least one branch are required';
-      
-      // 📊 AUDIT: Failed key generation
-      await auditLogger.logKeyGeneration({
-        activationKey: code || 'generated',
-        managerEmail,
-        managerName,
-        branches: branchNames,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: error
+    // ---- the code
+    let code = String(body.code || '').trim();
+    if (code) {
+      const strength = KeyStrength.check(code, {
+        name: managerName,
+        email: managerEmail,
+        branches: requested.map((b) => b.name).filter(Boolean),
       });
-
-      return res.status(400).json({
-        success: false,
-        error
-      });
+      if (!strength.allowed) return fail(res, 400, 'That key is too weak. Use a generated key or follow the checklist.');
+      if (strength.needsConfirm && !body.acceptMedium) return fail(res, 409, 'This key is only medium strength.', { needsConfirm: true });
+      const { data: existing } = await supabase.from('activation_keys').select('id').eq('code', code).maybeSingle();
+      if (existing) return fail(res, 409, 'That key was already used. Pick another one.');
+    } else {
+      code = generateSecureActivationCode(16);
     }
 
-    // Use provided code or generate one
-    const activationCode = code?.trim() || generateSecureActivationCode(16);
+    // ---- the branches
+    const branches = await loadBranches();
+    const chosen = [];
+    for (const item of requested) {
+      if (item.id) {
+        const found = branches.find((b) => b.id === item.id);
+        if (!found) return fail(res, 400, 'One of the selected branches no longer exists.');
+        if (!chosen.some((c) => c.id === found.id)) chosen.push(found);
+        continue;
+      }
+      const name = String(item.name || '').trim().replace(/\s+/g, ' ');
+      if (name.length < 2) return fail(res, 400, 'Each new branch needs a name.');
+      const similar = findSimilar(name, branches);
+      if (similar.length > 0 && !item.createAnyway) {
+        return fail(res, 409, `A branch like "${name}" already exists.`, {
+          similarBranches: similar.slice(0, 5).map((b) => ({ id: b.id, name: b.name, city: b.city, reason: b.reason })),
+          forName: name,
+        });
+      }
+      const { data: created, error: createError } = await supabase
+        .from('branches')
+        .insert([{ name: name.toUpperCase(), city: item.city || null, region: item.region || null, address: item.address || null }])
+        .select('*')
+        .single();
+      if (createError) throw createError;
+      branches.push(created);
+      chosen.push(created);
+    }
 
-    // Calculate expiration date
-    const days = parseInt(daysValid) || 30;
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + days);
-
-    console.log(`📊 [API] Creating key: ${activationCode} for ${managerName}`);
-
-    // Resolve typed branch names against the branches table (creating any
-    // that don't exist yet) so this key carries real branch_ids, not just
-    // display text.
-    const branchPairs = branchNames.map((name, i) => ({
-      name: name.trim(),
-      location: branchLocations?.[i]?.trim() || '',
-    }));
-    const branchIds = await resolveBranchIds(branchPairs);
-
-    // Insert into database
+    const expiresAt = new Date(Date.now() + daysValid * 24 * 60 * 60 * 1000);
     const { data, error } = await supabase
       .from('activation_keys')
       .insert([{
-        code: activationCode,
-        manager_email: managerEmail.trim(),
-        manager_name: managerName.trim(),
-        branch_names: branchNames.map(b => b.trim()),
-        branch_locations: branchLocations ? branchLocations.map(b => b.trim()) : [],
-        branch_ids: branchIds,
+        code,
+        manager_email: managerEmail,
+        manager_name: managerName.toUpperCase(),
+        branch_names: chosen.map((b) => b.name),
+        branch_locations: chosen.map((b) => [b.city, b.region].filter(Boolean).join(', ') || b.address || ''),
+        branch_ids: chosen.map((b) => b.id),
         expires_at: expiresAt.toISOString(),
-        is_used: false
+        is_used: false,
       }])
-      .select()
+      .select('id, code, manager_name, manager_email, branch_names, expires_at')
       .single();
+    if (error) throw error;
 
-    if (error) {
-      console.error('❌ [API] Error inserting key:', error);
-      
-      // 📊 AUDIT: Failed key generation
-      await auditLogger.logKeyGeneration({
-        activationKey: activationCode,
-        managerEmail,
-        managerName,
-        branches: branchNames,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: error.message
-      });
-
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    console.log(`✅ [API] Key created successfully: ${activationCode}`);
-    
-    // 📊 AUDIT: Successful key generation
-    await auditLogger.logKeyGeneration({
-      activationKey: activationCode,
-      managerEmail,
-      managerName,
-      branches: branchNames,
-      ipAddress,
-      userAgent,
-      status: 'success'
-    });
-
+    console.log(`✅ [Keys] Created ${maskCode(code)} for ${managerName}`);
+    await audit(req, 'generate_key', { code, email: managerEmail });
     res.json({
       success: true,
-      data: {
-        ...data,
-        generatedPassword: generatePassword ? generateSecurePassword(8) : null
-      }
+      data: { id: data.id, code: data.code, managerName: data.manager_name, managerEmail: data.manager_email, branchNames: data.branch_names, expiresAt: asUtc(data.expires_at) },
     });
   } catch (error) {
-    console.error('❌ [API] Error:', error);
-    
-    // 📊 AUDIT: Failed key generation
-    await auditLogger.logKeyGeneration({
-      activationKey: code || 'unknown',
-      managerEmail,
-      managerName,
-      branches: branchNames || [],
-      ipAddress,
-      userAgent,
-      status: 'failed',
-      errorMessage: error.message
-    });
-
-    res.status(500).json({ success: false, error: error.message });
+    await audit(req, 'generate_key', { code: maskCode(body.code), email: managerEmail, status: 'failed', error: error.message });
+    fail(res, 500, error.message);
   }
 });
 
-// ============================================
-// Revoke activation key
-// 🔒 Protected by: revokeKeyLimiter
-// 🔒 Audited by: auditLogger
-// ============================================
-app.delete('/api/keys/:code', revokeKeyLimiter, async (req, res) => {
-  console.log('📊 [API] DELETE /api/keys/' + req.params.code);
-  
-  const { code } = req.params;
-  const ipAddress = req.ip || req.connection.remoteAddress;
-  const userAgent = req.headers['user-agent'] || 'unknown';
-
-  try {
-    // First, get the key details for audit
-    const { data: keyData, error: fetchError } = await supabase
-      .from('activation_keys')
-      .select('manager_email, manager_name')
-      .eq('code', code)
-      .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('❌ [API] Error fetching key:', fetchError);
-    }
-    
-    const { data, error } = await supabase
-      .from('activation_keys')
-      .update({ is_used: true, used_at: new Date().toISOString() })
-      .eq('code', code)
-      .eq('is_used', false)
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // 📊 AUDIT: Failed revocation - key not found
-        await auditLogger.logKeyRevocation({
-          activationKey: code,
-          managerEmail: keyData?.manager_email || 'unknown',
-          ipAddress,
-          userAgent,
-          status: 'failed',
-          errorMessage: 'Key not found or already revoked'
-        });
-
-        return res.status(404).json({ 
-          success: false, 
-          error: 'Key not found or already revoked' 
-        });
-      }
-      console.error('❌ [API] Error revoking key:', error);
-      
-      // 📊 AUDIT: Failed revocation
-      await auditLogger.logKeyRevocation({
-        activationKey: code,
-        managerEmail: keyData?.manager_email || 'unknown',
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: error.message
-      });
-
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    console.log(`✅ [API] Key revoked: ${code}`);
-    
-    // 📊 AUDIT: Successful revocation
-    await auditLogger.logKeyRevocation({
-      activationKey: code,
-      managerEmail: data?.manager_email || keyData?.manager_email || 'unknown',
-      ipAddress,
-      userAgent,
-      status: 'success'
-    });
-
-    res.json({ success: true, data });
-  } catch (error) {
-    console.error('❌ [API] Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// Get stats
-// ============================================
-app.get('/api/stats', async (req, res) => {
-  console.log('📊 [API] GET /api/stats');
-  
+app.delete('/api/keys/:id', revokeKeyLimiter, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('activation_keys')
-      .select('*');
-
-    if (error) {
-      console.error('❌ [API] Error getting stats:', error);
-      return res.status(500).json({ success: false, error: error.message });
-    }
-
-    const total = data?.length || 0;
-    const available = data?.filter(k => !k.is_used).length || 0;
-    const used = data?.filter(k => k.is_used).length || 0;
-    const expired = data?.filter(k => 
-      k.expires_at && new Date(k.expires_at) < new Date()
-    ).length || 0;
-
-    console.log(`✅ [API] Stats: Total: ${total}, Available: ${available}, Used: ${used}, Expired: ${expired}`);
-    
-    res.json({
-      success: true,
-      data: { total, available, used, expired }
-    });
-  } catch (error) {
-    console.error('❌ [API] Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// 📊 AUDIT LOGS ENDPOINT (admin only)
-// ============================================
-app.get('/api/audit-logs', async (req, res) => {
-  console.log('📊 [API] GET /api/audit-logs');
-  
-  const limit = parseInt(req.query.limit) || 100;
-  
-  const result = await auditLogger.getRecentLogs(limit);
-  
-  if (!result.success) {
-    return res.status(500).json({ success: false, error: result.error });
-  }
-  
-  res.json({ success: true, data: result.data });
-});
-
-// ============================================
-// 📊 AUDIT STATS ENDPOINT
-// ============================================
-app.get('/api/audit-stats', async (req, res) => {
-  console.log('📊 [API] GET /api/audit-stats');
-  
-  const result = await auditLogger.getStats();
-  
-  if (!result.success) {
-    return res.status(500).json({ success: false, error: result.error });
-  }
-  
-  res.json({ success: true, data: result.data });
-});
-
-// ============================================
-// 🚀 ACTIVATE MANAGER ENDPOINT
-// 🔒 Protected by: activationLimiter (strict)
-// 🔒 Audited by: auditLogger
-// ============================================
-app.post('/api/activate-manager', activationLimiter, async (req, res) => {
-  console.log('📊 [API] POST /api/activate-manager');
-  
-  const { code, managerEmail, branchId } = req.body;
-  const ipAddress = req.ip || req.connection.remoteAddress;
-  const userAgent = req.headers['user-agent'] || 'unknown';
-
-  console.log(`📊 [API] Activation attempt for: ${managerEmail} with key: ${code}`);
-
-  try {
-    // Validate input
-    if (!code || !managerEmail) {
-      // 📊 AUDIT: Failed activation - missing fields
-      await auditLogger.logManagerActivation({
-        activationKey: code || 'unknown',
-        managerEmail: managerEmail || 'unknown',
-        branchId,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: 'Missing required fields'
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: 'Activation code and email are required'
-      });
-    }
-
-    // Look up the activation key
-    const { data: keyData, error: keyError } = await supabase
-      .from('activation_keys')
-      .select('*')
-      .eq('code', code)
+      .update({ is_used: true, used_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', req.params.id)
       .eq('is_used', false)
-      .single();
+      .select('code, manager_email')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return fail(res, 404, 'Key not found or already used.');
+    await audit(req, 'revoke_key', { code: data.code, email: data.manager_email });
+    console.log(`✅ [Keys] Revoked ${maskCode(data.code)}`);
+    res.json({ success: true });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
 
-    if (keyError || !keyData) {
-      console.warn(`⚠️  [API] Invalid activation key: ${code}`);
-      
-      // 📊 AUDIT: Failed activation - invalid key
-      await auditLogger.logManagerActivation({
-        activationKey: code,
-        managerEmail,
-        branchId,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: 'Invalid or used activation key'
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid or used activation key'
-      });
-    }
-
-    // Check if key is expired
-    if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
-      console.warn(`⚠️  [API] Expired activation key: ${code}`);
-      
-      // 📊 AUDIT: Failed activation - expired key
-      await auditLogger.logManagerActivation({
-        activationKey: code,
-        managerEmail,
-        branchId,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: 'Activation key has expired'
-      });
-
-      return res.status(400).json({
-        success: false,
-        error: 'Activation key has expired'
-      });
-    }
-
-    // Mark key as used
+app.post('/api/keys/:id/extend', async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.body?.days, 10) || 7, 1), 90);
+    const { data: key, error } = await supabase.from('activation_keys').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!key || key.is_used) return fail(res, 400, 'Only an unused key can be extended.');
+    const base = Math.max(Date.now(), asUtc(key.expires_at)?.getTime() || 0);
+    const expiresAt = new Date(base + days * 24 * 60 * 60 * 1000);
     const { error: updateError } = await supabase
       .from('activation_keys')
-      .update({
-        is_used: true,
-        used_at: new Date().toISOString()
-      })
-      .eq('code', code);
-
-    if (updateError) {
-      console.error('❌ [API] Error updating key:', updateError);
-      
-      // 📊 AUDIT: Failed activation - update error
-      await auditLogger.logManagerActivation({
-        activationKey: code,
-        managerEmail,
-        branchId,
-        ipAddress,
-        userAgent,
-        status: 'failed',
-        errorMessage: updateError.message
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to activate manager'
-      });
-    }
-
-    console.log(`✅ [API] Manager activated: ${managerEmail}`);
-    
-    // 📊 AUDIT: Successful activation
-    await auditLogger.logManagerActivation({
-      activationKey: code,
-      managerEmail,
-      branchId,
-      ipAddress,
-      userAgent,
-      status: 'success'
-    });
-
-    // Return success with manager details
-    res.json({
-      success: true,
-      data: {
-        managerName: keyData.manager_name,
-        managerEmail: keyData.manager_email,
-        branches: keyData.branch_names,
-        activatedAt: new Date().toISOString()
-      }
-    });
-
+      .update({ expires_at: expiresAt.toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', key.id);
+    if (updateError) throw updateError;
+    await audit(req, 'extend_key', { code: key.code, email: key.manager_email });
+    res.json({ success: true, data: { expiresAt } });
   } catch (error) {
-    console.error('❌ [API] Activation error:', error);
-    
-    // 📊 AUDIT: Failed activation - unexpected error
-    await auditLogger.logManagerActivation({
-      activationKey: code || 'unknown',
-      managerEmail: managerEmail || 'unknown',
-      branchId,
-      ipAddress,
-      userAgent,
-      status: 'failed',
-      errorMessage: error.message
-    });
+    fail(res, 500, error.message);
+  }
+});
 
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during activation'
-    });
+app.get('/api/keys/:id/qr', async (req, res) => {
+  try {
+    const { data: key } = await supabase.from('activation_keys').select('code').eq('id', req.params.id).maybeSingle();
+    if (!key) return fail(res, 404, 'Key not found.');
+    activity.log(adminAuth.whoIs(req), 'qr_shown', { target: activity.maskCode(key.code) });
+    const dataUrl = await QRCode.toDataURL(key.code, { margin: 1, width: 320, color: { dark: '#03045E', light: '#FFFFFF' } });
+    res.json({ success: true, data: { dataUrl } });
+  } catch (error) {
+    fail(res, 500, error.message);
   }
 });
 
 // ============================================
-// Catch-all route - serve index.html
+// 👤 MANAGERS
 // ============================================
-app.get('*', (req, res) => {
-  res.sendFile(path.join(webUiPath, 'index.html'));
+app.get('/api/managers', async (req, res) => {
+  try {
+    const [managers, branches, authUsers, agents] = await Promise.all([
+      loadProfiles(['manager']),
+      loadBranches(),
+      authUsersById(),
+      loadProfiles(['sales_rep', 'collector']),
+    ]);
+    const photos = await signedPhotoUrls(managers);
+    const branchName = Object.fromEntries(branches.map((b) => [b.id, b.name]));
+    res.json({
+      success: true,
+      data: managers
+        .map((m) => {
+          const user = authUsers[m.id];
+          return {
+            id: m.id,
+            name: m.full_name,
+            username: m.username,
+            email: m.email,
+            phone: m.phone_number,
+            branchIds: m.branch_ids || [],
+            branchNames: (m.branch_ids || []).map((id) => branchName[id]).filter(Boolean),
+            photoUrl: m.profile_media_id ? photos[m.profile_media_id] || null : null,
+            createdAt: m.created_at,
+            lastSeenAt: m.last_seen_at,
+            lastSignInAt: user?.last_sign_in_at || null,
+            active: !isBanned(user),
+            agentCount: agents.filter((a) => a.created_by === m.id).length,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+// Deactivate = the manager's login is blocked (Supabase ban); the app logs
+// them out at its next check. Reactivate lifts it.
+app.post('/api/managers/:id/status', async (req, res) => {
+  try {
+    const active = Boolean(req.body?.active);
+    const { data: profile } = await supabase.from('user_profiles').select('id, email, role').eq('id', req.params.id).maybeSingle();
+    if (!profile || profile.role !== 'manager') return fail(res, 404, 'Manager not found.');
+    const { error } = await supabase.auth.admin.updateUserById(profile.id, { ban_duration: active ? 'none' : '876000h' });
+    if (error) throw error;
+    await audit(req, active ? 'reactivate_manager' : 'deactivate_manager', { email: profile.email });
+    console.log(`✅ [Managers] ${active ? 'Reactivated' : 'Deactivated'} ${profile.email}`);
+    res.json({ success: true });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+app.put('/api/managers/:id/branches', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.branchIds) ? [...new Set(req.body.branchIds)] : [];
+    if (ids.length === 0) return fail(res, 400, 'A manager needs at least one branch.');
+    const branches = await loadBranches();
+    if (!ids.every((id) => branches.some((b) => b.id === id))) return fail(res, 400, 'One of the branches no longer exists.');
+    const { data: profile } = await supabase.from('user_profiles').select('id, email, role').eq('id', req.params.id).maybeSingle();
+    if (!profile || profile.role !== 'manager') return fail(res, 404, 'Manager not found.');
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ branch_ids: ids, updated_at: new Date().toISOString() })
+      .eq('id', profile.id);
+    if (error) throw error;
+    await audit(req, 'update_manager_branches', { email: profile.email });
+    res.json({ success: true });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
 });
 
 // ============================================
-// 🚀 START SERVER
+// 🏢 BRANCHES
 // ============================================
-
-const server = app.listen(PORT, () => {
-  console.log(`\n✅ Admin Web UI running at: http://localhost:${PORT}\n`);
-  console.log(`📊 API available at:`);
-  console.log(`   - GET  /api/keys        - List all keys`);
-  console.log(`   - POST /api/keys/generate - Generate new key`);
-  console.log(`   - DELETE /api/keys/:code - Revoke key`);
-  console.log(`   - POST /api/activate-manager - Activate manager`);
-  console.log(`   - GET  /api/audit-logs  - View audit logs`);
-  console.log(`   - GET  /api/audit-stats - Audit statistics`);
-  console.log(`   - GET  /api/stats       - Key statistics`);
-  console.log(`   - GET  /api/health      - Health check`);
-  console.log(`\n🔒 Security Features:`);
-  console.log(`   - Rate limiting: ${process.env.RATE_LIMIT_MAX_REQUESTS || 5} requests per minute`);
-  console.log(`   - Audit logging: ${process.env.AUDIT_LOG_ENABLED !== 'false' ? 'ENABLED' : 'DISABLED'}`);
-  console.log(`   - Environment: ${process.env.NODE_ENV || 'development'}\n`);
+app.get('/api/branches', async (req, res) => {
+  try {
+    const [branches, people] = await Promise.all([loadBranches(), loadProfiles(['manager', 'sales_rep', 'collector'])]);
+    res.json({
+      success: true,
+      data: branches.map((b) => ({
+        id: b.id,
+        name: b.name,
+        city: b.city,
+        region: b.region,
+        address: b.address,
+        isActive: b.is_active,
+        createdAt: b.created_at,
+        managers: people.filter((p) => p.role === 'manager' && (p.branch_ids || []).includes(b.id)).map((p) => p.full_name),
+        agentCount: people.filter((p) => p.role !== 'manager' && (p.branch_ids || []).includes(b.id)).length,
+      })),
+    });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
 });
 
-// Handle server errors
+app.get('/api/branches/similar', async (req, res) => {
+  try {
+    const branches = await loadBranches();
+    const similar = findSimilar(String(req.query.name || ''), branches, req.query.exclude || null);
+    res.json({ success: true, data: similar.slice(0, 5).map((b) => ({ id: b.id, name: b.name, city: b.city, reason: b.reason })) });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+app.put('/api/branches/:id', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
+    if (name.length < 2) return fail(res, 400, 'Enter a branch name.');
+    const branches = await loadBranches();
+    const similar = findSimilar(name, branches, req.params.id);
+    if (similar.length > 0 && !req.body?.saveAnyway) {
+      return fail(res, 409, `A branch like "${name}" already exists.`, {
+        similarBranches: similar.slice(0, 5).map((b) => ({ id: b.id, name: b.name, city: b.city, reason: b.reason })),
+      });
+    }
+    const { error } = await supabase
+      .from('branches')
+      .update({
+        name: name.toUpperCase(),
+        city: req.body?.city || null,
+        region: req.body?.region || null,
+        address: req.body?.address || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.params.id);
+    if (error) throw error;
+    await audit(req, 'update_branch', { branchId: req.params.id });
+    res.json({ success: true });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+app.get('/api/places', async (req, res) => {
+  try {
+    res.json({ success: true, data: await places.search(req.query.q) });
+  } catch (error) {
+    fail(res, 502, 'Location search is unavailable right now. You can type the location instead.');
+  }
+});
+
+// ============================================
+// 📝 ADMIN ACTIVITY (who used the admin tool and what they did)
+// ============================================
+const CLIENT_EVENTS = new Set(['codes_revealed', 'code_copied', 'audit_exported', 'activity_exported']);
+
+app.post('/api/activity/event', async (req, res) => {
+  const type = String(req.body?.type || '');
+  if (!CLIENT_EVENTS.has(type)) return fail(res, 400, 'Unknown event.');
+  await activity.log(adminAuth.whoIs(req), type, { target: req.body?.target ? String(req.body.target).slice(0, 80) : null });
+  res.json({ success: true });
+});
+
+app.get('/api/admin-activity', async (req, res) => {
+  try {
+    const rows = await activity.recent(Math.min(parseInt(req.query.limit, 10) || 500, 2000));
+    res.json({
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        createdAt: r.created_at,
+        admin: r.admin_name,
+        machine: r.machine,
+        action: r.action,
+        target: r.target,
+        details: r.details,
+        status: r.status,
+        localOnly: Boolean(r.local),
+      })),
+    });
+  } catch (error) {
+    fail(res, 500, error.message);
+  }
+});
+
+// ============================================
+// 📜 AUDIT LOG (keys masked — the page never needs them in full)
+// ============================================
+app.get('/api/audit-logs', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 300, 1000);
+  const result = await auditLogger.getRecentLogs(limit);
+  if (!result.success) return fail(res, 500, result.error);
+  res.json({
+    success: true,
+    data: result.data.map((log) => ({
+      id: log.id,
+      createdAt: log.created_at,
+      action: log.action,
+      key: log.activation_key && log.activation_key !== '-' ? maskCode(log.activation_key) : '—',
+      email: log.manager_email,
+      status: log.status,
+      error: log.error_message,
+    })),
+  });
+});
+
+app.get('*', (req, res) => res.sendFile(path.join(webUiPath, 'index.html')));
+
+// ============================================
+// 🚀 START
+// ============================================
+if (!fs.existsSync(webUiPath)) {
+  console.error(`❌ [Server] web-ui folder not found at ${webUiPath}`);
+  process.exit(1);
+}
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`\n✅ Admin Web UI running at: http://localhost:${PORT} (this computer only)\n`);
+  if (!adminAuth.isConfigured()) console.log('⚠️  No admin password set yet — run: npm run set-password\n');
+});
+
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use!`);
-    console.log(`💡 Try running: node index.js --kill to kill the existing process`);
+    console.error(`❌ Port ${PORT} is already in use! Run: node index.js --kill`);
   } else {
     console.error('❌ Server error:', error);
   }
   process.exit(1);
 });
 
-// Handle uncaught errors
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  console.log('💡 Server will continue running...');
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  console.log('💡 Server will continue running...');
-});
-
-module.exports = { app, server };
+process.on('uncaughtException', (err) => console.error('❌ Uncaught Exception:', err));
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));

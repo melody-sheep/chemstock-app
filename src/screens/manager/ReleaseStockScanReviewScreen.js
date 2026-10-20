@@ -20,6 +20,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
 
+import { isExpired } from '../../utils/expiry';
+
 const toReleaseItem = (row, releaseQty) => ({
   branchInventoryId: row.id,
   productCode: row.product_code,
@@ -40,6 +42,8 @@ export default function ReleaseStockScanReviewScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [items, setItems] = useState([]);
+  // Products left out of the list because their batch has expired.
+  const [expiredNames, setExpiredNames] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -55,9 +59,10 @@ export default function ReleaseStockScanReviewScreen() {
       // Depleted batches now persist at quantity = 0 (never deleted — see
       // 2026-08-21 migration), so filter those out here: nothing left to
       // release from them, and showing a stuck-at-0 stepper isn't useful.
-      const batchItems = (result.data.branch_inventory || [])
-        .filter((row) => row.quantity > 0)
-        .map((row) => toReleaseItem(row, row.quantity));
+      const inStock = (result.data.branch_inventory || []).filter((row) => row.quantity > 0);
+      // Expired batches are left out (BL-1), with a note saying so.
+      const batchItems = inStock.filter((row) => !isExpired(row.exp_date)).map((row) => toReleaseItem(row, row.quantity));
+      setExpiredNames(inStock.filter((row) => isExpired(row.exp_date)).map((row) => row.product_name));
 
       setItems(batchItems);
       setIsLoading(false);
@@ -77,7 +82,7 @@ export default function ReleaseStockScanReviewScreen() {
   const addRows = (rows, qtyFor) => {
     setItems((prev) => {
       const next = prev.map((item) => ({ ...item }));
-      rows.filter((row) => row.quantity > 0).forEach((row) => {
+      rows.filter((row) => row.quantity > 0 && !isExpired(row.exp_date)).forEach((row) => {
         const existing = next.find((item) => item.branchInventoryId === row.id);
         if (existing) {
           existing.releaseQty = Math.min(existing.currentQty, existing.releaseQty + qtyFor(row));
@@ -104,10 +109,19 @@ export default function ReleaseStockScanReviewScreen() {
       Alert.alert('Different Branch', 'This batch belongs to another branch. A release can only include stock from the branch you are releasing from.');
       return;
     }
-    const rows = (result.data.branch_inventory || []).filter((row) => row.quantity > 0);
-    if (rows.length === 0) {
+    const inStock = (result.data.branch_inventory || []).filter((row) => row.quantity > 0);
+    if (inStock.length === 0) {
       Alert.alert('Nothing Left', 'Every item from this batch has already been given out.');
       return;
+    }
+    const rows = inStock.filter((row) => !isExpired(row.exp_date));
+    if (rows.length < inStock.length) {
+      const expired = inStock.filter((row) => isExpired(row.exp_date)).map((row) => row.product_name);
+      if (rows.length === 0) {
+        Alert.alert('Expired Stock', `${expired.join(', ')} has expired and can't be released.`);
+        return;
+      }
+      Alert.alert('Expired Stock Skipped', `${expired.join(', ')} has expired and was not added.`);
     }
     // Same QR scanned again: don't add it twice — the amount is changed with
     // the + / − buttons on its row.
@@ -179,6 +193,15 @@ export default function ReleaseStockScanReviewScreen() {
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
           <Text style={styles.sectionTitle}>Items to Release</Text>
+
+          {expiredNames.length > 0 && !isLoading && (
+            <View style={styles.expiredNote}>
+              <Icon name="warningTriangle" size={16} color={COLORS.error} />
+              <Text style={styles.expiredNoteText}>
+                {expiredNames.join(', ')} has expired, so it can't be released and was left out.
+              </Text>
+            </View>
+          )}
 
           {isLoading ? (
             <View style={styles.loadingWrap}>
@@ -299,15 +322,23 @@ export default function ReleaseStockScanReviewScreen() {
             {branchStock.length === 0 && <Text style={styles.menuText}>No stock on hand at this branch.</Text>}
             {branchStock.map((row) => {
               const inList = items.find((item) => item.branchInventoryId === row.id);
+              const expired = isExpired(row.exp_date);
               return (
-                <TouchableOpacity key={row.id} style={styles.stockRow} onPress={() => addRows([row], () => 1)}>
+                <TouchableOpacity
+                  key={row.id}
+                  style={[styles.stockRow, expired && styles.stockRowExpired]}
+                  onPress={() => addRows([row], () => 1)}
+                  disabled={expired}
+                >
                   <View style={styles.menuTextWrap}>
                     <Text style={styles.menuTitle}>{row.product_name}</Text>
                     <Text style={styles.menuText}>
                       {row.quantity} pcs{row.exp_date ? ' · Exp ' + new Date(row.exp_date).toLocaleDateString() : ''}
                     </Text>
                   </View>
-                  {inList ? (
+                  {expired ? (
+                    <Text style={styles.expiredText}>Expired</Text>
+                  ) : inList ? (
                     <Text style={styles.inListText}>{inList.releaseQty} added</Text>
                   ) : (
                     <Icon name="plus" size={16} color={COLORS.primary} />
@@ -488,4 +519,15 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: '#272632',
   },
+  stockRowExpired: { opacity: 0.55 },
+  expiredText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.error },
+  expiredNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: 12,
+    backgroundColor: '#FDECEC',
+  },
+  expiredNoteText: { flex: 1, fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.error },
 });

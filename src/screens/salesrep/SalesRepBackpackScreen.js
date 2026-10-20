@@ -99,7 +99,7 @@ export default function SalesRepBackpackScreen() {
                   quantity={row.remaining_quantity}
                   batchNumber={row.batch_number}
                   expDate={row.exp_date}
-                  statusLabel={row.isQueued ? 'Received — waiting to sync' : null}
+                  statusLabel={row.isQueued ? 'Received — waiting to send' : null}
                 />
               ))}
             </View>

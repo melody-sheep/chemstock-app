@@ -5,7 +5,7 @@ import { ActivationKeyStrategy } from '../utils/validationStrategies';
 import activationService from '../services/activationService';
 import authService from '../services/authService';
 import profileService from '../services/profileService';
-import { isRLSError, getFriendlyErrorMessage } from '../services/supabaseClient';
+import { supabase, isRLSError, getFriendlyErrorMessage } from '../services/supabaseClient';
 import friendlyError from '../utils/friendlyError';
 
 /**
@@ -204,11 +204,36 @@ class ActivationViewModel {
     this.notifyStateChange();
 
     try {
-      const registerResult = await this.authService.register({
-        email: this.branchInfo.managerEmail,
-        password,
-        username,
+      // N5: check the username before anything is created, so a taken name
+      // can't leave a login account behind with no profile.
+      const { data: isAvailable, error: availabilityError } = await supabase.rpc('is_username_available', {
+        p_username: username,
       });
+      if (!availabilityError && isAvailable === false) {
+        throw new Error('That username is already taken. Please choose another.');
+      }
+
+      let registerResult;
+      try {
+        registerResult = await this.authService.register({
+          email: this.branchInfo.managerEmail,
+          password,
+          username,
+        });
+      } catch (registerError) {
+        // An earlier try created the login account but stopped before the
+        // activation step. Sign in with the same email + password and finish.
+        if (!/already registered|already exists/i.test(registerError.message || '')) throw registerError;
+        debugLog('info', 'ActivationViewModel', 'Login account already exists, resuming activation');
+        try {
+          const resumed = await this.authService.signInForActivation(this.branchInfo.managerEmail, password);
+          registerResult = { success: true, user: resumed.user, session: resumed.session };
+        } catch (signInError) {
+          throw new Error(
+            'This email already has an account. Enter the password you used the first time, or ask the admin to reset it.'
+          );
+        }
+      }
 
       if (!registerResult.success) {
       throw new Error(registerResult.message || 'Failed to create account');

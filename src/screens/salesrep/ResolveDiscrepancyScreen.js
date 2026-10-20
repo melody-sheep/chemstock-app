@@ -317,7 +317,7 @@ export default function ResolveDiscrepancyScreen() {
                 {isSettled
                   ? 'Settled'
                   : alreadyQueued
-                  ? 'Already Requested — Waiting to Sync'
+                  ? 'Already Requested — Waiting to Send'
                   : 'Already Requested — Pending Manager Review'}
               </Text>
               <Text style={[styles.statusText, isSettled && styles.statusTextSettled]}>

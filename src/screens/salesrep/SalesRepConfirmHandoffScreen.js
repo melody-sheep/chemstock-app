@@ -103,8 +103,8 @@ export default function SalesRepConfirmHandoffScreen() {
       Alert.alert(
         isIssue ? 'Issue Already Reported' : 'Already Received',
         isIssue
-          ? 'You already reported an issue with this delivery on this phone. It will sync automatically.'
-          : 'You already received this delivery on this phone. It will sync automatically.',
+          ? 'You already reported an issue with this delivery on this phone. It will be sent automatically.'
+          : 'You already received this delivery on this phone. It will be sent automatically.',
         [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -262,14 +262,14 @@ export default function SalesRepConfirmHandoffScreen() {
         waiting
           ? "Saved on this phone. It completes automatically once the Collector's phone syncs their delivery — you don't need to do anything."
           : reason === 'dropped'
-            ? 'Connection dropped. Your confirmation is saved on this phone and will sync automatically.'
-            : "You're offline. Your confirmation is saved on this phone and will sync automatically once you're back online.",
+            ? 'Connection dropped. Your confirmation is saved on this phone and will be sent automatically.'
+            : "You're offline. Your confirmation is saved on this phone and will be sent automatically once you're back online.",
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     };
     if (findQueuedReceipt({ transactionId: receiptCopy.transactionId, qrCode: receiptCopy.qrCode }, agent.id)) {
       setIsSubmitting(false);
-      Alert.alert('Already Received', 'You already received this delivery on this phone. It will sync automatically once you are online.', [
+      Alert.alert('Already Received', 'You already received this delivery on this phone. It will be sent automatically once you are online.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
       return;
@@ -395,7 +395,7 @@ export default function SalesRepConfirmHandoffScreen() {
                   {isDirectMode
                     ? effectiveDirectTx?.branchName || 'Scan the QR to load the delivery'
                     : handoff.collectorPending
-                      ? "Not marked delivered on the server yet — it's checked automatically when the Collector's phone syncs"
+                      ? "The Collector hasn't marked it delivered yet — it's checked automatically when their phone goes online"
                       : `Marked delivered ${handoff.collectorClaimedAt
                         ? new Date(handoff.collectorClaimedAt).toLocaleString()
                         : 'by Collector'}`}
