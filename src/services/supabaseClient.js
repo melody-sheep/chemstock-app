@@ -268,8 +268,8 @@ export const getFriendlyErrorMessage = (error) => {
 export const testConnection = async () => {
   try {
     const { data, error } = await supabase
-      .from('activation_keys')
-      .select('count', { count: 'exact', head: true });
+      .from('branches')
+      .select('id', { count: 'exact', head: true });
 
     if (error) {
       console.error('[ERROR] [supabaseClient] Connection test failed:', error);

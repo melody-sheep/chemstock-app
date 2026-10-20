@@ -157,6 +157,11 @@ class AuthService extends BaseService {
         if (!getConnectionStatus().online) {
           throw new Error('No internet connection. Signing in needs a connection — please reconnect and try again.');
         }
+        // Locked after too many wrong passwords (verify_agent_login): say so
+        // instead of falling through to "Invalid username or password".
+        if (/Too many failed attempts/i.test(agentLoginError.message || '')) {
+          throw new Error(agentLoginError.message);
+        }
       }
 
       if (agentProfile && agentProfile.id) {
@@ -206,6 +211,9 @@ class AuthService extends BaseService {
             { p_username: trimmedUsername }
           );
 
+          if (/Too many failed attempts/i.test(lookupError?.message || '')) {
+            throw new Error(lookupError.message);
+          }
           if (lookupError || !resolvedEmail) {
             console.warn('[WARN] [AuthService] Username not found:', email);
             throw new Error('Invalid username or password');
@@ -455,6 +463,19 @@ class AuthService extends BaseService {
     setPresenceIdentity(null);
     await storage.remove(MANAGER_PROFILE_CACHE_KEY).catch(() => {});
     return true;
+  }
+
+  /**
+   * Resumes a Manager activation that stopped after the login account was
+   * made (N5): signs in with the email + password just entered, so the
+   * activation step can run again instead of failing on "already registered".
+   */
+  async signInForActivation(email, password) {
+    const { data, error } = await duringOwnAuthChange(() => supabase.auth.signInWithPassword({ email, password }));
+    if (error) throw error;
+    await storage.remove(AGENT_SESSION_KEY);
+    resetCurrentUser();
+    return { user: data.user, session: data.session };
   }
 
   /** Forget the cached current user, e.g. after the profile is edited. */

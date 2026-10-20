@@ -124,7 +124,6 @@ export default function App() {
       const result = await testConnection().catch((err) => ({ success: false, error: err.message }));
       if (result.success) {
         console.log('✅ [App] Supabase connection successful!');
-        await testRLSPolicies();
       } else if (restoredRouteName) {
         console.log('ℹ️ [App] Connection probe failed but a session was restored — continuing offline, not surfacing the error.');
       } else {
@@ -168,32 +167,6 @@ export default function App() {
       }
     };
 
-    const testRLSPolicies = async () => {
-      try {
-        // Test reading from activation_keys
-        const { data, error } = await supabase
-          .from('activation_keys')
-          .select('id, code')
-          .limit(1);
-        
-        if (error) {
-          console.warn('⚠️ [App] RLS policy check - read failed:', error.message);
-          if (__DEV__) {
-            Alert.alert(
-              'RLS Warning',
-              'Row Level Security is enabled. Some operations may fail.\n\nThis is normal in development with RLS enabled.',
-              [{ text: 'OK' }]
-            );
-          }
-        } else {
-          console.log('✅ [App] RLS read successful');
-          console.log('📊 Sample data:', data);
-        }
-      } catch (err) {
-        console.warn('⚠️ [App] RLS test error:', err.message);
-      }
-    };
-    
     initializeApp();
   }, []);
 
