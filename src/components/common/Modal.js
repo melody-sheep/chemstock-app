@@ -1,5 +1,5 @@
 // src/components/common/Modal.js
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Modal,
@@ -12,7 +12,6 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useKeyboardInset from '../../hooks/useKeyboardInset';
-import { logPopupOpened } from '../../utils/keyboardDebug';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -35,9 +34,6 @@ export default function CustomModal({
   // Lifts the sheet above the keyboard in a built APK, where Android no
   // longer resizes the screen for it (see useKeyboardInset).
   const overlayRef = useRef(null);
-  useEffect(() => {
-    if (visible) logPopupOpened(variant);
-  }, [visible]);
   const { inset: keyboardInset } = useKeyboardInset(overlayRef);
   // With the keyboard open, a tall sheet must not run off the top.
   const availableHeight = Dimensions.get('window').height - keyboardInset - insets.top - SPACING.md;
