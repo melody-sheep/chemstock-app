@@ -9,6 +9,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import { SHADOWS } from '../../styles/shadows';
 import { NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { daysUntil } from '../../utils/formatters';
+import { isExpired } from '../../utils/expiry';
 
 const CARD_WIDTH = 120;
 // Fixed, not minHeight — every card (in-stock or out-of-stock) is exactly
@@ -43,6 +44,8 @@ export default function StockBatchCard({
   if (!outOfStock) {
     if (daysLeft === null) {
       expiryBadge = { label: 'No Expiry Set', color: '#757575', bg: '#F1F5F9' };
+    } else if (isExpired(expDate)) {
+      expiryBadge = { label: 'Expired Batch', color: COLORS.error, bg: '#FDECEC' };
     } else if (isNearExpiry) {
       expiryBadge = { label: 'Near Expiry Batch', color: '#B45309', bg: '#FFF3D6' };
     } else {

@@ -15,6 +15,7 @@ import inventoryService from '../../services/inventoryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { isExpired } from '../../utils/expiry';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
 
@@ -29,8 +30,12 @@ function allocateItems(requestedItems, branchStock) {
 
   for (const reqItem of requestedItems) {
     const matchingBatches = branchStock.filter(
-      (row) => row.product_code === reqItem.productCode && row.quantity > 0
+      (row) => row.product_code === reqItem.productCode && row.quantity > 0 && !isExpired(row.exp_date)
     );
+    // Expired batches are never allocated (BL-1); counted so the banner can say why.
+    const expiredQty = branchStock
+      .filter((row) => row.product_code === reqItem.productCode && row.quantity > 0 && isExpired(row.exp_date))
+      .reduce((sum, row) => sum + row.quantity, 0);
     let remaining = reqItem.quantity;
 
     for (const batch of matchingBatches) {
@@ -49,7 +54,7 @@ function allocateItems(requestedItems, branchStock) {
     }
 
     if (remaining > 0) {
-      shortfalls.push({ productCode: reqItem.productCode, productName: reqItem.productName, requestedQty: reqItem.quantity, shortBy: remaining });
+      shortfalls.push({ productCode: reqItem.productCode, productName: reqItem.productName, requestedQty: reqItem.quantity, shortBy: remaining, expiredQty });
     }
   }
 
@@ -155,7 +160,7 @@ export default function ReleaseStockRequestReviewScreen() {
                   <View style={{ flex: 1 }}>
                     {shortfalls.map((s) => (
                       <Text key={s.productCode} style={styles.shortfallText}>
-                        {s.productName}: requested {s.requestedQty}, only {s.requestedQty - s.shortBy} available
+                        {s.productName}: requested {s.requestedQty}, only {s.requestedQty - s.shortBy} available{s.expiredQty > 0 ? ` (${s.expiredQty} expired, can't be released)` : ''}
                       </Text>
                     ))}
                   </View>
