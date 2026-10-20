@@ -16,6 +16,31 @@ console.log(chalk.cyan(`
 ╚══════════════════════════════════════════════════════════════╝
 `));
 
+// Quick guide for whoever runs the admin tool on this computer.
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+const hasAdminPassword = Boolean(process.env.ADMIN_PASSWORD_HASH) && Boolean(String(process.env.ADMIN_NAME || '').trim());
+
+console.log(chalk.cyan('📘 ADMIN GUIDE'));
+console.log(chalk.white(`   • Log in at http://localhost:${PORT} with the admin password set on THIS computer.`));
+console.log(chalk.white('   • Set or change the password:   ') + chalk.yellow('npm run set-password'));
+console.log(chalk.white('   • Forgot the password?          ') + chalk.yellow('npm run set-password') + chalk.gray('  (replaces the old one)'));
+console.log(chalk.white('   • Stop the admin tool:          ') + chalk.yellow('Ctrl + C'));
+console.log(chalk.white('   • "Port already in use"?        ') + chalk.yellow('node index.js --kill') + chalk.gray('  then npm start'));
+console.log('');
+console.log(chalk.yellow('⚠️  WARNINGS'));
+console.log(chalk.yellow('   • NEVER commit admin-cli/.env — it holds the database master key and the admin password hash.'));
+console.log(chalk.yellow('     Check "git status" before "git add ." and leave .env out.'));
+console.log(chalk.yellow('   • Never share the admin password in group chats or screenshots.'));
+console.log(chalk.yellow('   • 5 wrong passwords lock the login for 15 minutes (restart the tool to reset).'));
+console.log(chalk.yellow('   • Everything you do here is recorded with your name (Admin Activity tab) — it cannot be edited or deleted.'));
+console.log(chalk.yellow('   • Log out and stop the tool when you are done.'));
+console.log('');
+if (!hasAdminPassword) {
+  console.log(chalk.red.bold('❌ No admin name and password are set on this computer yet.'));
+  console.log(chalk.red('   Run ') + chalk.yellow('npm run set-password') + chalk.red(' first, then ') + chalk.yellow('npm start') + chalk.red(' again.'));
+  console.log('');
+}
+
 console.log(chalk.white('📡 Starting Admin Web UI...\n'));
 
 function isServerRunning() {
@@ -100,18 +125,28 @@ function startServer() {
 
   let serverStarted = false;
 
-  server.stdout?.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('Admin Web UI running') && !serverStarted) {
-      serverStarted = true;
-      console.log(chalk.green(`\n✅ Server started on port ${PORT}`));
-      console.log(chalk.green(`🌐 Opening browser at: http://localhost:${PORT}\n`));
-      setTimeout(() => {
+  // The server prints to this same window (stdio inherit), so it is ready
+  // when its health URL answers — checked every half second for 15 s.
+  const startedAt = Date.now();
+  const waitForServer = setInterval(() => {
+    require('http')
+      .get(`http://127.0.0.1:${PORT}/api/health`, (res) => {
+        res.resume();
+        if (res.statusCode !== 200 || serverStarted) return;
+        serverStarted = true;
+        clearInterval(waitForServer);
+        console.log(chalk.green(`\n✅ Server started on port ${PORT}`));
+        console.log(chalk.green(`🌐 Opening browser at: http://localhost:${PORT}\n`));
         openBrowser(`http://localhost:${PORT}`);
-      }, 500);
-      console.log(chalk.gray('💡 Press Ctrl+C to stop the server\n'));
+        console.log(chalk.gray('💡 Press Ctrl+C to stop the server\n'));
+      })
+      .on('error', () => {});
+    if (!serverStarted && Date.now() - startedAt > 15000) {
+      clearInterval(waitForServer);
+      console.log(chalk.yellow('\n⚠️  Server did not answer within 15 seconds.'));
+      console.log(chalk.gray('   Check the output above for errors.\n'));
     }
-  });
+  }, 500);
 
   server.on('error', (err) => {
     console.error(chalk.red('❌ Server error:'), err.message);
@@ -142,12 +177,6 @@ function startServer() {
     }, 1000);
   });
 
-  setTimeout(() => {
-    if (!serverStarted) {
-      console.log(chalk.yellow('\n⚠️  Server is taking longer than expected to start...'));
-      console.log(chalk.gray('   Check the output above for errors.\n'));
-    }
-  }, 10000);
 }
 
 function main() {

@@ -1,751 +1,1581 @@
-/* ============================================ */
-/* ADMIN CONSOLE SCRIPT                          */
-/* ============================================ */
+/* ============================================
+   CHEMSTOCK ADMIN CONSOLE
+   No inline handlers: everything is wired with data-action attributes and
+   one delegated click listener, so the page's CSP can forbid inline scripts.
+   ============================================ */
+(() => {
+  'use strict';
 
-const API_URL = window.location.origin;
-const TOAST_TIMEOUT = 3000;
-let currentBranchCount = 1;
-let keysBlurred = true;
-let allAuditLogs = [];
-
-/* ============================================ */
-/* INIT                                          */
-/* ============================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('◆ [Console] Initialized');
-    updateTime();
-    setInterval(updateTime, 1000);
-    updateSidebarTime();
-    setInterval(updateSidebarTime, 1000);
-    loadStats();
-    loadRecentKeys();
-    loadAllKeys();
-    setupNavigation();
-    setupForm();
-    setupKeyboardShortcuts();
-    setupBlurToggle();
-    generateBranchFields(1);
-    startAuditAutoRefresh();
-});
-
-/* ============================================ */
-/* TIME                                         */
-/* ============================================ */
-function updateTime() {
-    const now = new Date();
-    document.getElementById('current-time').textContent = now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-function updateSidebarTime() {
-    const now = new Date();
-    document.getElementById('sidebar-time').textContent = now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-/* ============================================ */
-/* BRANCH MANAGEMENT                            */
-/* ============================================ */
-function adjustBranchCount(delta) {
-    const input = document.getElementById('branchCount');
-    let newValue = parseInt(input.value) + delta;
-    if (newValue < 1) newValue = 1;
-    if (newValue > 10) newValue = 10;
-    input.value = newValue;
-    currentBranchCount = newValue;
-    generateBranchFields(newValue);
-    clearBranchErrors();
-}
-
-function generateBranchFields(count) {
-    const container = document.getElementById('branch-fields');
-    container.innerHTML = '';
-    
-    for (let i = 1; i <= count; i++) {
-        const div = document.createElement('div');
-        div.className = 'branch-field-item';
-        div.dataset.branchIndex = i;
-        div.innerHTML = `
-            <span class="branch-number">BRANCH ${i}</span>
-            <div class="form-group">
-                <label for="branch-name-${i}">BRANCH NAME <span class="required">*</span></label>
-                <input type="text" id="branch-name-${i}" placeholder="Enter branch name" data-branch="${i}" />
-                <span class="error-text" id="branch-name-${i}-error"></span>
-            </div>
-            <div class="form-group">
-                <label for="branch-location-${i}">BRANCH LOCATION</label>
-                <input type="text" id="branch-location-${i}" placeholder="Enter branch location" data-branch="${i}" />
-            </div>
-        `;
-        container.appendChild(div);
-    }
-}
-
-function getBranchData() {
-    const branches = [];
-    const count = parseInt(document.getElementById('branchCount').value) || 1;
-    
-    for (let i = 1; i <= count; i++) {
-        const nameInput = document.getElementById(`branch-name-${i}`);
-        const locationInput = document.getElementById(`branch-location-${i}`);
-        
-        if (nameInput) {
-            const name = nameInput.value.trim();
-            if (name) {
-                branches.push({
-                    name: name.toUpperCase(),
-                    location: locationInput ? locationInput.value.trim().toUpperCase() : ''
-                });
-            }
-        }
-    }
-    return branches;
-}
-
-/* ============================================ */
-/* FORM VALIDATION                              */
-/* ============================================ */
-function validateForm() {
-    let isValid = true;
-    
-    clearAllErrors();
-    
-    const managerName = document.getElementById('managerName');
-    if (!managerName.value.trim()) {
-        markError(managerName, 'managerName-error', 'Full name is required');
-        isValid = false;
-    }
-    
-    const managerEmail = document.getElementById('managerEmail');
-    if (!managerEmail.value.trim()) {
-        markError(managerEmail, 'managerEmail-error', 'Email address is required');
-        isValid = false;
-    } else if (!isValidEmail(managerEmail.value.trim())) {
-        markError(managerEmail, 'managerEmail-error', 'Please enter a valid email address');
-        isValid = false;
-    }
-    
-    const branchCount = parseInt(document.getElementById('branchCount').value) || 1;
-    let hasBranchError = false;
-    
-    for (let i = 1; i <= branchCount; i++) {
-        const nameInput = document.getElementById(`branch-name-${i}`);
-        if (nameInput && !nameInput.value.trim()) {
-            const fieldItem = nameInput.closest('.branch-field-item');
-            if (fieldItem) {
-                fieldItem.classList.add('has-error');
-                const errorEl = document.getElementById(`branch-name-${i}-error`);
-                if (errorEl) {
-                    errorEl.textContent = 'Branch name is required';
-                    errorEl.classList.add('show');
-                }
-            }
-            hasBranchError = true;
-            isValid = false;
-        }
-    }
-    
-    if (hasBranchError) {
-        document.querySelector('.branch-control').classList.add('has-error');
-        document.getElementById('branch-error').textContent = 'Please fill in all branch names';
-        document.getElementById('branch-error').classList.add('show');
-    }
-    
-    return isValid;
-}
-
-function clearAllErrors() {
-    document.querySelectorAll('.form-group.has-error').forEach(el => el.classList.remove('has-error'));
-    document.querySelectorAll('.branch-field-item.has-error').forEach(el => el.classList.remove('has-error'));
-    document.querySelector('.branch-control')?.classList.remove('has-error');
-    document.querySelectorAll('.error-text').forEach(el => {
-        el.textContent = '';
-        el.classList.remove('show');
-    });
-}
-
-function clearBranchErrors() {
-    document.querySelectorAll('.branch-field-item.has-error').forEach(el => el.classList.remove('has-error'));
-    document.querySelector('.branch-control')?.classList.remove('has-error');
-    document.getElementById('branch-error')?.classList.remove('show');
-    document.getElementById('branch-error').textContent = '';
-}
-
-function markError(input, errorId, message) {
-    const formGroup = input.closest('.form-group');
-    if (formGroup) formGroup.classList.add('has-error');
-    const errorEl = document.getElementById(errorId);
-    if (errorEl) {
-        errorEl.textContent = message;
-        errorEl.classList.add('show');
-    }
-}
-
-function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/* ============================================ */
-/* BLUR TOGGLE FOR ACTIVATION KEYS              */
-/* ============================================ */
-function setupBlurToggle() {
-    applyBlurState();
-}
-
-function toggleBlur() {
-    keysBlurred = !keysBlurred;
-    applyBlurState();
-    
-    const labels = document.querySelectorAll('#blur-toggle-label, #blur-toggle-label-keys');
-    labels.forEach(label => {
-        label.textContent = keysBlurred ? 'SHOW' : 'HIDE';
-    });
-    
-    showToast(keysBlurred ? 'Keys hidden' : 'Keys visible', 'success');
-}
-
-function applyBlurState() {
-    const codes = document.querySelectorAll('#all-keys-body code, #recent-keys-body code');
-    codes.forEach(code => {
-        if (keysBlurred) {
-            code.classList.add('blurred-code');
-        } else {
-            code.classList.remove('blurred-code');
-        }
-    });
-}
-
-/* ============================================ */
-/* NAVIGATION                                   */
-/* ============================================ */
-function setupNavigation() {
-    document.querySelectorAll('.nav-item').forEach(item => {
-        item.addEventListener('click', () => {
-            switchView(item.dataset.view);
-        });
-    });
-}
-
-function switchView(view) {
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    document.querySelector(`.nav-item[data-view="${view}"]`)?.classList.add('active');
-
-    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    document.getElementById(`view-${view}`)?.classList.add('active');
-
-    const titles = {
-        dashboard: 'DASHBOARD',
-        keys: 'ACTIVATION KEYS',
-        generate: 'GENERATE KEY',
-        audit: 'AUDIT LOGS'
+  // ---------- helpers ----------
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const esc = (v) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  const icon = (name, extra = '') => `<i class="ph ph-${name} ${extra}"></i>`;
+  const debounce = (fn, ms) => {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
     };
-    const subtitles = {
-        dashboard: 'SYSTEM OVERVIEW',
-        keys: 'RECORD MANAGEMENT',
-        generate: 'CREATE NEW RECORD',
-        audit: 'SECURITY & COMPLIANCE'
-    };
-    document.getElementById('page-title').textContent = titles[view] || 'DASHBOARD';
-    document.querySelector('.page-subtitle').textContent = subtitles[view] || 'SYSTEM OVERVIEW';
-
-    if (view === 'dashboard') { loadStats(); loadRecentKeys(); }
-    if (view === 'keys') { loadAllKeys(); }
-    if (view === 'audit') { loadAuditLogs(); }
-}
-
-/* ============================================ */
-/* STATS                                        */
-/* ============================================ */
-async function loadStats() {
+  };
+  const fmtDate = (v) => (v ? new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+  const fmtDateTime = (v) =>
+    v ? new Date(v).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+  const timeAgo = (v) => {
+    if (!v) return 'Never';
+    const s = Math.round((Date.now() - new Date(v).getTime()) / 1000);
+    if (s < 60) return 'Just now';
+    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+    if (s < 86400 * 30) return `${Math.floor(s / 86400)} d ago`;
+    return fmtDate(v);
+  };
+  const initials = (name) =>
+    String(name || '?')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join('');
+  const avatar = (person, size = '') =>
+    `<div class="avatar ${size}">${person.photoUrl ? `<img src="${esc(person.photoUrl)}" alt="" />` : esc(initials(person.name))}</div>`;
+  const STATUS_LABEL = { available: 'Available', used: 'Used', expired: 'Expired', revoked: 'Revoked' };
+  const ACTION_LABEL = {
+    generate_key: 'Key generated',
+    revoke_key: 'Key revoked',
+    extend_key: 'Key extended',
+    activate_manager: 'Manager activated',
+    validate_key: 'Key checked',
+    deactivate_manager: 'Manager deactivated',
+    reactivate_manager: 'Manager reactivated',
+    update_manager_branches: 'Manager branches changed',
+    update_branch: 'Branch edited',
+  };
+  const ACTIVITY_LABEL = {
+    login: 'Logged in',
+    logout: 'Logged out',
+    login_failed: 'Wrong password',
+    login_locked: 'Login locked (too many tries)',
+    login_blocked: 'Login attempt while locked',
+    key_generated: 'Generated a key',
+    key_revoked: 'Revoked a key',
+    key_extended: 'Extended a key',
+    manager_deactivated: 'Deactivated a manager',
+    manager_reactivated: 'Reactivated a manager',
+    manager_branches_changed: 'Changed a manager’s branches',
+    branch_edited: 'Edited a branch',
+    qr_shown: 'Showed a key QR code',
+    codes_revealed: 'Revealed key codes',
+    code_copied: 'Copied a key code',
+    audit_exported: 'Exported the activation log',
+    activity_exported: 'Exported the admin activity',
+  };
+  const logEvent = (type, target) => api('POST', '/api/activity/event', { type, target }).catch(() => {});
+  const copyText = async (text, label = 'Copied') => {
     try {
-        const response = await fetch(`${API_URL}/api/stats`);
-        const result = await response.json();
-
-        if (result.success) {
-            document.getElementById('stat-total').textContent = result.data.total || 0;
-            document.getElementById('stat-available').textContent = result.data.available || 0;
-            document.getElementById('stat-used').textContent = result.data.used || 0;
-            document.getElementById('stat-expired').textContent = result.data.expired || 0;
-        }
-    } catch (error) {
-        console.error('Error loading stats:', error);
+      await navigator.clipboard.writeText(text);
+      toast(label, 'success');
+    } catch (e) {
+      toast('Could not copy', 'error');
     }
-}
+  };
 
-/* ============================================ */
-/* KEYS                                         */
-/* ============================================ */
-async function loadRecentKeys() {
+  // ---------- API ----------
+  async function api(method, url, body) {
+    const options = { method, headers: { 'X-Requested-With': 'chemstock-admin' }, credentials: 'same-origin' };
+    if (body !== undefined) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    let response;
     try {
-        const response = await fetch(`${API_URL}/api/keys`);
-        const result = await response.json();
-        const tbody = document.getElementById('recent-keys-body');
-
-        if (!result.success || !result.data || result.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="loading-text">NO RECORDS FOUND</td></tr>`;
-            return;
-        }
-
-        const keys = result.data.slice(0, 5);
-        tbody.innerHTML = keys.map(key => `
-            <tr>
-                <td><code class="${keysBlurred ? 'blurred-code' : ''}">${escapeHtml(key.code)}</code></td>
-                <td>${escapeHtml(key.manager_name)}</td>
-                <td>${escapeHtml(key.branch_names?.join(', ') || 'N/A')}</td>
-                <td>${getStatusBadge(key)}</td>
-                <td>${formatDate(key.expires_at)}</td>
-            </tr>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading recent keys:', error);
+      response = await fetch(url, options);
+    } catch (e) {
+      setConnection(false);
+      throw new Error('Cannot reach the admin server.');
     }
-}
-
-async function loadAllKeys() {
-    try {
-        const response = await fetch(`${API_URL}/api/keys`);
-        const result = await response.json();
-        const tbody = document.getElementById('all-keys-body');
-
-        if (!result.success || !result.data || result.data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="loading-text">NO RECORDS FOUND</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = result.data.map(key => `
-            <tr>
-                <td><code class="${keysBlurred ? 'blurred-code' : ''}">${escapeHtml(key.code)}</code></td>
-                <td>${escapeHtml(key.manager_name)}</td>
-                <td>${escapeHtml(key.manager_email)}</td>
-                <td>${escapeHtml(key.branch_names?.join(', ') || 'N/A')}</td>
-                <td>${getStatusBadge(key)}</td>
-                <td>${formatDate(key.expires_at)}</td>
-                <td style="text-align:center;">
-                    <button class="btn btn-danger btn-sm" onclick="revokeKey('${escapeHtml(key.code)}')" ${key.is_used ? 'disabled' : ''}>
-                        REVOKE
-                    </button>
-                </td>
-            </tr>
-        `).join('');
-    } catch (error) {
-        console.error('Error loading all keys:', error);
+    setConnection(true);
+    if (response.status === 401 && !url.startsWith('/api/auth/')) {
+      showLogin('Your session ended. Please log in again.');
+      throw new Error('Please log in.');
     }
-}
-
-/* ============================================ */
-/* STATUS BADGE                                 */
-/* ============================================ */
-function getStatusBadge(key) {
-    if (key.is_used) {
-        return `<span class="badge badge-used">● USED</span>`;
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success === false) {
+      const error = new Error(result.error || `Request failed (${response.status})`);
+      error.status = response.status;
+      error.details = result;
+      throw error;
     }
-    if (key.expires_at && new Date(key.expires_at) < new Date()) {
-        return `<span class="badge badge-expired">● EXPIRED</span>`;
-    }
-    return `<span class="badge badge-available">● AVAILABLE</span>`;
-}
+    return result.data;
+  }
 
-/* ============================================ */
-/* HELPERS                                      */
-/* ============================================ */
-function formatDate(dateStr) {
-    if (!dateStr) return 'NEVER';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    }).toUpperCase();
-}
+  function setConnection(ok) {
+    const pill = $('#connection');
+    pill.className = `pill ${ok ? 'pill-ok' : 'pill-bad'}`;
+    $('#connection-text').textContent = ok ? 'Connected' : 'Offline';
+  }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
+  // ---------- toast / modal / drawer / menu ----------
+  function toast(message, type = 'info') {
+    const icons = { success: 'check-circle', error: 'warning-circle', info: 'info' };
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.innerHTML = `${icon(icons[type])}<span>${esc(message)}</span>`;
+    $('#toast-root').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
 
-/* ============================================ */
-/* GENERATE KEY FORM                            */
-/* ============================================ */
-function setupForm() {
-    document.getElementById('generate-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (validateForm()) {
-            await generateKey();
-        } else {
-            showToast('Please fill in all required fields', 'error');
-            const firstError = document.querySelector('.form-group.has-error, .branch-field-item.has-error');
-            if (firstError) {
-                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
+  function confirmDialog({ title, message, confirmText = 'Confirm', danger = false, iconName = 'question', showLogo = false }) {
+    return new Promise((resolve) => {
+      const root = $('#modal-root');
+      root.innerHTML = `
+        <div class="overlay" data-close></div>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+          ${showLogo ? '<div class="modal-logo"><img src="assets/logo.png" alt="ChemStock" /></div>' : `<div class="modal-icon ${danger ? 'tone-bad' : 'tone-accent'}">${icon(iconName)}</div>`}
+          <h3 id="modal-title">${esc(title)}</h3>
+          <p>${esc(message)}</p>
+          <div class="modal-actions">
+            <button class="btn" data-answer="no">Cancel</button>
+            <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-answer="yes">${esc(confirmText)}</button>
+          </div>
+        </div>`;
+      const done = (answer) => {
+        root.innerHTML = '';
+        document.removeEventListener('keydown', onKey);
+        resolve(answer);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') done(false);
+      };
+      document.addEventListener('keydown', onKey);
+      root.querySelector('[data-close]').addEventListener('click', () => done(false));
+      root.querySelector('[data-answer="no"]').addEventListener('click', () => done(false));
+      root.querySelector('[data-answer="yes"]').addEventListener('click', () => done(true));
+      root.querySelector('[data-answer="yes"]').focus();
     });
-}
+  }
 
-function generateCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let code = '';
-    for (let i = 0; i < 16; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    document.getElementById('code').value = code;
-    showToast('Random code generated', 'success');
-}
+  function openDrawer(title, bodyHtml, footHtml = '') {
+    $('#drawer-root').innerHTML = `
+      <div class="overlay" data-action="close-drawer"></div>
+      <aside class="drawer" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+        <div class="drawer-head"><h3>${esc(title)}</h3><button class="btn btn-ghost btn-icon" data-action="close-drawer" aria-label="Close">${icon('x')}</button></div>
+        <div class="drawer-body">${bodyHtml}</div>
+        ${footHtml ? `<div class="drawer-foot">${footHtml}</div>` : ''}
+      </aside>`;
+  }
+  const closeDrawer = () => {
+    $('#drawer-root').innerHTML = '';
+  };
 
-async function generateKey() {
-    const code = document.getElementById('code').value.trim() || null;
-    const managerName = document.getElementById('managerName').value.trim().toUpperCase();
-    const managerEmail = document.getElementById('managerEmail').value.trim();
-    const branches = getBranchData();
-    const branchNames = branches.map(b => b.name);
-    const branchLocations = branches.map(b => b.location);
-    const daysValid = parseInt(document.getElementById('daysValid').value) || 30;
-    const generatePassword = document.getElementById('generatePassword').checked;
-
-    try {
-        const response = await fetch(`${API_URL}/api/keys/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                code,
-                managerName,
-                managerEmail,
-                branchNames,
-                branchLocations,
-                daysValid,
-                generatePassword
-            })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            const resultDiv = document.getElementById('generation-result');
-            resultDiv.style.display = 'block';
-
-            document.getElementById('result-code').textContent = result.data.code;
-            document.getElementById('result-manager').textContent = result.data.manager_name.toUpperCase();
-            document.getElementById('result-email').textContent = result.data.manager_email;
-            document.getElementById('result-branches').textContent = result.data.branch_names.join(', ');
-            document.getElementById('result-expires').textContent = formatDate(result.data.expires_at);
-
-            const passwordContainer = document.getElementById('result-password-container');
-            const passwordBtn = document.getElementById('copy-password-btn');
-            
-            if (result.data.generatedPassword) {
-                passwordContainer.style.display = 'block';
-                document.getElementById('result-password').textContent = result.data.generatedPassword;
-                passwordBtn.style.display = 'inline-flex';
-            } else {
-                passwordContainer.style.display = 'none';
-                passwordBtn.style.display = 'none';
-            }
-
-            showToast('Key generated successfully', 'success');
-            loadStats();
-            loadRecentKeys();
-            resetForm();
-            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-            showToast(`Error: ${result.error || 'Unknown error'}`, 'error');
-        }
-    } catch (error) {
-        console.error('Error generating key:', error);
-        showToast('Failed to generate key', 'error');
-    }
-}
-
-function resetForm() {
-    document.getElementById('generate-form').reset();
-    document.getElementById('code').value = '';
-    document.getElementById('branchCount').value = '1';
-    currentBranchCount = 1;
-    generateBranchFields(1);
-    clearAllErrors();
-    document.getElementById('generation-result').style.display = 'none';
-}
-
-/* ============================================ */
-/* REVOKE KEY                                   */
-/* ============================================ */
-async function revokeKey(code) {
-    if (!confirm(`REVOKE KEY "${code}"?`)) return;
-
-    try {
-        const response = await fetch(`${API_URL}/api/keys/${encodeURIComponent(code)}`, {
-            method: 'DELETE'
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            showToast(`Key "${code}" revoked`, 'success');
-            loadAllKeys();
-            loadStats();
-            loadRecentKeys();
-        } else {
-            showToast(`Error: ${result.error || 'Unknown error'}`, 'error');
-        }
-    } catch (error) {
-        console.error('Error revoking key:', error);
-        showToast('Failed to revoke key', 'error');
-    }
-}
-
-/* ============================================ */
-/* COPY FUNCTIONS                               */
-/* ============================================ */
-function copyResult() {
-    const code = document.getElementById('result-code').textContent;
-    if (!code || code === '-') return;
-    copyToClipboard(code, 'Code copied to clipboard');
-}
-
-function copyPassword() {
-    const password = document.getElementById('result-password').textContent;
-    if (!password || password === '-') return;
-    copyToClipboard(password, 'Password copied to clipboard');
-}
-
-function copyToClipboard(text, successMessage) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast(successMessage, 'success');
-        }).catch(() => {
-            fallbackCopy(text, successMessage);
-        });
-    } else {
-        fallbackCopy(text, successMessage);
-    }
-}
-
-function fallbackCopy(text, successMessage) {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-        document.execCommand('copy');
-        showToast(successMessage, 'success');
-    } catch (err) {
-        showToast('Failed to copy', 'error');
-    }
-    document.body.removeChild(textarea);
-}
-
-/* ============================================ */
-/* TOAST                                        */
-/* ============================================ */
-let toastTimeout = null;
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    const messageEl = document.getElementById('toast-message');
-
-    if (toastTimeout) {
-        clearTimeout(toastTimeout);
-    }
-
-    toast.classList.remove('success', 'error', 'show');
-    messageEl.textContent = message;
-
-    if (type === 'success') toast.classList.add('success');
-    if (type === 'error') toast.classList.add('error');
-
-    toast.classList.add('show');
-
-    toastTimeout = setTimeout(() => {
-        toast.classList.remove('show');
-    }, TOAST_TIMEOUT);
-}
-
-/* ============================================ */
-/* KEYBOARD SHORTCUTS                           */
-/* ============================================ */
-function setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key === '1') { e.preventDefault(); switchView('dashboard'); }
-        if (e.ctrlKey && e.key === '2') { e.preventDefault(); switchView('keys'); }
-        if (e.ctrlKey && e.key === '3') { e.preventDefault(); switchView('generate'); }
-        if (e.ctrlKey && e.key === '4') { e.preventDefault(); switchView('audit'); }
-        if (e.ctrlKey && e.key === 'b') { e.preventDefault(); toggleBlur(); }
-        if (e.key === 'Escape') {
-            document.getElementById('toast').classList.remove('show');
-        }
+  function openMenu(anchor, items) {
+    closeMenu();
+    const menu = document.createElement('div');
+    menu.className = 'menu';
+    menu.id = 'open-menu';
+    menu.innerHTML = items
+      .map((it, i) => `<button data-menu-index="${i}" class="${it.danger ? 'danger' : ''}">${icon(it.icon)}${esc(it.label)}</button>`)
+      .join('');
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    const top = Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 10);
+    menu.style.top = `${top}px`;
+    menu.style.left = `${Math.max(10, r.right - menu.offsetWidth)}px`;
+    menu.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-menu-index]');
+      if (!btn) return;
+      closeMenu();
+      items[Number(btn.dataset.menuIndex)].run();
     });
-}
+  }
+  const closeMenu = () => document.getElementById('open-menu')?.remove();
 
-/* ============================================ */
-/* AUDIT LOGS FUNCTIONS                         */
-/* ============================================ */
+  // ---------- login ----------
+  function showLogin(message = '') {
+    $('#app').hidden = true;
+    $('#login-screen').hidden = false;
+    $('#login-error').textContent = message;
+    $('#admin-password').value = '';
+    $('#admin-password').focus();
+  }
 
-async function loadAuditLogs() {
-    const tbody = document.getElementById('audit-logs-body');
-    tbody.innerHTML = `<tr><td colspan="8" class="loading-text">LOADING AUDIT LOGS...</td></tr>`;
-
+  async function submitLogin(e) {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
     try {
-        const response = await fetch(`${API_URL}/api/audit-logs`);
-        const result = await response.json();
-
-        if (!result.success || !result.data) {
-            tbody.innerHTML = `<tr><td colspan="8" class="loading-text">NO AUDIT LOGS FOUND</td></tr>`;
-            return;
-        }
-
-        allAuditLogs = result.data;
-        updateAuditStats(result.data);
-        renderAuditLogs(result.data);
-        updateAuditBadge(result.data);
-
+      const result = await api('POST', '/api/auth/login', { password: $('#admin-password').value });
+      $('#admin-password').value = '';
+      startApp(result?.adminName);
     } catch (error) {
-        console.error('Error loading audit logs:', error);
-        tbody.innerHTML = `<tr><td colspan="8" class="loading-text">ERROR LOADING AUDIT LOGS</td></tr>`;
+      $('#login-error').textContent = error.message;
+    } finally {
+      btn.disabled = false;
     }
-}
+  }
 
-function updateAuditStats(logs) {
-    const total = logs.length;
-    const success = logs.filter(l => l.status === 'success').length;
-    const failed = logs.filter(l => l.status === 'failed').length;
-    const rate = total > 0 ? Math.round((success / total) * 100) : 0;
+  async function logout() {
+    const ok = await confirmDialog({
+      title: 'Log out?',
+      message: 'You will need the admin password to come back in.',
+      confirmText: 'Log out',
+      danger: true,
+      iconName: 'sign-out',
+      showLogo: true,
+    });
+    if (!ok) return;
+    await api('POST', '/api/auth/logout').catch(() => {});
+    showLogin();
+  }
 
-    document.getElementById('audit-stat-total').textContent = total;
-    document.getElementById('audit-stat-success').textContent = success;
-    document.getElementById('audit-stat-failed').textContent = failed;
-    document.getElementById('audit-stat-rate').textContent = rate + '%';
-}
+  // ---------- router ----------
+  const VIEWS = {
+    dashboard: { title: 'Dashboard', sub: 'Overview of keys, managers and branches', render: renderDashboard },
+    keys: { title: 'Activation Keys', sub: 'Every key issued to a manager', render: renderKeys },
+    generate: { title: 'Generate Key', sub: 'Create an activation key for a new manager', render: renderGenerate },
+    managers: { title: 'Managers', sub: 'Activated manager accounts', render: renderManagers },
+    branches: { title: 'Branches', sub: 'Branches and who runs them', render: renderBranches },
+    audit: { title: 'Activation Log', sub: 'Key and activation events, including from the mobile app', render: renderAudit },
+    activity: { title: 'Admin Activity', sub: 'Everything done in this admin tool, by whom', render: renderActivity },
+  };
+  let currentView = 'dashboard';
 
-function renderAuditLogs(logs) {
-    const tbody = document.getElementById('audit-logs-body');
-
-    const statusFilter = document.getElementById('filter-status').value;
-    const actionFilter = document.getElementById('filter-action').value;
-    const searchFilter = document.getElementById('filter-search').value.toLowerCase();
-
-    let filtered = logs;
-
-    if (statusFilter !== 'all') {
-        filtered = filtered.filter(l => l.status === statusFilter);
+  function go(view) {
+    if (!VIEWS[view]) view = 'dashboard';
+    currentView = view;
+    closeMenu();
+    closeDrawer();
+    document.querySelectorAll('.nav-item[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === view));
+    $('#page-title').textContent = VIEWS[view].title;
+    $('#page-sub').textContent = VIEWS[view].sub;
+    try {
+      localStorage.setItem('cs_admin_view', view);
+    } catch (e) {
+      /* not essential */
     }
+    $('#view').innerHTML = `<div class="empty">${icon('circle-notch', 'spin')} Loading…</div>`;
+    VIEWS[view].render().catch((error) => {
+      $('#view').innerHTML = `<div class="card glass"><div class="notice notice-bad">${icon('warning-circle')}<div>${esc(error.message)}</div></div></div>`;
+    });
+  }
 
-    if (actionFilter !== 'all') {
-        filtered = filtered.filter(l => l.action === actionFilter);
+  let appStarted = false;
+  function setWhoAmI(name) {
+    $('#whoami-name').textContent = name || '—';
+    $('#whoami-avatar').textContent = initials(name || '?');
+  }
+
+  function startApp(name) {
+    if (name) setWhoAmI(name);
+    $('#login-screen').hidden = true;
+    $('#app').hidden = false;
+    if (!appStarted) {
+      appStarted = true;
+      const tick = () => {
+        $('#clock').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      };
+      tick();
+      setInterval(tick, 1000);
     }
-
-    if (searchFilter) {
-        filtered = filtered.filter(l => 
-            (l.manager_email && l.manager_email.toLowerCase().includes(searchFilter)) ||
-            (l.activation_key && l.activation_key.toLowerCase().includes(searchFilter))
-        );
+    let saved = 'dashboard';
+    try {
+      saved = localStorage.getItem('cs_admin_view') || 'dashboard';
+    } catch (e) {
+      /* not essential */
     }
+    go(saved);
+  }
 
-    if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="loading-text">NO MATCHING LOGS FOUND</td></tr>`;
+  // ============================================
+  // DASHBOARD
+  // ============================================
+  async function renderDashboard() {
+    const [stats, keys, managers, logs] = await Promise.all([
+      api('GET', '/api/stats'),
+      api('GET', '/api/keys'),
+      api('GET', '/api/managers').catch(() => []),
+      api('GET', '/api/audit-logs?limit=8').catch(() => []),
+    ]);
+    const stat = (label, value, ic, tone, view) => `
+      <button class="stat glass ${view ? 'clickable' : ''}" ${view ? `data-view-link="${view}"` : ''}>
+        <div class="stat-top"><div class="stat-icon tone-${tone}">${icon(ic)}</div></div>
+        <div><div class="stat-value">${value}</div><div class="stat-label">${esc(label)}</div></div>
+      </button>`;
+
+    const weekAhead = Date.now() + 7 * 86400000;
+    const expiring = keys.filter((k) => k.status === 'available' && k.expiresAt && new Date(k.expiresAt).getTime() < weekAhead);
+    const deactivated = managers.filter((m) => !m.active);
+    const attention = [
+      ...expiring.map((k) => ({ ic: 'clock-countdown', tone: 'warn', title: `${k.managerName}'s key expires ${fmtDate(k.expiresAt)}`, sub: k.managerEmail, view: 'keys' })),
+      ...deactivated.map((m) => ({ ic: 'user-minus', tone: 'bad', title: `${m.name} is deactivated`, sub: m.email, view: 'managers' })),
+    ];
+
+    $('#view').innerHTML = `
+      <div class="grid grid-stats">
+        ${stat('Total keys', stats.total, 'key', 'accent', 'keys')}
+        ${stat('Available', stats.available, 'check-circle', 'ok', 'keys')}
+        ${stat('Used', stats.used, 'user-check', 'accent', 'keys')}
+        ${stat('Expired', stats.expired, 'clock-countdown', 'warn', 'keys')}
+        ${stat('Revoked', stats.revoked, 'prohibit', 'bad', 'keys')}
+        ${stat('Managers', stats.managers, 'users-three', 'accent', 'managers')}
+        ${stat('Branches', stats.branches, 'buildings', 'muted', 'branches')}
+      </div>
+      <div class="grid grid-2">
+        <div class="card glass">
+          <div class="card-head"><div class="card-title">${icon('bell-ringing')} Needs attention</div></div>
+          ${
+            attention.length
+              ? `<div class="list">${attention
+                  .map(
+                    (a) => `<button class="list-row clickable" data-view-link="${a.view}" style="text-align:left;width:100%">
+                      <span class="stat-icon tone-${a.tone}" style="width:36px;height:36px;font-size:19px">${icon(a.ic)}</span>
+                      <span class="list-main"><span class="list-title">${esc(a.title)}</span><div class="list-sub">${esc(a.sub)}</div></span>
+                      ${icon('caret-right')}
+                    </button>`
+                  )
+                  .join('')}</div>`
+              : `<div class="empty">${icon('check-circle')}Nothing needs attention.</div>`
+          }
+        </div>
+        <div class="card glass">
+          <div class="card-head"><div class="card-title">${icon('clock-counter-clockwise')} Recent activity</div>
+            <button class="btn btn-sm" data-view-link="audit">View all ${icon('arrow-right')}</button></div>
+          ${
+            logs.length
+              ? `<div class="list">${logs
+                  .map(
+                    (l) => `<div class="list-row">
+                      <span class="stat-icon ${l.status === 'success' ? 'tone-ok' : 'tone-bad'}" style="width:36px;height:36px;font-size:19px">${icon(l.status === 'success' ? 'check' : 'x')}</span>
+                      <span class="list-main"><span class="list-title">${esc(ACTION_LABEL[l.action] || l.action)}</span>
+                        <div class="list-sub">${esc(l.email || '—')} · ${esc(timeAgo(l.createdAt))}</div></span>
+                    </div>`
+                  )
+                  .join('')}</div>`
+              : `<div class="empty">${icon('scroll')}No activity yet.</div>`
+          }
+        </div>
+      </div>`;
+  }
+
+  // ============================================
+  // ACTIVATION KEYS
+  // ============================================
+  const keysState = { all: [], filter: 'all', query: '', page: 1, reveal: false };
+  const PAGE_SIZE = 12;
+
+  async function renderKeys() {
+    keysState.all = await api('GET', '/api/keys');
+    keysState.page = 1;
+    drawKeys();
+  }
+
+  function drawKeys() {
+    const counts = { all: keysState.all.length, available: 0, used: 0, expired: 0, revoked: 0 };
+    keysState.all.forEach((k) => {
+      counts[k.status] += 1;
+    });
+    const q = keysState.query.toLowerCase();
+    const rows = keysState.all.filter(
+      (k) =>
+        (keysState.filter === 'all' || k.status === keysState.filter) &&
+        (!q || [k.managerName, k.managerEmail, k.branchNames.join(' ')].join(' ').toLowerCase().includes(q))
+    );
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    keysState.page = Math.min(keysState.page, pages);
+    const pageRows = rows.slice((keysState.page - 1) * PAGE_SIZE, keysState.page * PAGE_SIZE);
+
+    const chip = (id, label) =>
+      `<button class="chip ${keysState.filter === id ? 'active' : ''}" data-action="keys-filter" data-filter="${id}">${label}<span class="count">${counts[id]}</span></button>`;
+
+    $('#view').innerHTML = `
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="input-icon grow">${icon('magnifying-glass')}<input id="keys-search" class="input" placeholder="Search manager, email or branch" value="${esc(keysState.query)}" autocomplete="off" /></div>
+          <button class="btn" data-action="keys-reveal">${icon(keysState.reveal ? 'eye-slash' : 'eye')} ${keysState.reveal ? 'Hide codes' : 'Show codes'}</button>
+          <button class="btn btn-primary" data-view-link="generate">${icon('plus')} New key</button>
+        </div>
+        <div class="chips" style="margin-bottom:16px">
+          ${chip('all', 'All')}${chip('available', 'Available')}${chip('used', 'Used')}${chip('expired', 'Expired')}${chip('revoked', 'Revoked')}
+        </div>
+        ${
+          pageRows.length
+            ? `<div class="table-wrap"><table class="table">
+                <thead><tr><th>Code</th><th>Manager</th><th>Branches</th><th>Status</th><th>Expires</th><th class="actions"></th></tr></thead>
+                <tbody>${pageRows
+                  .map(
+                    (k) => `<tr>
+                      <td><span class="code-cell"><span class="code-text ${keysState.reveal ? '' : 'masked'}">${esc(k.code)}</span>
+                        <button class="btn btn-ghost btn-icon" data-action="key-copy" data-id="${k.id}" title="Copy code">${icon('copy')}</button></span></td>
+                      <td><div>${esc(k.managerName)}</div><div class="cell-sub">${esc(k.managerEmail)}</div></td>
+                      <td>${esc(k.branchNames.join(', ') || '—')}</td>
+                      <td><span class="badge badge-${k.status}">${STATUS_LABEL[k.status]}</span>
+                        ${k.activatedBy ? `<div class="cell-sub">by ${esc(k.activatedBy)}</div>` : ''}</td>
+                      <td>${fmtDate(k.expiresAt)}</td>
+                      <td class="actions"><button class="btn btn-ghost btn-icon" data-action="key-menu" data-id="${k.id}" aria-label="Key actions">${icon('dots-three-vertical')}</button></td>
+                    </tr>`
+                  )
+                  .join('')}</tbody></table></div>
+              <div class="pager"><span>${rows.length} key${rows.length === 1 ? '' : 's'}</span>
+                <span class="chips">
+                  <button class="btn btn-sm" data-action="keys-page" data-delta="-1" ${keysState.page <= 1 ? 'disabled' : ''}>${icon('caret-left')}</button>
+                  <span style="padding:7px 4px">Page ${keysState.page} of ${pages}</span>
+                  <button class="btn btn-sm" data-action="keys-page" data-delta="1" ${keysState.page >= pages ? 'disabled' : ''}>${icon('caret-right')}</button>
+                </span></div>`
+            : `<div class="empty">${icon('key')}No keys match.</div>`
+        }
+      </div>`;
+
+    const search = $('#keys-search');
+    search.addEventListener(
+      'input',
+      debounce(() => {
+        keysState.query = search.value;
+        keysState.page = 1;
+        drawKeys();
+        const again = $('#keys-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 250)
+    );
+  }
+
+  async function showQr(id) {
+    const key = keysState.all.find((k) => k.id === id) || { managerName: '' };
+    try {
+      const { dataUrl } = await api('GET', `/api/keys/${id}/qr`);
+      openDrawer(
+        'Activation key QR',
+        `<p class="field-hint">The manager can scan this instead of typing the code.</p>
+         <img class="qr-img" src="${esc(dataUrl)}" alt="QR code of the activation key" />
+         <p style="text-align:center;margin-top:14px">${esc(key.managerName)}</p>`
+      );
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  function keyMenu(anchor, id) {
+    const key = keysState.all.find((k) => k.id === id);
+    if (!key) return;
+    const items = [
+      { icon: 'copy', label: 'Copy code', run: () => { logEvent('code_copied', key.managerName); copyText(key.code, 'Code copied'); } },
+      { icon: 'qr-code', label: 'Show QR code', run: () => showQr(id) },
+    ];
+    if (key.status === 'available' || key.status === 'expired') {
+      items.push({ icon: 'clock-clockwise', label: 'Extend 7 days', run: () => extendKey(key, 7) });
+      items.push({ icon: 'clock-clockwise', label: 'Extend 30 days', run: () => extendKey(key, 30) });
+    }
+    if (key.status === 'available' || key.status === 'expired') {
+      items.push({ icon: 'prohibit', label: 'Revoke key', danger: true, run: () => revokeKey(key) });
+    }
+    openMenu(anchor, items);
+  }
+
+  async function extendKey(key, days) {
+    try {
+      await api('POST', `/api/keys/${key.id}/extend`, { days });
+      toast(`Key extended by ${days} days`, 'success');
+      renderKeys();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  async function revokeKey(key) {
+    const ok = await confirmDialog({
+      title: 'Revoke this key?',
+      message: `${key.managerName} won't be able to activate with it. This can't be undone.`,
+      confirmText: 'Revoke',
+      danger: true,
+      iconName: 'prohibit',
+    });
+    if (!ok) return;
+    try {
+      await api('DELETE', `/api/keys/${key.id}`);
+      toast('Key revoked', 'success');
+      renderKeys();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  // ============================================
+  // GENERATE KEY (3-step wizard)
+  // ============================================
+  const freshForm = () => ({
+    step: 1,
+    name: '',
+    email: '',
+    days: 30,
+    emailCheck: null,
+    branches: [], // { id, name, city } existing  |  { name, city, region, address, isNew: true, createAnyway }
+    keyMode: 'auto',
+    suggested: '',
+    custom: '',
+    customTaken: false,
+    acceptMedium: false,
+    similarWarning: null,
+    result: null,
+  });
+  let form = freshForm();
+  let allBranches = [];
+
+  async function renderGenerate() {
+    allBranches = await api('GET', '/api/branches');
+    if (!form.suggested) form.suggested = (await api('GET', '/api/keys/suggest')).code;
+    drawGenerate();
+  }
+
+  const stepsHtml = () => {
+    const step = (n, label) =>
+      `<div class="step ${form.step === n ? 'active' : form.step > n ? 'done' : ''}"><span class="step-num">${form.step > n ? icon('check') : n}</span>${label}</div>`;
+    return `<div class="steps">${step(1, 'Manager')}<span class="step-line"></span>${step(2, 'Branches')}<span class="step-line"></span>${step(3, 'Key & review')}</div>`;
+  };
+
+  const currentCode = () => (form.keyMode === 'auto' ? form.suggested : form.custom.trim());
+
+  function summaryHtml() {
+    const row = (ic, html) => `<div class="summary-row">${icon(ic)}<div>${html}</div></div>`;
+    const muted = (t) => `<span class="muted">${t}</span>`;
+    return `<aside class="summary glass">
+      <h4>${icon('clipboard-text')} Summary</h4>
+      ${row('user', form.name ? esc(form.name) : muted('Manager name'))}
+      ${row('envelope-simple', form.email ? esc(form.email) : muted('Email'))}
+      ${row('buildings', form.branches.length ? form.branches.map((b) => esc(b.name) + (b.isNew ? ' <span class="badge badge-success">NEW</span>' : '')).join('<br>') : muted('No branch yet'))}
+      ${row('key', form.step === 3 ? (form.keyMode === 'auto' ? 'Generated (very strong)' : 'Typed by you') : muted('Chosen in step 3'))}
+      ${row('hourglass', `Valid for ${form.days} days`)}
+    </aside>`;
+  }
+
+  function drawGenerate() {
+    if (form.result) return drawResult();
+    let body = '';
+    if (form.step === 1) body = stepOneHtml();
+    if (form.step === 2) body = stepTwoHtml();
+    if (form.step === 3) body = stepThreeHtml();
+    $('#view').innerHTML = `
+      <div class="wizard">
+        <div class="card glass">${stepsHtml()}${body}</div>
+        ${summaryHtml()}
+      </div>`;
+    if (form.step === 1) wireStepOne();
+    if (form.step === 2) wireStepTwo();
+    if (form.step === 3) wireStepThree();
+  }
+
+  // ---- step 1
+  function emailNoticeHtml() {
+    const c = form.emailCheck;
+    if (!c) return '';
+    if (c.valid === false) return `<div class="notice notice-bad">${icon('warning-circle')}<div>That doesn't look like a valid email.</div></div>`;
+    const notes = [];
+    if (c.account) {
+      notes.push(
+        `<div class="notice notice-warn">${icon('warning')}<div>This email already has an account: <b>${esc(c.account.name)}</b> (${esc(c.account.role.replace('_', ' '))}${c.account.branches.length ? ' · ' + esc(c.account.branches.join(', ')) : ''}). A new key can't be activated with it.</div></div>`
+      );
+    }
+    if (c.openKey) {
+      notes.push(
+        `<div class="notice notice-warn">${icon('key')}<div>There's already an unused key for this email (expires ${fmtDate(c.openKey.expiresAt)}). Consider extending it in Activation Keys instead.</div></div>`
+      );
+    }
+    if (!notes.length) notes.push(`<div class="notice notice-ok">${icon('check-circle')}<div>Email is free to use.</div></div>`);
+    return notes.join('');
+  }
+
+  const stepOneHtml = () => `
+    <div class="stack">
+      <div class="form-grid">
+        <div class="field"><label class="field-label" for="f-name">Manager full name</label>
+          <input id="f-name" class="input" placeholder="e.g. Gio Niel" value="${esc(form.name)}" autocomplete="off" /></div>
+        <div class="field"><label class="field-label" for="f-email">Email address</label>
+          <input id="f-email" class="input" type="email" placeholder="name@example.com" value="${esc(form.email)}" autocomplete="off" />
+          <span class="field-hint">The manager must sign up with exactly this email.</span></div>
+      </div>
+      <div id="email-notice" class="stack">${emailNoticeHtml()}</div>
+      <div class="field"><span class="field-label">Valid for</span>
+        <div class="chips">${[7, 14, 30, 60, 90].map((d) => `<button class="chip ${form.days === d ? 'active' : ''}" data-action="set-days" data-days="${d}">${d} days</button>`).join('')}</div>
+      </div>
+    </div>
+    <div class="form-actions"><span></span><button class="btn btn-primary" data-action="step-next">Next ${icon('arrow-right')}</button></div>`;
+
+  function wireStepOne() {
+    const name = $('#f-name');
+    const email = $('#f-email');
+    name.addEventListener('input', () => {
+      form.name = name.value;
+      refreshSummary();
+    });
+    const checkEmail = debounce(async () => {
+      const value = email.value.trim();
+      if (!value) {
+        form.emailCheck = null;
+      } else {
+        try {
+          form.emailCheck = await api('GET', `/api/check-email?email=${encodeURIComponent(value)}`);
+        } catch (e) {
+          form.emailCheck = null;
+        }
+      }
+      $('#email-notice').innerHTML = emailNoticeHtml();
+    }, 400);
+    email.addEventListener('input', () => {
+      form.email = email.value;
+      refreshSummary();
+      checkEmail();
+    });
+    name.focus();
+  }
+
+  function refreshSummary() {
+    const old = $('.summary');
+    if (old) old.outerHTML = summaryHtml();
+  }
+
+  // ---- step 2
+  let branchQuery = '';
+  let newBranch = null; // { name, city, region, address }
+  let placeResults = [];
+
+  function stepTwoHtml() {
+    const q = branchQuery.toLowerCase();
+    const list = allBranches.filter((b) => !q || `${b.name} ${b.city || ''} ${b.region || ''}`.toLowerCase().includes(q));
+    const isChosen = (id) => form.branches.some((b) => b.id === id);
+    const warning = form.similarWarning;
+    return `
+      <div class="stack">
+        ${
+          form.branches.length
+            ? `<div class="field"><span class="field-label">Selected branches</span><div class="selected-chips">${form.branches
+                .map(
+                  (b, i) => `<span class="selected-chip">${icon('buildings')} ${esc(b.name)} ${b.isNew ? '<span class="new">NEW</span>' : ''}
+                    <button data-action="remove-branch" data-index="${i}" aria-label="Remove ${esc(b.name)}">${icon('x')}</button></span>`
+                )
+                .join('')}</div></div>`
+            : ''
+        }
+        <div class="field"><span class="field-label">Pick existing branches</span>
+          <div class="branch-picker">
+            <div style="padding:10px 10px 0"><div class="input-icon">${icon('magnifying-glass')}<input id="branch-search" class="input" placeholder="Search branches" value="${esc(branchQuery)}" autocomplete="off" /></div></div>
+            <div class="check-list">${
+              list.length
+                ? list
+                    .map(
+                      (b) => `<label class="check-item ${isChosen(b.id) ? 'checked' : ''}">
+                        <input type="checkbox" data-action="toggle-branch" data-id="${b.id}" ${isChosen(b.id) ? 'checked' : ''} />
+                        <span class="list-main"><span class="list-title">${esc(b.name)}</span>
+                          <div class="list-sub">${esc([b.city, b.region].filter(Boolean).join(', ') || 'No location')} · ${b.managers.length ? esc(b.managers.join(', ')) : 'No manager yet'}</div></span>
+                      </label>`
+                    )
+                    .join('')
+                : `<div class="empty">No branch matches "${esc(branchQuery)}".</div>`
+            }</div>
+          </div>
+        </div>
+
+        ${
+          newBranch
+            ? `<div class="new-branch stack">
+                <div class="card-title" style="font-size:15px">${icon('map-pin')} New branch</div>
+                <div class="field"><label class="field-label" for="place-search">Search the location</label>
+                  <div class="input-icon">${icon('magnifying-glass')}<input id="place-search" class="input" placeholder="e.g. Iponan, Cagayan de Oro" autocomplete="off" /></div>
+                  <div id="place-results"></div>
+                  <span class="osm-note">Locations © OpenStreetMap contributors · Philippines only</span></div>
+                <div class="form-grid">
+                  <div class="field"><label class="field-label" for="nb-name">Branch name</label>
+                    <input id="nb-name" class="input" placeholder="e.g. Iponan Branch" value="${esc(newBranch.name)}" autocomplete="off" /></div>
+                  <div class="field"><label class="field-label" for="nb-city">City / town</label>
+                    <input id="nb-city" class="input" value="${esc(newBranch.city)}" autocomplete="off" /></div>
+                </div>
+                <div class="form-grid">
+                  <div class="field"><label class="field-label" for="nb-region">Province / region</label>
+                    <input id="nb-region" class="input" value="${esc(newBranch.region)}" autocomplete="off" /></div>
+                  <div class="field"><label class="field-label" for="nb-address">Address</label>
+                    <input id="nb-address" class="input" value="${esc(newBranch.address)}" autocomplete="off" /></div>
+                </div>
+                <div id="similar-box">${warning ? similarHtml(warning) : ''}</div>
+                <div class="chips"><button class="btn" data-action="cancel-new-branch">Cancel</button>
+                  <button class="btn btn-primary" data-action="add-new-branch">${icon('plus')} Add branch</button></div>
+              </div>`
+            : `<button class="btn" data-action="open-new-branch" style="align-self:flex-start">${icon('plus')} New branch</button>`
+        }
+      </div>
+      <div class="form-actions"><button class="btn" data-action="step-back">${icon('arrow-left')} Back</button>
+        <button class="btn btn-primary" data-action="step-next">Next ${icon('arrow-right')}</button></div>`;
+  }
+
+  function similarHtml(w) {
+    return `<div class="notice notice-warn">${icon('warning')}<div>
+      <b>A branch like "${esc(w.forName)}" already exists:</b>
+      <div style="margin-top:6px">${w.matches
+        .map((m) => `${esc(m.name)}${m.city ? ` · ${esc(m.city)}` : ''} <span class="badge badge-muted">${esc(m.reason)}</span>`)
+        .join('<br>')}</div>
+      <div class="notice-actions">
+        ${w.matches.map((m) => `<button class="btn btn-sm" data-action="use-existing" data-id="${m.id}">${icon('check')} Use ${esc(m.name)}</button>`).join('')}
+        <button class="btn btn-sm btn-danger" data-action="create-anyway">Create anyway</button>
+      </div></div></div>`;
+  }
+
+  function wireStepTwo() {
+    const search = $('#branch-search');
+    search?.addEventListener(
+      'input',
+      debounce(() => {
+        branchQuery = search.value;
+        syncNewBranchFields();
+        drawGenerate();
+        const again = $('#branch-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 200)
+    );
+    if (!newBranch) return;
+
+    const place = $('#place-search');
+    const runSearch = debounce(async () => {
+      const q = place.value.trim();
+      const box = $('#place-results');
+      if (q.length < 3) {
+        box.innerHTML = '';
         return;
-    }
+      }
+      box.innerHTML = `<div class="field-hint" style="padding:8px 2px">${icon('circle-notch', 'spin')} Searching…</div>`;
+      try {
+        placeResults = await api('GET', `/api/places?q=${encodeURIComponent(q)}`);
+        box.innerHTML = placeResults.length
+          ? `<div class="place-results">${placeResults
+              .map((p, i) => `<button data-action="pick-place" data-index="${i}">${icon('map-pin')}<span>${esc(p.label)}</span></button>`)
+              .join('')}</div>`
+          : `<div class="field-hint" style="padding:8px 2px">No place found. You can type the location below.</div>`;
+      } catch (error) {
+        box.innerHTML = `<div class="field-hint" style="padding:8px 2px">${esc(error.message)}</div>`;
+      }
+    }, 450);
+    place.addEventListener('input', runSearch);
 
-    tbody.innerHTML = filtered.map(log => `
-        <tr>
-            <td>${formatTimestamp(log.created_at)}</td>
-            <td><span class="badge-action ${log.action}">${formatAction(log.action)}</span></td>
-            <td><code>${escapeHtml(log.activation_key)}</code></td>
-            <td>${escapeHtml(log.manager_email || 'N/A')}</td>
-            <td>${getAuditStatusBadge(log.status)}</td>
-            <td><span class="ip-address">${escapeHtml(log.ip_address || 'N/A')}</span></td>
-            <td class="user-agent-col">${escapeHtml(truncateUserAgent(log.user_agent))}</td>
-            <td class="error-col">${log.error_message ? `<span class="error-message">${escapeHtml(log.error_message)}</span>` : '—'}</td>
-        </tr>
-    `).join('');
-}
-
-function applyFilters() {
-    renderAuditLogs(allAuditLogs);
-}
-
-async function refreshAuditLogs() {
-    showToast('Refreshing audit logs...', 'info');
-    await loadAuditLogs();
-    showToast('Audit logs refreshed', 'success');
-}
-
-function formatTimestamp(dateStr) {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    }).toUpperCase();
-}
-
-function formatAction(action) {
-    const map = {
-        'generate_key': 'Generate',
-        'activate_manager': 'Activate',
-        'revoke_key': 'Revoke',
-        'validate_key': 'Validate'
-    };
-    return map[action] || action;
-}
-
-function getAuditStatusBadge(status) {
-    if (status === 'success') {
-        return `<span class="badge badge-success">● SUCCESS</span>`;
-    }
-    return `<span class="badge badge-failed">● FAILED</span>`;
-}
-
-function truncateUserAgent(ua) {
-    if (!ua) return 'N/A';
-    if (ua.length <= 30) return ua;
-    return ua.substring(0, 30) + '...';
-}
-
-function updateAuditBadge(logs) {
-    const oneDayAgo = new Date();
-    oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-
-    const recent = logs.filter(l => {
-        const logDate = new Date(l.created_at);
-        return logDate > oneDayAgo && l.status === 'failed';
+    const checkSimilar = debounce(async () => {
+      const name = $('#nb-name')?.value.trim();
+      if (!name || name.length < 2) {
+        form.similarWarning = null;
+        $('#similar-box').innerHTML = '';
+        return;
+      }
+      try {
+        const matches = await api('GET', `/api/branches/similar?name=${encodeURIComponent(name)}`);
+        form.similarWarning = matches.length ? { forName: name, matches } : null;
+        newBranch.createAnyway = false;
+        $('#similar-box').innerHTML = form.similarWarning ? similarHtml(form.similarWarning) : '';
+      } catch (e) {
+        /* the server checks again on generate */
+      }
+    }, 350);
+    $('#nb-name').addEventListener('input', () => {
+      newBranch.name = $('#nb-name').value;
+      checkSimilar();
     });
+    ['city', 'region', 'address'].forEach((f) =>
+      $(`#nb-${f}`).addEventListener('input', (e) => {
+        newBranch[f] = e.target.value;
+      })
+    );
+    if (newBranch.name) checkSimilar();
+    place.focus();
+  }
 
-    const badge = document.getElementById('audit-badge');
-    if (recent.length > 0) {
-        badge.textContent = recent.length > 99 ? '99+' : recent.length;
-        badge.style.display = 'block';
-    } else {
-        badge.textContent = '0';
-        badge.style.display = 'none';
+  function syncNewBranchFields() {
+    if (!newBranch) return;
+    ['name', 'city', 'region', 'address'].forEach((f) => {
+      const el = $(`#nb-${f}`);
+      if (el) newBranch[f] = el.value;
+    });
+  }
+
+  function addNewBranch() {
+    syncNewBranchFields();
+    const name = newBranch.name.trim();
+    if (name.length < 2) return toast('Enter a branch name', 'error');
+    if (form.similarWarning && !newBranch.createAnyway) return toast('Pick an existing branch or choose "Create anyway"', 'error');
+    if (form.branches.some((b) => b.isNew && b.name.toLowerCase() === name.toLowerCase())) return toast('Already added', 'error');
+    form.branches.push({ ...newBranch, name, isNew: true });
+    newBranch = null;
+    form.similarWarning = null;
+    drawGenerate();
+  }
+
+  // ---- step 3
+  function strengthHtml(code) {
+    const s = window.KeyStrength.check(code, {
+      name: form.name,
+      email: form.email,
+      branches: form.branches.map((b) => b.name),
+    });
+    if (s.level === 'empty') return `<span class="field-hint">Type a key to see how strong it is.</span>`;
+    const width = { weak: 25, medium: 55, strong: 80, very_strong: 100 }[s.level];
+    return `<div class="strength">
+      <div class="strength-bar-row"><div class="strength-bar"><div class="strength-fill fill-${s.level}" style="width:${width}%"></div></div>
+        <span class="strength-label lvl-${s.level}">${s.label}${s.level === 'weak' ? ' · can’t be used' : ''}</span></div>
+      <div class="checks">${s.checks.map((c) => `<span class="${c.ok ? 'ok' : 'no'}">${icon(c.ok ? 'check-circle' : 'x-circle')}${esc(c.label)}</span>`).join('')}
+        <span class="${form.customTaken ? 'no' : 'ok'}">${icon(form.customTaken ? 'x-circle' : 'check-circle')}Not used before</span></div>
+      ${
+        s.level === 'medium'
+          ? `<label class="confirm-line"><input type="checkbox" id="accept-medium" ${form.acceptMedium ? 'checked' : ''} />I understand this key is only medium strength and still want to use it.</label>`
+          : ''
+      }
+    </div>`;
+  }
+
+  const stepThreeHtml = () => `
+    <div class="stack">
+      <div class="radio-cards">
+        <label class="radio-card ${form.keyMode === 'auto' ? 'checked' : ''}"><input type="radio" name="keymode" value="auto" data-action="key-mode" ${form.keyMode === 'auto' ? 'checked' : ''} />
+          <div><div class="t">Generate a secure key</div><div class="d">Recommended · 16 random characters</div></div></label>
+        <label class="radio-card ${form.keyMode === 'custom' ? 'checked' : ''}"><input type="radio" name="keymode" value="custom" data-action="key-mode" ${form.keyMode === 'custom' ? 'checked' : ''} />
+          <div><div class="t">Type my own</div><div class="d">Must pass the strength checks</div></div></label>
+      </div>
+      ${
+        form.keyMode === 'auto'
+          ? `<div class="key-box"><span class="code-text">${esc(form.suggested)}</span>
+              <button class="btn btn-sm" data-action="new-suggestion">${icon('arrows-clockwise')} New</button>
+              <button class="btn btn-sm" data-action="copy-suggestion">${icon('copy')} Copy</button></div>
+             <div class="checks"><span class="ok">${icon('shield-check')}Very strong · never used before</span></div>`
+          : `<div class="field"><label class="field-label" for="f-code">Your key</label>
+              <input id="f-code" class="input mono" placeholder="At least 12 letters and numbers" value="${esc(form.custom)}" autocomplete="off" spellcheck="false" maxlength="64" />
+             </div><div id="strength-box">${strengthHtml(form.custom)}</div>`
+      }
+      <div class="notice notice-info">${icon('info')}<div>Valid for <b>${form.days} days</b> — until ${fmtDate(Date.now() + form.days * 86400000)}.
+        Give the key and the email to the manager privately.</div></div>
+      <div id="generate-error"></div>
+    </div>
+    <div class="form-actions"><button class="btn" data-action="step-back">${icon('arrow-left')} Back</button>
+      <button class="btn btn-primary" data-action="generate">${icon('check')} Generate key</button></div>`;
+
+  function wireStepThree() {
+    const input = $('#f-code');
+    if (!input) return;
+    const checkTaken = debounce(async () => {
+      try {
+        const { exists } = await api('POST', '/api/keys/check-code', { code: form.custom.trim() });
+        form.customTaken = exists;
+        $('#strength-box').innerHTML = strengthHtml(form.custom);
+        wireAcceptMedium();
+      } catch (e) {
+        /* checked again on generate */
+      }
+    }, 400);
+    input.addEventListener('input', () => {
+      form.custom = input.value;
+      form.acceptMedium = false;
+      form.customTaken = false;
+      $('#strength-box').innerHTML = strengthHtml(form.custom);
+      wireAcceptMedium();
+      checkTaken();
+    });
+    wireAcceptMedium();
+    input.focus();
+  }
+  function wireAcceptMedium() {
+    $('#accept-medium')?.addEventListener('change', (e) => {
+      form.acceptMedium = e.target.checked;
+    });
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      if (form.name.trim().length < 3) return 'Enter the manager’s full name.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) return 'Enter a valid email address.';
+      if (form.emailCheck?.account) return 'This email already has an account.';
     }
-}
+    if (step === 2 && form.branches.length === 0) return 'Pick at least one branch.';
+    return null;
+  }
 
-/* ============================================ */
-/* AUTO-REFRESH AUDIT LOGS                      */
-/* ============================================ */
-
-let auditRefreshInterval = null;
-
-function startAuditAutoRefresh() {
-    if (auditRefreshInterval) clearInterval(auditRefreshInterval);
-    auditRefreshInterval = setInterval(() => {
-        const activeView = document.querySelector('.view.active');
-        if (activeView && activeView.id === 'view-audit') {
-            loadAuditLogs();
+  async function generate() {
+    const code = currentCode();
+    if (form.keyMode === 'custom') {
+      const s = window.KeyStrength.check(code, { name: form.name, email: form.email, branches: form.branches.map((b) => b.name) });
+      if (!s.allowed) return toast('That key is too weak.', 'error');
+      if (s.needsConfirm && !form.acceptMedium) return toast('Tick the box to accept a medium-strength key.', 'error');
+      if (form.customTaken) return toast('That key was already used.', 'error');
+    }
+    const btn = $('[data-action="generate"]');
+    btn.disabled = true;
+    btn.innerHTML = `${icon('circle-notch', 'spin')} Generating…`;
+    try {
+      const result = await api('POST', '/api/keys/generate', {
+        managerName: form.name.trim(),
+        managerEmail: form.email.trim(),
+        daysValid: form.days,
+        code: form.keyMode === 'custom' ? code : '',
+        acceptMedium: form.acceptMedium,
+        branches: form.branches.map((b) =>
+          b.isNew ? { name: b.name, city: b.city, region: b.region, address: b.address, createAnyway: Boolean(b.createAnyway) } : { id: b.id }
+        ),
+      });
+      form.result = result;
+      toast('Activation key created', 'success');
+      drawGenerate();
+    } catch (error) {
+      const details = error.details || {};
+      if (details.similarBranches) {
+        form.step = 2;
+        const pending = form.branches.find((b) => b.isNew && b.name === details.forName);
+        if (pending) {
+          form.branches = form.branches.filter((b) => b !== pending);
+          newBranch = { name: pending.name, city: pending.city, region: pending.region, address: pending.address };
         }
-    }, 30000);
-}
+        form.similarWarning = { forName: details.forName, matches: details.similarBranches };
+        drawGenerate();
+        toast(error.message, 'error');
+        return;
+      }
+      $('#generate-error').innerHTML = `<div class="notice notice-bad">${icon('warning-circle')}<div>${esc(error.message)}</div></div>`;
+      btn.disabled = false;
+      btn.innerHTML = `${icon('check')} Generate key`;
+    }
+  }
+
+  function drawResult() {
+    const r = form.result;
+    $('#view').innerHTML = `
+      <div class="card glass result">
+        <div class="result-icon">${icon('check')}</div>
+        <h3>Key ready</h3>
+        <p class="result-meta">${esc(r.managerName)} · ${esc(r.branchNames.join(', '))} · expires ${fmtDate(r.expiresAt)}</p>
+        <div class="key-box"><span class="code-text">${esc(r.code)}</span>
+          <button class="btn btn-sm" data-action="copy-result">${icon('copy')} Copy</button>
+          <button class="btn btn-sm" data-action="qr-result">${icon('qr-code')} QR</button></div>
+        <p class="field-hint">Send it to ${esc(r.managerEmail)} privately. The manager activates in the app with this email.</p>
+        <div id="result-qr"></div>
+        <div class="result-actions">
+          <button class="btn" data-action="generate-another">${icon('plus')} Generate another</button>
+          <button class="btn btn-primary" data-view-link="keys">${icon('key')} Go to keys</button>
+        </div>
+      </div>`;
+  }
+
+  // ============================================
+  // MANAGERS
+  // ============================================
+  const managersState = { all: [], filter: 'all', query: '' };
+
+  async function renderManagers() {
+    managersState.all = await api('GET', '/api/managers');
+    drawManagers();
+  }
+
+  function drawManagers() {
+    const q = managersState.query.toLowerCase();
+    const counts = {
+      all: managersState.all.length,
+      active: managersState.all.filter((m) => m.active).length,
+      deactivated: managersState.all.filter((m) => !m.active).length,
+    };
+    const rows = managersState.all.filter(
+      (m) =>
+        (managersState.filter === 'all' || (managersState.filter === 'active' ? m.active : !m.active)) &&
+        (!q || [m.name, m.email, m.username, m.branchNames.join(' ')].join(' ').toLowerCase().includes(q))
+    );
+    const chip = (id, label) =>
+      `<button class="chip ${managersState.filter === id ? 'active' : ''}" data-action="managers-filter" data-filter="${id}">${label}<span class="count">${counts[id]}</span></button>`;
+    $('#view').innerHTML = `
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="input-icon grow">${icon('magnifying-glass')}<input id="managers-search" class="input" placeholder="Search name, email or branch" value="${esc(managersState.query)}" autocomplete="off" /></div>
+          <div class="chips">${chip('all', 'All')}${chip('active', 'Active')}${chip('deactivated', 'Deactivated')}</div>
+        </div>
+        ${
+          rows.length
+            ? `<div class="table-wrap"><table class="table">
+              <thead><tr><th>Manager</th><th>Branches</th><th>Agents</th><th>Status</th><th>Last sign-in</th><th class="actions"></th></tr></thead>
+              <tbody>${rows
+                .map(
+                  (m) => `<tr class="clickable" data-action="open-manager" data-id="${m.id}">
+                    <td><div class="person">${avatar(m)}<div><div>${esc(m.name)}</div><div class="cell-sub">${esc(m.email)}</div></div></div></td>
+                    <td>${esc(m.branchNames.join(', ') || '—')}</td>
+                    <td>${m.agentCount}</td>
+                    <td><span class="badge badge-${m.active ? 'active' : 'deactivated'}">${m.active ? 'Active' : 'Deactivated'}</span></td>
+                    <td>${esc(timeAgo(m.lastSignInAt))}</td>
+                    <td class="actions">${icon('caret-right')}</td>
+                  </tr>`
+                )
+                .join('')}</tbody></table></div>`
+            : `<div class="empty">${icon('users-three')}No managers match.</div>`
+        }
+      </div>`;
+    const search = $('#managers-search');
+    search.addEventListener(
+      'input',
+      debounce(() => {
+        managersState.query = search.value;
+        drawManagers();
+        const again = $('#managers-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 200)
+    );
+  }
+
+  function openManager(id) {
+    const m = managersState.all.find((x) => x.id === id);
+    if (!m) return;
+    const info = (ic, label, value) =>
+      `<div class="info-row">${icon(ic)}<div><div class="k">${label}</div><div>${value}</div></div></div>`;
+    openDrawer(
+      'Manager',
+      `<div style="text-align:center">
+         <div style="display:flex;justify-content:center">${avatar(m, 'avatar-lg')}</div>
+         <h3 style="margin-top:14px;font-size:20px">${esc(m.name)}</h3>
+         <div class="cell-sub">@${esc(m.username)}</div>
+         <div style="margin-top:10px"><span class="badge badge-${m.active ? 'active' : 'deactivated'}">${m.active ? 'Active' : 'Deactivated'}</span></div>
+       </div>
+       <div class="info-rows">
+         ${info('envelope-simple', 'Email', esc(m.email))}
+         ${info('phone', 'Phone', esc(m.phone || 'Not set'))}
+         ${info('buildings', 'Branches', esc(m.branchNames.join(', ') || '—'))}
+         ${info('users', 'Agents created', m.agentCount)}
+         ${info('sign-in', 'Last sign-in', esc(m.lastSignInAt ? `${timeAgo(m.lastSignInAt)} (${fmtDateTime(m.lastSignInAt)})` : 'Never'))}
+         ${info('calendar-blank', 'Activated', esc(fmtDate(m.createdAt)))}
+       </div>`,
+      `<button class="btn" data-action="manager-branches" data-id="${m.id}">${icon('buildings')} Change branches</button>
+       ${
+         m.active
+           ? `<button class="btn btn-danger" data-action="manager-status" data-id="${m.id}" data-active="false">${icon('power')} Deactivate</button>`
+           : `<button class="btn btn-primary" data-action="manager-status" data-id="${m.id}" data-active="true">${icon('power')} Reactivate</button>`
+       }`
+    );
+  }
+
+  async function setManagerStatus(id, active) {
+    const m = managersState.all.find((x) => x.id === id);
+    const ok = await confirmDialog(
+      active
+        ? { title: `Reactivate ${m.name}?`, message: 'They will be able to log in to the app again.', confirmText: 'Reactivate', iconName: 'power' }
+        : {
+            title: `Deactivate ${m.name}?`,
+            message: 'Their login is blocked right away and the app logs them out at its next check. Their data stays. You can reactivate them later.',
+            confirmText: 'Deactivate',
+            danger: true,
+            iconName: 'power',
+          }
+    );
+    if (!ok) return;
+    try {
+      await api('POST', `/api/managers/${id}/status`, { active });
+      toast(active ? 'Manager reactivated' : 'Manager deactivated', 'success');
+      await renderManagers();
+      openManager(id);
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  async function editManagerBranches(id) {
+    const m = managersState.all.find((x) => x.id === id);
+    const branches = await api('GET', '/api/branches');
+    const chosen = new Set(m.branchIds);
+    openDrawer(
+      `Branches · ${m.name}`,
+      `<p class="field-hint" style="margin-bottom:12px">The manager sees stock and agents only for the branches ticked here.</p>
+       <div class="check-list" id="mb-list">${branches
+         .map(
+           (b) => `<label class="check-item ${chosen.has(b.id) ? 'checked' : ''}"><input type="checkbox" value="${b.id}" ${chosen.has(b.id) ? 'checked' : ''} />
+             <span class="list-main"><span class="list-title">${esc(b.name)}</span><div class="list-sub">${esc([b.city, b.region].filter(Boolean).join(', ') || 'No location')}</div></span></label>`
+         )
+         .join('')}</div>`,
+      `<button class="btn" data-action="open-manager" data-id="${m.id}">Cancel</button>
+       <button class="btn btn-primary" data-action="save-manager-branches" data-id="${m.id}">${icon('check')} Save</button>`
+    );
+    $('#mb-list').addEventListener('change', (e) => e.target.closest('.check-item')?.classList.toggle('checked', e.target.checked));
+  }
+
+  async function saveManagerBranches(id) {
+    const ids = [...document.querySelectorAll('#mb-list input:checked')].map((i) => i.value);
+    if (!ids.length) return toast('Pick at least one branch', 'error');
+    try {
+      await api('PUT', `/api/managers/${id}/branches`, { branchIds: ids });
+      toast('Branches updated', 'success');
+      await renderManagers();
+      openManager(id);
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  }
+
+  // ============================================
+  // BRANCHES
+  // ============================================
+  const branchesState = { all: [], query: '' };
+
+  async function renderBranches() {
+    branchesState.all = await api('GET', '/api/branches');
+    drawBranches();
+  }
+
+  function drawBranches() {
+    const q = branchesState.query.toLowerCase();
+    const rows = branchesState.all.filter((b) => !q || `${b.name} ${b.city || ''} ${b.region || ''} ${b.managers.join(' ')}`.toLowerCase().includes(q));
+    $('#view').innerHTML = `
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="input-icon grow">${icon('magnifying-glass')}<input id="branches-search" class="input" placeholder="Search branch, city or manager" value="${esc(branchesState.query)}" autocomplete="off" /></div>
+          <span class="field-hint">New branches are added from Generate Key.</span>
+        </div>
+        ${
+          rows.length
+            ? `<div class="table-wrap"><table class="table">
+              <thead><tr><th>Branch</th><th>Location</th><th>Managers</th><th>Agents</th><th class="actions"></th></tr></thead>
+              <tbody>${rows
+                .map(
+                  (b) => `<tr>
+                    <td><b>${esc(b.name)}</b><div class="cell-sub">Added ${fmtDate(b.createdAt)}</div></td>
+                    <td>${esc([b.city, b.region].filter(Boolean).join(', ') || '—')}</td>
+                    <td>${b.managers.length ? esc(b.managers.join(', ')) : '<span class="badge badge-muted">None</span>'}</td>
+                    <td>${b.agentCount}</td>
+                    <td class="actions"><button class="btn btn-sm" data-action="edit-branch" data-id="${b.id}">${icon('pencil-simple')} Edit</button></td>
+                  </tr>`
+                )
+                .join('')}</tbody></table></div>`
+            : `<div class="empty">${icon('buildings')}No branches match.</div>`
+        }
+      </div>`;
+    const search = $('#branches-search');
+    search.addEventListener(
+      'input',
+      debounce(() => {
+        branchesState.query = search.value;
+        drawBranches();
+        const again = $('#branches-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 200)
+    );
+  }
+
+  function editBranch(id, warning = null) {
+    const b = branchesState.all.find((x) => x.id === id);
+    const field = (key, label, value) =>
+      `<div class="field"><label class="field-label" for="eb-${key}">${label}</label><input id="eb-${key}" class="input" value="${esc(value || '')}" autocomplete="off" /></div>`;
+    openDrawer(
+      'Edit branch',
+      `<div class="stack">
+        <div class="field"><label class="field-label" for="eb-place">Search the location</label>
+          <div class="input-icon">${icon('magnifying-glass')}<input id="eb-place" class="input" placeholder="e.g. Butuan City" autocomplete="off" /></div>
+          <div id="eb-results"></div><span class="osm-note">Locations © OpenStreetMap contributors</span></div>
+        ${field('name', 'Branch name', b.name)}${field('city', 'City / town', b.city)}${field('region', 'Province / region', b.region)}${field('address', 'Address', b.address)}
+        <div id="eb-warning">${
+          warning
+            ? `<div class="notice notice-warn">${icon('warning')}<div><b>${esc(warning.message)}</b><div style="margin-top:6px">${warning.matches
+                .map((m) => `${esc(m.name)} <span class="badge badge-muted">${esc(m.reason)}</span>`)
+                .join('<br>')}</div>
+                <div class="notice-actions"><button class="btn btn-sm btn-danger" data-action="save-branch" data-id="${b.id}" data-anyway="true">Save anyway</button></div></div></div>`
+            : ''
+        }</div>
+      </div>`,
+      `<button class="btn" data-action="close-drawer">Cancel</button>
+       <button class="btn btn-primary" data-action="save-branch" data-id="${b.id}">${icon('check')} Save</button>`
+    );
+    const place = $('#eb-place');
+    place.addEventListener(
+      'input',
+      debounce(async () => {
+        const q = place.value.trim();
+        const box = $('#eb-results');
+        if (q.length < 3) {
+          box.innerHTML = '';
+          return;
+        }
+        try {
+          placeResults = await api('GET', `/api/places?q=${encodeURIComponent(q)}`);
+          box.innerHTML = placeResults.length
+            ? `<div class="place-results">${placeResults
+                .map((p, i) => `<button data-action="pick-place-edit" data-index="${i}">${icon('map-pin')}<span>${esc(p.label)}</span></button>`)
+                .join('')}</div>`
+            : '<div class="field-hint" style="padding:8px 2px">No place found.</div>';
+        } catch (error) {
+          box.innerHTML = `<div class="field-hint" style="padding:8px 2px">${esc(error.message)}</div>`;
+        }
+      }, 450)
+    );
+  }
+
+  async function saveBranch(id, anyway) {
+    const value = (k) => $(`#eb-${k}`).value.trim();
+    try {
+      await api('PUT', `/api/branches/${id}`, {
+        name: value('name'),
+        city: value('city'),
+        region: value('region'),
+        address: value('address'),
+        saveAnyway: anyway,
+      });
+      toast('Branch saved', 'success');
+      closeDrawer();
+      renderBranches();
+    } catch (error) {
+      if (error.details?.similarBranches) {
+        const current = { name: value('name'), city: value('city'), region: value('region'), address: value('address') };
+        const b = branchesState.all.find((x) => x.id === id);
+        Object.assign(b, current);
+        editBranch(id, { message: error.message, matches: error.details.similarBranches });
+        return;
+      }
+      toast(error.message, 'error');
+    }
+  }
+
+  // ============================================
+  // AUDIT LOG
+  // ============================================
+  const auditState = { all: [], status: 'all', action: 'all', query: '' };
+
+  async function renderAudit() {
+    auditState.all = await api('GET', '/api/audit-logs?limit=1000');
+    drawAudit();
+  }
+
+  function filteredAudit() {
+    const q = auditState.query.toLowerCase();
+    return auditState.all.filter(
+      (l) =>
+        (auditState.status === 'all' || l.status === auditState.status) &&
+        (auditState.action === 'all' || l.action === auditState.action) &&
+        (!q || `${l.email || ''} ${l.error || ''}`.toLowerCase().includes(q))
+    );
+  }
+
+  function drawAudit() {
+    const rows = filteredAudit();
+    const total = auditState.all.length;
+    const ok = auditState.all.filter((l) => l.status === 'success').length;
+    const actions = [...new Set(auditState.all.map((l) => l.action))];
+    $('#view').innerHTML = `
+      <div class="grid grid-stats">
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-accent">${icon('scroll')}</div></div><div><div class="stat-value">${total}</div><div class="stat-label">Events</div></div></div>
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-ok">${icon('check-circle')}</div></div><div><div class="stat-value">${ok}</div><div class="stat-label">Successful</div></div></div>
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-bad">${icon('x-circle')}</div></div><div><div class="stat-value">${total - ok}</div><div class="stat-label">Failed</div></div></div>
+      </div>
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="input-icon grow">${icon('magnifying-glass')}<input id="audit-search" class="input" placeholder="Search email or note" value="${esc(auditState.query)}" autocomplete="off" /></div>
+          <select id="audit-status" class="select" style="width:auto">
+            <option value="all">All statuses</option><option value="success" ${auditState.status === 'success' ? 'selected' : ''}>Successful</option>
+            <option value="failed" ${auditState.status === 'failed' ? 'selected' : ''}>Failed</option></select>
+          <select id="audit-action" class="select" style="width:auto"><option value="all">All actions</option>
+            ${actions.map((a) => `<option value="${esc(a)}" ${auditState.action === a ? 'selected' : ''}>${esc(ACTION_LABEL[a] || a)}</option>`).join('')}</select>
+          <button class="btn" data-action="audit-export">${icon('download-simple')} Export CSV</button>
+          <button class="btn" data-action="audit-refresh">${icon('arrows-clockwise')}</button>
+        </div>
+        ${
+          rows.length
+            ? `<div class="table-wrap"><table class="table">
+              <thead><tr><th>Time</th><th>Action</th><th>Email</th><th>Key</th><th>Status</th><th>Note</th></tr></thead>
+              <tbody>${rows
+                .slice(0, 300)
+                .map(
+                  (l) => `<tr>
+                    <td>${esc(fmtDateTime(l.createdAt))}</td>
+                    <td>${esc(ACTION_LABEL[l.action] || l.action)}</td>
+                    <td>${esc(l.email || '—')}</td>
+                    <td class="mono">${esc(l.key)}</td>
+                    <td><span class="badge badge-${l.status === 'success' ? 'success' : 'failed'}">${l.status === 'success' ? 'Success' : 'Failed'}</span></td>
+                    <td class="cell-sub">${esc(l.error || '—')}</td>
+                  </tr>`
+                )
+                .join('')}</tbody></table></div>
+              ${rows.length > 300 ? `<div class="pager"><span>Showing the latest 300 of ${rows.length}. Export to see all.</span></div>` : ''}`
+            : `<div class="empty">${icon('scroll')}No events match.</div>`
+        }
+      </div>`;
+    const search = $('#audit-search');
+    search.addEventListener(
+      'input',
+      debounce(() => {
+        auditState.query = search.value;
+        drawAudit();
+        const again = $('#audit-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 250)
+    );
+    $('#audit-status').addEventListener('change', (e) => {
+      auditState.status = e.target.value;
+      drawAudit();
+    });
+    $('#audit-action').addEventListener('change', (e) => {
+      auditState.action = e.target.value;
+      drawAudit();
+    });
+  }
+
+  function exportAudit() {
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Time', 'Action', 'Email', 'Key', 'Status', 'Note'].map(cell).join(',')];
+    filteredAudit().forEach((l) =>
+      lines.push([new Date(l.createdAt).toISOString(), ACTION_LABEL[l.action] || l.action, l.email, l.key, l.status, l.error].map(cell).join(','))
+    );
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `chemstock-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ============================================
+  // ADMIN ACTIVITY
+  // ============================================
+  const activityState = { all: [], admin: 'all', action: 'all', status: 'all', query: '' };
+
+  async function renderActivity() {
+    activityState.all = await api('GET', '/api/admin-activity?limit=1000');
+    drawActivity();
+  }
+
+  function filteredActivity() {
+    const q = activityState.query.toLowerCase();
+    return activityState.all.filter(
+      (r) =>
+        (activityState.admin === 'all' || r.admin === activityState.admin) &&
+        (activityState.action === 'all' || r.action === activityState.action) &&
+        (activityState.status === 'all' || r.status === activityState.status) &&
+        (!q || `${r.target || ''} ${r.admin} ${r.machine || ''} ${JSON.stringify(r.details || '')}`.toLowerCase().includes(q))
+    );
+  }
+
+  const activityIcon = (action, status) => {
+    if (status === 'failed') return ['warning', 'bad'];
+    if (action.startsWith('login') || action === 'logout') return ['sign-in', 'muted'];
+    if (action.includes('generated')) return ['plus-circle', 'ok'];
+    if (action.includes('revoked') || action.includes('deactivated')) return ['prohibit', 'bad'];
+    if (action.includes('revealed') || action.includes('copied') || action.includes('qr')) return ['eye', 'warn'];
+    if (action.includes('exported')) return ['download-simple', 'accent'];
+    return ['pencil-simple', 'accent'];
+  };
+
+  function drawActivity() {
+    const rows = filteredActivity();
+    const admins = [...new Set(activityState.all.map((r) => r.admin))].sort();
+    const actions = [...new Set(activityState.all.map((r) => r.action))].sort();
+    const failed = activityState.all.filter((r) => r.status === 'failed').length;
+    const hasLocal = activityState.all.some((r) => r.localOnly);
+    $('#view').innerHTML = `
+      <div class="grid grid-stats">
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-accent">${icon('list-checks')}</div></div><div><div class="stat-value">${activityState.all.length}</div><div class="stat-label">Recorded actions</div></div></div>
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-ok">${icon('users')}</div></div><div><div class="stat-value">${admins.length}</div><div class="stat-label">Admins</div></div></div>
+        <div class="stat glass"><div class="stat-top"><div class="stat-icon tone-bad">${icon('warning')}</div></div><div><div class="stat-value">${failed}</div><div class="stat-label">Failed / blocked</div></div></div>
+      </div>
+      ${hasLocal ? `<div class="notice notice-warn" style="margin-bottom:16px">${icon('warning')}<div>Some entries are only saved on this computer. Run <b>2026-10-20e_admin_activity_log.sql</b> in Supabase so every admin's activity is kept in one shared place.</div></div>` : ''}
+      <div class="card glass">
+        <div class="toolbar">
+          <div class="input-icon grow">${icon('magnifying-glass')}<input id="activity-search" class="input" placeholder="Search a name, target or detail" value="${esc(activityState.query)}" autocomplete="off" /></div>
+          <select id="activity-admin" class="select" style="width:auto"><option value="all">All admins</option>${admins.map((a) => `<option value="${esc(a)}" ${activityState.admin === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
+          <select id="activity-action" class="select" style="width:auto"><option value="all">All actions</option>${actions.map((a) => `<option value="${esc(a)}" ${activityState.action === a ? 'selected' : ''}>${esc(ACTIVITY_LABEL[a] || a)}</option>`).join('')}</select>
+          <select id="activity-status" class="select" style="width:auto"><option value="all">Any result</option>
+            <option value="success" ${activityState.status === 'success' ? 'selected' : ''}>Worked</option><option value="failed" ${activityState.status === 'failed' ? 'selected' : ''}>Failed</option></select>
+          <button class="btn" data-action="activity-export">${icon('download-simple')} Export CSV</button>
+          <button class="btn" data-action="activity-refresh">${icon('arrows-clockwise')}</button>
+        </div>
+        ${
+          rows.length
+            ? `<div class="table-wrap"><table class="table">
+              <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>On</th><th>Computer</th><th>Result</th></tr></thead>
+              <tbody>${rows
+                .slice(0, 300)
+                .map((r) => {
+                  const [ic, tone] = activityIcon(r.action, r.status);
+                  const detail = r.details ? Object.entries(r.details).map(([k, v]) => `${k}: ${v}`).join(' · ') : '';
+                  return `<tr>
+                    <td>${esc(fmtDateTime(r.createdAt))}<div class="cell-sub">${esc(timeAgo(r.createdAt))}</div></td>
+                    <td><div class="person"><div class="avatar" style="width:32px;height:32px;font-size:12px">${esc(initials(r.admin))}</div>${esc(r.admin)}</div></td>
+                    <td><span class="stat-icon tone-${tone}" style="display:inline-flex;width:28px;height:28px;font-size:16px;vertical-align:middle;margin-right:8px">${icon(ic)}</span>${esc(ACTIVITY_LABEL[r.action] || r.action)}</td>
+                    <td>${esc(r.target || '—')}${detail ? `<div class="cell-sub">${esc(detail)}</div>` : ''}</td>
+                    <td class="cell-sub">${esc(r.machine || '—')}${r.localOnly ? ' <span class="badge badge-warn">local</span>' : ''}</td>
+                    <td><span class="badge badge-${r.status === 'success' ? 'success' : 'failed'}">${r.status === 'success' ? 'Worked' : 'Failed'}</span></td>
+                  </tr>`;
+                })
+                .join('')}</tbody></table></div>
+              ${rows.length > 300 ? `<div class="pager"><span>Showing the latest 300 of ${rows.length}. Export to see all.</span></div>` : ''}`
+            : `<div class="empty">${icon('user-list')}No activity matches.</div>`
+        }
+      </div>`;
+    const search = $('#activity-search');
+    search.addEventListener(
+      'input',
+      debounce(() => {
+        activityState.query = search.value;
+        drawActivity();
+        const again = $('#activity-search');
+        again.focus();
+        again.setSelectionRange(again.value.length, again.value.length);
+      }, 250)
+    );
+    [['admin', 'admin'], ['action', 'action'], ['status', 'status']].forEach(([id, key]) =>
+      $(`#activity-${id}`).addEventListener('change', (e) => {
+        activityState[key] = e.target.value;
+        drawActivity();
+      })
+    );
+  }
+
+  function exportActivity() {
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['When', 'Admin', 'Action', 'On', 'Detail', 'Computer', 'Result'].map(cell).join(',')];
+    filteredActivity().forEach((r) =>
+      lines.push([new Date(r.createdAt).toISOString(), r.admin, ACTIVITY_LABEL[r.action] || r.action, r.target, r.details ? JSON.stringify(r.details) : '', r.machine, r.status].map(cell).join(','))
+    );
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `chemstock-admin-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ============================================
+  // ONE CLICK HANDLER FOR EVERYTHING
+  // ============================================
+  document.addEventListener('click', async (e) => {
+    if (!e.target.closest('.menu') && !e.target.closest('[data-action="key-menu"]')) closeMenu();
+
+    const viewLink = e.target.closest('[data-view-link]');
+    if (viewLink) {
+      if (viewLink.dataset.viewLink === 'generate' && form.result) form = freshForm();
+      return go(viewLink.dataset.viewLink);
+    }
+    const navBtn = e.target.closest('.nav-item[data-view]');
+    if (navBtn) return go(navBtn.dataset.view);
+
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    const { action, id } = el.dataset;
+
+    switch (action) {
+      case 'logout': return logout();
+      case 'close-drawer': return closeDrawer();
+      // keys
+      case 'keys-filter': keysState.filter = el.dataset.filter; keysState.page = 1; return drawKeys();
+      case 'keys-reveal': keysState.reveal = !keysState.reveal; if (keysState.reveal) logEvent('codes_revealed'); return drawKeys();
+      case 'keys-page': keysState.page += Number(el.dataset.delta); return drawKeys();
+      case 'key-copy': { const k = keysState.all.find((x) => x.id === id); if (k) logEvent('code_copied', `${k.managerName}`); return k && copyText(k.code, 'Code copied'); }
+      case 'key-menu': e.stopPropagation(); return keyMenu(el, id);
+      // generate
+      case 'set-days': form.days = Number(el.dataset.days); return drawGenerate();
+      case 'step-next': {
+        if (form.step === 2) syncNewBranchFields();
+        const problem = validateStep(form.step);
+        if (problem) return toast(problem, 'error');
+        form.step += 1;
+        return drawGenerate();
+      }
+      case 'step-back': syncNewBranchFields(); form.step -= 1; return drawGenerate();
+      case 'toggle-branch': {
+        const b = allBranches.find((x) => x.id === id);
+        if (el.checked) form.branches.push({ id: b.id, name: b.name, city: b.city });
+        else form.branches = form.branches.filter((x) => x.id !== id);
+        syncNewBranchFields();
+        return drawGenerate();
+      }
+      case 'remove-branch': syncNewBranchFields(); form.branches.splice(Number(el.dataset.index), 1); return drawGenerate();
+      case 'open-new-branch': newBranch = { name: '', city: '', region: '', address: '' }; form.similarWarning = null; return drawGenerate();
+      case 'cancel-new-branch': newBranch = null; form.similarWarning = null; return drawGenerate();
+      case 'add-new-branch': return addNewBranch();
+      case 'pick-place': {
+        const p = placeResults[Number(el.dataset.index)];
+        syncNewBranchFields();
+        newBranch = { ...newBranch, city: p.city, region: p.region, address: p.address, name: newBranch.name || (p.city ? `${p.city} Branch` : p.name) };
+        drawGenerate();
+        return;
+      }
+      case 'use-existing': {
+        const match = allBranches.find((x) => x.id === id);
+        if (match && !form.branches.some((b) => b.id === id)) form.branches.push({ id: match.id, name: match.name, city: match.city });
+        newBranch = null;
+        form.similarWarning = null;
+        toast(`Using ${match ? match.name : 'existing branch'}`, 'success');
+        return drawGenerate();
+      }
+      case 'create-anyway': {
+        const ok = await confirmDialog({
+          title: 'Create a separate branch?',
+          message: 'Only do this if it is really a different place. Two branches with similar names confuse stock and reports.',
+          confirmText: 'Create anyway',
+          danger: true,
+          iconName: 'warning',
+        });
+        if (!ok) return;
+        syncNewBranchFields();
+        newBranch.createAnyway = true;
+        form.similarWarning = null;
+        return addNewBranch();
+      }
+      case 'key-mode': form.keyMode = el.value; return drawGenerate();
+      case 'new-suggestion': form.suggested = (await api('GET', '/api/keys/suggest')).code; return drawGenerate();
+      case 'copy-suggestion': return copyText(form.suggested, 'Key copied');
+      case 'generate': return generate();
+      case 'copy-result': return copyText(form.result.code, 'Key copied');
+      case 'qr-result': {
+        try {
+          const { dataUrl } = await api('GET', `/api/keys/${form.result.id}/qr`);
+          $('#result-qr').innerHTML = `<img class="qr-img" src="${esc(dataUrl)}" alt="QR code of the activation key" />`;
+        } catch (error) {
+          toast(error.message, 'error');
+        }
+        return;
+      }
+      case 'generate-another': {
+        form = freshForm();
+        newBranch = null;
+        branchQuery = '';
+        return go('generate');
+      }
+      // managers
+      case 'managers-filter': managersState.filter = el.dataset.filter; return drawManagers();
+      case 'open-manager': return openManager(id);
+      case 'manager-status': return setManagerStatus(id, el.dataset.active === 'true');
+      case 'manager-branches': return editManagerBranches(id);
+      case 'save-manager-branches': return saveManagerBranches(id);
+      // branches
+      case 'edit-branch': return editBranch(id);
+      case 'save-branch': return saveBranch(id, el.dataset.anyway === 'true');
+      case 'pick-place-edit': {
+        const p = placeResults[Number(el.dataset.index)];
+        $('#eb-city').value = p.city || '';
+        $('#eb-region').value = p.region || '';
+        $('#eb-address').value = p.address || '';
+        $('#eb-results').innerHTML = '';
+        return;
+      }
+      // audit
+      case 'audit-export': logEvent('audit_exported'); return exportAudit();
+      case 'activity-export': logEvent('activity_exported'); return exportActivity();
+      case 'activity-refresh': return renderActivity();
+      case 'audit-refresh': return renderAudit();
+      default:
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeMenu();
+      if (!$('#modal-root').innerHTML) closeDrawer();
+    }
+  });
+  window.addEventListener('scroll', closeMenu, true);
+
+  // ---------- boot ----------
+  document.addEventListener('DOMContentLoaded', async () => {
+    $('#login-form').addEventListener('submit', submitLogin);
+    try {
+      const me = await api('GET', '/api/auth/me');
+      if (me.loggedIn) startApp(me.adminName);
+      else showLogin(me.configured === false ? 'No admin password set. Run: npm run set-password' : '');
+    } catch (error) {
+      showLogin(error.message);
+    }
+  });
+})();
