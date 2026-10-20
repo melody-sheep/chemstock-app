@@ -2,7 +2,9 @@
 import { supabase } from '../services/supabaseClient';
 
 const PROFILE_PHOTO_BUCKET = 'shipment-media';
-const SIGNED_URL_TTL_SECONDS = 300;
+// A day, so links kept in saved screen data still work the next time a
+// screen opens. Photos are also saved on the phone (UserAvatar).
+const SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
 
 /**
  * Resolve a single storage path to a signed URL. Degrades to null on any

@@ -1,10 +1,11 @@
 // src/components/common/UserAvatar.js
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Image, Text, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { debugLog } from '../../utils/logger';
+import { savedPhotoForUrl, rememberPhotoUrl } from '../../utils/offlinePhoto';
 
 /**
  * UserAvatar - shows a person's real profile photo if one has been set.
@@ -32,7 +33,22 @@ export default function UserAvatar({
   // URL failed and draw the initials/icon instead of an empty circle. Keyed
   // on the URL itself, so a refreshed link gets a fresh try with no reset.
   const [failedUrl, setFailedUrl] = useState(null);
-  const showImage = !!photoUrl && failedUrl !== photoUrl;
+  // The copy saved on the phone the first time this photo loaded. Used
+  // whenever it exists: it never expires and works offline.
+  const [saved, setSaved] = useState({ url: null, file: null });
+  useEffect(() => {
+    let active = true;
+    if (!photoUrl) return undefined;
+    savedPhotoForUrl(photoUrl).then((file) => {
+      if (active) setSaved({ url: photoUrl, file });
+    });
+    return () => {
+      active = false;
+    };
+  }, [photoUrl]);
+  const savedFile = saved.url === photoUrl ? saved.file : null;
+  const imageUri = savedFile || photoUrl;
+  const showImage = !!photoUrl && (!!savedFile || failedUrl !== photoUrl);
 
   return (
     <View
@@ -44,9 +60,12 @@ export default function UserAvatar({
     >
       {showImage ? (
         <Image
-          source={{ uri: photoUrl }}
+          source={{ uri: imageUri }}
           style={styles.image}
           resizeMode="cover"
+          onLoad={() => {
+            if (!savedFile) rememberPhotoUrl(photoUrl);
+          }}
           onError={(event) => {
             // Logs the reason only, never the URL (it carries a signed token).
             debugLog('warn', 'UserAvatar', 'Profile photo failed to load', {

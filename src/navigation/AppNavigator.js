@@ -1,7 +1,10 @@
 // src/navigation/AppNavigator.js
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Alert } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { debugLog, setCurrentScreen } from '../utils/logger';
+import { supabase } from '../services/supabaseClient';
+import authService from '../services/authService';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import ManagerActivationScreen from '../screens/auth/ManagerActivationScreen';
@@ -79,6 +82,24 @@ const trackCurrentScreen = () => {
 };
 
 export default function AppNavigator({ initialRouteName = 'Login' }) {
+  // The server ended the manager's login while the app was open (only when
+  // it refuses the saved login — never just for being offline): go to Login
+  // with a short reason instead of leaving screens that can't load.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_OUT') return;
+      // Run outside the supabase-js callback (it must not await other auth calls).
+      setTimeout(async () => {
+        if (!(await authService.endedByServer())) return;
+        const routeName = navigationRef.isReady() ? navigationRef.getCurrentRoute()?.name : null;
+        if (!routeName || routeName === 'Login' || routeName === 'ManagerActivation') return;
+        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+        Alert.alert('Please Log In Again', 'Your login has expired. Log in again to continue.');
+      }, 0);
+    });
+    return () => data?.subscription?.unsubscribe();
+  }, []);
+
   return (
     <NavigationContainer ref={navigationRef} onReady={trackCurrentScreen} onStateChange={trackCurrentScreen}>
       <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRouteName}>
