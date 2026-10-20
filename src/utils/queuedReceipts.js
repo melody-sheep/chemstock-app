@@ -2,7 +2,7 @@
 // Stock received while offline sits in the outbox until it syncs. These
 // helpers let screens treat it as already received on this phone: shown in
 // the backpack, the delivery marked confirmed, and not receivable twice.
-import outboxService from '../services/outboxService';
+import outboxService, { ownerOf } from '../services/outboxService';
 
 const RECEIPT_TYPES = ['receive_stock', 'confirm_delivery_handoff'];
 // An issue report saved offline also settles the delivery on this phone.
@@ -37,7 +37,7 @@ export function findQueuedReceipt({ transactionId, qrCode } = {}, agentId, entri
       (e) =>
         HANDLED_TYPES.includes(e.type) &&
         !e.failed &&
-        e.payload?.agentId === agentId &&
+        ownerOf(e) === agentId &&
         identifiersOf(e).some((id) => wanted.includes(id))
     ) || null
   );

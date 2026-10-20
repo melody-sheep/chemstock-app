@@ -17,6 +17,7 @@ import storage from '../utils/storage';
 import { getConnectionStatus, subscribeConnectionStatus } from './connectionStatus';
 import { debugLog } from '../utils/logger';
 import { invalidateSavedData } from '../utils/dataVersion';
+import authService from './authService';
 import reportService from './reportService';
 import inventoryService from './inventoryService';
 import requestService from './requestService';
@@ -34,6 +35,19 @@ let intervalHandle = null;
 const listeners = new Set();
 
 const notify = () => listeners.forEach((listener) => listener());
+
+// Every queued item belongs to the account that made it. One phone can be
+// shared (e.g. two Sales Reps), so an item is only ever sent while its own
+// account is logged in — never under someone else's login, or nobody's.
+// Items from older builds have no ownerId; the payload's agentId says whose they are.
+export const ownerOf = (entry) => entry?.ownerId ?? entry?.payload?.agentId ?? null;
+
+export async function currentUserId() {
+  const peeked = authService.peekCurrentUserId();
+  if (peeked) return peeked;
+  const savedUser = await authService.getSavedUser();
+  return savedUser?.id ?? null;
+}
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -259,6 +273,7 @@ export async function enqueue(type, payload, photoUri = null, display = null) {
   const entry = {
     id,
     type,
+    ownerId: payload?.agentId ?? (await currentUserId()),
     payload,
     display,
     localPhotoUri,
@@ -333,6 +348,9 @@ export async function flush({ force = false } = {}) {
   if (flushing) return;
   await ensureLoaded();
   if (entries.length === 0 || !getConnectionStatus().online) return;
+  // Nobody logged in: nothing is sent until its owner logs back in.
+  const me = await currentUserId();
+  if (!me) return;
 
   flushing = true;
   try {
@@ -348,6 +366,9 @@ export async function flush({ force = false } = {}) {
       // A failed item waits for the user (Retry or Discard) and holds nothing back.
       if (queued.failed && !force) continue;
       if (heldTypes.has(queued.type)) continue;
+      // Another account's item waits on the phone for that account's next login.
+      const owner = ownerOf(queued);
+      if (owner && owner !== me) continue;
 
       const executor = EXECUTORS[queued.type];
       if (!executor) {

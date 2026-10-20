@@ -1,6 +1,7 @@
 // src/hooks/useOutbox.js
 import { useSyncExternalStore, useCallback, useMemo } from 'react';
-import outboxService from '../services/outboxService';
+import outboxService, { ownerOf } from '../services/outboxService';
+import authService from '../services/authService';
 
 /**
  * Live view of the offline outbox, optionally filtered to one entry type.
@@ -9,18 +10,16 @@ import outboxService from '../services/outboxService';
  * @param {string|null} type - e.g. 'daily_report'. Omit for every entry.
  * @param {string|null} [agentId] - only this account's entries (one phone can
  *   hold several accounts' items). null while the account is loading = none.
- *   Omit for every account.
+ *   Omit for the logged-in account.
  * @returns {{ pending: Array, pendingCount: number, failed: Array, retryNow: Function, discard: Function }}
  */
 export default function useOutbox(type = null, agentId) {
   const entries = useSyncExternalStore(outboxService.subscribeOutbox, outboxService.getEntries);
 
+  const owner = agentId === undefined ? authService.peekCurrentUserId() : agentId;
   const ofType = useMemo(
-    () =>
-      entries.filter(
-        (e) => (!type || e.type === type) && (agentId === undefined || (agentId && e.payload?.agentId === agentId))
-      ),
-    [entries, type, agentId]
+    () => entries.filter((e) => (!type || e.type === type) && owner && ownerOf(e) === owner),
+    [entries, type, owner]
   );
   const pending = useMemo(() => ofType.filter((e) => !e.failed), [ofType]);
   const failed = useMemo(() => ofType.filter((e) => e.failed), [ofType]);
