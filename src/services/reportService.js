@@ -1,6 +1,8 @@
 // src/services/reportService.js
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
+import { rpcOnce } from './rpcOnce';
+import { clientIdFor } from '../utils/idempotency';
 import { debugLog } from '../utils/logger';
 // /legacy: same reason as inventoryService — the new default File/Paths
 // API needs a native module Expo Go doesn't ship yet.
@@ -116,25 +118,42 @@ class ReportService extends BaseService {
    * 2026-10-10_submit_daily_report_multi_branch.sql), same as
    * getMySrReportStatus's items, so the two always agree.
    */
-  async submitDailyReport({ agentId, latitude, longitude, deviceModel, deviceOs, storagePath, items }) {
+  async submitDailyReport({ agentId, latitude, longitude, deviceModel, deviceOs, storagePath, items, clientId, reportDate }) {
     debugLog('info', 'ReportService', 'Submitting daily report', { agentId, itemCount: items?.length });
 
     try {
       this.validateRequired(['agentId', 'storagePath'], { agentId, storagePath });
 
-      const { data, error } = await supabase.rpc('submit_daily_report', {
-        p_agent_id: agentId,
-        p_latitude: latitude ?? null,
-        p_longitude: longitude ?? null,
-        p_device_model: deviceModel ?? null,
-        p_device_os: deviceOs ?? null,
-        p_storage_path: storagePath,
-        p_items: (items || []).map((item) => ({
-          product_code: item.productCode,
-          sold_quantity: item.soldQuantity,
-          return_quantity: item.returnQuantity,
-        })),
-      });
+      const rpcItems = (items || []).map((item) => ({
+        product_code: item.productCode,
+        sold_quantity: item.soldQuantity,
+        return_quantity: item.returnQuantity,
+      }));
+      const { data, error } = await rpcOnce(
+        'submit_daily_report_once',
+        {
+          p_client_id: clientId || clientIdFor('daily_report', { agentId, latitude, longitude, deviceModel, deviceOs, items }),
+          p_agent_id: agentId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+          p_storage_path: storagePath,
+          p_items: rpcItems,
+          // The day a queued report was saved on the phone (null = today).
+          p_report_date: reportDate ?? null,
+        },
+        'submit_daily_report',
+        {
+          p_agent_id: agentId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+          p_storage_path: storagePath,
+          p_items: rpcItems,
+        }
+      );
 
       if (error) {
         console.error('[ERROR] [ReportService] submit_daily_report RPC error:', error);
@@ -152,21 +171,35 @@ class ReportService extends BaseService {
    * Submits a "resolve discrepancy / return stock" request for one report
    * item. No QR — photo proof only.
    */
-  async requestDiscrepancyResolution({ agentId, reportItemId, latitude, longitude, storagePath, deviceModel, deviceOs }) {
+  async requestDiscrepancyResolution({ agentId, reportItemId, latitude, longitude, storagePath, deviceModel, deviceOs, clientId }) {
     debugLog('info', 'ReportService', 'Requesting discrepancy resolution', { agentId, reportItemId });
 
     try {
       this.validateRequired(['agentId', 'reportItemId', 'storagePath'], { agentId, reportItemId, storagePath });
 
-      const { data, error } = await supabase.rpc('request_discrepancy_resolution', {
-        p_agent_id: agentId,
-        p_report_item_id: reportItemId,
-        p_latitude: latitude ?? null,
-        p_longitude: longitude ?? null,
-        p_storage_path: storagePath,
-        p_device_model: deviceModel ?? null,
-        p_device_os: deviceOs ?? null,
-      });
+      const { data, error } = await rpcOnce(
+        'request_discrepancy_resolution_once',
+        {
+          p_client_id: clientId || clientIdFor('discrepancy_resolution', { agentId, reportItemId, latitude, longitude, deviceModel, deviceOs }),
+          p_agent_id: agentId,
+          p_report_item_id: reportItemId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_storage_path: storagePath,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+        },
+        'request_discrepancy_resolution',
+        {
+          p_agent_id: agentId,
+          p_report_item_id: reportItemId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_storage_path: storagePath,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+        }
+      );
 
       if (error) {
         console.error('[ERROR] [ReportService] request_discrepancy_resolution RPC error:', error);

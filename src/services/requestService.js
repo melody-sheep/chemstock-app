@@ -1,6 +1,8 @@
 // src/services/requestService.js
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
+import { rpcOnce } from './rpcOnce';
+import { clientIdFor } from '../utils/idempotency';
 import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
 import { getConnectionStatus } from './connectionStatus';
@@ -18,7 +20,7 @@ class RequestService extends BaseService {
    * auth.uid()-is-always-null caveat as every other agent action (see
    * inventoryService.getTransactionByQrCodeForAgent for the full reasoning).
    */
-  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items, branchId }) {
+  async submitStockRequest({ agentId, latitude, longitude, deviceModel, deviceOs, items, branchId, clientId }) {
     debugLog('info', 'RequestService', 'Submitting stock request', { agentId, itemCount: items?.length, branchId });
 
     try {
@@ -29,19 +31,34 @@ class RequestService extends BaseService {
       // agent. See 2026-10-08c_submit_stock_request_multi_branch.sql —
       // the earlier "always single-branch" assumption here was wrong,
       // confirmed by a real multi-branch Sales Rep hitting this on device.
-      const { data, error } = await supabase.rpc('submit_stock_request', {
-        p_agent_id: agentId,
-        p_latitude: latitude ?? null,
-        p_longitude: longitude ?? null,
-        p_device_model: deviceModel ?? null,
-        p_device_os: deviceOs ?? null,
-        p_items: (items || []).map((item) => ({
-          product_code: item.productCode,
-          product_name: item.productName,
-          quantity: item.quantity,
-        })),
-        p_branch_id: branchId ?? null,
-      });
+      const rpcItems = (items || []).map((item) => ({
+        product_code: item.productCode,
+        product_name: item.productName,
+        quantity: item.quantity,
+      }));
+      const { data, error } = await rpcOnce(
+        'submit_stock_request_once',
+        {
+          p_client_id: clientId || clientIdFor('stock_request', { agentId, latitude, longitude, deviceModel, deviceOs, items, branchId }),
+          p_agent_id: agentId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+          p_items: rpcItems,
+          p_branch_id: branchId ?? null,
+        },
+        'submit_stock_request',
+        {
+          p_agent_id: agentId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_device_model: deviceModel ?? null,
+          p_device_os: deviceOs ?? null,
+          p_items: rpcItems,
+          p_branch_id: branchId ?? null,
+        }
+      );
 
       if (error) {
         console.error('[ERROR] [RequestService] submit_stock_request RPC error:', error);

@@ -1,6 +1,8 @@
 // src/services/deliveryService.js
 import { BaseService } from './BaseService';
 import { supabase } from './supabaseClient';
+import { rpcOnce } from './rpcOnce';
+import { clientIdFor } from '../utils/idempotency';
 import { debugLog } from '../utils/logger';
 import { resolveProfilePhotoUrls } from '../utils/profilePhoto';
 import storage from '../utils/storage';
@@ -131,23 +133,36 @@ class DeliveryService extends BaseService {
    * Logs an event-triggered location checkpoint (Shopee-style, not live
    * GPS) — fans out to every still-in-transit leg of the trip server-side.
    */
-  async logDeliveryCheckpoint({ agentId, tripId, latitude, longitude, label, capturedAt }) {
+  async logDeliveryCheckpoint({ agentId, tripId, latitude, longitude, label, capturedAt, clientId }) {
     debugLog('info', 'DeliveryService', 'Logging delivery checkpoint', { agentId, tripId, label });
 
     try {
       this.validateRequired(['agentId', 'tripId', 'label'], { agentId, tripId, label });
 
-      const { data, error } = await supabase.rpc('log_delivery_checkpoint', {
-        p_agent_id: agentId,
-        p_trip_id: tripId,
-        p_latitude: latitude ?? null,
-        p_longitude: longitude ?? null,
-        p_label: label,
-        // The device's own capture time, not when the RPC happens to run —
-        // matters once this can be queued offline and sent later. Falls
-        // back to the server's now() if omitted (2026-10-08 migration).
-        p_captured_at: capturedAt ?? null,
-      });
+      const { data, error } = await rpcOnce(
+        'log_delivery_checkpoint_once',
+        {
+          p_client_id: clientId || clientIdFor('delivery_checkpoint', { agentId, tripId, latitude, longitude, label, capturedAt }),
+          p_agent_id: agentId,
+          p_trip_id: tripId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_label: label,
+          // The device's own capture time, not when the RPC happens to run —
+          // matters once this can be queued offline and sent later. Falls
+          // back to the server's now() if omitted (2026-10-08 migration).
+          p_captured_at: capturedAt ?? null,
+        },
+        'log_delivery_checkpoint',
+        {
+          p_agent_id: agentId,
+          p_trip_id: tripId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_label: label,
+          p_captured_at: capturedAt ?? null,
+        }
+      );
 
       if (error) {
         console.error('[ERROR] [DeliveryService] log_delivery_checkpoint RPC error:', error);
@@ -165,19 +180,33 @@ class DeliveryService extends BaseService {
    * Finishes one delivery leg. Returns tripCompleted so the caller knows
    * whether to return to the dashboard or stay on the map for other stops.
    */
-  async finishDeliveryLeg({ agentId, transactionId, latitude, longitude, label }) {
+  async finishDeliveryLeg({ agentId, transactionId, latitude, longitude, label, clientId, deliveredAt }) {
     debugLog('info', 'DeliveryService', 'Finishing delivery leg', { agentId, transactionId });
 
     try {
       this.validateRequired(['agentId', 'transactionId'], { agentId, transactionId });
 
-      const { data, error } = await supabase.rpc('finish_delivery_leg', {
-        p_agent_id: agentId,
-        p_transaction_id: transactionId,
-        p_latitude: latitude ?? null,
-        p_longitude: longitude ?? null,
-        p_label: label ?? null,
-      });
+      const { data, error } = await rpcOnce(
+        'finish_delivery_leg_once',
+        {
+          p_client_id: clientId || clientIdFor('finish_delivery_leg', { agentId, transactionId, latitude, longitude, label }),
+          p_agent_id: agentId,
+          p_transaction_id: transactionId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_label: label ?? null,
+          // The time the Collector tapped it (a queued one is sent later).
+          p_delivered_at: deliveredAt ?? null,
+        },
+        'finish_delivery_leg',
+        {
+          p_agent_id: agentId,
+          p_transaction_id: transactionId,
+          p_latitude: latitude ?? null,
+          p_longitude: longitude ?? null,
+          p_label: label ?? null,
+        }
+      );
 
       if (error) {
         console.error('[ERROR] [DeliveryService] finish_delivery_leg RPC error:', error);
