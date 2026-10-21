@@ -1,6 +1,6 @@
 // src/components/common/QRSuccessView.js
 import React, { useRef } from 'react';
-import { View, Text, ScrollView, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Dimensions, StyleSheet } from 'react-native';
 import { BlurTargetView } from 'expo-blur';
 import Alert from '../../utils/appAlert';
 import PropTypes from 'prop-types';
@@ -18,7 +18,19 @@ import friendlyError from '../../utils/friendlyError';
 // a scroll. `hideQr` drops the QR code and Share button entirely (just the receipt + a full-width
 // Done) — used where a role should see batch details without being able to pull up/share the
 // batch's QR code.
-export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDone, hideQr = false }) {
+export default function QRSuccessView({
+  title,
+  subtitle,
+  qrValue,
+  receipt,
+  onDone,
+  hideQr = false,
+  // Optional: show this picture where the success tick goes (e.g. viewing an existing batch),
+  // and name the last button something other than "Done".
+  headerImage = null,
+  doneLabel = 'Done',
+  doneIcon = 'checkmark',
+}) {
   const qrRef = useRef(null);
   const blurTarget = useRef(null);
   const bottomActionBarHeight = useBottomActionBarHeight();
@@ -40,7 +52,13 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
           contentContainerStyle={[styles.screen, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
         >
-          <Icon name="successCircle" size={48} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
+          {headerImage ? (
+            <View style={styles.headerImageWrap}>
+              <Image source={headerImage} style={styles.headerImage} resizeMode="contain" />
+            </View>
+          ) : (
+            <Icon name="successCircle" size={48} color={COLORS.success} duotoneColor={COLORS.success + '15'} weight="duotone" />
+          )}
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
 
@@ -77,9 +95,9 @@ export default function QRSuccessView({ title, subtitle, qrValue, receipt, onDon
             />
           )}
           <Button
-            title="Done"
+            title={doneLabel}
             variant="black"
-            icon="checkmark"
+            icon={doneIcon}
             iconSize={16}
             onPress={onDone}
             width={hideQr ? fullButtonWidth : halfButtonWidth}
@@ -102,6 +120,9 @@ QRSuccessView.propTypes = {
   ).isRequired,
   onDone: PropTypes.func.isRequired,
   hideQr: PropTypes.bool,
+  headerImage: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
+  doneLabel: PropTypes.string,
+  doneIcon: PropTypes.string,
 };
 
 const styles = StyleSheet.create({
@@ -137,6 +158,18 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
+  headerImageWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 6,
+  },
+  headerImage: { width: '100%', height: '100%' },
   qrCard: {
     marginBottom: SPACING.xs,
     paddingHorizontal: SPACING.md,

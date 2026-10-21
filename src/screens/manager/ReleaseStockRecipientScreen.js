@@ -136,6 +136,12 @@ export default function ReleaseStockRecipientScreen() {
 
   const prefillBranchName = branches.find((b) => b.id === prefillRequest?.branchId)?.name;
 
+  // Fulfilling a request: the stock can only go to the rep who asked (the server checks this too), so
+  // every other rep in that slot is shown greyed out and can't be picked. If the requester isn't in the
+  // list at all, nothing is locked (so the screen can never get stuck).
+  const requesterId = prefillRequest?.requestedBy?.id || null;
+  const isLockedOut = (agent, list) => !!requesterId && agent.id !== requesterId && list.some((a) => a.id === requesterId);
+
   const prefillAgent = prefillRequest
     ? agents.find((a) => a.id === prefillRequest.requestedBy.id) || null
     : null;
@@ -248,6 +254,8 @@ export default function ReleaseStockRecipientScreen() {
               <Text style={styles.prefillBannerText}>
                 Fulfilling stock request from {prefillRequest.requestedBy.fullName}
                 {prefillBranchName ? ` · ${prefillBranchName}` : ''}
+                {'\n'}
+                <Text style={styles.prefillBannerSub}>The stock goes to {prefillRequest.requestedBy.fullName}, so other reps are locked.</Text>
               </Text>
             </View>
           )}
@@ -312,14 +320,17 @@ export default function ReleaseStockRecipientScreen() {
               label={`${activeRole === ROLES.COLLECTOR ? 'Collectors' : 'Sales Reps'} (${visibleAgents.length})`}
               style={styles.labelAfterSearch}
             />
-            <ScrollView ref={agentScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.agentScroll} contentContainerStyle={styles.agentRow}>
+            <ScrollView key={activeRole} ref={agentScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.agentScroll} contentContainerStyle={styles.agentRow}>
               {visibleAgents.map((agent) => {
                 const isSelected = selectedAgent?.id === agent.id;
+                const locked = activeRole === ROLES.SALES_REP && isLockedOut(agent, visibleAgents);
                 return (
                   <TouchableOpacity
                     key={agent.id}
-                    style={[styles.agentCard, isSelected && styles.agentCardSelected]}
-                    onPress={() => setSelectedAgent(agent)}
+                    style={[styles.agentCard, isSelected && styles.agentCardSelected, locked && styles.agentCardLocked]}
+                    onPress={() => !locked && setSelectedAgent(agent)}
+                    disabled={locked}
+                    accessibilityState={{ disabled: locked, selected: isSelected }}
                     onLayout={(event) => {
                       agentLayouts.current[agent.id] = event.nativeEvent.layout;
                     }}
@@ -354,11 +365,14 @@ export default function ReleaseStockRecipientScreen() {
                 <ScrollView ref={targetScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.agentScroll} contentContainerStyle={styles.agentRow}>
                   {targetReps.map((agent) => {
                     const isSelected = selectedTargetRep?.id === agent.id;
+                    const locked = isLockedOut(agent, targetReps);
                     return (
                       <TouchableOpacity
                         key={agent.id}
-                        style={[styles.agentCard, isSelected && styles.agentCardSelected]}
-                        onPress={() => setSelectedTargetRep(agent)}
+                        style={[styles.agentCard, isSelected && styles.agentCardSelected, locked && styles.agentCardLocked]}
+                        onPress={() => !locked && setSelectedTargetRep(agent)}
+                        disabled={locked}
+                        accessibilityState={{ disabled: locked, selected: isSelected }}
                         onLayout={(event) => {
                           targetLayouts.current[agent.id] = event.nativeEvent.layout;
                         }}
@@ -418,6 +432,8 @@ export default function ReleaseStockRecipientScreen() {
 }
 
 const styles = StyleSheet.create({
+  agentCardLocked: { opacity: 0.35 },
+  prefillBannerSub: { fontSize: 12, fontWeight: '400', color: COLORS.textSecondary },
   container: { flex: 1, backgroundColor: COLORS.background },
   titleRow: {
     flex: 1,

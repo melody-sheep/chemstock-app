@@ -80,7 +80,7 @@ function Fab({ icon, onPress }) {
       accessibilityRole="button"
     >
       <Animated.View pointerEvents="none" style={[styles.fabRipple, rippleStyle]} />
-      <Icon name={icon} size={23} color="#FFFFFF" weight="fill" />
+      <Icon name={icon} size={26} color="#FFFFFF" weight="bold" />
     </Pressable>
   );
 }
@@ -107,8 +107,9 @@ export default function BottomNavBar({
   activeTab = 'dashboard',
   onTabPress = null,
   onFabPress = null,
-  fabIcon = 'grid',
+  fabIcon = 'qrCode',
   fabLabel,
+  fabBadgeCount = 0,
   hiddenKeys = [],
 }) {
   const insets = useSafeAreaInsets();
@@ -148,6 +149,11 @@ export default function BottomNavBar({
       </View>
 
       <Fab icon={fabIcon} onPress={onFabPress} />
+      {fabBadgeCount > 0 && (
+        <View pointerEvents="none" style={styles.fabBadge}>
+          <Text style={styles.fabBadgeText}>{fabBadgeCount > 9 ? '9+' : String(fabBadgeCount)}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -158,6 +164,7 @@ BottomNavBar.propTypes = {
   onFabPress: PropTypes.func,
   fabIcon: PropTypes.string,
   fabLabel: PropTypes.string,
+  fabBadgeCount: PropTypes.number,
   hiddenKeys: PropTypes.arrayOf(PropTypes.oneOf(['dashboard', 'stock', 'reports', 'settings'])),
 };
 
@@ -210,7 +217,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    // A white ring separates it from the page and the bar, plus a normal, barely visible shadow.
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
+  fabBadge: {
+    position: 'absolute',
+    top: -FAB_SIZE / 2 - 4,
+    left: '50%',
+    marginLeft: FAB_SIZE / 2 - 16,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 5,
+    borderRadius: 11,
+    backgroundColor: COLORS.error,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabBadgeText: { fontSize: 11, color: '#FFFFFF', fontWeight: '700' },
   fabRipple: {
     position: 'absolute',
     width: FAB_SIZE,

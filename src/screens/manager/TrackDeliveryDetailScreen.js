@@ -15,9 +15,9 @@ import MapZoomControls from '../../components/common/MapZoomControls';
 import { getInitials } from '../../utils/initials';
 import { getPresence, describePresence } from '../../services/presenceService';
 import profileService from '../../services/profileService';
-import MapLegend from '../../components/common/MapLegend';
-import ConnectionPill from '../../components/common/ConnectionPill';
+import MapStatusCard from '../../components/common/MapStatusCard';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
+import RouteLegChips from '../../components/common/RouteLegChips';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 // Marker colours match the markers StaticRouteMap draws for this screen.
@@ -89,6 +89,9 @@ export default function TrackDeliveryDetailScreen() {
 
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  // Inside the sheet: a long item list and the location trail fold away so the sheet stays short.
+  const [itemsOpen, setItemsOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const [presenceById, setPresenceById] = useState({});
   const [viewingParty, setViewingParty] = useState(null);
   const [isLoadingPartyDetail, setIsLoadingPartyDetail] = useState(false);
@@ -207,10 +210,7 @@ export default function TrackDeliveryDetailScreen() {
             style={styles.zoomControls}
           />
 
-          <View style={styles.topOverlayColumn} pointerEvents="box-none">
-            <MapLegend items={MAP_LEGEND_ITEMS} />
-            <ConnectionPill />
-          </View>
+          <MapStatusCard legend={MAP_LEGEND_ITEMS} style={styles.topCard} />
 
           <Animated.View
             style={[
@@ -232,104 +232,146 @@ export default function TrackDeliveryDetailScreen() {
             </Pressable>
 
             {isDetailsOpen && (
-              <>
-                <Text style={styles.detailSubtitle}>{new Date(delivery.created_at).toLocaleString()}</Text>
+              <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.topLine}>
+                  <Text style={styles.detailSubtitle}>{new Date(delivery.created_at).toLocaleString()}</Text>
+                  <DeliveryStatusPill status={delivery.delivery_status} label={getStatusLabel(delivery)} />
+                </View>
 
-                <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionLabel}>Recipients</Text>
-                    <DeliveryStatusPill status={delivery.delivery_status} label={getStatusLabel(delivery)} />
-                  </View>
-                  <View style={styles.partiesWrap}>
-                    <Pressable
-                      style={styles.partyCard}
-                      onPress={() =>
-                        handleViewParty({
-                          agentId: delivery.received_by,
-                          name: resolvedCollectorName,
-                          role: 'collector',
-                          profilePhotoUrl: collectorPhotoUrl,
-                        })
-                      }
-                    >
-                      <UserAvatar
-                        photoUrl={collectorPhotoUrl}
-                        fallbackText={getInitials(resolvedCollectorName)}
-                        size={44}
-                        backgroundColor={ROLE_PILL_COLORS.collector.backgroundColor}
-                        fallbackTextColor={ROLE_PILL_COLORS.collector.color}
-                      />
-                      <View style={styles.partyTextWrap}>
-                        <Text style={styles.partyName} numberOfLines={1}>{resolvedCollectorName}</Text>
-                        <View style={[styles.partyRolePill, { backgroundColor: ROLE_PILL_COLORS.collector.backgroundColor }]}>
-                          <Text style={[styles.partyRoleText, { color: ROLE_PILL_COLORS.collector.color }]}>Collector</Text>
+                <View style={styles.partiesWrap}>
+                  <Pressable
+                    style={({ pressed }) => [styles.partyCard, pressed && styles.partyCardPressed]}
+                    onPress={() =>
+                      handleViewParty({
+                        agentId: delivery.received_by,
+                        name: resolvedCollectorName,
+                        role: 'collector',
+                        profilePhotoUrl: collectorPhotoUrl,
+                      })
+                    }
+                  >
+                    <UserAvatar
+                      photoUrl={collectorPhotoUrl}
+                      fallbackText={getInitials(resolvedCollectorName)}
+                      size={36}
+                      backgroundColor={ROLE_PILL_COLORS.collector.backgroundColor}
+                      fallbackTextColor={ROLE_PILL_COLORS.collector.color}
+                    />
+                    <View style={styles.partyTextWrap}>
+                      <Text style={styles.partyName} numberOfLines={1}>{resolvedCollectorName}</Text>
+                      <View style={[styles.partyRolePill, { backgroundColor: ROLE_PILL_COLORS.collector.backgroundColor }]}>
+                        <Text style={[styles.partyRoleText, { color: ROLE_PILL_COLORS.collector.color }]}>Collector</Text>
+                      </View>
+                    </View>
+                    <Icon name="arrowRight" size={16} color="#0085F9" />
+                  </Pressable>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.partyCard, pressed && styles.partyCardPressed]}
+                    onPress={() =>
+                      handleViewParty({
+                        agentId: delivery.target_recipient_id,
+                        name: resolvedTargetName,
+                        role: 'sales_rep',
+                        profilePhotoUrl: targetPhotoUrl,
+                      })
+                    }
+                  >
+                    <UserAvatar
+                      photoUrl={targetPhotoUrl}
+                      fallbackText={getInitials(resolvedTargetName)}
+                      size={36}
+                      backgroundColor={ROLE_PILL_COLORS.sales_rep.backgroundColor}
+                      fallbackTextColor={ROLE_PILL_COLORS.sales_rep.color}
+                    />
+                    <View style={styles.partyTextWrap}>
+                      <Text style={styles.partyName} numberOfLines={1}>{resolvedTargetName}</Text>
+                      <View style={[styles.partyRolePill, { backgroundColor: ROLE_PILL_COLORS.sales_rep.backgroundColor }]}>
+                        <Text style={[styles.partyRoleText, { color: ROLE_PILL_COLORS.sales_rep.color }]}>Sales Representative</Text>
+                      </View>
+                    </View>
+                    <Icon name="arrowRight" size={16} color="#0085F9" />
+                  </Pressable>
+                </View>
+
+                <RouteLegChips
+                  legs={[
+                    {
+                      from: 'Start',
+                      to: resolvedCollectorName.split(' ')[0],
+                      fromCoords: delivery.origin_gps,
+                      toCoords: getLastCheckpoint(delivery),
+                    },
+                    {
+                      from: resolvedCollectorName.split(' ')[0],
+                      to: resolvedTargetName.split(' ')[0],
+                      fromCoords: getLastCheckpoint(delivery) || delivery.origin_gps,
+                      toCoords: delivery.destination_gps,
+                    },
+                  ]}
+                />
+
+                <Pressable
+                  style={styles.foldHeader}
+                  onPress={() => setItemsOpen((value) => !value)}
+                  disabled={(delivery.transaction_details || []).length < 2}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: itemsOpen }}
+                >
+                  <Text style={styles.foldLabel}>Items ({(delivery.transaction_details || []).length})</Text>
+                  <View style={{ flex: 1 }} />
+                  {(delivery.transaction_details || []).length > 1 && (
+                    <View style={styles.foldPill}>
+                      <Text style={styles.foldPillText}>{itemsOpen ? 'Show less' : `Show all (${(delivery.transaction_details || []).length})`}</Text>
+                      <View style={{ transform: [{ rotate: itemsOpen ? '180deg' : '0deg' }] }}>
+                        <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+                      </View>
+                    </View>
+                  )}
+                </Pressable>
+                <View style={styles.itemsCard}>
+                  {(itemsOpen ? (delivery.transaction_details || []) : (delivery.transaction_details || []).slice(0, 1)).map((item, index) => {
+                    const catalogEntry = PRODUCT_CATALOG.find((p) => p.code === item.product_code);
+                    return (
+                      <View key={`${item.batch_number}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                        <View style={[styles.itemIconWrap, { backgroundColor: catalogEntry?.tint || '#EEF2FF' }]}>
+                          {catalogEntry?.image ? (
+                            <Image source={catalogEntry.image} style={styles.itemIconImage} resizeMode="contain" />
+                          ) : (
+                            <Icon name="package" size={18} color="#03045E" />
+                          )}
+                        </View>
+                        <View style={styles.itemTextWrap}>
+                          <Text style={styles.itemName} numberOfLines={1}>{item.product_name}</Text>
+                          {item.batch_number ? <Text style={styles.itemBatch} numberOfLines={1}>BN: {item.batch_number}</Text> : null}
+                        </View>
+                        <View style={styles.qtyChip}>
+                          <Text style={styles.qtyChipText}>{item.quantity} pcs</Text>
                         </View>
                       </View>
-                      <Icon name="arrowRight" size={16} color="#94a3b8" />
-                    </Pressable>
+                    );
+                  })}
+                </View>
 
-                    <Pressable
-                      style={styles.partyCard}
-                      onPress={() =>
-                        handleViewParty({
-                          agentId: delivery.target_recipient_id,
-                          name: resolvedTargetName,
-                          role: 'sales_rep',
-                          profilePhotoUrl: targetPhotoUrl,
-                        })
-                      }
-                    >
-                      <UserAvatar
-                        photoUrl={targetPhotoUrl}
-                        fallbackText={getInitials(resolvedTargetName)}
-                        size={44}
-                        backgroundColor={ROLE_PILL_COLORS.sales_rep.backgroundColor}
-                        fallbackTextColor={ROLE_PILL_COLORS.sales_rep.color}
-                      />
-                      <View style={styles.partyTextWrap}>
-                        <Text style={styles.partyName} numberOfLines={1}>{resolvedTargetName}</Text>
-                        <View style={[styles.partyRolePill, { backgroundColor: ROLE_PILL_COLORS.sales_rep.backgroundColor }]}>
-                          <Text style={[styles.partyRoleText, { color: ROLE_PILL_COLORS.sales_rep.color }]}>Sales Representative</Text>
-                        </View>
-                      </View>
-                      <Icon name="arrowRight" size={16} color="#94a3b8" />
-                    </Pressable>
-                  </View>
-
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionLabel}>Items</Text>
-                    <View style={styles.itemCountBadge}>
-                      <Text style={styles.itemCountText}>{(delivery.transaction_details || []).length}</Text>
+                <Pressable
+                  style={styles.foldHeader}
+                  onPress={() => setTimelineOpen((value) => !value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: timelineOpen }}
+                >
+                  <Text style={styles.foldLabel}>Current location</Text>
+                  <View style={{ flex: 1 }} />
+                  <View style={styles.foldPill}>
+                    <Text style={styles.foldPillText}>{timelineOpen ? 'Hide' : 'Show'}</Text>
+                    <View style={{ transform: [{ rotate: timelineOpen ? '180deg' : '0deg' }] }}>
+                      <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
                     </View>
                   </View>
-                  <View style={styles.itemsCard}>
-                    {(delivery.transaction_details || []).map((item, index) => {
-                      const catalogEntry = PRODUCT_CATALOG.find((p) => p.code === item.product_code);
-                      return (
-                        <View key={`${item.batch_number}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                          <View style={[styles.itemIconWrap, { backgroundColor: catalogEntry?.tint || '#EEF2FF' }]}>
-                            {catalogEntry?.image ? (
-                              <Image source={catalogEntry.image} style={styles.itemIconImage} resizeMode="contain" />
-                            ) : (
-                              <Icon name="package" size={18} color="#03045E" />
-                            )}
-                          </View>
-                          <View style={styles.itemTextWrap}>
-                            <Text style={styles.itemName}>{item.product_name}</Text>
-                            {item.batch_number ? <Text style={styles.itemBatch}>BN: {item.batch_number}</Text> : null}
-                          </View>
-                          <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
-                        </View>
-                      );
-                    })}
-                  </View>
+                </Pressable>
+                {timelineOpen && <DeliveryTimeline entries={getTimelineEntries(delivery)} />}
 
-                  <Text style={styles.sectionLabel}>Current Location</Text>
-                  <DeliveryTimeline entries={getTimelineEntries(delivery)} />
-
-                  <View style={{ height: SPACING.md }} />
-                </ScrollView>
-              </>
+                <View style={{ height: SPACING.xs }} />
+              </ScrollView>
             )}
           </Animated.View>
         </View>
@@ -416,13 +458,7 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapFill: { borderRadius: 0, borderWidth: 0 },
 
-  topOverlayColumn: {
-    position: 'absolute',
-    top: SPACING.md,
-    left: SPACING.md,
-    gap: SPACING.sm,
-    alignItems: 'flex-start',
-  },
+  topCard: { top: SPACING.md, left: SPACING.md },
 
   sheetHandleRow: { alignItems: "center", paddingBottom: SPACING.sm },
   sheetHandle: {
@@ -452,9 +488,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-    backgroundColor: COLORS.glassStrong,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: '#EEF2F7',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,
@@ -466,7 +502,14 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  detailContent: { gap: SPACING.md, paddingBottom: SPACING.md },
+  detailContent: { gap: SPACING.sm, paddingBottom: SPACING.sm },
+  topLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  foldHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: 2 },
+  foldLabel: { fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', color: '#4B5563', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  foldPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, backgroundColor: '#EAF4FF' },
+  foldPillText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  qtyChip: { borderRadius: 4, backgroundColor: '#0085F9', paddingHorizontal: 8, height: 24, justifyContent: 'center' },
+  qtyChipText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#FFFFFF' },
   detailScroll: { flex: 1 },
   sectionLabel: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -476,17 +519,19 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
     marginTop: SPACING.xs,
   },
-  partiesWrap: { gap: SPACING.sm, marginBottom: SPACING.sm },
+  partiesWrap: { gap: SPACING.sm },
   partyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: '#E1EEFF',
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    padding: SPACING.sm,
+    backgroundColor: '#F4F9FF',
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
   },
+  partyCardPressed: { backgroundColor: '#E3F0FF' },
   partyTextWrap: { flex: 1, gap: 4 },
   partyName: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -511,7 +556,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
-    marginBottom: SPACING.sm,
   },
   itemRow: {
     flexDirection: 'row',
@@ -523,8 +567,8 @@ const styles = StyleSheet.create({
   },
   itemRowFirst: { borderTopWidth: 0 },
   itemIconWrap: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',

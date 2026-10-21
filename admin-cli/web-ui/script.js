@@ -910,7 +910,8 @@
         managerName: form.name.trim(),
         managerEmail: form.email.trim(),
         daysValid: form.days,
-        code: form.keyMode === 'custom' ? code : '',
+        // The key shown on screen (generated or typed) is the key that gets saved.
+        code,
         acceptMedium: form.acceptMedium,
         branches: form.branches.map((b) =>
           b.isNew ? { name: b.name, city: b.city, region: b.region, address: b.address, createAnyway: Boolean(b.createAnyway) } : { id: b.id }

@@ -9,6 +9,10 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
+// A different colour for each entry, so the list is easy to tell apart at a glance.
+const TONES = ['#0085F9', '#2E9E5B', '#D98200', '#7B6FE8', '#E5484D', '#0E9AA7', '#4F5BD5'];
+const toneFor = (index) => TONES[index % TONES.length];
+
 export default function LegalInfoScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -37,7 +41,7 @@ export default function LegalInfoScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.hero}>
             <View style={styles.heroIcon}>
-              <Icon name={type === 'faq' ? 'question' : 'document'} size={28} color={COLORS.primary} weight="duotone" />
+              <Icon name={type === 'faq' ? 'question' : 'document'} size={26} color={type === 'faq' ? '#7B6FE8' : '#4F5BD5'} weight="duotone" />
             </View>
             <View style={styles.heroCopy}>
               <Text style={styles.heroTitle}>{title === 'FAQ' ? 'Help for your ChemStock workflow' : 'Rules that guide safe use'}</Text>
@@ -49,7 +53,7 @@ export default function LegalInfoScreen() {
 
           {type === 'faq' && <Text style={styles.sectionLabel}>Common questions</Text>}
           {entries.map((entry, index) => (
-            <View key={`${entry.title || 'question'}-${index}`} style={styles.card}>
+            <View key={`${entry.title || 'question'}-${index}`} style={styles.entry}>
               {type === 'faq' ? (
                 <>
                   <Pressable
@@ -58,20 +62,20 @@ export default function LegalInfoScreen() {
                     accessibilityRole="button"
                     accessibilityState={{ expanded: expandedIndex === index }}
                   >
-                    <View style={styles.entryIcon}>
-                      <Icon name={entry.icon || 'question'} size={19} color={COLORS.primary} weight="duotone" />
+                    <View style={[styles.entryIcon, { backgroundColor: toneFor(index) + '1A' }]}>
+                      <Icon name={entry.icon || 'question'} size={19} color={toneFor(index)} weight="duotone" />
                     </View>
                     <Text style={styles.question}>{entry.question}</Text>
                     <Icon name={expandedIndex === index ? 'caretDown' : 'arrowRight'} size={18} color={COLORS.textTertiary} />
                   </Pressable>
-                  {expandedIndex === index && <Text style={styles.answer}>{entry.answer}</Text>}
-                  {entry.category && <Text style={styles.category}>{entry.category}</Text>}
+                  {expandedIndex === index && <Text style={styles.answerIndented}>{entry.answer}</Text>}
+                  {entry.category && expandedIndex === index && <Text style={styles.category}>{entry.category}</Text>}
                 </>
               ) : (
                 <>
                   <View style={styles.lawHeading}>
-                    <View style={styles.entryIcon}>
-                      <Icon name={entry.icon || 'document'} size={20} color={COLORS.primary} weight="duotone" />
+                    <View style={[styles.entryIcon, { backgroundColor: toneFor(index) + '1A' }]}>
+                      <Icon name={entry.icon || 'document'} size={20} color={toneFor(index)} weight="duotone" />
                     </View>
                     <Text style={styles.sectionTitle}>{entry.title}</Text>
                   </View>
@@ -104,9 +108,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primaryLight,
-    borderRadius: 18,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
+    borderRadius: 14,
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   heroIcon: {
     width: 52,
@@ -139,13 +143,11 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     marginBottom: SPACING.sm,
   },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  // No card boxes: each entry sits on the screen, split by a thin line.
+  entry: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
   },
   questionRow: {
     flexDirection: 'row',
@@ -157,12 +159,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.primaryLight,
     marginRight: SPACING.sm,
   },
   question: {
     flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.md,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#111827',
@@ -173,8 +174,16 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
+    marginTop: 2,
+    marginBottom: SPACING.xs,
+    marginLeft: 46,
+  },
+  answerIndented: {
     marginTop: SPACING.sm,
-    marginLeft: 42,
+    marginLeft: 46,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: '#374151',
+    lineHeight: 22,
   },
   lawHeading: {
     flexDirection: 'row',

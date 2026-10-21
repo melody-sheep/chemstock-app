@@ -296,6 +296,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           disabled={isSaving || isPrinting}
           height={48}
           fontSize={compact ? 14 : 15}
+          borderRadius={24}
           style={compact ? styles.halfWidth : styles.fullWidth}
         />
         <Button
@@ -309,6 +310,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           disabled={isPrinting || isSaving}
           height={48}
           fontSize={compact ? 14 : 15}
+          borderRadius={24}
           style={compact ? styles.halfWidth : styles.fullWidth}
         />
       </View>

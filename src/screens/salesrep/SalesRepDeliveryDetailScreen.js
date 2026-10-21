@@ -1,6 +1,8 @@
 // src/screens/salesrep/SalesRepDeliveryDetailScreen.js
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Animated, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, Animated, StyleSheet } from 'react-native';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { formatDateTime } from '../../utils/formatters';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { getDeliveryParties } from '../../services/presenceService';
@@ -17,9 +19,9 @@ import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import MapLegend from '../../components/common/MapLegend';
-import ConnectionPill from '../../components/common/ConnectionPill';
+import MapStatusCard from '../../components/common/MapStatusCard';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
+import RouteLegChips from '../../components/common/RouteLegChips';
 import Button from '../../components/common/Button';
 import useOutbox from '../../hooks/useOutbox';
 import { findQueuedReceipt, queuedHandoffStatus } from '../../utils/queuedReceipts';
@@ -96,6 +98,9 @@ export default function SalesRepDeliveryDetailScreen() {
 
   const [mapWrapHeight, setMapWrapHeight] = useState(0);
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  // Inside the sheet: a long item list and the location trail fold away so the sheet stays short.
+  const [itemsOpen, setItemsOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const mapRef = useRef(null);
   const sheetAnim = useRef(new Animated.Value(1)).current;
 
@@ -170,10 +175,7 @@ export default function SalesRepDeliveryDetailScreen() {
             style={styles.zoomControls}
           />
 
-          <View style={styles.topOverlayColumn} pointerEvents="box-none">
-            <MapLegend items={MAP_LEGEND_ITEMS} />
-            <ConnectionPill />
-          </View>
+          <MapStatusCard legend={MAP_LEGEND_ITEMS} style={styles.topCard} />
 
           <Animated.View
             style={[
@@ -196,34 +198,89 @@ export default function SalesRepDeliveryDetailScreen() {
 
             {isDetailsOpen && (
               <>
-                <Text style={styles.detailSubtitle}>{new Date(delivery.createdAt).toLocaleString()}</Text>
-
                 <ScrollView style={styles.detailScroll} contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-                  <View style={styles.sectionHeaderRow}>
-                    <Text style={styles.sectionLabel}>Delivered By</Text>
+                  <View style={styles.topLine}>
+                    <Text style={styles.detailSubtitle}>{formatDateTime(new Date(delivery.createdAt))}</Text>
                     <DeliveryStatusPill status={delivery.deliveryStatus} label={getStatusLabel(delivery)} />
                   </View>
-                  <View style={styles.metaCard}>
-                    <View style={styles.metaRow}>
-                      <Icon name="person" size={16} color={COLORS.primary} />
-                      <Text style={styles.metaText}>{delivery.collectorName || 'Collector'} (Collector)</Text>
-                    </View>
+
+                  <View style={styles.byRow}>
+                    <Icon name="person" size={16} color={COLORS.primary} />
+                    <Text style={styles.byLabel}>Delivered by</Text>
+                    <Text style={styles.byName} numberOfLines={1}>{delivery.collectorName || 'Collector'} (Collector)</Text>
                   </View>
 
-                  <Text style={styles.sectionLabel}>Items</Text>
+                  <RouteLegChips
+                    legs={[
+                      {
+                        from: 'Start',
+                        to: (delivery.collectorName || 'Collector').split(' ')[0],
+                        fromCoords: delivery.originGps,
+                        toCoords: delivery.lastCheckpoint,
+                      },
+                      {
+                        from: (delivery.collectorName || 'Collector').split(' ')[0],
+                        to: 'You',
+                        fromCoords: delivery.lastCheckpoint || delivery.originGps,
+                        toCoords: delivery.destinationGps,
+                      },
+                    ]}
+                  />
+
+                  <Pressable
+                    style={styles.foldHeader}
+                    onPress={() => setItemsOpen((value) => !value)}
+                    disabled={(delivery.items || []).length < 2}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: itemsOpen }}
+                  >
+                    <Text style={styles.foldLabel}>Items ({(delivery.items || []).length})</Text>
+                    <View style={{ flex: 1 }} />
+                    {(delivery.items || []).length > 1 && (
+                      <View style={styles.foldPill}>
+                        <Text style={styles.foldPillText}>{itemsOpen ? 'Show less' : `Show all (${(delivery.items || []).length})`}</Text>
+                        <View style={{ transform: [{ rotate: itemsOpen ? '180deg' : '0deg' }] }}>
+                          <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+                        </View>
+                      </View>
+                    )}
+                  </Pressable>
                   <View style={styles.itemsCard}>
-                    {(delivery.items || []).map((item, index) => (
+                    {(itemsOpen ? delivery.items || [] : (delivery.items || []).slice(0, 1)).map((item, index) => (
                       <View key={`${item.productCode}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                        <Text style={styles.itemName}>{item.productName}</Text>
-                        <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
+                        <View style={styles.itemLeft}>
+                          <View style={styles.itemThumb}>
+                            {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
+                              <Image source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image} style={styles.itemImage} resizeMode="contain" />
+                            ) : null}
+                          </View>
+                          <Text style={styles.itemName} numberOfLines={1}>{item.productName}</Text>
+                        </View>
+                        <View style={styles.qtyChip}>
+                          <Text style={styles.qtyChipText}>{item.quantity} pcs</Text>
+                        </View>
                       </View>
                     ))}
                   </View>
 
-                  <Text style={styles.sectionLabel}>Current Location</Text>
-                  <DeliveryTimeline entries={getTimelineEntries(delivery)} />
+                  <Pressable
+                    style={styles.foldHeader}
+                    onPress={() => setTimelineOpen((value) => !value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: timelineOpen }}
+                  >
+                    <Text style={styles.foldLabel}>Current location</Text>
+                    <View style={{ flex: 1 }} />
+                    <View style={styles.foldPill}>
+                      <Text style={styles.foldPillText}>{timelineOpen ? 'Hide' : 'Show'}</Text>
+                      <View style={{ transform: [{ rotate: timelineOpen ? '180deg' : '0deg' }] }}>
+                        <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+                      </View>
+                    </View>
+                  </Pressable>
+                  {timelineOpen && <DeliveryTimeline entries={getTimelineEntries(delivery)} />}
 
-                  <View style={{ height: SPACING.md }} />
+                  <View style={{ height: SPACING.xs }} />
                 </ScrollView>
                 {canReceive && (
                   <Button
@@ -255,13 +312,7 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapFill: { borderRadius: 0, borderWidth: 0 },
 
-  topOverlayColumn: {
-    position: 'absolute',
-    top: SPACING.md,
-    left: SPACING.md,
-    gap: SPACING.sm,
-    alignItems: 'flex-start',
-  },
+  topCard: { top: SPACING.md, left: SPACING.md },
 
   sheetHandleRow: { alignItems: "center", paddingBottom: SPACING.sm },
   sheetHandle: {
@@ -282,7 +333,7 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    marginBottom: 0,
   },
   zoomControls: { position: 'absolute', top: SPACING.md, right: SPACING.md },
   bottomSheet: {
@@ -291,9 +342,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-    backgroundColor: COLORS.glassStrong,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: '#EEF2F7',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,
@@ -305,13 +356,23 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
-  detailContent: { gap: SPACING.md, paddingBottom: SPACING.md },
+  detailContent: { gap: SPACING.sm, paddingBottom: SPACING.sm },
+  topLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  byRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#E1EEFF', borderRadius: 12, backgroundColor: '#F4F9FF' },
+  byLabel: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  byName: { flex: 1, fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  foldHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: 2 },
+  foldLabel: { fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase', color: '#4B5563', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  foldPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, backgroundColor: '#EAF4FF' },
+  foldPillText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   detailScroll: { flex: 1 },
   sectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#272632',
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: '#4B5563',
     marginBottom: SPACING.xs,
     marginTop: SPACING.xs,
   },
@@ -340,10 +401,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: SPACING.sm,
   },
+  itemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  itemThumb: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 3, backgroundColor: '#FFFFFF' },
+  itemImage: { width: '100%', height: '100%' },
+  qtyChip: { borderRadius: 2, backgroundColor: '#0085F9', paddingHorizontal: 8, height: 24, justifyContent: 'center' },
+  qtyChipText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#FFFFFF' },
   itemRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.sm,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },

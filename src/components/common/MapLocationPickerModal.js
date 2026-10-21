@@ -1,6 +1,6 @@
 // src/components/common/MapLocationPickerModal.js
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, TextInput, ScrollView, Keyboard } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, Pressable, TextInput, ScrollView, Keyboard } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import PropTypes from 'prop-types';
 import Icon, { ICONS } from './Icon';
 import Button from './Button';
+import UserAvatar from './UserAvatar';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -18,6 +19,7 @@ import { getInitials } from '../../utils/initials';
 import { debugLog } from '../../utils/logger';
 import { SAVED_PLACES } from '../../constants/savedPlaces';
 import { getRecentPlaces, rememberPlace, searchPlacesOnline } from '../../utils/placeSearch';
+import { LEAFLET_JS, LEAFLET_CSS } from '../../vendor/leafletBundle';
 
 // Wait this long after the last drag/tap before looking up the address, so a
 // drag doesn't trigger a lookup on every frame.
@@ -32,7 +34,7 @@ const FAR_PIN_WARNING_METERS = 200;
 const AT_RECIPIENT_METERS = 50;
 const NEAR_PIN_METERS = 500;
 const MID_PIN_METERS = 5000;
-const TIER_GREEN = '#2E9E5B';
+const TIER_GREEN = '#0085F9'; // the nearest tier is blue now
 const TIER_ORANGE = '#F59E0B';
 const TIER_RED = '#E63946';
 
@@ -43,18 +45,12 @@ const SEARCH_MIN_ONLINE_LENGTH = 3;
 const MAX_SEARCH_RESULTS = 8;
 
 // Floating panel heights and the zoom column's position below the search bar.
-const SEARCH_BAR_HEIGHT = 48;
-const CONTROLS_OFFSET = 160;
+const SEARCH_BAR_HEIGHT = 40;
 
 // Cagayan de Oro city center — only used when neither an origin point nor a
 // previously-picked point is available to center the map on.
 const FALLBACK_CENTER = { latitude: 8.4542, longitude: 124.6319 };
 
-// Space the floating header takes at the top, so the zoom column sits below it.
-const HEADER_OFFSET = 96;
-// Space the glass footer takes at the bottom. Leaves the OpenStreetMap
-// attribution (required by its licence) visible under the footer.
-const FOOTER_OFFSET = 28;
 
 // No react-native-maps here on purpose — it pulls in the Google Maps Android
 // SDK, which needs a billed API key to avoid crashing once the app is built
@@ -75,7 +71,7 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>${LEAFLET_CSS}</style>
   <style>
     html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: 0; }
     .me-marker { position: relative; width: 56px; height: 56px; }
@@ -122,11 +118,11 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
 </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>${LEAFLET_JS}</script>
   <script>
     var initial = ${initialJson};
     var PIN_PATH = ${JSON.stringify(ICONS.mapPinFill.svg)};
-    var map = L.map('map', { zoomControl: false }).setView([${center.latitude}, ${center.longitude}], 15);
+    var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19,
@@ -159,6 +155,7 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
     // Called from React Native (injectJavaScript) whenever the GPS fix or the
     // profile photo changes.
     window.setOrigin = function (data) {
+      var firstFix = !originLatLng;
       originLatLng = [data.lat, data.lng];
       var icon = originIcon(data.photoUrl, data.initials);
       if (originMarker) {
@@ -171,6 +168,9 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
         hasCentered = true;
       }
       drawTrail();
+      // The team was drawn before we knew where the manager is: redo it so nobody hides under the manager's marker.
+      if (firstFix && lastTeam) window.setTeam(lastTeam);
+      fitChain();
     };
 
     // Zoom and recenter buttons are drawn in React Native, so they call in here.
@@ -225,27 +225,58 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
           + '<path d="M1 1 L13 7 L1 13 L4.5 7 Z" fill="' + color + '" stroke="#FFFFFF" stroke-width="1.2" stroke-linejoin="round" paint-order="stroke"/></svg>',
       });
     }
-    function drawTrail() {
-      trailLayer.clearLayers();
-      if (!originLatLng || !destinationMarker) return;
-      var to = destinationMarker.getLatLng();
-      var a = map.latLngToContainerPoint(originLatLng);
-      var b = map.latLngToContainerPoint(to);
+    // One run of arrowheads between two points; its colour shows how long that leg is.
+    function drawLeg(fromLL, toLL, dragging, startGap, endGap) {
+      var a = map.latLngToContainerPoint(fromLL);
+      var b = map.latLngToContainerPoint(toLL);
       var dx = b.x - a.x, dy = b.y - a.y;
       var len = Math.sqrt(dx * dx + dy * dy);
-      var startGap = 36, endGap = 16, step = trailDragging ? 30 : 26;
+      var step = dragging ? 30 : 26;
       if (len < startGap + endGap + step * 0.5) return;
       var deg = Math.atan2(dy, dx) * 180 / Math.PI;
-      var color = trailColor(map.distance(originLatLng, to));
+      var color = trailColor(map.distance(fromLL, toLL));
       var count = Math.min(80, Math.floor((len - startGap - endGap) / step) + 1);
       for (var i = 0; i < count; i++) {
         var t = startGap + i * step;
         var p = L.point(a.x + dx / len * t, a.y + dy / len * t);
         L.marker(map.containerPointToLatLng(p), {
-          icon: trailIcon(color, deg, trailDragging), interactive: false, keyboard: false, zIndexOffset: -100,
+          icon: trailIcon(color, deg, dragging), interactive: false, keyboard: false, zIndexOffset: -100,
         }).addTo(trailLayer);
       }
     }
+    // Released via a Collector: you -> Collector stays fixed, Collector -> pin follows the pin.
+    // Direct release (or the Collector has no recorded spot): you -> pin, as before.
+    var viaLatLng = null;
+    var viaId = null;
+    var chainFitted = false;
+    function viaShown() {
+      return viaId && teamMarkers[viaId] ? teamMarkers[viaId].marker.getLatLng() : viaLatLng;
+    }
+    function drawTrail() {
+      trailLayer.clearLayers();
+      var to = destinationMarker ? destinationMarker.getLatLng() : null;
+      if (viaLatLng) {
+        var via = viaShown();
+        if (originLatLng) drawLeg(originLatLng, via, false, 36, 30);
+        if (to) drawLeg(via, to, trailDragging, 30, 16);
+        return;
+      }
+      if (originLatLng && to) drawLeg(originLatLng, to, trailDragging, 36, 16);
+    }
+    // Once, when both ends are known: frame you, the Collector and the pin together.
+    function fitChain() {
+      if (chainFitted || !originLatLng || !viaLatLng) return;
+      chainFitted = true;
+      var pts = [originLatLng, viaLatLng];
+      if (destinationMarker) pts.push(destinationMarker.getLatLng());
+      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [40, 230], paddingBottomRight: [70, 340], maxZoom: 17, animate: false });
+    }
+    window.setVia = function (v) {
+      viaLatLng = v ? [v.lat, v.lng] : null;
+      viaId = v ? v.id : null;
+      drawTrail();
+      fitChain();
+    };
     // While dragging this runs on every move, so draw at most once per frame.
     function queueTrail() {
       if (trailQueued) return;
@@ -315,35 +346,71 @@ function buildMapHtml({ initialCoords, initialLockedTo = null }) {
     };
 
     var teamLayer = L.layerGroup().addTo(map);
+    var teamMarkers = {};
+    var lastTeam = null;
+    var selectedId = null;
+
+    function memberIcon(m, state) {
+      var selected = state === 'selected';
+      var face = m.photoUrl
+        ? '<img src="' + escapeHtml(m.photoUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;" />'
+        : escapeHtml(m.initials || '');
+      var tag = !(m.isTarget || selected) ? '' : '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:' + (selected ? 12 : 6) + 'px;'
+        + 'width:max-content;max-width:180px;background:#272632;color:#fff;padding:4px 8px;border-radius:8px;text-align:center;">'
+        + '<div style="font-size:11px;font-weight:700;">' + escapeHtml(m.name) + '</div>'
+        + '<div style="font-size:10px;opacity:.8;">' + escapeHtml(m.subtitle) + '</div></div>';
+      var ring = !selected ? '' : '<div style="position:absolute;left:-10px;top:-10px;width:60px;height:60px;border-radius:30px;background:' + m.color + ';opacity:.35;animation:me-pulse 1.8s ease-out infinite;"></div>';
+      return L.divIcon({
+        className: '',
+        html: '<div style="position:relative;width:40px;height:40px;opacity:' + (state === 'dim' ? 0.5 : 1) + ';">' + ring + tag
+          + '<div style="position:relative;width:40px;height:40px;border-radius:20px;border:' + (selected ? 4 : 3) + 'px solid ' + m.color + ';background:#EEF2FF;'
+          + 'overflow:hidden;display:flex;align-items:center;justify-content:center;font:700 12px sans-serif;color:#03045E;'
+          + 'box-shadow:0 2px 4px rgba(0,0,0,.35);">' + face + '</div></div>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+    }
+
+    function refreshTeamIcons() {
+      Object.keys(teamMarkers).forEach(function (id) {
+        var t = teamMarkers[id];
+        var state = selectedId ? (id === selectedId ? 'selected' : 'dim') : 'normal';
+        t.marker.setIcon(memberIcon(t.m, state));
+        t.marker.setZIndexOffset(id === selectedId ? 1500 : (t.m.isTarget ? 500 : 0));
+      });
+    }
+
+    // Called from React Native when a card in the team sheet is tapped (null clears it): the map moves to
+    // that person and their marker gets a name tag and a pulse. The pin and its arrowheads are not touched.
+    window.focusMember = function (id) {
+      selectedId = id || null;
+      refreshTeamIcons();
+      if (!selectedId || !teamMarkers[selectedId]) return;
+      map.setView(teamMarkers[selectedId].marker.getLatLng(), Math.max(map.getZoom(), 17));
+    };
+
     window.setTeam = function (members) {
+      lastTeam = members;
       teamLayer.clearLayers();
+      teamMarkers = {};
       var seen = {};
       (members || []).forEach(function (m) {
         var key = m.lat.toFixed(4) + ',' + m.lng.toFixed(4);
         var n = seen[key] = (seen[key] || 0) + 1;
         // Same spot as someone already drawn: offset in a small circle.
         var angle = n * 1.2, step = n > 1 ? 0.00012 : 0;
-        m = Object.assign({}, m, { lat: m.lat + Math.sin(angle) * step, lng: m.lng + Math.cos(angle) * step, pinLat: m.lat, pinLng: m.lng });
-        var face = m.photoUrl
-          ? '<img src="' + escapeHtml(m.photoUrl) + '" alt="" style="width:100%;height:100%;object-fit:cover;" />'
-          : escapeHtml(m.initials || '');
-        var tag = !m.isTarget ? '' : '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:6px;'
-          + 'width:max-content;max-width:180px;background:#272632;color:#fff;padding:4px 8px;border-radius:8px;text-align:center;">'
-          + '<div style="font-size:11px;font-weight:700;">' + escapeHtml(m.name) + '</div>'
-          + '<div style="font-size:10px;opacity:.8;">' + escapeHtml(m.subtitle) + '</div></div>';
-        var icon = L.divIcon({
-          className: '',
-          html: '<div style="position:relative;width:40px;height:40px;">' + tag
-            + '<div style="width:40px;height:40px;border-radius:20px;border:3px solid ' + m.color + ';background:#EEF2FF;'
-            + 'overflow:hidden;display:flex;align-items:center;justify-content:center;font:700 12px sans-serif;color:#03045E;'
-            + 'box-shadow:0 2px 4px rgba(0,0,0,.35);">' + face + '</div></div>',
-          iconSize: [40, 40],
-          iconAnchor: [20, 20],
-        });
-        L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: m.isTarget ? 500 : 0 }).on('click', function () {
-          placeDestination(m.pinLat, m.pinLng, m.agentId);
+        var lat = m.lat + Math.sin(angle) * step;
+        var lng = m.lng + Math.cos(angle) * step;
+        // Standing on the manager's own marker: nudge aside so both stay visible.
+        if (originLatLng && map.distance(originLatLng, [lat, lng]) < 20) lng += 0.00018;
+        var marker = L.marker([lat, lng], { icon: memberIcon(m, 'normal'), zIndexOffset: m.isTarget ? 500 : 0 }).on('click', function () {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ selected: m.agentId }));
         }).addTo(teamLayer);
+        teamMarkers[m.agentId] = { marker: marker, m: m };
       });
+      if (selectedId && !teamMarkers[selectedId]) selectedId = null;
+      refreshTeamIcons();
+      drawTrail();
     };
 
     // Everything above is defined: tell React Native it can send the manager's position and
@@ -368,6 +435,10 @@ export default function MapLocationPickerModal({
   // Opens with the pin already locked on this Sales Rep (e.g. from the
   // "Go to <SR>'s last recorded location" card on the release screen).
   initialLockedAgentId = null,
+  // When given, only these people (the picked Collector and the receiving Sales Rep) are listed and drawn.
+  featuredAgentIds = null,
+  // The Collector the stock goes through (release via Collector): the map links you -> them -> the pin.
+  viaAgentId = null,
   visible,
   onClose,
   onConfirm,
@@ -406,7 +477,7 @@ export default function MapLocationPickerModal({
   // Same green / orange / red tiers as the arrowhead trail on the map.
   let distanceTier = { color: COLORS.primary, background: COLORS.primaryLight };
   if (distanceMeters !== null) {
-    if (distanceMeters <= NEAR_PIN_METERS) distanceTier = { color: TIER_GREEN, background: '#E8F5E9' };
+    if (distanceMeters <= NEAR_PIN_METERS) distanceTier = { color: TIER_GREEN, background: '#EAF4FF' };
     else if (distanceMeters <= MID_PIN_METERS) distanceTier = { color: '#D98200', background: '#FFF3E0' };
     else distanceTier = { color: TIER_RED, background: '#FDECEA' };
   }
@@ -421,14 +492,56 @@ export default function MapLocationPickerModal({
     .filter((m) => m.role === 'sales_rep')
     .sort((a, b) => (b.agentId === targetRecipientId) - (a.agentId === targetRecipientId));
   const targetMember = salesReps.find((m) => m.agentId === targetRecipientId) || null;
+  // Everyone with a recorded spot (Sales Reps and Collectors) for the team sheet; the release's recipient first.
+  const teamList = (teamMembers || [])
+    .filter((m) => (m.role === 'sales_rep' || m.role === 'collector') && m.latitude != null && m.longitude != null)
+    .filter((m) => !featuredAgentIds || featuredAgentIds.length === 0 || featuredAgentIds.includes(m.agentId))
+    .sort(
+      (a, b) =>
+        (b.agentId === targetRecipientId) - (a.agentId === targetRecipientId) ||
+        (a.role === b.role ? 0 : a.role === 'sales_rep' ? -1 : 1) ||
+        String(a.fullName).localeCompare(String(b.fullName))
+    );
+  const viaMember = viaAgentId ? teamList.find((m) => m.agentId === viaAgentId) || null : null;
+  const viaCoords = viaMember ? { latitude: viaMember.latitude, longitude: viaMember.longitude } : null;
   const [lockedAgentId, setLockedAgentId] = useState(null);
-  const lockedMember = salesReps.find((m) => m.agentId === lockedAgentId) || null;
+  const lockedMember = teamList.find((m) => m.agentId === lockedAgentId) || null;
+  // Team sheet: collapsed by default; tapping a card only moves the map to that person.
+  const [isTeamOpen, setIsTeamOpen] = useState(false);
+  const [focusedId, setFocusedId] = useState(null);
+  const handleSelectMember = (member) => {
+    const next = focusedId === member.agentId ? null : member.agentId;
+    setFocusedId(next);
+    webViewRef.current?.injectJavaScript(`window.focusMember && window.focusMember(${JSON.stringify(next)}); true;`);
+  };
+  // The pin starts locked on the Sales Rep; adjusting it is allowed but the Manager is told what it means.
+  const handleUnlock = () => {
+    Alert.alert(
+      'Unlock the pin?',
+      `The delivery will go to the spot you choose, not to ${lockedMember?.fullName || 'the recipient'}'s last recorded location. Unlock anyway?`,
+      [
+        { text: 'Keep locked', style: 'cancel' },
+        { text: 'Unlock', onPress: () => sendMapCommand('unlock') },
+      ]
+    );
+  };
   const lockOnTarget = () => {
     if (!targetMember) return;
     webViewRef.current?.injectJavaScript(
       `window.lockOn && window.lockOn(${JSON.stringify({ lat: targetMember.latitude, lng: targetMember.longitude, id: targetMember.agentId })}); true;`
     );
   };
+
+  // Legs of the chain, shown as chips: you -> Collector, and Collector -> pin.
+  const tierFor = (meters) =>
+    meters <= NEAR_PIN_METERS
+      ? { color: TIER_GREEN, background: '#EAF4FF' }
+      : meters <= MID_PIN_METERS
+        ? { color: '#D98200', background: '#FFF3E0' }
+        : { color: TIER_RED, background: '#FDECEA' };
+  const viaFirstName = viaMember ? String(viaMember.fullName || 'Collector').split(' ')[0] : '';
+  const legToVia = viaCoords ? distanceInMeters(originCoords, viaCoords) : null;
+  const legFromVia = viaCoords && pickedCoords ? distanceInMeters(viaCoords, pickedCoords) : null;
 
   const originLat = originCoords?.latitude ?? null;
   const originLng = originCoords?.longitude ?? null;
@@ -463,7 +576,7 @@ export default function MapLocationPickerModal({
   const pushTeam = () => {
     if (!webViewRef.current) return;
     const payload = JSON.stringify(
-      salesReps.map((m) => ({
+      teamList.map((m) => ({
         agentId: m.agentId,
         isTarget: m.agentId === targetRecipientId,
         lat: m.latitude,
@@ -476,11 +589,13 @@ export default function MapLocationPickerModal({
       }))
     );
     webViewRef.current.injectJavaScript(`window.setTeam && window.setTeam(${payload}); true;`);
+    const via = viaCoords ? JSON.stringify({ lat: viaCoords.latitude, lng: viaCoords.longitude, id: viaAgentId }) : 'null';
+    webViewRef.current.injectJavaScript(`window.setVia && window.setVia(${via}); true;`);
   };
 
   useEffect(() => {
     pushTeam();
-  }, [teamMembers, targetRecipientId]);
+  }, [teamMembers, targetRecipientId, viaAgentId]);
 
   // Sends a command to the map page, e.g. sendMapCommand('flyTo', lat, lng).
   const sendMapCommand = (command, ...args) => {
@@ -497,7 +612,33 @@ export default function MapLocationPickerModal({
   const [searchMessage, setSearchMessage] = useState(null);
   // While the search box is in use the sheet and zoom buttons step aside, so the results have the room.
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  // One header holds the title and the search; it can fold the search away to give the map more room.
+  const [isHeaderOpen, setIsHeaderOpen] = useState(true);
+  const [headerHeight, setHeaderHeight] = useState(110);
+  const toggleHeader = () => {
+    if (isHeaderOpen) {
+      Keyboard.dismiss();
+      setSearchQuery('');
+    }
+    setIsHeaderOpen((open) => !open);
+  };
   const trimmedQuery = searchQuery.trim();
+  // The results panel needs a focused box with something typed.
+  const isResultsOpen = isSearchFocused && trimmedQuery.length >= SEARCH_MIN_LENGTH;
+  // While the keyboard is up the bottom sheet and zoom buttons step aside (they would ride up above the
+  // keyboard and cover the map); they return as soon as the keyboard closes, however it was closed.
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setIsKeyboardOpen(false);
+      setIsSearchFocused(false);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (trimmedQuery.length < SEARCH_MIN_LENGTH) {
@@ -587,6 +728,11 @@ export default function MapLocationPickerModal({
         pushTeam();
         return;
       }
+      if (data.selected !== undefined) {
+        const member = teamList.find((m) => m.agentId === data.selected);
+        if (member) handleSelectMember(member);
+        return;
+      }
       const { lat, lng, lockedTo } = data;
       setLockedAgentId(lockedTo || null);
       debugLog('info', 'MapPicker', 'Pin set', { lat: Number(lat.toFixed(5)), lng: Number(lng.toFixed(5)) });
@@ -599,6 +745,8 @@ export default function MapLocationPickerModal({
   const handleShow = () => {
     setPickedCoords(initialCoords || null);
     setLockedAgentId(initialLockedAgentId || null);
+    setIsTeamOpen(false);
+    setFocusedId(null);
   };
 
   const handleConfirm = () => {
@@ -671,43 +819,62 @@ export default function MapLocationPickerModal({
           originWhitelist={['*']}
         />
 
-        <View style={[styles.glass, styles.header, { top: insets.top + SPACING.sm }]}>
-          <Text style={styles.title}>Pin Delivery Destination</Text>
-          <Text style={styles.subtitle}>
-            {lockedMember
-              ? `Pinned on ${lockedMember.fullName}'s last location`
-              : 'Tap the map, or drag the pin to adjust'}
-          </Text>
-        </View>
-
-        <View style={[styles.glass, styles.searchBar, { top: insets.top + HEADER_OFFSET }]}>
-          <Icon name="search" size={18} color={COLORS.textSecondary} />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search a place"
-            placeholderTextColor={COLORS.textTertiary}
-            style={styles.searchInput}
-            returnKeyType="search"
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-            autoCorrect={false}
-            accessibilityLabel="Search for a place"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Icon name="xCircle" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+        <View
+          onLayout={(e) => setHeaderHeight(Math.round(e.nativeEvent.layout.height))}
+          style={[styles.headerSheet, { paddingTop: insets.top + SPACING.sm }]}
+        >
+          <TouchableOpacity
+            style={styles.headerRow}
+            onPress={toggleHeader}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isHeaderOpen ? 'Hide the search' : 'Show the search'}
+          >
+            <View style={styles.headerTextCol}>
+              <Text style={styles.title}>Pin Delivery Destination</Text>
+              <Text style={styles.subtitle}>
+                {lockedMember
+                  ? `Pinned on ${lockedMember.fullName}'s last location`
+                  : viaMember && targetRecipientId && !targetMember && !pickedCoords
+                    ? 'The Sales Rep has no recorded location yet. Tap the map to place the pin.'
+                    : 'Tap the map, or drag the pin to adjust'}
+              </Text>
+            </View>
+            <View style={isHeaderOpen ? styles.caretUp : null}>
+              <Icon name="caretDown" size={16} color={COLORS.primary} />
+            </View>
+          </TouchableOpacity>
+          {isHeaderOpen && (
+            <View style={styles.searchBar}>
+              <Icon name="search" size={16} color={COLORS.textSecondary} />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search a place"
+                placeholderTextColor={COLORS.textTertiary}
+                style={styles.searchInput}
+                returnKeyType="search"
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => setIsSearchFocused(false)}
+                autoCorrect={false}
+                accessibilityLabel="Search for a place"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery('')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name="xCircle" size={16} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
 
-        {isSearchFocused && trimmedQuery.length >= SEARCH_MIN_LENGTH && (
-          <View style={[styles.glass, styles.searchResults, { top: insets.top + HEADER_OFFSET + SEARCH_BAR_HEIGHT + SPACING.xs }]}>
+        {isResultsOpen && (
+          <View style={[styles.glass, styles.searchResults, { top: headerHeight + SPACING.sm }]}>
             <ScrollView style={styles.resultsScroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
             {searchResults.map((place) => (
               <TouchableOpacity
@@ -733,15 +900,15 @@ export default function MapLocationPickerModal({
           </View>
         )}
 
-        {!isSearchFocused && (
-        <View style={[styles.glass, styles.controls, { top: insets.top + CONTROLS_OFFSET }]}>
+        {!isKeyboardOpen && (
+        <View style={[styles.glass, styles.controls, { top: headerHeight + SPACING.md }]}>
           <TouchableOpacity
             style={styles.controlButton}
             onPress={() => sendMapCommand('zoomIn')}
             accessibilityRole="button"
             accessibilityLabel="Zoom in"
           >
-            <Icon name="plus" size={20} color={COLORS.textPrimary} />
+            <Icon name="plus" size={16} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <View style={styles.controlDivider} />
           <TouchableOpacity
@@ -750,7 +917,7 @@ export default function MapLocationPickerModal({
             accessibilityRole="button"
             accessibilityLabel="Zoom out"
           >
-            <Icon name="minus" size={20} color={COLORS.textPrimary} />
+            <Icon name="minus" size={16} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <View style={styles.controlDivider} />
           <TouchableOpacity
@@ -760,13 +927,14 @@ export default function MapLocationPickerModal({
             accessibilityRole="button"
             accessibilityLabel="Center on my location"
           >
-            <Icon name="navigation" size={20} color={originLat === null ? COLORS.textTertiary : COLORS.primary} />
+            <Icon name="navigation" size={16} color={originLat === null ? COLORS.textTertiary : COLORS.primary} />
           </TouchableOpacity>
         </View>
         )}
 
-        {!isSearchFocused && (
-        <View style={[styles.glass, styles.footer, { bottom: insets.bottom + FOOTER_OFFSET }]}>
+        {!isKeyboardOpen && (
+        <View style={[styles.footerSheet, { paddingBottom: insets.bottom + SPACING.md }]}>
+          <View style={styles.sheetHandle} />
           {targetMember && lockedAgentId !== targetMember.agentId && (
             <TouchableOpacity style={styles.lockButton} onPress={lockOnTarget} activeOpacity={0.8}>
               <Icon name="location" size={16} color={COLORS.primary} />
@@ -775,13 +943,63 @@ export default function MapLocationPickerModal({
               </Text>
             </TouchableOpacity>
           )}
+          {teamList.length > 0 && (
+            <View>
+              <TouchableOpacity
+                style={styles.teamHeader}
+                onPress={() => setIsTeamOpen((open) => !open)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={isTeamOpen ? 'Hide the team list' : 'Show the team list'}
+              >
+                <Text style={styles.teamTitle}>Team on the map ({teamList.length})</Text>
+                <Text style={styles.teamToggle}>{isTeamOpen ? 'Hide' : 'Show more'}</Text>
+                <View style={isTeamOpen ? styles.caretUp : null}>
+                  <Icon name="caretDown" size={14} color={COLORS.primary} />
+                </View>
+              </TouchableOpacity>
+              {isTeamOpen && (
+                <ScrollView style={styles.teamList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  {teamList.map((m) => {
+                    const meters = distanceInMeters(originCoords, { latitude: m.latitude, longitude: m.longitude });
+                    const isSelected = m.agentId === focusedId;
+                    const roleColor = m.role === 'collector' ? '#F4A825' : '#E63946';
+                    return (
+                      <Pressable
+                        key={m.agentId}
+                        style={({ pressed }) => [styles.teamRow, pressed && styles.teamRowPressed, isSelected && styles.teamRowSelected]}
+                        onPress={() => handleSelectMember(m)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Show ${m.fullName} on the map`}
+                      >
+                        <UserAvatar photoUrl={m.photoUrl} fallbackText={getInitials(m.fullName)} size={36} />
+                        <View style={styles.teamRowText}>
+                          <View style={styles.teamNameRow}>
+                            <Text style={styles.teamName} numberOfLines={1}>{m.fullName}</Text>
+                            <View style={[styles.teamRoleChip, { borderColor: roleColor }]}>
+                              <Text style={[styles.teamRoleText, { color: roleColor }]}>{m.role === 'collector' ? 'Collector' : 'Sales Rep'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.teamMeta} numberOfLines={1}>Last seen {formatCheckpointTime(m.capturedAt)}</Text>
+                          <Text style={styles.teamMeta} numberOfLines={1}>
+                            {formatCoordinates(m.latitude, m.longitude)}
+                            {meters === null ? '' : ` · ${formatDistance(meters)} from you`}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          )}
           {pickedCoords && (
             <View style={styles.insightCard}>
               <Text style={styles.addressText} numberOfLines={2}>
                 {pickedAddress || 'Finding address…'}
               </Text>
               <View style={styles.insightRow}>
-                {distanceLabel && (
+                {!viaMember && distanceLabel && (
                   <View style={[styles.distanceChip, { backgroundColor: distanceTier.background }]}>
                     <Icon name="navigation" size={14} color={distanceTier.color} />
                     <Text style={[styles.distanceText, { color: distanceTier.color }]}>{distanceLabel}</Text>
@@ -794,9 +1012,30 @@ export default function MapLocationPickerModal({
                   </Text>
                 </View>
               </View>
+              {!!viaMember && (
+                <View style={styles.legRow}>
+                  {legToVia !== null && (
+                    <View style={[styles.legChip, { backgroundColor: tierFor(legToVia).background }]}>
+                      <Text style={[styles.legName, { color: tierFor(legToVia).color }]} numberOfLines={1}>You</Text>
+                      <Icon name="arrowRight" size={13} color={tierFor(legToVia).color} weight="bold" />
+                      <Text style={[styles.legName, { color: tierFor(legToVia).color }]} numberOfLines={1}>{viaFirstName}</Text>
+                      <Text style={[styles.legDistance, { color: tierFor(legToVia).color }]}>{formatDistance(legToVia)}</Text>
+                    </View>
+                  )}
+                  {legFromVia !== null && (
+                    <View style={[styles.legChip, { backgroundColor: tierFor(legFromVia).background }]}>
+                      <Text style={[styles.legName, { color: tierFor(legFromVia).color }]} numberOfLines={1}>{viaFirstName}</Text>
+                      <Icon name="arrowRight" size={13} color={tierFor(legFromVia).color} weight="bold" />
+                      <Icon name="location" size={13} color={tierFor(legFromVia).color} />
+                      <Text style={[styles.legName, { color: tierFor(legFromVia).color }]}>Pin</Text>
+                      <Text style={[styles.legDistance, { color: tierFor(legFromVia).color }]}>{formatDistance(legFromVia)}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
               {lockedMember && (
                 <View style={styles.lockedBar}>
-                  <Icon name="lock" size={16} color={COLORS.success} weight="fill" />
+                  <Icon name="lock" size={16} color={TIER_GREEN} weight="fill" />
                   <View style={styles.lockedTextCol}>
                     <Text style={styles.lockedText} numberOfLines={1}>
                       Locked on {lockedMember.fullName}
@@ -807,12 +1046,12 @@ export default function MapLocationPickerModal({
                   </View>
                   <TouchableOpacity
                     style={styles.unlockButton}
-                    onPress={() => sendMapCommand('unlock')}
+                    onPress={handleUnlock}
                     activeOpacity={0.8}
                     accessibilityRole="button"
                     accessibilityLabel="Unlock the pin to choose another place"
                   >
-                    <Icon name="pencilSimpleLine" size={14} color={COLORS.success} />
+                    <Icon name="pencilSimpleLine" size={14} color={TIER_GREEN} />
                     <Text style={styles.unlockText}>Unlock</Text>
                   </TouchableOpacity>
                 </View>
@@ -820,30 +1059,32 @@ export default function MapLocationPickerModal({
             </View>
           )}
           <View style={styles.actionRow}>
-            <View style={styles.cancelCol}>
-              <Button
-                title="Cancel"
-                variant="outline"
-                onPress={onClose}
-                height={48}
-                fontSize={16}
-                borderRadius={24}
-                style={styles.actionButton}
-              />
-            </View>
             <View style={styles.confirmCol}>
               <Button
                 title="Confirm Location"
                 variant="black"
                 onPress={handleConfirm}
                 disabled={!pickedCoords}
-                height={48}
-                fontSize={16}
-                borderRadius={24}
+                height={40}
+                fontSize={15}
+                borderRadius={20}
+                style={styles.actionButton}
+              />
+            </View>
+            <View style={styles.cancelCol}>
+              <Button
+                title="Cancel"
+                variant="outline"
+                accentColor="#E5366B"
+                onPress={onClose}
+                height={40}
+                fontSize={15}
+                borderRadius={20}
                 style={styles.actionButton}
               />
             </View>
           </View>
+          <Text style={styles.attribution}>Map © OpenStreetMap contributors · Leaflet</Text>
         </View>
         )}
       </View>
@@ -859,6 +1100,8 @@ MapLocationPickerModal.propTypes = {
   teamMembers: PropTypes.array,
   targetRecipientId: PropTypes.string,
   initialLockedAgentId: PropTypes.string,
+  featuredAgentIds: PropTypes.arrayOf(PropTypes.string),
+  viaAgentId: PropTypes.string,
   originAvatarUrl: PropTypes.string,
   originInitials: PropTypes.string,
   initialCoords: PropTypes.shape({ latitude: PropTypes.number, longitude: PropTypes.number }),
@@ -881,29 +1124,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    marginTop: SPACING.xs,
-    padding: SPACING.sm,
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
     borderRadius: 12,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#EAF4FF',
   },
   lockedTextCol: { flex: 1 },
-  lockedText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
+  lockedText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: TIER_GREEN },
   lockedMeta: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, fontWeight: '400', color: COLORS.textSecondary },
   unlockButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 32,
+    height: 28,
     paddingHorizontal: SPACING.sm,
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.success,
+    borderColor: TIER_GREEN,
   },
-  unlockText: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.success },
-  actionRow: { flexDirection: 'row', gap: SPACING.sm },
-  cancelCol: { flex: 1 },
-  confirmCol: { flex: 2 },
+  unlockText: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: TIER_GREEN },
+  actionRow: { gap: SPACING.sm },
+  cancelCol: { width: '100%' },
+  confirmCol: { width: '100%' },
   container: { flex: 1, backgroundColor: COLORS.background },
 
   // Shared glass look for every floating panel.
@@ -920,12 +1164,25 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 
-  header: {
-    left: SPACING.md,
-    right: SPACING.md,
+  // Header attached to the top, left and right edges, like the bottom sheet at the other end.
+  headerSheet: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingBottom: SPACING.md,
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 10,
   },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  headerTextCol: { flex: 1 },
   title: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -941,14 +1198,14 @@ const styles = StyleSheet.create({
   },
 
   searchBar: {
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    left: SPACING.md,
-    right: SPACING.md,
+    marginTop: SPACING.sm,
     height: SEARCH_BAR_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
+    borderRadius: 14,
+    backgroundColor: '#F1F5FB',
   },
   searchInput: {
     flex: 1,
@@ -999,29 +1256,57 @@ const styles = StyleSheet.create({
 
   controls: {
     right: SPACING.md,
-    width: 48,
+    width: 38,
     alignItems: 'center',
-    paddingVertical: SPACING.xs,
+    paddingVertical: 2,
   },
   controlButton: {
-    width: 44,
-    height: 44,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
   controlDivider: {
-    width: 28,
+    width: 22,
     height: 1,
     backgroundColor: COLORS.glassBorder,
   },
 
-  footer: {
-    left: SPACING.md,
-    right: SPACING.md,
-    padding: SPACING.sm,
-    gap: SPACING.sm,
+  // Bottom sheet attached to the left, right and bottom edges of the screen, like the other screens' sheets.
+  footerSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 10,
   },
-  insightCard: { gap: SPACING.xs },
+  sheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#DADDE3' },
+  attribution: { textAlign: 'center', fontSize: 10, lineHeight: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textTertiary },
+  teamHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  teamTitle: { flex: 1, fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.textPrimary },
+  teamToggle: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.primary },
+  caretUp: { transform: [{ rotate: '180deg' }] },
+  teamList: { maxHeight: 170, marginTop: 4 },
+  teamRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: 8, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: '#E1EEFF', backgroundColor: '#F4F9FF' },
+  teamRowPressed: { backgroundColor: '#E3F0FF' },
+  teamRowSelected: { backgroundColor: '#D6E9FF', borderColor: '#0085F9' },
+  teamRowText: { flex: 1 },
+  teamNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  teamName: { flexShrink: 1, fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: COLORS.textPrimary },
+  teamRoleChip: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, borderWidth: 1 },
+  teamRoleText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  teamMeta: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary, marginTop: 1 },
+  insightCard: { gap: SPACING.sm },
   insightRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
   distanceChip: {
     flexDirection: 'row',
@@ -1038,6 +1323,10 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
   },
+  legRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  legChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: SPACING.sm, paddingVertical: 5, borderRadius: 12 },
+  legName: { fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600', maxWidth: 90 },
+  legDistance: { marginLeft: 4, paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.12)', fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   coordsText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -1046,7 +1335,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   addressText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,

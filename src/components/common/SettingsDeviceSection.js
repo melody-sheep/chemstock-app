@@ -111,7 +111,7 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
         accessibilityRole="button"
       >
         <View style={shared.rowLeft}>
-          <View style={shared.rowIconWrap}>
+          <View style={[shared.rowIconWrap, { backgroundColor: iconColor + '1A' }]}>
             <Icon name={icon} size={18} color={iconColor} />
           </View>
           <View style={local.textWrap}>
@@ -147,12 +147,12 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
     <View style={shared.groupCard}>
       {renderPermissionRow('location', 'location', '#F04D59', 'Location (GPS)', 'Recorded when stock is released, received or delivered.', locationStatus)}
       <View style={shared.rowDivider} />
-      {renderPermissionRow('camera', 'camera', '#03045E', 'Camera', 'For QR scanning and photo proof.', cameraStatus)}
+      {renderPermissionRow('camera', 'camera', '#0E9AA7', 'Camera', 'For QR scanning and photo proof.', cameraStatus)}
       <View style={shared.rowDivider} />
       <View style={shared.rowItem}>
         <View style={shared.rowLeft}>
-          <View style={shared.rowIconWrap}>
-            <Icon name="clock" size={18} color="#03045E" />
+          <View style={[shared.rowIconWrap, { backgroundColor: '#2E9E5B1A' }]}>
+            <Icon name="clock" size={18} color="#2E9E5B" />
           </View>
           <View style={local.textWrap}>
             <Text style={shared.rowLabel}>Saved Offline</Text>

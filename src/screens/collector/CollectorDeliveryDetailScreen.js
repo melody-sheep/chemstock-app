@@ -1,20 +1,25 @@
 // src/screens/collector/CollectorDeliveryDetailScreen.js
-import React, { useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, Linking, ActivityIndicator } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Image, ScrollView, Pressable, Modal, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import UserAvatar from '../../components/common/UserAvatar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
+import MapZoomControls from '../../components/common/MapZoomControls';
+import MapStatusCard from '../../components/common/MapStatusCard';
+import RouteLegChips from '../../components/common/RouteLegChips';
 import CustomModal from '../../components/common/Modal';
 import BrandedQRCode from '../../components/common/BrandedQRCode';
 import authService from '../../services/authService';
@@ -60,6 +65,11 @@ export default function CollectorDeliveryDetailScreen() {
   const [isVerified, setIsVerified] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [showMap, setShowMap] = useState(false);
+  const [isFullMapOpen, setIsFullMapOpen] = useState(false);
+  const fullMapRef = useRef(null);
+  const [qrOpen, setQrOpen] = useState(false);
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const [coords, setCoords] = useState(null);
   const [locationError, setLocationError] = useState(null);
@@ -158,7 +168,14 @@ export default function CollectorDeliveryDetailScreen() {
     }
   };
 
-  const handleDone = () => navigation.navigate('CollectorAcceptDeliveries');
+  // Back to the Accept Deliveries screen already in the stack (not a second copy on top of it),
+  // so one Back press from there reaches the dashboard.
+  const handleDone = () => navigation.navigate('CollectorAcceptDeliveries', { highlightId: delivery?.transactionId }, { pop: true });
+
+  // Start Trip straight from the success message: swaps this screen for the trip review, which
+  // starts the trip on its own (same start logic, same checks) and opens the map.
+  const handleStartTripNow = () =>
+    navigation.replace('CollectorTripReview', { transactionIds: [delivery.transactionId], autoStart: true });
 
   if (!delivery) {
     return (
@@ -168,113 +185,150 @@ export default function CollectorDeliveryDetailScreen() {
     );
   }
 
-  if (isAccepted) {
-    return (
-      <>
-        <StatusBar style="light" />
-        <View style={styles.screen}>
-          <Header height={56} backgroundColor="#03045E" textColor="#FFFFFF" />
-          <SubScreenSecondaryHeader title="Stock Accepted" />
-          <View style={styles.successWrap}>
-            <Icon name="checkCircle" size={48} color={COLORS.success} weight="fill" />
-            <Text style={styles.successTitle}>Stock Accepted Successfully</Text>
-            <Text style={styles.successSubtitle}>
-              {delivery.items.length} item{delivery.items.length === 1 ? '' : 's'}, {totalUnits} units are now ready
-              to deliver
-            </Text>
-            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
-          </View>
-        </View>
-      </>
-    );
-  }
-
   return (
     <>
       <StatusBar style="light" />
       <View style={styles.screen}>
-        <Header showBackButton height={56} backgroundColor="#03045E" textColor="#FFFFFF" onBackPress={handleBack} />
+        <Header showBackButton backButtonText="Accept Deliveries" height={56} backgroundColor="#03045E" textColor="#FFFFFF" onBackPress={handleBack} />
         <SubScreenSecondaryHeader title="Delivery Details" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.listTitle}>Stock Transfer Information</Text>
-          <View style={styles.routeRow}>
-            <View style={[styles.routeDot, { backgroundColor: COLORS.primary }]} />
-            <Text style={styles.routeLabel}>From</Text>
-            <Text style={styles.routeValue} numberOfLines={1}>
-              {delivery.branchName || 'Branch'}
-            </Text>
-          </View>
-          <Pressable
-            style={styles.sourceCard}
-            onPress={() =>
-              handleViewParty({
-                agentId: null,
-                name: delivery.releasedByName || 'Branch Manager',
-                role: 'manager',
-                profilePhotoUrl: delivery.releasedByPhotoUrl,
-              })
-            }
-          >
-            <UserAvatar
-              photoUrl={delivery.releasedByPhotoUrl}
-              fallbackText={getInitials(delivery.releasedByName)}
-              size={44}
-              backgroundColor="#F1F3F6"
-              fallbackTextColor={COLORS.primary}
-            />
-            <View style={styles.sourceTextWrap}>
-              <Text style={styles.sourceName}>{delivery.releasedByName || 'Branch Manager'}</Text>
-              <Text style={styles.sourceRole}>Branch Manager</Text>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.lg }]} showsVerticalScrollIndicator={false}>
+          <View style={styles.routeCardC}>
+            <View style={styles.routeHeaderC}>
+              <View style={styles.routeBranchC}>
+                <Icon name="building" size={16} color={COLORS.primary} />
+                <Text style={styles.routeBranchText} numberOfLines={1}>{delivery.branchName || 'Branch'}</Text>
+              </View>
+              {delivery.destinationGps && (
+                <Pressable style={styles.mapPill} onPress={() => setShowMap((prev) => !prev)} accessibilityRole="button">
+                  <Icon name="location" size={14} color="#0085F9" />
+                  <Text style={styles.mapPillText}>{showMap ? 'Hide map' : 'View map'}</Text>
+                  <View style={{ transform: [{ rotate: showMap ? '180deg' : '0deg' }] }}>
+                    <Icon name="caretDown" size={12} color="#0085F9" weight="bold" />
+                  </View>
+                </Pressable>
+              )}
             </View>
-            <Icon name="arrowRight" size={16} color="#94a3b8" />
-          </Pressable>
-
-          <View style={styles.routeRow}>
-            <View style={[styles.routeDot, { backgroundColor: COLORS.accentOrange }]} />
-            <Text style={styles.routeLabel}>To</Text>
-            <Text style={styles.routeValue} numberOfLines={1}>
-              {delivery.targetRecipientName || 'Sales Rep'}
-            </Text>
-          </View>
-          <Pressable
-            style={styles.sourceCard}
-            onPress={() =>
-              handleViewParty({
-                agentId: delivery.targetRecipientId,
-                name: delivery.targetRecipientName || 'Sales Rep',
-                role: 'sales_rep',
-                profilePhotoUrl: delivery.targetRecipientPhotoUrl,
-              })
-            }
-          >
-            <UserAvatar
-              photoUrl={delivery.targetRecipientPhotoUrl}
-              fallbackText={getInitials(delivery.targetRecipientName)}
-              size={44}
-              backgroundColor="#F1F3F6"
-              fallbackTextColor={COLORS.primary}
-            />
-            <View style={styles.sourceTextWrap}>
-              <Text style={styles.sourceName}>{delivery.targetRecipientName || 'Sales Rep'}</Text>
-              <Text style={styles.sourceRole}>Sales Representative</Text>
+            <View style={styles.routePeopleC}>
+              <Pressable
+                style={styles.personC}
+                onPress={() =>
+                  handleViewParty({
+                    agentId: null,
+                    name: delivery.releasedByName || 'Branch Manager',
+                    role: 'manager',
+                    profilePhotoUrl: delivery.releasedByPhotoUrl,
+                  })
+                }
+              >
+                <UserAvatar
+                  photoUrl={delivery.releasedByPhotoUrl}
+                  fallbackText={getInitials(delivery.releasedByName)}
+                  size={44}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
+                <Text style={styles.personName} numberOfLines={1}>{delivery.releasedByName || 'Branch Manager'}</Text>
+                <Text style={styles.personRole}>Branch Manager</Text>
+              </Pressable>
+              <View style={styles.routeArrowC}>
+                <Icon name="arrowRight" size={18} color="#94a3b8" />
+              </View>
+              <Pressable
+                style={styles.personC}
+                onPress={() =>
+                  handleViewParty({
+                    agentId: delivery.targetRecipientId,
+                    name: delivery.targetRecipientName || 'Sales Rep',
+                    role: 'sales_rep',
+                    profilePhotoUrl: delivery.targetRecipientPhotoUrl,
+                  })
+                }
+              >
+                <UserAvatar
+                  photoUrl={delivery.targetRecipientPhotoUrl}
+                  fallbackText={getInitials(delivery.targetRecipientName)}
+                  size={44}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
+                <Text style={styles.personName} numberOfLines={1}>{delivery.targetRecipientName || 'Sales Rep'}</Text>
+                <Text style={styles.personRole}>Sales Representative</Text>
+              </Pressable>
             </View>
-            <Icon name="arrowRight" size={16} color="#94a3b8" />
-          </Pressable>
-
-          {delivery.destinationGps && (
-            <Pressable style={styles.mapToggleRow} onPress={() => setShowMap((prev) => !prev)}>
-              <Icon name="location" size={16} color={COLORS.primary} />
-              <Text style={styles.mapToggleText}>{showMap ? 'Hide Map' : 'View Map'}</Text>
-            </Pressable>
-          )}
+          </View>
           {showMap && delivery.destinationGps && (
-            <StaticRouteMap
+            <>
+              <View style={styles.mapCardC}>
+                <View style={styles.mapFrameC}>
+                  <StaticRouteMap
               originCoords={delivery.originGps}
               destinationCoords={delivery.destinationGps}
-              height={160}
-              style={styles.map}
-            />
+              originLabel={`${(delivery.releasedByName || 'Branch Manager')} (Pickup)`}
+              destinationLabel={`${(delivery.targetRecipientName || 'Sales Rep')} (Sales Rep)`}
+              originAvatar={{ photoUrl: delivery.releasedByPhotoUrl || null, initials: getInitials(delivery.releasedByName) }}
+              destinationAvatar={{ photoUrl: delivery.targetRecipientPhotoUrl || null, initials: getInitials(delivery.targetRecipientName) }}
+              height={220}
+              fitTop={90}
+              fitBottom={30}
+              style={styles.mapInline}
+                  />
+                  <Pressable style={styles.expandBtn} onPress={() => setIsFullMapOpen(true)} accessibilityRole="button" accessibilityLabel="Open the full map">
+                    <Icon name="expand" size={14} color="#0085F9" />
+                    <Text style={styles.mapPillText}>Full map</Text>
+                  </Pressable>
+                </View>
+                <RouteLegChips
+                  legs={[
+                    {
+                      from: 'Pickup',
+                      to: (delivery.targetRecipientName || 'Sales Rep').split(' ')[0],
+                      fromCoords: delivery.originGps,
+                      toCoords: delivery.destinationGps,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Modal visible={isFullMapOpen} animationType="slide" onRequestClose={() => setIsFullMapOpen(false)}>
+                <View style={styles.fullMap}>
+                  <StaticRouteMap ref={fullMapRef}
+              originCoords={delivery.originGps}
+              destinationCoords={delivery.destinationGps}
+              originLabel={`${(delivery.releasedByName || 'Branch Manager')} (Pickup)`}
+              destinationLabel={`${(delivery.targetRecipientName || 'Sales Rep')} (Sales Rep)`}
+              originAvatar={{ photoUrl: delivery.releasedByPhotoUrl || null, initials: getInitials(delivery.releasedByName) }}
+              destinationAvatar={{ photoUrl: delivery.targetRecipientPhotoUrl || null, initials: getInitials(delivery.targetRecipientName) }}
+                    fill
+                    showScale
+                    fitTop={170}
+                    fitBottom={80}
+                    style={styles.fullMapFill}
+                  />
+                  <MapZoomControls
+                    onZoomIn={() => fullMapRef.current?.zoomIn()}
+                    onZoomOut={() => fullMapRef.current?.zoomOut()}
+                    onRecenter={() => fullMapRef.current?.recenter()}
+                    style={styles.fullMapZoom}
+                  />
+                  <View style={styles.fullMapHeader}>
+                    <Text style={styles.fullMapTitle}>Delivery route</Text>
+                    <Pressable style={styles.mapPill} onPress={() => setIsFullMapOpen(false)} accessibilityRole="button" accessibilityLabel="Close the full map">
+                      <Icon name="xCircle" size={14} color="#0085F9" />
+                      <Text style={styles.mapPillText}>Close</Text>
+                    </Pressable>
+                  </View>
+                  <MapStatusCard
+                    legend={[
+                      { label: 'Pickup', color: '#0085F9' },
+                      { label: 'Sales Rep', color: '#E63946' },
+                    ]}
+                    style={styles.fullMapCard}
+                  />
+                </View>
+              </Modal>
+            </>
           )}
 
           <View style={styles.titleRow}>
@@ -302,24 +356,43 @@ export default function CollectorDeliveryDetailScreen() {
                       <Icon name="package" size={18} color="#03045E" />
                     )}
                   </View>
-                  <View>
+                  <View style={styles.itemTextC}>
                     <Text style={styles.itemName}>{item.productName}</Text>
-                    <Text style={styles.itemMeta}>
-                      Qty: {item.quantity}{item.batchNumber ? `   BN: ${item.batchNumber}` : ''}
-                    </Text>
+                    <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
+                    {!!item.batchNumber && <Text style={styles.itemMeta} numberOfLines={1}>BN: {item.batchNumber}</Text>}
                   </View>
                 </View>
               </View>
             ))}
-            {delivery.qrCode && (
-              <View style={styles.qrSection}>
-                <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
-                <View style={styles.qrTile}>
-                  <BrandedQRCode value={delivery.qrCode} size={160} />
-                </View>
-              </View>
-            )}
           </View>
+
+          {delivery.qrCode && (
+            <View style={styles.qrCardC}>
+              <Pressable
+                style={styles.qrHeaderC}
+                onPress={() => setQrOpen((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: qrOpen }}
+              >
+                <Icon name="qrCode" size={22} color={COLORS.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.qrHeadTitle}>Product QR</Text>
+                  <Text style={styles.qrHeadHint}>Scan to verify this shipment</Text>
+                </View>
+                <View style={styles.mapPill}>
+                  <Text style={styles.mapPillText}>{qrOpen ? 'Hide QR' : 'Show QR'}</Text>
+                  <View style={{ transform: [{ rotate: qrOpen ? '180deg' : '0deg' }] }}>
+                    <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+                  </View>
+                </View>
+              </Pressable>
+              {qrOpen && (
+                <View style={styles.qrTile}>
+                  <BrandedQRCode value={delivery.qrCode} size={200} />
+                </View>
+              )}
+            </View>
+          )}
 
           <Text style={styles.listTitle}>Verify Stock With Manager</Text>
           <View style={styles.verifyCard}>
@@ -354,48 +427,59 @@ export default function CollectorDeliveryDetailScreen() {
               </Pressable>
             </View>
             {scanError && <Text style={styles.errorInlineText}>{scanError}</Text>}
+            {photoUri && (
+              <Pressable style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)}>
+                <Image source={{ uri: photoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
+                <View style={styles.photoPreviewInfo}>
+                  <Text style={styles.itemName}>Photo captured</Text>
+                  <Text style={styles.itemMeta}>Tap to retake</Text>
+                </View>
+                <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
+              </Pressable>
+            )}
           </View>
 
-          <Text style={styles.listTitle}>Photo Proof</Text>
-          {photoUri ? (
-            <Pressable style={styles.photoPreviewRow} onPress={() => setIsCameraVisible(true)}>
-              <Image source={{ uri: photoUri }} style={styles.photoPreviewThumb} resizeMode="cover" />
-              <View style={styles.photoPreviewInfo}>
-                <Text style={styles.itemName}>Photo captured</Text>
-                <Text style={styles.itemMeta}>Tap to retake</Text>
-              </View>
-              <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />
-            </Pressable>
-          ) : (
-            <Pressable style={styles.photoCard} onPress={() => setIsCameraVisible(true)}>
-              <View style={styles.photoHeaderRow}>
-                <View style={styles.requiredPill}>
-                  <Text style={styles.requiredText}>Required</Text>
-                </View>
-              </View>
-              <View style={styles.photoPlaceholder}>
-                <Icon name="camera" size={36} color="#03045E" />
-                <Text style={styles.photoText}>
-                  Tap to capture proof you're physically at the pickup area
-                </Text>
-              </View>
-            </Pressable>
-          )}
-
           {locationError && <Text style={styles.errorInlineText}>{locationError}</Text>}
-
-          <Pressable
-            style={[styles.primaryButton, (!isVerified || !photoUri || isSubmitting) && styles.primaryButtonDisabled]}
-            onPress={handleAccept}
-            disabled={!isVerified || !photoUri || isSubmitting}
-          >
-            <Text style={styles.primaryButtonText}>{isSubmitting ? 'Accepting…' : 'Accept Stock'}</Text>
-          </Pressable>
         </ScrollView>
+        </BlurTargetView>
+
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
+          {(!isVerified || !photoUri) && !isSubmitting && (
+            <Text style={styles.barHint}>
+              {!isVerified ? "Scan the manager's QR, then take the photo proof." : 'Take the photo proof to continue.'}
+            </Text>
+          )}
+          <Button
+            title={isSubmitting ? 'Accepting…' : 'Accept Stock'}
+            variant="black"
+            onPress={handleAccept}
+            loading={isSubmitting}
+            disabled={!isVerified || !photoUri || isSubmitting}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
+          />
+        </BottomActionBar>
       </View>
 
       <QRScannerModal visible={isScannerVisible} onClose={() => setIsScannerVisible(false)} onScanned={handleScanned} />
       <CameraCaptureModal visible={isCameraVisible} onClose={() => setIsCameraVisible(false)} onCapture={setPhotoUri} />
+
+      <CustomModal visible={isAccepted} onClose={() => {}} variant="center" closeOnBackdropPress={false}>
+        <View style={styles.successIconWrap}>
+          <View style={styles.successRing}>
+            <View style={styles.successCircle}>
+              <Icon name="checkCircle" size={28} color={COLORS.success} />
+            </View>
+          </View>
+        </View>
+        <Text style={styles.successModalTitle}>Stock accepted</Text>
+        <Text style={styles.successModalText}>
+          {delivery.items.length} item{delivery.items.length === 1 ? '' : 's'}, {totalUnits} units are now ready to deliver.
+        </Text>
+        <Button title="Start Trip" variant="black" icon="truck" onPress={handleStartTripNow} height={48} fontSize={16} borderRadius={24} style={styles.modalButton} />
+        <Button title="Done" variant="outline" onPress={handleDone} height={48} fontSize={16} borderRadius={24} hasShadow={false} style={styles.modalButton} />
+      </CustomModal>
 
       <CustomModal visible={!!viewingParty} onClose={() => setViewingParty(null)} height="auto">
         {viewingParty && (
@@ -468,6 +552,30 @@ export default function CollectorDeliveryDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  contentTarget: { flex: 1 },
+  routeCardC: { borderWidth: 1, borderColor: '#EAEFF5', borderRadius: 14, backgroundColor: '#FFFFFF', padding: SPACING.sm + 2, gap: 10 },
+  routeHeaderC: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  routeBranchC: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  routeBranchText: { flex: 1, fontSize: TYPOGRAPHY.fontSize.base, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  mapPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: '#EAF4FF' },
+  mapPillText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  routePeopleC: { flexDirection: 'row', alignItems: 'center' },
+  personC: { flex: 1, alignItems: 'center', gap: 2 },
+  personName: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', marginTop: 4 },
+  personRole: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  routeArrowC: { paddingHorizontal: 4 },
+  itemTextC: { flexShrink: 1 },
+  qrCardC: { borderWidth: 1, borderColor: '#EAEFF5', borderRadius: 14, backgroundColor: '#FFFFFF', padding: SPACING.sm + 2, gap: 10 },
+  qrHeaderC: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  qrHeadTitle: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  qrHeadHint: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  barHint: { marginBottom: 8, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  successIconWrap: { alignItems: 'center', marginBottom: SPACING.md },
+  successRing: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.success + '14', alignItems: 'center', justifyContent: 'center' },
+  successCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.success + '26', alignItems: 'center', justifyContent: 'center' },
+  successModalTitle: { fontSize: TYPOGRAPHY.fontSize.lg, color: '#272632', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', marginBottom: SPACING.xs },
+  successModalText: { fontSize: TYPOGRAPHY.fontSize.base, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: SPACING.lg, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  modalButton: { width: '100%', marginBottom: SPACING.sm },
   content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32, gap: 12 },
   listTitle: { color: '#272632', fontSize: 18, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   routeRow: {
@@ -511,7 +619,16 @@ const styles = StyleSheet.create({
   sourceRole: { marginTop: 2, fontSize: 12, color: '#555353', fontFamily: TYPOGRAPHY.fontFamily.regular },
   mapToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   mapToggleText: { fontSize: 12, color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  map: { marginTop: 4 },
+  mapCardC: { borderWidth: 1, borderColor: '#E1EEFF', borderRadius: 14, backgroundColor: '#F4F9FF', padding: SPACING.sm, gap: SPACING.sm },
+  mapFrameC: { borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  mapInline: { borderRadius: 10, borderWidth: 0 },
+  expandBtn: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.95)' },
+  fullMap: { flex: 1, backgroundColor: COLORS.background },
+  fullMapFill: { borderRadius: 0, borderWidth: 0 },
+  fullMapHeader: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, backgroundColor: '#FFFFFF', borderBottomLeftRadius: 24, borderBottomRightRadius: 24, shadowColor: '#000000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 10 },
+  fullMapTitle: { fontSize: TYPOGRAPHY.fontSize.base, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
+  fullMapCard: { top: 76, left: SPACING.md },
+  fullMapZoom: { position: 'absolute', top: 76, right: SPACING.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   badge: {
     minWidth: 28,
@@ -576,6 +693,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   verifyCard: {
     backgroundColor: '#F8FAFC',

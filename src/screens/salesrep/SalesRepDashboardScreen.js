@@ -29,6 +29,7 @@ import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
+import { formatBranchLabel } from '../../utils/branchLabel';
 import { manilaToday } from '../../utils/expiry';
 import { routeQrScan } from '../../utils/routeQrScan';
 import { SPACING } from '../../styles/spacing';
@@ -64,7 +65,7 @@ const primeOtherScreens = () => {
 
 // Same layout/spec as ManagerDashboardScreen — this constant intentionally
 // matches its value so the collapsing header behaves identically.
-const SECONDARY_HEADER_HEIGHT = 100;
+const SECONDARY_HEADER_HEIGHT = 92;
 
 // 2nd_header_img_salerep.png is 404x466 natively. Unlike the Manager
 // dashboard's illustration (flush against the edge), this one gets a 16px
@@ -73,17 +74,6 @@ const HEADER_ILLUSTRATION_ASPECT_RATIO = 404 / 466;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
 // Same branch label rule as ManagerDashboardScreen: "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
-const BRANCH_LABEL_CHARS = 4;
-const formatBranchLabel = (branchName) =>
-  branchName
-    .split(',')
-    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
-    .filter(Boolean)
-    .map((part) => {
-      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
-      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
-    })
-    .join(', ');
 
 const QUICK_STATS = [
   {
@@ -355,7 +345,8 @@ export default function SalesRepDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>Status</Text>
+                  {/* A long branch line (several branches) needs the room, so the word "Status" steps aside. */}
+                  {branchLabel.length <= 14 && <Text style={styles.statusText}>Status</Text>}
 
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
@@ -449,6 +440,8 @@ export default function SalesRepDashboardScreen() {
                     borderLeftColor={stat.borderLeftColor}
                     value={stat.value}
                     label={stat.label}
+                    iconSize={32}
+                    style={styles.statCardCompact}
                   />
                 );
                 if (stat.key === 'totalItems') {
@@ -495,12 +488,18 @@ export default function SalesRepDashboardScreen() {
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
+                layout="tile"
                 badgeCount={operation.key === 'alerts' ? openDiscrepancyCount : 0}
               />
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Logs</Text>
+          <View style={styles.logsTitleRow}>
+            <Text style={[styles.sectionTitle, styles.logsTitle]}>Recent Logs</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SalesRepLogs')} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.seeAll}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
@@ -512,12 +511,10 @@ export default function SalesRepDashboardScreen() {
                   iconColor={log.iconColor}
                   text={log.text}
                   onPress={() => {
-                    if (log.log.logType === 'delivery') {
-                      navigation.navigate('SalesRepTrackDeliveries');
-                    } else if (log.log.logType === 'discrepancy') {
+                    if (log.log.logType === 'discrepancy') {
                       navigation.navigate('AlertsDiscrepanciesSR');
                     } else {
-                      navigation.navigate('SalesRepLogs', { initialLog: log.log });
+                      navigation.navigate('SalesRepLogDetail', { log: log.log });
                     }
                   }}
                 />
@@ -575,7 +572,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   welcomeText: {
-    fontSize: 25,
+    fontSize: 22,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     letterSpacing: -0.75,
@@ -587,9 +584,9 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
     gap: SPACING.sm,
-    width: '72%',
+    width: '82%',
   },
   branchGroup: {
     flexShrink: 1,
@@ -631,21 +628,25 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+  statCardCompact: { paddingVertical: SPACING.md + 4, paddingHorizontal: SPACING.sm },
   statTouchable: {
     flex: 1,
   },
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: SPACING.xl,
+    gap: 8,
+    marginBottom: SPACING.lg,
   },
   operationCard: {
-    width: '48%',
-    minHeight: 72,
+    width: '31.5%',
+    minHeight: 88,
   },
+  logsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  logsTitle: { marginBottom: 0 },
+  seeAll: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#0085F9' },
   logsList: {
     gap: SPACING.sm,
   },

@@ -1,10 +1,11 @@
 // src/screens/salesrep/ReturnStocksSR.js
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
+import Button from '../../components/common/Button';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useOutbox from '../../hooks/useOutbox';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -12,6 +13,7 @@ import { COLORS } from '../../constants/colors';
 import authService from '../../services/authService';
 import reportService from '../../services/reportService';
 import { supabase } from '../../services/supabaseClient';
+import * as FileSystem from 'expo-file-system/legacy';
 import { formatRelativeTime } from '../../utils/formatters';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import Header from '../../components/common/Header';
@@ -27,6 +29,10 @@ const STATUS_META = {
 };
 
 const SHIPMENT_BUCKET = 'shipment-media';
+// Return photos are saved on the phone once they've been fetched, so the picture shows even
+// if the link has expired or the phone is offline later.
+const PHOTO_DIR = `${FileSystem.cacheDirectory}return-photos/`;
+const cachedPhotoFile = (storagePath) => `${PHOTO_DIR}${String(storagePath).replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
 // A failed fetch keeps the previous snapshot instead of blanking the screen.
 const loadReturnRequestsData = async (previous) => {
@@ -41,6 +47,7 @@ const loadReturnRequestsData = async (previous) => {
 
 export default function ReturnStocksSR() {
   const navigation = useNavigation();
+  const route = useRoute();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-return-requests', loadReturnRequestsData);
   // Requests sent while offline show first, as pending, until they sync.
   const { pending: queuedReturns } = useOutbox('discrepancy_resolution', snapshot?.agentId ?? null);
@@ -55,16 +62,68 @@ export default function ReturnStocksSR() {
   const requests = [...queuedRequests, ...(snapshot?.requests ?? [])];
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
+  // idle: no photo on this return, loading, ready, or error (couldn't be fetched / shown).
+  const [photoState, setPhotoState] = useState('idle');
+  const [photoNote, setPhotoNote] = useState('');
 
+
+  // Tapped from a notification: open that return's details (same as tapping its card).
+  const focusId = route.params?.focusId || null;
+  const openedFocusIdRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || isLoading || openedFocusIdRef.current === focusId) return;
+    const match = requests.find((r) => r.resolutionRequestId === focusId);
+    if (match) {
+      openedFocusIdRef.current = focusId;
+      handleOpenRequest(match);
+    }
+  }, [focusId, isLoading, requests]);
 
   const handleOpenRequest = async (request) => {
     setSelectedRequest(request);
     setPhotoUrl(null);
-    if (request.media?.storagePath) {
+    setPhotoNote('');
+    const storagePath = request.media?.storagePath;
+    if (!storagePath) {
+      setPhotoState('idle');
+      return;
+    }
+    setPhotoState('loading');
+    const cachedFile = cachedPhotoFile(storagePath);
+    try {
+      // Already fetched before: show the saved copy straight away.
+      const info = await FileSystem.getInfoAsync(cachedFile);
+      if (info.exists && info.size > 0) {
+        setPhotoUrl(cachedFile);
+        return;
+      }
       const { data } = await supabase.storage
         .from(SHIPMENT_BUCKET)
-        .createSignedUrl(request.media.storagePath, 60 * 10);
-      setPhotoUrl(data?.signedUrl || null);
+        .createSignedUrl(storagePath, 60 * 10);
+      if (!data?.signedUrl) {
+        setPhotoNote('No access link for this photo.');
+        setPhotoState('error');
+        return;
+      }
+      // Download it to the phone first: a bad answer from the server (not found, no access)
+      // is caught here and named, instead of the picture just staying blank.
+      try {
+        await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true }).catch(() => {});
+        const result = await FileSystem.downloadAsync(data.signedUrl, cachedFile);
+        if (result.status === 200) {
+          setPhotoUrl(result.uri);
+        } else {
+          await FileSystem.deleteAsync(cachedFile, { idempotent: true }).catch(() => {});
+          setPhotoNote(result.status === 400 || result.status === 404 ? 'The photo file was not found.' : `The server answered ${result.status}.`);
+          setPhotoState('error');
+        }
+      } catch (downloadError) {
+        // Couldn't save it: still try the live link directly.
+        setPhotoUrl(data.signedUrl);
+      }
+    } catch (error) {
+      setPhotoNote('Check your connection.');
+      setPhotoState('error');
     }
   };
 
@@ -120,13 +179,18 @@ export default function ReturnStocksSR() {
 
                     <View style={styles.requestDetails}>
                       <Text style={styles.requestCode} numberOfLines={1}>{request.productCode}</Text>
-                      <Text style={styles.requestName} numberOfLines={1}>{request.productName}</Text>
-                      <Text style={styles.requestMeta}>Sent {formatRelativeTime(request.createdAt)}</Text>
+                      {!!request.productName && request.productName !== request.productCode && (
+                        <Text style={styles.requestName} numberOfLines={1}>{request.productName}</Text>
+                      )}
+                      <Text style={styles.requestMeta}>
+                        {request.discrepancy ? `${Math.abs(request.discrepancy)} units · ` : ''}Sent {formatRelativeTime(request.createdAt)}
+                      </Text>
                     </View>
 
                     <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
                       <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
                     </View>
+                    {!request.isQueued && <Icon name="arrowRight" size={14} color="#94a3b8" />}
                   </View>
 
                   {request.isQueued && (
@@ -144,52 +208,132 @@ export default function ReturnStocksSR() {
         )}
       </View>
 
-      <CustomModal visible={!!selectedRequest} onClose={() => setSelectedRequest(null)} height={520}>
-        {selectedRequest && (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.modalTitle}>{selectedRequest.productCode}</Text>
-            <Text style={styles.modalSubtitle}>{selectedRequest.productName}</Text>
+      <CustomModal visible={!!selectedRequest} onClose={() => setSelectedRequest(null)} height="auto" maxHeight={680}>
+        {selectedRequest && (() => {
+          const meta = STATUS_META[selectedRequest.status] || STATUS_META.pending;
+          const image = PRODUCT_CATALOG.find((p) => p.code === selectedRequest.productCode)?.image;
+          return (
+            <>
+              <View style={styles.sheetHandle} />
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
+                <View style={styles.sheetHeader}>
+                  <View style={styles.sheetThumb}>
+                    {image ? (
+                      <Image source={image} style={styles.sheetThumbImage} resizeMode="contain" />
+                    ) : (
+                      <Icon name="package" size={26} color="#94a3b8" />
+                    )}
+                  </View>
+                  <View style={styles.sheetHeaderText}>
+                    <Text style={styles.modalTitle}>{selectedRequest.productCode}</Text>
+                    {!!selectedRequest.productName && selectedRequest.productName !== selectedRequest.productCode && (
+                      <Text style={styles.modalSubtitle}>{selectedRequest.productName}</Text>
+                    )}
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
+                    <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
+                  </View>
+                </View>
 
-            <View style={styles.modalStatusRow}>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: (STATUS_META[selectedRequest.status] || STATUS_META.pending).bg },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    { color: (STATUS_META[selectedRequest.status] || STATUS_META.pending).text },
-                  ]}
-                >
-                  {(STATUS_META[selectedRequest.status] || STATUS_META.pending).label}
-                </Text>
-              </View>
-              <Text style={styles.modalMeta}>Discrepancy: {Math.abs(selectedRequest.discrepancy)} units</Text>
-            </View>
+                <View style={styles.unitsBox}>
+                  <Text style={styles.unitsLabel}>Units in this return</Text>
+                  <Text style={styles.unitsValue}>{Math.abs(selectedRequest.discrepancy)}</Text>
+                </View>
 
-            {selectedRequest.status === 'rejected' && selectedRequest.rejectReason && (
-              <Text style={styles.rejectReasonText}>Reason: {selectedRequest.rejectReason}</Text>
-            )}
+                {selectedRequest.status === 'rejected' && selectedRequest.rejectReason && (
+                  <View style={styles.rejectNote}>
+                    <Icon name="warningTriangle" size={16} color="#B91C1C" />
+                    <Text style={styles.rejectNoteText}>{selectedRequest.rejectReason}</Text>
+                  </View>
+                )}
 
-            {photoUrl && (
-              <Image source={{ uri: photoUrl }} style={styles.modalPhoto} resizeMode="cover" />
-            )}
+                {photoState !== 'idle' && (
+                  <>
+                    <Text style={styles.sheetLabel}>RETURN PHOTO</Text>
+                    {photoState === 'error' ? (
+                      <Pressable
+                        style={styles.photoBox}
+                        onPress={() => handleOpenRequest(selectedRequest)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry loading the photo"
+                      >
+                        <Icon name="camera" size={26} color="#94a3b8" />
+                        <Text style={styles.photoErrorTitle}>Photo couldn't load</Text>
+                        <Text style={styles.photoErrorHint}>{photoNote ? `${photoNote} Tap to try again.` : 'Tap to try again.'}</Text>
+                      </Pressable>
+                    ) : (
+                      <View style={styles.photoBox}>
+                        {photoUrl && (
+                          <Image
+                            source={{ uri: photoUrl }}
+                            style={styles.modalPhoto}
+                            resizeMode="cover"
+                            onLoad={() => setPhotoState('ready')}
+                            onError={() => setPhotoState('error')}
+                          />
+                        )}
+                        {photoState === 'loading' && <ActivityIndicator style={styles.photoSpinner} color={COLORS.primary} />}
+                      </View>
+                    )}
+                  </>
+                )}
 
-            {selectedRequest.gps && (
-              <Text style={styles.modalMeta}>
-                GPS: {selectedRequest.gps.latitude.toFixed(4)}, {selectedRequest.gps.longitude.toFixed(4)}
-              </Text>
-            )}
-          </ScrollView>
-        )}
+                <Text style={styles.sheetLabel}>DETAILS</Text>
+                <View style={styles.detailsCard}>
+                  <View style={styles.detailRow}>
+                    <Icon name="clock" size={16} color={COLORS.textSecondary} />
+                    <Text style={styles.detailLabel}>Sent</Text>
+                    <Text style={styles.detailValue}>{formatRelativeTime(selectedRequest.createdAt)}</Text>
+                  </View>
+                  {!!selectedRequest.gps && (
+                    <View style={styles.detailRow}>
+                      <Icon name="location" size={16} color={COLORS.error} />
+                      <Text style={styles.detailLabel}>Location</Text>
+                      <Text style={styles.detailValue}>
+                        {Number(selectedRequest.gps.latitude).toFixed(4)}, {Number(selectedRequest.gps.longitude).toFixed(4)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </ScrollView>
+
+              <Button
+                title="Close"
+                variant="outline"
+                onPress={() => setSelectedRequest(null)}
+                hasShadow={false}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+                width="100%"
+                style={styles.closeButton}
+              />
+            </>
+          );
+        })()}
       </CustomModal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetHandle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#DADDE3', marginTop: -8, marginBottom: 14 },
+  sheetScroll: { flexShrink: 1 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sheetThumb: { width: 56, height: 56, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  sheetThumbImage: { width: '100%', height: '100%' },
+  sheetHeaderText: { flex: 1 },
+  unitsBox: { marginTop: 14, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: '#F5F6F9' },
+  unitsLabel: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  unitsValue: { marginTop: 2, fontSize: 20, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  rejectNote: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 10, backgroundColor: '#FDECEC' },
+  rejectNoteText: { flex: 1, fontSize: 14, color: '#B91C1C', fontFamily: TYPOGRAPHY.fontFamily.medium },
+  sheetLabel: { marginTop: 18, marginBottom: 8, fontSize: 12, letterSpacing: 0.8, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  detailsCard: { borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 4 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  detailLabel: { fontSize: 14, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  detailValue: { flex: 1, textAlign: 'right', fontSize: 14, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  closeButton: { marginTop: 14 },
   screen: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -280,7 +424,11 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 4,
   },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginRight: 6 },
+  photoBox: { height: 190, borderRadius: 12, overflow: 'hidden', backgroundColor: '#F1F3F6', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 16 },
+  photoSpinner: { position: 'absolute' },
+  photoErrorTitle: { fontSize: 14, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  photoErrorHint: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular, textAlign: 'center' },
   statusBadgeText: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   rejectReasonText: {
     marginTop: 8,
@@ -319,10 +467,5 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 8,
   },
-  modalPhoto: {
-    width: '100%',
-    height: 220,
-    borderRadius: 14,
-    marginTop: 12,
-  },
+  modalPhoto: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
 });

@@ -10,6 +10,7 @@ import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import authService from '../../services/authService';
 import { describeReceivingScan } from '../../utils/scanLookup';
+import ScanResultSheet from '../../components/common/ScanResultSheet';
 import { routeQrScan } from '../../utils/routeQrScan';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -48,6 +49,7 @@ export default function ComingSoonScreen() {
   const tabLabel = tabKey.charAt(0).toUpperCase() + tabKey.slice(1);
   const routes = ROLE_ROUTES[role] || {};
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [scanSummary, setScanSummary] = useState(null);
 
   // Same action as the middle button on each role's own Dashboard.
   const handleFabPress = () => {
@@ -66,7 +68,7 @@ export default function ComingSoonScreen() {
       return;
     }
     const summary = await describeReceivingScan(qrCode, currentUser?.branchIds || []);
-    Alert.alert(summary.title, summary.message);
+    setScanSummary(summary);
   };
 
   const handleTabPress = (key) => {
@@ -109,6 +111,14 @@ export default function ComingSoonScreen() {
         visible={isScannerVisible}
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
+      />
+      <ScanResultSheet
+        summary={scanSummary}
+        onClose={() => setScanSummary(null)}
+        onScanAgain={() => {
+          setScanSummary(null);
+          setIsScannerVisible(true);
+        }}
       />
     </>
   );

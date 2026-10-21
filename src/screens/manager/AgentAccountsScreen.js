@@ -1,9 +1,14 @@
 // src/screens/manager/AgentAccountsScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import Header from '../../components/common/Header';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import PasswordStrengthHint, { MIN_AGENT_PASSWORD_LENGTH } from '../../components/common/PasswordStrengthHint';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
@@ -28,6 +33,8 @@ const ROLE_OPTIONS = [
 ];
 
 export default function AgentAccountsScreen() {
+  const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
   const [manager, setManager] = useState(null);
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
@@ -83,8 +90,8 @@ export default function AgentAccountsScreen() {
       );
       return;
     }
-    if (password.length < 4) {
-      Alert.alert('Weak Password', 'Password must be at least 4 characters.');
+    if (password.length < MIN_AGENT_PASSWORD_LENGTH) {
+      Alert.alert('Weak Password', `Password must be at least ${MIN_AGENT_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -149,17 +156,22 @@ export default function AgentAccountsScreen() {
           backgroundColor="#03045E"
           textColor="#FFFFFF"
         />
+        <SecondaryHeader height={76}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Create Agent Account</Text>
+              <Text style={styles.pageSubtitle}>Set up a new Sales Rep or Collector</Text>
+            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
+          </View>
+        </SecondaryHeader>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <KeyboardAwareScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.lg }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.pageTitle}>Create Agent Account</Text>
-          <Text style={styles.pageSubtitle}>
-            Set up a new Sales Rep or Collector for this branch.
-          </Text>
-
-          <SectionHeader icon="idCard" label="Agent Type" />
+          <SectionHeader icon="idCard" size="md" label="Agent type" style={styles.labelFirst} />
           <View style={styles.roleToggleRow}>
             {ROLE_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -182,19 +194,21 @@ export default function AgentAccountsScreen() {
 
           {branches.length > 1 && (
             <>
-              <SectionHeader icon="building" label="Assign to Branch" />
+              <SectionHeader icon="building" size="md" label="Assign to branch" style={styles.labelSpaced} />
               <View style={styles.branchSection}>
                 <BranchSelector
                   branches={branches}
                   selectedId={selectedBranchId}
                   onSelect={setSelectedBranchId}
                   edgePadding={0}
+                  scrollable
+                  scrollBleed={SPACING.lg}
                 />
               </View>
             </>
           )}
 
-          <SectionHeader icon="person" label="Details" />
+          <SectionHeader icon="person" size="md" label="Details" style={styles.labelSpaced} />
 
           <Input
             label="Full Name"
@@ -228,6 +242,7 @@ export default function AgentAccountsScreen() {
             onChangeText={setPassword}
             autoCapitalize="none"
           />
+          <PasswordStrengthHint password={password} />
           <Input
             label="Confirm Password"
             required
@@ -249,13 +264,6 @@ export default function AgentAccountsScreen() {
             </Text>
           </View>
 
-          <Button
-            title={isSubmitting ? 'Creating...' : 'Create Account'}
-            onPress={handleCreate}
-            disabled={isSubmitting || (branches.length > 1 && !selectedBranchId)}
-            style={styles.submitButton}
-          />
-
           {createdAccounts.length > 0 && (
             <>
               <SectionHeader icon="checkCircle" label="Created This Session" style={styles.createdHeader} />
@@ -267,6 +275,18 @@ export default function AgentAccountsScreen() {
             </>
           )}
         </KeyboardAwareScrollView>
+        </BlurTargetView>
+
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
+          <Button
+            title={isSubmitting ? 'Creating...' : 'Create Account'}
+            onPress={handleCreate}
+            disabled={isSubmitting || (branches.length > 1 && !selectedBranchId)}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
+          />
+        </BottomActionBar>
       </View>
     </>
   );
@@ -276,51 +296,73 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING['3xl'],
+    paddingTop: SPACING.sm,
   },
+  contentTarget: { flex: 1 },
+  titleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+  },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
+  },
+  labelFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  labelSpaced: { marginTop: SPACING.lg, marginBottom: 0 },
   pageTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
+    color: '#272632',
   },
   pageSubtitle: {
-    marginTop: 4,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
   },
   createdHeader: { marginTop: SPACING.xl },
-  branchSection: { marginBottom: SPACING.md },
+  branchSection: { marginTop: SPACING.sm, marginBottom: SPACING.xs },
   roleToggleRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
   },
   roleChip: {
     flex: 1,
+    height: 44,
     paddingHorizontal: SPACING.sm,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.borderNeutral,
-    backgroundColor: COLORS.textWhite,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#D5DAE3',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   roleChipActive: {
-    backgroundColor: COLORS.textPrimary,
-    borderColor: COLORS.textPrimary,
+    backgroundColor: '#EAF4FF',
+    borderColor: '#0085F9',
   },
   roleChipText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
   },
-  roleChipTextActive: { color: COLORS.textWhite },
+  roleChipTextActive: {
+    color: '#0085F9',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   noticeBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../constants/colors';
@@ -23,6 +24,8 @@ import Header from '../../components/common/Header';
 import KeyboardWrapper from '../../components/common/KeyboardWrapper';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 import Icon from '../../components/common/Icon';
+import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import SuccessFrame from '../../components/common/SuccessFrame';
@@ -161,6 +164,8 @@ export default function ManagerActivationScreen() {
   const [branchCount, setBranchCount] = useState(0);
   const [localError, setLocalError] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const inputRef = useRef(null);
   
   const [managerUsername, setManagerUsername] = useState('');
@@ -424,7 +429,7 @@ export default function ManagerActivationScreen() {
     } else if (managerPassword.length < 8) {
       errors.password = 'Password must be at least 8 characters';
       hasError = true;
-    } else if (!/[A-Z]/.test(managerPassword) && !/[a-z]/.test(managerPassword)) {
+    } else if (!/[A-Z]/.test(managerPassword) || !/[a-z]/.test(managerPassword)) {
       errors.password = 'Password must contain uppercase and lowercase letters';
       hasError = true;
     } else if (!/[0-9]/.test(managerPassword)) {
@@ -460,6 +465,7 @@ export default function ManagerActivationScreen() {
     if (result.hasSession) {
       navigation.replace('ManagerDashboard', {
         name: result.profile.fullName || result.profile.username || managerUsername,
+        justActivated: true,
       });
     } else {
       Alert.alert(
@@ -533,6 +539,7 @@ export default function ManagerActivationScreen() {
               onFadeComplete={handleSuccessFrameFade}
             />
 
+            <BlurTargetView ref={blurTarget} style={styles.blurTarget}>
             <KeyboardAwareScrollView
               animated
               style={[
@@ -620,7 +627,7 @@ export default function ManagerActivationScreen() {
                         <Icon name="checkmark" size={16} color={COLORS.success} />
                         <View style={styles.branchInfoContainer}>
                           <Text style={styles.branchNameText}>{name}</Text>
-                          {branchInfo.locations && branchInfo.locations[index] && (
+                          {!!(branchInfo.locations && branchInfo.locations[index]) && (
                             <Text style={styles.branchLocationText}>
                               {branchInfo.locations[index]}
                             </Text>
@@ -647,32 +654,30 @@ export default function ManagerActivationScreen() {
 
               <View style={styles.bottomContainerInScroll}>
                 <View style={styles.bottomWarningWrapper}>
-                  <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                  <Icon name="warningTriangle" size={22} color={COLORS.error} />
                   <Text style={styles.bottomWarningTitle}>Warning</Text>
-                  <Text style={[styles.bottomWarningText, { width: buttonWidth }]}>
+                  <Text style={[styles.bottomWarningText, styles.bottomWarningTextFill]}>
                     This will set up your device for manager access. Only continue if you're authorized to manage this branch.
                   </Text>
                 </View>
-
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.continueButton,
-                      { backgroundColor: isButtonEnabled ? '#03045E' : '#555353' }
-                    ]}
-                    onPress={handleContinue}
-                    disabled={!isButtonEnabled || isTransitioning}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.buttonContent}>
-                      <Text style={styles.buttonText}>Continue to Account Setup</Text>
-                      <Icon name="arrowRight" size={20} color="#FFFFFF" />
-                    </View>
-                  </TouchableOpacity>
-                </View>
               </View>
-              <View style={styles.scrollBottomPadding} />
+              <View style={{ height: bottomActionBarHeight }} />
             </KeyboardAwareScrollView>
+            </BlurTargetView>
+
+            <BottomActionBar variant="glass" blurTarget={blurTarget}>
+              <Button
+                title="Continue to Account Setup"
+                variant="black"
+                icon="arrowRight"
+                iconPosition="right"
+                onPress={handleContinue}
+                disabled={!isButtonEnabled || isTransitioning}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+              />
+            </BottomActionBar>
           </View>
         </KeyboardWrapper>
       </>
@@ -706,6 +711,7 @@ export default function ManagerActivationScreen() {
             </Text>
           </View>
 
+          <BlurTargetView ref={blurTarget} style={styles.blurTarget}>
           <KeyboardAwareScrollView
               animated
             ref={scrollViewRef}
@@ -783,31 +789,30 @@ export default function ManagerActivationScreen() {
 
             <View style={styles.bottomContainerInScroll}>
               <View style={styles.bottomWarningWrapper}>
-                <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                <Icon name="warningTriangle" size={22} color={COLORS.error} />
                 <Text style={styles.bottomWarningTitle}>Security Notice</Text>
-                <Text style={[styles.bottomWarningText, { width: screenWidth - (SPACING.lg * 2) }]}>
+                <Text style={[styles.bottomWarningText, styles.bottomWarningTextFill]}>
                   Create a strong password (8+ chars, numbers, and symbols). Your full name will be your manager ID.
                 </Text>
               </View>
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.continueButton,
-                    { backgroundColor: isFormValid ? '#03045E' : '#555353' }
-                  ]}
-                  onPress={handleCompleteSetup}
-                  disabled={!isFormValid || isTransitioning}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.buttonText}>Complete Setup</Text>
-                    <Icon name="arrowRight" size={20} color="#FFFFFF" />
-                  </View>
-                </TouchableOpacity>
-              </View>
             </View>
-            <View style={{ height: 20 }} />
+            <View style={{ height: bottomActionBarHeight }} />
           </KeyboardAwareScrollView>
+          </BlurTargetView>
+
+          <BottomActionBar variant="glass" blurTarget={blurTarget}>
+            <Button
+              title="Complete Setup"
+              variant="black"
+              icon="arrowRight"
+              iconPosition="right"
+              onPress={handleCompleteSetup}
+              disabled={!isFormValid || isTransitioning}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+            />
+          </BottomActionBar>
         </View>
       </KeyboardWrapper>
     </>
@@ -818,6 +823,7 @@ export default function ManagerActivationScreen() {
 // STYLES
 // ============================================
 const styles = StyleSheet.create({
+  blurTarget: { flex: 1 },
   container: {
     flex: 1,
     backgroundColor: '#F7FEFF',
@@ -991,10 +997,14 @@ const styles = StyleSheet.create({
   bottomWarningWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: 4,
-    paddingBottom: 4,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#FDECEC',
   },
+  bottomWarningTextFill: { alignSelf: 'stretch' },
   bottomWarningTitle: {
     fontSize: 15,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
@@ -1008,7 +1018,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
+    color: '#7A2E2E',
     textAlign: 'center',
     lineHeight: 16,
     paddingHorizontal: 0,
@@ -1019,18 +1029,18 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   continueButton: {
-    borderRadius: 12,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: SPACING.lg,
     width: screenWidth - (SPACING.lg * 2),
-    height: 50,
+    height: 52,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   buttonContent: {
     flexDirection: 'row',

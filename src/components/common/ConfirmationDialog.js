@@ -27,12 +27,16 @@ export default function ConfirmationDialog({
   cancelLabel = 'Cancel',
   height = 'auto',
   variant = 'sheet',
+  destructive = false,
 }) {
   return (
     <CustomModal visible={visible} onClose={onCancel} height={height} variant={variant}>
+      {variant === 'sheet' && <View style={styles.handle} />}
       <View style={styles.iconWrap}>
-        <View style={styles.iconCircle}>
-          <Icon name={icon} size={22} color={COLORS.error} />
+        <View style={styles.iconRing}>
+          <View style={styles.iconCircle}>
+            <Icon name={icon} size={28} color={COLORS.error} />
+          </View>
         </View>
       </View>
       <Text style={styles.title}>{title}</Text>
@@ -40,18 +44,21 @@ export default function ConfirmationDialog({
 
       <Button
         title={confirmLabel}
-        variant="black"
+        variant={destructive ? 'fill' : 'black'}
+        accentColor={destructive ? COLORS.error : undefined}
         onPress={onConfirm}
-        height={44}
-        fontSize={15}
+        height={52}
+        fontSize={16}
+        borderRadius={26}
         style={[styles.confirmButton, styles.fullWidthButton]}
       />
       <Button
         title={cancelLabel}
         variant="outline"
         onPress={onCancel}
-        height={44}
-        fontSize={15}
+        height={52}
+        fontSize={16}
+        borderRadius={26}
         hasShadow={false}
         style={styles.fullWidthButton}
       />
@@ -70,28 +77,39 @@ ConfirmationDialog.propTypes = {
   cancelLabel: PropTypes.string,
   height: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf(['auto'])]),
   variant: PropTypes.oneOf(['sheet', 'center']),
+  destructive: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
+  handle: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: '#DADDE3', marginTop: -8, marginBottom: SPACING.md },
   iconWrap: {
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  // Soft ring around the icon, like the app's message dialogs.
+  iconRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.error + '1A',
+    backgroundColor: COLORS.error + '14',
+  },
+  iconCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.error + '26',
   },
   title: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.error,
     textAlign: 'center',
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   description: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -99,8 +117,9 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: SPACING.md,
+    lineHeight: 21,
+    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.sm,
   },
   confirmButton: {
     marginBottom: SPACING.sm,

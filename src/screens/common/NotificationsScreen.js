@@ -40,7 +40,7 @@ const TYPE_META = {
   stock_request_submitted: { icon: 'notePencil', color: COLORS.accentGold },
   stock_request_resolved: { icon: 'sealCheck', color: COLORS.success },
   daily_report_submitted: { icon: 'clipboardText', color: COLORS.secondary },
-  return_request_submitted: { icon: 'returnBox', color: COLORS.accentOrange },
+  return_request_submitted: { icon: 'returns', color: COLORS.accentOrange },
   return_request_resolved: { icon: 'arrowUUpLeft', color: COLORS.accentPurple },
   delivery_assigned: { icon: 'truck', color: COLORS.primary },
   delivery_status_update: { icon: 'navigation', color: COLORS.iconTrackStroke },
@@ -90,7 +90,8 @@ const FILTER_OPTIONS = [
   {
     key: 'returns',
     label: 'Returns',
-    icon: 'returnBox',
+    icon: 'returns',
+    tone: '#E5366B',
     description: 'Return requests and resolutions',
     types: ['return_request_submitted', 'return_request_resolved'],
   },
@@ -361,7 +362,7 @@ export default function NotificationsScreen() {
             accessibilityLabel="Filter notifications"
             accessibilityRole="button"
           >
-            <Icon name="filter" size={20} color={COLORS.primary} />
+            <Icon name="filter" size={22} color={COLORS.primary} />
             {isFilterActive && <View style={styles.filterActiveDot} />}
           </TouchableOpacity>
         </View>
@@ -408,7 +409,7 @@ export default function NotificationsScreen() {
               return (
                 <TouchableOpacity
                   key={notification.id}
-                  style={styles.card}
+                  style={[styles.card, !notification.isRead && styles.cardUnread]}
                   onPress={() => handlePressNotification(notification)}
                   activeOpacity={0.7}
                 >
@@ -419,7 +420,6 @@ export default function NotificationsScreen() {
                       size={18}
                       color={meta.color}
                       weight="duotone"
-                      duotoneColor={meta.icon === 'returnBox' ? meta.color + '33' : null}
                     />
                   </View>
                   <View style={styles.textCol}>
@@ -446,7 +446,7 @@ export default function NotificationsScreen() {
         visible={isFilterSheetVisible}
         onClose={() => setIsFilterSheetVisible(false)}
         title="Filter Notifications"
-        options={FILTER_OPTIONS.map(({ key, label, icon, description }) => ({ key, label, icon, description }))}
+        options={FILTER_OPTIONS.map(({ key, label, icon, description, tone }) => ({ key, label, icon, description, tone }))}
         selectedKey={activeFilter}
         onSelect={setActiveFilter}
         clearKey="all"
@@ -467,19 +467,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#ECEEF1',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: 'rgba(39,38,50,0.08)',
   },
   filterRowLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textSecondary,
   },
   filterButtonWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -500,8 +498,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: 'rgba(39,38,50,0.08)',
   },
   markAllText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -516,32 +513,33 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
-  content: { padding: SPACING.lg, gap: SPACING.sm },
+  content: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  // Flat rows: no card box, a faint line between them. Unread rows get a soft blue wash.
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderSubtle,
-    overflow: 'hidden',
-    paddingRight: SPACING.sm,
+    paddingVertical: 4,
+    paddingRight: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(39,38,50,0.08)',
   },
+  cardUnread: { backgroundColor: '#F1F7FF' },
   unreadStripe: {
     width: 3,
     alignSelf: 'stretch',
+    borderRadius: 2,
     backgroundColor: 'transparent',
+    marginRight: SPACING.sm,
   },
   unreadStripeActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#0085F9',
   },
   iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: RADIUS.md,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: SPACING.sm,
   },
   textCol: { flex: 1, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm },
   titleRow: {
@@ -552,14 +550,14 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textPrimary,
   },
   body: {
     marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },

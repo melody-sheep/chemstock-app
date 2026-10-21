@@ -34,11 +34,14 @@ export default function ReportHandoffIssueModal({
   const [note, setNote] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  // The picture could not be drawn (very large file / the sheet reopened under the camera): say so instead of a blank box.
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const reset = () => {
     setReasonCode(null);
     setNote('');
     setPhotoUri(null);
+    setPhotoFailed(false);
     setIsCameraVisible(false);
   };
 
@@ -102,8 +105,23 @@ export default function ReportHandoffIssueModal({
               style={styles.photoPreviewWrap}
               onPress={() => setIsCameraVisible(true)}
               activeOpacity={0.85}
+              collapsable={false}
             >
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              <Image
+                key={photoUri}
+                source={{ uri: photoUri }}
+                style={styles.photoPreview}
+                resizeMode="cover"
+                fadeDuration={0}
+                onError={() => setPhotoFailed(true)}
+                onLoad={() => setPhotoFailed(false)}
+              />
+              {photoFailed && (
+                <View style={styles.photoFallback}>
+                  <Icon name="camera" size={22} color={COLORS.textSecondary} />
+                  <Text style={styles.photoAddText}>Photo saved — tap to view or retake</Text>
+                </View>
+              )}
               <View style={styles.photoBadge}>
                 <Icon name="camera" size={14} color="#FFFFFF" />
                 <Text style={styles.photoBadgeText}>Retake</Text>
@@ -157,7 +175,10 @@ export default function ReportHandoffIssueModal({
       <CameraCaptureModal
         visible={isCameraVisible}
         onClose={() => setIsCameraVisible(false)}
-        onCapture={setPhotoUri}
+        onCapture={(uri) => {
+          setPhotoFailed(false);
+          setPhotoUri(uri);
+        }}
       />
     </>
   );
@@ -257,6 +278,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   photoPreview: { width: '100%', height: '100%' },
+  photoFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F1F5F9' },
   photoBadge: {
     position: 'absolute', bottom: SPACING.sm, right: SPACING.sm,
     flexDirection: 'row', alignItems: 'center', gap: 4,

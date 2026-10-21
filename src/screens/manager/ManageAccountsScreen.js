@@ -11,12 +11,13 @@ import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
-import FilterSheet from '../../components/common/FilterSheet';
+import BranchSelector from '../../components/common/BranchSelector';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import CustomModal from '../../components/common/Modal';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import SectionHeader from '../../components/common/SectionHeader';
 import Input from '../../components/common/Input';
+import PasswordStrengthHint, { MIN_AGENT_PASSWORD_LENGTH } from '../../components/common/PasswordStrengthHint';
 import { formatPhDisplay } from '../../components/common/PhilippinePhoneInput';
 import agentService from '../../services/agentService';
 import profileService from '../../services/profileService';
@@ -40,8 +41,8 @@ const ROLE_FILTER_OPTIONS = [
 ];
 
 const ROLE_DOT_COLOR = {
-  [ROLES.SALES_REP]: COLORS.accentOrange,
-  [ROLES.COLLECTOR]: COLORS.accentPink,
+  [ROLES.SALES_REP]: '#0085F9',
+  [ROLES.COLLECTOR]: '#D98200',
 };
 
 function AgentCard({ account, onCardPress, onMorePress }) {
@@ -74,7 +75,7 @@ function AgentCard({ account, onCardPress, onMorePress }) {
           </View>
         </View>
         <View style={styles.branchRow}>
-          <Icon name="location" size={12} color={COLORS.textTertiary} />
+          <Icon name="building" size={14} color={COLORS.textSecondary} />
           <Text style={styles.branchText} numberOfLines={1}>
             {account.branchName || 'No branch assigned'}
           </Text>
@@ -116,8 +117,8 @@ export default function ManageAccountsScreen() {
   const blurTarget = useRef(null);
   const [branchFilter, setBranchFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
-  const [isBranchSheetVisible, setIsBranchSheetVisible] = useState(false);
+  // The account whose actions menu (reset password / remove) is open.
+  const [actionsAccount, setActionsAccount] = useState(null);
   const [viewedAccount, setViewedAccount] = useState(null);
   const [viewedPhoneNumber, setViewedPhoneNumber] = useState(null);
   const [isLoadingPhone, setIsLoadingPhone] = useState(false);
@@ -137,11 +138,6 @@ export default function ManageAccountsScreen() {
   const manager = snapshot?.manager ?? null;
   const accounts = snapshot?.accounts ?? [];
   const branches = snapshot?.branches ?? [];
-
-  const handleWorkspacePress = () => {
-    if (branches.length <= 1) return;
-    setIsBranchSheetVisible(true);
-  };
 
   // Phone number isn't in the account list RPC — fetched on demand via the
   // same get_agent_profile RPC Track Deliveries already uses for this, so
@@ -191,11 +187,7 @@ export default function ManageAccountsScreen() {
   };
 
   const handleMorePress = (account) => {
-    Alert.alert(account.full_name, `Username: ${account.username}`, [
-      { text: 'Reset Password', onPress: () => setAccountToResetPassword(account) },
-      { text: 'Remove Account', style: 'destructive', onPress: () => handleRemovePress(account) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setActionsAccount(account);
   };
 
   const closeResetPasswordModal = () => {
@@ -207,8 +199,8 @@ export default function ManageAccountsScreen() {
   const handleConfirmResetPassword = async () => {
     if (!accountToResetPassword || isResettingPassword) return;
 
-    if (newPassword.length < 4) {
-      Alert.alert('Weak Password', 'Password must be at least 4 characters.');
+    if (newPassword.length < MIN_AGENT_PASSWORD_LENGTH) {
+      Alert.alert('Weak Password', `Password must be at least ${MIN_AGENT_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (newPassword !== confirmNewPassword) {
@@ -252,11 +244,13 @@ export default function ManageAccountsScreen() {
   const filteredAccounts = accounts
     .filter((a) => roleFilter === 'all' || a.role === roleFilter)
     .filter((a) => branchFilter === 'all' || (a.branch_ids || []).includes(branchFilter));
-  const activeFilterOption = ROLE_FILTER_OPTIONS.find((option) => option.key === roleFilter);
-  const branchFilterOptions = [
-    { key: 'all', label: 'All Branches' },
-    ...branches.map((b) => ({ key: b.id, label: b.name })),
-  ];
+  // Role pill counts follow the chosen branch.
+  const branchScopedAccounts = accounts.filter(
+    (a) => branchFilter === 'all' || (a.branch_ids || []).includes(branchFilter)
+  );
+  const roleCount = (key) =>
+    key === 'all' ? branchScopedAccounts.length : branchScopedAccounts.filter((a) => a.role === key).length;
+  const branchChipOptions = [{ id: 'all', name: 'All branches' }, ...branches];
   const workspaceLabel =
     branchFilter === 'all' ? manager?.branchName || 'No branch assigned' : branches.find((b) => b.id === branchFilter)?.name;
 
@@ -289,36 +283,50 @@ export default function ManageAccountsScreen() {
             contentContainerStyle={[styles.content, { paddingBottom: bottomBarHeight + SPACING.md }]}
             showsVerticalScrollIndicator={false}
           >
-            <SectionHeader icon="building" label="Workspace" style={styles.sectionHeaderFirst} />
-            <TouchableOpacity
-              style={styles.workspaceChip}
-              onPress={handleWorkspacePress}
-              activeOpacity={branches.length > 1 ? 0.7 : 1}
-              accessibilityRole={branches.length > 1 ? 'button' : undefined}
-              accessibilityLabel="Current branch workspace"
-            >
-              <Text style={styles.workspaceChipText} numberOfLines={1}>
-                {workspaceLabel}
-              </Text>
-              {branches.length > 1 && <Icon name="caretDown" size={16} color={COLORS.textPrimary} />}
-            </TouchableOpacity>
+            <SectionHeader icon="building" size="md" label="Branch" style={styles.sectionHeaderFirst} />
+            {branches.length > 1 ? (
+              <BranchSelector
+                branches={branchChipOptions}
+                selectedId={branchFilter}
+                onSelect={setBranchFilter}
+                scrollable
+                scrollBleed={SPACING.lg}
+              />
+            ) : (
+              <View style={styles.workspaceChip}>
+                <Text style={styles.workspaceChipText} numberOfLines={1}>
+                  {workspaceLabel}
+                </Text>
+              </View>
+            )}
 
-            <SectionHeader icon="filter" label="Filter Agents" />
-            <TouchableOpacity
-              style={styles.filterChip}
-              onPress={() => setIsFilterSheetVisible(true)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Filter agents by role"
-            >
-              <Icon name="idCard" size={16} color={COLORS.primary} />
-              <Text style={styles.filterChipText} numberOfLines={1}>
-                {activeFilterOption.label} ({filteredAccounts.length})
-              </Text>
-              <Icon name="filter" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
+            <SectionHeader icon="idCard" size="md" label="Role" style={styles.sectionHeaderSpaced} />
+            <View style={styles.roleRow}>
+              {ROLE_FILTER_OPTIONS.map((option) => {
+                const isActive = option.key === roleFilter;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.rolePillButton, isActive && styles.rolePillButtonActive]}
+                    onPress={() => setRoleFilter(option.key)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text
+                      style={[styles.rolePillButtonText, isActive && styles.rolePillButtonTextActive]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
+                      {option.key === 'all' ? 'All' : option.label} ({roleCount(option.key)})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            <SectionHeader icon="users" label="Agents" />
+            <SectionHeader icon="users" size="md" label={`Agents (${filteredAccounts.length})`} style={styles.sectionHeaderSpaced} />
 
             {isLoading ? (
               <View style={styles.loadingWrap}>
@@ -354,30 +362,85 @@ export default function ManageAccountsScreen() {
             iconWeight="bold"
             onPress={() => navigation.navigate('AgentAccounts')}
             variant="black"
-            height={44}
-            fontSize={14}
-            borderRadius={22}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
         </BottomActionBar>
       </View>
 
-      <FilterSheet
-        visible={isFilterSheetVisible}
-        onClose={() => setIsFilterSheetVisible(false)}
-        title="Filter Agents"
-        options={ROLE_FILTER_OPTIONS}
-        selectedKey={roleFilter}
-        onSelect={setRoleFilter}
-      />
+      <CustomModal visible={!!actionsAccount} onClose={() => setActionsAccount(null)} height="auto">
+        {actionsAccount && (
+          <>
+            <View style={styles.detailsHeaderRow}>
+              <UserAvatar
+                photoUrl={actionsAccount.profilePhotoUrl}
+                fallbackText={getInitials(actionsAccount.full_name)}
+                size={52}
+                backgroundColor={COLORS.primaryLight}
+                fallbackTextColor={COLORS.primary}
+              />
+              <View style={styles.detailsHeaderTextCol}>
+                <Text style={styles.detailsName} numberOfLines={1}>{actionsAccount.full_name}</Text>
+                <View style={styles.actionsMetaRow}>
+                  <View
+                    style={[
+                      styles.rolePill,
+                      { backgroundColor: (ROLE_DOT_COLOR[actionsAccount.role] || COLORS.textTertiary) + '18' },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.rolePillText, { color: ROLE_DOT_COLOR[actionsAccount.role] || COLORS.textTertiary }]}
+                    >
+                      {ROLE_LABELS[actionsAccount.role] || actionsAccount.role}
+                    </Text>
+                  </View>
+                  <Text style={styles.actionsUsername} numberOfLines={1}>@{actionsAccount.username}</Text>
+                </View>
+              </View>
+            </View>
 
-      <FilterSheet
-        visible={isBranchSheetVisible}
-        onClose={() => setIsBranchSheetVisible(false)}
-        title="Filter by Branch"
-        options={branchFilterOptions}
-        selectedKey={branchFilter}
-        onSelect={setBranchFilter}
-      />
+            <Button
+              title="Reset password"
+              icon="lock"
+              variant="black"
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+              onPress={() => {
+                const account = actionsAccount;
+                setActionsAccount(null);
+                setAccountToResetPassword(account);
+              }}
+              style={styles.actionsButton}
+            />
+            <Button
+              title="Remove account"
+              icon="trash"
+              variant="outline"
+              accentColor={COLORS.error}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+              hasShadow={false}
+              onPress={() => {
+                const account = actionsAccount;
+                setActionsAccount(null);
+                handleRemovePress(account);
+              }}
+              style={styles.actionsButton}
+            />
+            <TouchableOpacity
+              style={styles.actionsCancel}
+              onPress={() => setActionsAccount(null)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Text style={styles.actionsCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </CustomModal>
 
       <ConfirmationDialog
         visible={!!accountToRemove}
@@ -450,13 +513,13 @@ export default function ManageAccountsScreen() {
                 >
                   <View style={styles.detailsRowLeft}>
                     <Icon name="phone" size={16} color={COLORS.textSecondary} />
-                    <View>
-                      <Text style={styles.detailsLabel}>Phone Number</Text>
-                      <Text style={styles.phoneValue}>{formatPhDisplay(viewedPhoneNumber)}</Text>
-                    </View>
+                    <Text style={styles.detailsLabel}>Phone</Text>
                   </View>
-                  <View style={styles.callButton}>
-                    <Icon name="phone" size={14} color="#FFFFFF" weight="fill" />
+                  <View style={styles.phoneRight}>
+                    <Text style={styles.phoneValue}>{formatPhDisplay(viewedPhoneNumber)}</Text>
+                    <View style={styles.callButton}>
+                      <Icon name="phone" size={14} color="#FFFFFF" weight="fill" />
+                    </View>
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -486,6 +549,10 @@ export default function ManageAccountsScreen() {
               title="Close"
               variant="outline"
               onPress={closeDetailsModal}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+              hasShadow={false}
               style={styles.resetModalButton}
             />
           </>
@@ -510,6 +577,7 @@ export default function ManageAccountsScreen() {
           onChangeText={setNewPassword}
           autoCapitalize="none"
         />
+        <PasswordStrengthHint password={newPassword} />
         <Input
           label="Confirm New Password"
           required
@@ -577,7 +645,48 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
   },
-  sectionHeaderFirst: { marginTop: 0 },
+  sectionHeaderFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  sectionHeaderSpaced: { marginTop: SPACING.lg, marginBottom: 0 },
+  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+  rolePillButton: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 4,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#D5DAE3',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rolePillButtonActive: { borderColor: '#0085F9', backgroundColor: '#EAF4FF' },
+  rolePillButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+  },
+  rolePillButtonTextActive: {
+    color: '#0085F9',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  actionsMetaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  actionsUsername: {
+    flexShrink: 1,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+  actionsButton: { marginTop: SPACING.sm },
+  actionsCancel: { alignItems: 'center', paddingVertical: SPACING.md },
+  actionsCancelText: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textSecondary,
+  },
+  phoneRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   workspaceChip: {
     height: 48,
     borderRadius: 20,
@@ -669,8 +778,8 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
   },
   moreButton: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -722,8 +831,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2F7',
   },
   phoneValue: {
-    marginTop: 2,
-    textAlign: 'left',
+    textAlign: 'right',
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',

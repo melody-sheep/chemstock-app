@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepStockRequestsScreen.js
-import React from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { useRoute } from '@react-navigation/native';
+import { View, Text, Image, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useOutbox from '../../hooks/useOutbox';
@@ -12,6 +13,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 
 // Same derived 4th state as the Manager's AgentStockRequestScreen —
 // fulfilled_transaction_id (not the raw 'accepted' status) is what actually
@@ -47,6 +49,12 @@ const loadRequestsData = async (previous) => {
 
 export default function SalesRepStockRequestsScreen() {
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-stock-requests', loadRequestsData);
+  // Tapped from a notification: scroll to that request and mark it for a few seconds.
+  const route = useRoute();
+  const focusId = route.params?.focusId || null;
+  const scrollRef = useRef(null);
+  const cardYRef = useRef({});
+  const [highlightedId, setHighlightedId] = useState(null);
   const requests = snapshot?.requests ?? [];
 
   // Requests queued offline (not yet synced) are otherwise invisible here
@@ -60,6 +68,21 @@ export default function SalesRepStockRequestsScreen() {
     isQueued: true,
   }));
   const allRequests = [...queuedRequests, ...requests];
+
+  useEffect(() => {
+    if (!focusId || isLoading) return;
+    if (!allRequests.some((r) => r.requestId === focusId)) return;
+    setHighlightedId(focusId);
+    const timer = setTimeout(() => {
+      const y = cardYRef.current[focusId];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 80), animated: true });
+    }, 350);
+    const fade = setTimeout(() => setHighlightedId(null), 4000);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(fade);
+    };
+  }, [focusId, isLoading, allRequests.length]);
 
   return (
     <>
@@ -87,6 +110,7 @@ export default function SalesRepStockRequestsScreen() {
           </View>
         ) : (
           <ScrollView
+          ref={scrollRef}
           refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {allRequests.map((request) => {
               const displayStatus = request.isQueued ? 'queued' : getDisplayStatus(request);
@@ -94,33 +118,52 @@ export default function SalesRepStockRequestsScreen() {
               const units = (request.items || []).reduce((sum, item) => sum + item.quantity, 0);
 
               return (
-                <View key={request.requestId} style={styles.requestCard}>
+                <View
+                  key={request.requestId}
+                  onLayout={(event) => {
+                    cardYRef.current[request.requestId] = event.nativeEvent.layout.y;
+                  }}
+                  style={[styles.requestCard, { borderLeftColor: meta.text }, highlightedId === request.requestId && styles.requestCardHighlight]}
+                >
                   <View style={styles.requestHeaderRow}>
-                    <Text style={styles.requestHeaderText}>
-                      {request.isQueued ? 'REQUEST: Not sent yet' : `REQUEST: #${request.requestId.slice(0, 8).toUpperCase()}`}
-                    </Text>
+                    <View style={styles.requestHeaderLeft}>
+                      <Text style={styles.requestHeaderText}>
+                        {units} unit{units === 1 ? '' : 's'} · {(request.items || []).length} product
+                        {(request.items || []).length === 1 ? '' : 's'}
+                      </Text>
+                      <Text style={styles.requestMeta}>
+                        {request.isQueued ? 'Saved' : 'Sent'} {formatRelativeTime(request.createdAt)}
+                      </Text>
+                    </View>
                     <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
                       <Text style={[styles.statusBadgeText, { color: meta.text }]}>{meta.label}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.requestMeta}>
-                    {request.isQueued ? 'Saved' : 'Sent'} {formatRelativeTime(request.createdAt)}
-                  </Text>
-                  <Text style={styles.requestMeta}>
-                    {units} unit{units === 1 ? '' : 's'} · {(request.items || []).length} product
-                    {(request.items || []).length === 1 ? '' : 's'}
-                  </Text>
-
                   <View style={styles.itemsList}>
-                    {(request.items || []).map((item, index) => (
-                      <View key={`${item.productCode}-${index}`} style={styles.itemRow}>
-                        <Icon name="boxPackage" size={14} color={COLORS.primary} />
-                        <Text style={styles.itemText}>{item.productName}</Text>
-                        <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
-                      </View>
-                    ))}
+                    {(request.items || []).map((item, index) => {
+                      const image = PRODUCT_CATALOG.find((p) => p.code === item.productCode || p.code === item.productName)?.image;
+                      return (
+                        <View key={`${item.productCode}-${index}`} style={styles.itemRow}>
+                          <View style={styles.itemThumb}>
+                            {image ? (
+                              <Image source={image} style={styles.itemImage} resizeMode="contain" />
+                            ) : (
+                              <Icon name="boxPackage" size={18} />
+                            )}
+                          </View>
+                          <Text style={styles.itemText} numberOfLines={1}>{item.productName}</Text>
+                          <View style={styles.qtyChip}>
+                            <Text style={styles.itemQty}>{item.quantity} pcs</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
                   </View>
+
+                  <Text style={styles.requestId}>
+                    {request.isQueued ? 'Request not sent yet' : `Request #${request.requestId.slice(0, 8).toUpperCase()}`}
+                  </Text>
 
                   {request.isQueued && (
                     <Text style={styles.queuedText}>
@@ -157,16 +200,24 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  content: { padding: SPACING.lg, gap: SPACING.md },
+  content: { padding: SPACING.lg, gap: SPACING.sm },
+  requestCardHighlight: { borderColor: '#0085F9', backgroundColor: '#F1F7FF' },
+  // The coloured left edge follows the request's status.
   requestCard: {
     borderWidth: 1,
+    borderLeftWidth: 4,
     borderColor: '#E5E5E5',
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     padding: SPACING.md,
-    gap: 4,
+    gap: SPACING.sm,
   },
-  requestHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  requestHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  requestHeaderLeft: { flex: 1 },
+  itemThumb: { width: 36, height: 36, borderRadius: 8, borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 3 },
+  itemImage: { width: '100%', height: '100%' },
+  qtyChip: { borderRadius: 2, backgroundColor: '#0085F9', paddingHorizontal: 8, height: 24, justifyContent: 'center' },
+  requestId: { marginTop: 2, fontSize: 11, color: COLORS.textTertiary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   requestHeaderText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -181,9 +232,9 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   itemsList: { marginTop: SPACING.xs, gap: 4 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  itemText: { flex: 1, fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.medium, color: '#272632' },
-  itemQty: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  itemText: { flex: 1, fontSize: 15, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
+  itemQty: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#FFFFFF' },
   declineReasonText: {
     marginTop: SPACING.xs,
     fontSize: 12,

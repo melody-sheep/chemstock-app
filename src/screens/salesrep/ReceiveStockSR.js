@@ -188,37 +188,22 @@ export default function ReceiveStockSR() {
     }
   };
 
-  const handleDone = () => navigation.navigate('SalesRepDashboard');
+  // Back to the dashboard already in the stack (not a second copy on top of it).
+  const handleDone = () => navigation.navigate('SalesRepDashboard', undefined, { pop: true });
 
-  if (isAccepted) {
-    return (
-      <>
-        <StatusBar style="light" />
-        <View style={styles.screen}>
-          <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-            <Text style={styles.topBarTitle}>{isQueuedAccept ? 'Saved — Will Send Later' : 'Stock Accepted'}</Text>
-          </View>
-          <View style={styles.successWrap}>
-            <Icon
-              name={isQueuedAccept ? 'clock' : 'checkCircle'}
-              size={48}
-              color={isQueuedAccept ? COLORS.warning : COLORS.success}
-              weight="fill"
-            />
-            <Text style={styles.successTitle}>
-              {isQueuedAccept ? "You're Offline — Saved On This Device" : 'Stock Accepted Successfully'}
-            </Text>
-            <Text style={styles.successSubtitle}>
-              {isQueuedAccept
-                ? `Your confirmation for ${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'} (${totalUnits} units) is saved and will send automatically once you're back online.`
-                : `${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'}, ${totalUnits} units added to your stock`}
-            </Text>
-            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
-          </View>
-        </View>
-      </>
+  // The result is a centred message over the screen instead of a full "success" page.
+  const unitsLabel = `${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'}, ${totalUnits} units`;
+  useEffect(() => {
+    if (!isAccepted) return;
+    Alert.alert(
+      isQueuedAccept ? 'Saved — will send later' : 'Stock accepted',
+      isQueuedAccept
+        ? `You're offline. Your confirmation for ${unitsLabel} is saved on this device and sends automatically once you're back online.`
+        : `${unitsLabel} added to your stock.`,
+      [{ text: 'Done', onPress: handleDone }],
+      { cancelable: false }
     );
-  }
+  }, [isAccepted]);
 
   return (
     <>

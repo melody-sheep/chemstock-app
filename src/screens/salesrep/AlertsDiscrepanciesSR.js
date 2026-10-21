@@ -72,11 +72,9 @@ export default function AlertsDiscrepanciesSR() {
               </Text>
             </View>
           </View>
-          <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
-          <View style={styles.itemMetaRow}>
-            <Icon name="trayDown" size={11} color="#555353" />
-            <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
-          </View>
+          {!!item.productName && item.productName !== item.productCode && (
+            <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+          )}
           {queuedReportItemIds.has(item.reportItemId) ? (
             // Queued locally, not yet synced — the server doesn't know about
             // this request yet, so it takes priority over whatever
@@ -135,82 +133,37 @@ export default function AlertsDiscrepanciesSR() {
     </Pressable>
   );
 
-  const renderSettledCard = (item) => (
-    <Pressable
-      key={item.reportItemId}
-      style={styles.itemCard}
-      onPress={() => navigation.navigate('ResolveDiscrepancy', { reportItem: item })}
-    >
-      <View style={styles.itemTopRow}>
-        <View style={styles.thumbnailWrap}>
-          <View style={styles.thumbnail}>
-            {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
-              <Image
-                source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
-                style={styles.thumbnailImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <Icon name="package" size={26} color="#94a3b8" />
-            )}
-          </View>
+  const renderSettledCard = (item) => {
+    const image = PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image;
+    return (
+      <Pressable
+        key={item.reportItemId}
+        style={styles.settledRow}
+        onPress={() => navigation.navigate('ResolveDiscrepancy', { reportItem: item })}
+      >
+        <View style={styles.settledThumb}>
+          {image ? (
+            <Image source={image} style={styles.thumbnailImage} resizeMode="contain" />
+          ) : (
+            <Icon name="package" size={20} color="#94a3b8" />
+          )}
         </View>
-
-        <View style={styles.itemDetails}>
+        <View style={{ flex: 1 }}>
           <View style={styles.itemNameRow}>
             <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
             <View style={styles.settledBadge}>
               <Text style={styles.settledBadgeText}>Settled</Text>
             </View>
           </View>
-          <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
-          <View style={styles.itemMetaRow}>
-            <Icon name="trayDown" size={11} color="#555353" />
-            <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
-          </View>
+          <Text style={styles.settledMeta}>
+            Released {item.inCustodyQuantity} · Sold {item.soldQuantity} · {Math.abs(item.discrepancy)}{' '}
+            {item.discrepancyType === 'loss' ? 'missing' : 'over'}
+          </Text>
         </View>
-      </View>
-
-      <View style={styles.figuresRow}>
-        <View style={styles.figureColumn}>
-          <View style={styles.figureLabelRow}>
-            <Icon name="trayDown" size={11} color="#272632" />
-            <Text style={styles.figureLabel}>Released</Text>
-          </View>
-          <View style={styles.figureBox}>
-            <Text style={styles.figureValue}>{item.inCustodyQuantity}</Text>
-          </View>
-        </View>
-        <View style={styles.figureColumn}>
-          <View style={styles.figureLabelRow}>
-            <Icon name="checkCircle" size={11} color="#272632" />
-            <Text style={styles.figureLabel}>Sold</Text>
-          </View>
-          <View style={styles.figureBox}>
-            <Text style={styles.figureValue}>{item.soldQuantity}</Text>
-          </View>
-        </View>
-        <View style={styles.figureColumn}>
-          <View style={styles.figureLabelRow}>
-            <Icon name="returns" size={11} color="#272632" />
-            <Text style={styles.figureLabel}>Return</Text>
-          </View>
-          <View style={styles.figureBox}>
-            <Text style={styles.figureValue}>{item.returnQuantity}</Text>
-          </View>
-        </View>
-        <View style={styles.figureColumn}>
-          <View style={styles.figureLabelRow}>
-            <Icon name="warningTriangle" size={11} color="#272632" />
-            <Text style={styles.figureLabel}>{item.discrepancyType === 'loss' ? 'Missing' : 'Over'}</Text>
-          </View>
-          <View style={styles.figureBox}>
-            <Text style={styles.figureValue}>{Math.abs(item.discrepancy)}</Text>
-          </View>
-        </View>
-      </View>
-    </Pressable>
-  );
+        <Icon name="arrowRight" size={16} color="#94a3b8" />
+      </Pressable>
+    );
+  };
 
   return (
     <>
@@ -248,8 +201,8 @@ export default function AlertsDiscrepanciesSR() {
           <ScrollView
           refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Pending</Text>
-              <View style={styles.pendingDot} />
+              <View style={[styles.sectionBar, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.sectionTitle}>To resolve ({pendingItems.length})</Text>
             </View>
 
             {pendingItems.length === 0 ? (
@@ -259,8 +212,8 @@ export default function AlertsDiscrepanciesSR() {
             )}
 
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Settled</Text>
-              <View style={styles.settledDot} />
+              <View style={[styles.sectionBar, { backgroundColor: COLORS.success }]} />
+              <Text style={styles.sectionTitle}>Settled ({settledItems.length})</Text>
             </View>
 
             {settledItems.length === 0 ? (
@@ -287,6 +240,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
   },
+  sectionBar: { width: 4, height: 18, borderRadius: 2 },
+  settledRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#FFFFFF' },
+  settledThumb: { width: 48, height: 48, borderRadius: 10, borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  settledMeta: { marginTop: 3, fontSize: 13, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   bannerTitle: {
     color: '#272632',
     fontSize: 19,
@@ -322,10 +279,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 14,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   pendingDot: {
     width: 10,

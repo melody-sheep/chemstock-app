@@ -16,6 +16,7 @@ import StatCard from '../../components/common/StatCard';
 import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
+import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
@@ -26,11 +27,13 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { formatBranchLabel } from '../../utils/branchLabel';
+import { getInitials } from '../../utils/initials';
 
 // Same layout/spec as ManagerDashboardScreen and SalesRepDashboardScreen —
 // this constant intentionally matches theirs so the collapsing header
 // behaves identically across all three dashboards.
-const SECONDARY_HEADER_HEIGHT = 100;
+const SECONDARY_HEADER_HEIGHT = 108;
 
 // 2nd_header_collector.png is 364x408 natively, flush against the edge
 // (no right margin) — matching the Manager dashboard's illustration
@@ -39,18 +42,6 @@ const HEADER_ILLUSTRATION_ASPECT_RATIO = 364 / 408;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
 // Same branch label rule as ManagerDashboardScreen / SalesRepDashboardScreen:
-// "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
-const BRANCH_LABEL_CHARS = 4;
-const formatBranchLabel = (branchName) =>
-  branchName
-    .split(',')
-    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
-    .filter(Boolean)
-    .map((part) => {
-      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
-      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
-    })
-    .join(', ');
 
 const MAIN_OPERATIONS = [
   { key: 'acceptDeliveries', icon: 'truck', iconColor: COLORS.colAcceptStroke, duotoneColor: COLORS.colAcceptFill, title: 'Accept Deliveries', screen: 'CollectorAcceptDeliveries' },
@@ -66,6 +57,8 @@ export default function CollectorDashboardScreen() {
   const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
   const [pendingCount, setPendingCount] = useState(null);
   const [activeTrips, setActiveTrips] = useState([]);
+  // Accepted and waiting to be started (the "Ready to Deliver" list on Accept Deliveries).
+  const [readyDeliveries, setReadyDeliveries] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
   const [logTimes, setLogTimes] = useState([]);
   const unseenLogCount = useUnseenLogCount(user?.id ?? null, logTimes);
@@ -102,6 +95,11 @@ export default function CollectorDashboardScreen() {
     }
 
     setPendingCount(all.filter((d) => d.stage === 'pending_pickup').length);
+    setReadyDeliveries(
+      all
+        .filter((d) => d.stage === 'ready_to_deliver')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    );
 
     // One row per distinct active trip, not per leg — a batch trip with 2
     // undelivered legs should show once on the dashboard.
@@ -169,7 +167,18 @@ export default function CollectorDashboardScreen() {
       backgroundColor: '#FFFDF5',
       borderLeftColor: COLORS.accentGold,
       value: pendingCount === null ? '—' : String(pendingCount),
-      label: 'Pending Pickup',
+      label: 'Pending',
+      onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+    },
+    {
+      key: 'readyDeliveries',
+      icon: 'package',
+      iconColor: COLORS.success,
+      accentColor: COLORS.success,
+      backgroundColor: '#F4FBF7',
+      borderLeftColor: COLORS.success,
+      value: String(readyDeliveries.length),
+      label: 'Ready',
       onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
     },
     {
@@ -179,8 +188,8 @@ export default function CollectorDashboardScreen() {
       accentColor: COLORS.accentPink,
       backgroundColor: '#FFF5F8',
       borderLeftColor: COLORS.accentPink,
-      value: `${visibleActiveTrips.length} Active`,
-      label: 'Deliveries',
+      value: String(visibleActiveTrips.length),
+      label: 'Active',
       onPress:
         visibleActiveTrips.length > 0
           ? () => navigation.navigate('CollectorTripReview', { tripId: visibleActiveTrips[0].tripId })
@@ -248,7 +257,8 @@ export default function CollectorDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>Status</Text>
+                  {/* A long branch line (several branches) needs the room, so the word "Status" steps aside. */}
+                  {branchLabel.length <= 14 && <Text style={styles.statusText}>Status</Text>}
 
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
@@ -324,6 +334,11 @@ export default function CollectorDashboardScreen() {
                   key: 'pickups', icon: 'clockCountdown', tone: 'warn', label: 'Pending pickups',
                   value: String(pendingCount), onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
                 },
+                readyDeliveries.length > 0 && {
+                  key: 'ready', icon: 'truck', tone: 'warn', label: 'Ready to deliver',
+                  value: `${readyDeliveries.length} deliver${readyDeliveries.length === 1 ? 'y' : 'ies'}`,
+                  onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+                },
                 visibleActiveTrips.length > 0 && {
                   key: 'trips', icon: 'truck', tone: 'warn',
                   label: visibleActiveTrips.length === 1 ? 'Delivery in progress' : 'Deliveries in progress',
@@ -355,6 +370,8 @@ export default function CollectorDashboardScreen() {
                     borderLeftColor={stat.borderLeftColor}
                     value={stat.value}
                     label={stat.label}
+                    iconSize={26}
+                    style={styles.statCardCompact}
                   />
                 );
                 if (stat.onPress) {
@@ -367,6 +384,49 @@ export default function CollectorDashboardScreen() {
                 return <View key={stat.key} style={styles.statTouchable}>{card}</View>;
               })}
             </View>
+          )}
+
+          {readyDeliveries.length > 0 && (
+            <>
+              <View style={styles.logsTitleRow}>
+                <Text style={[styles.sectionTitle, styles.logsTitle]}>Ready to deliver</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('CollectorAcceptDeliveries')} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.seeAll}>See all ›</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.activeList}>
+                {readyDeliveries.slice(0, 3).map((delivery) => {
+                  const units = (delivery.items || []).reduce((sum, item) => sum + item.quantity, 0);
+                  const count = (delivery.items || []).length;
+                  return (
+                    <TouchableOpacity
+                      key={delivery.transactionId}
+                      style={styles.readyCard}
+                      onPress={() => navigation.navigate('CollectorTripReview', { transactionIds: [delivery.transactionId] })}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                    >
+                      <UserAvatar
+                        photoUrl={delivery.targetRecipientPhotoUrl}
+                        fallbackText={getInitials(delivery.targetRecipientName)}
+                        size={40}
+                        backgroundColor="#F1F3F6"
+                        fallbackTextColor={COLORS.primary}
+                      />
+                      <View style={styles.readyTextCol}>
+                        <Text style={styles.readyName} numberOfLines={1}>{delivery.targetRecipientName || 'Sales Rep'}</Text>
+                        <Text style={styles.readyMeta} numberOfLines={1}>
+                          {count} item{count === 1 ? '' : 's'} · {units} unit{units === 1 ? '' : 's'} · {formatRelativeTime(delivery.createdAt)}
+                        </Text>
+                      </View>
+                      <View style={styles.readyStart}>
+                        <Text style={styles.readyStartText}>Start</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
           )}
 
           {visibleActiveTrips.length > 0 && (
@@ -417,11 +477,17 @@ export default function CollectorDashboardScreen() {
                 title={operation.title}
                 onPress={() => navigation.navigate(operation.screen)}
                 style={styles.operationCard}
+                layout="tile"
               />
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Logs</Text>
+          <View style={styles.logsTitleRow}>
+            <Text style={[styles.sectionTitle, styles.logsTitle]}>Recent Logs</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('CollectorDeliveredStock')} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.seeAll}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
@@ -442,7 +508,7 @@ export default function CollectorDashboardScreen() {
                     icon="checkCircle"
                     iconColor={COLORS.success}
                     text={`Delivered to ${log.targetRecipientName || 'Sales Rep'} — ${formatRelativeTime(log.deliveredAt || log.createdAt)}`}
-                    onPress={() => navigation.navigate('CollectorDeliveredStock')}
+                    onPress={() => navigation.navigate('CollectorDeliveredStock', { focusId: log.transactionId })}
                   />
                 ))}
               </>
@@ -466,6 +532,7 @@ export default function CollectorDashboardScreen() {
           onFabPress={handleFabPress}
           hiddenKeys={['stock', 'reports']}
           fabIcon="truck"
+          fabBadgeCount={(pendingCount || 0) + readyDeliveries.length}
           fabLabel="Deliver"
         />
       </View>
@@ -516,7 +583,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     gap: SPACING.sm,
-    width: '72%',
+    width: '82%',
   },
   branchGroup: {
     flexShrink: 1,
@@ -602,14 +669,21 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+  statCardCompact: { paddingVertical: SPACING.md + 4, paddingHorizontal: SPACING.sm },
+  readyCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm + 2, borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, backgroundColor: '#FFFFFF' },
+  readyTextCol: { flex: 1 },
+  readyName: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  readyMeta: { marginTop: 2, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  readyStart: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: COLORS.primary },
+  readyStartText: { fontSize: 12, color: '#FFFFFF', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   statTouchable: {
     flex: 1,
   },
   activeList: {
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   activeCard: {
     flexDirection: 'row',
@@ -647,13 +721,16 @@ const styles = StyleSheet.create({
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: SPACING.xl,
+    gap: 8,
+    marginBottom: SPACING.lg,
   },
   operationCard: {
-    width: '48%',
-    minHeight: 72,
+    width: '48.5%',
+    minHeight: 88,
   },
+  logsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  logsTitle: { marginBottom: 0 },
+  seeAll: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#0085F9' },
   logsList: {
     gap: SPACING.sm,
   },

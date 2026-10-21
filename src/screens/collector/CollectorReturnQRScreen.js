@@ -46,7 +46,7 @@ export default function CollectorReturnQRScreen() {
           subtitle="Your manager scans this in Receive Stock to confirm the return and credit it back to inventory."
           qrValue={qrCode}
           receipt={receipt}
-          onDone={() => navigation.navigate('CollectorAcceptDeliveries')}
+          onDone={() => navigation.navigate('CollectorAcceptDeliveries', undefined, { pop: true })}
         />
       </View>
     </>

@@ -36,9 +36,59 @@ export default function StockBatchCard({
   wireframe = false,
   onPress = null,
   statusLabel = null,
+  // 'healthy' | 'low' | 'out': draws the coloured tile (picture across the top and both sides,
+  // details underneath). Without it the card looks exactly as before.
+  tone = null,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
+
+  if (tone) {
+    const t = TILE_TONES[tone] || TILE_TONES.healthy;
+    let tileStatus = null;
+    if (!outOfStock) {
+      if (daysLeft === null) tileStatus = { label: 'No expiry set', color: '#757575', bg: '#F1F5F9' };
+      else if (isExpired(expDate)) tileStatus = { label: 'Expired', color: COLORS.error, bg: '#FDECEC' };
+      else if (isNearExpiry) tileStatus = { label: 'Near expiry', color: '#B45309', bg: '#FFF3D6' };
+      else tileStatus = { label: 'Safe batch', color: '#1E7A3A', bg: '#E1F4E8' };
+      if (statusLabel) tileStatus = { label: statusLabel, color: '#0085F9', bg: '#E3F2FF' };
+    }
+    const TileContainer = onPress ? TouchableOpacity : View;
+    return (
+      <TileContainer
+        style={[styles.tile, { borderColor: t.border, backgroundColor: '#FFFFFF' }, outOfStock && styles.tileOut]}
+        {...(onPress ? { onPress, activeOpacity: 0.7 } : {})}
+      >
+        <View style={[styles.tilePicture, { backgroundColor: t.tint }, outOfStock && styles.tilePictureOut]}>
+          {image ? (
+            <Image source={image} style={styles.tileImage} resizeMode="contain" />
+          ) : (
+            <Icon name="boxPackage" size={40} />
+          )}
+          {!outOfStock && (
+            <View style={[styles.tileQty, { backgroundColor: t.solid }]}>
+              <Text style={styles.tileQtyText}>{quantity} pcs</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.tileBody}>
+          <Text style={styles.tileName} numberOfLines={1}>{productName}</Text>
+          {tileStatus && (
+            <View style={[styles.tilePill, { backgroundColor: tileStatus.bg }]}>
+              <Text style={[styles.tilePillText, { color: tileStatus.color }]}>{tileStatus.label}</Text>
+            </View>
+          )}
+          {!outOfStock && (
+            <>
+              <Text style={[styles.tileMeta, isNearExpiry && styles.metaTextUrgent]}>
+                {expDate ? `Exp ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
+              </Text>
+            </>
+          )}
+        </View>
+      </TileContainer>
+    );
+  }
 
   let expiryBadge = null;
   if (!outOfStock) {
@@ -135,9 +185,71 @@ StockBatchCard.propTypes = {
   wireframe: PropTypes.bool,
   statusLabel: PropTypes.string,
   onPress: PropTypes.func,
+  tone: PropTypes.oneOf(['healthy', 'low', 'out']),
 };
 
+// Tile colours by stock level: a soft background for the picture, a stronger edge and badge.
+const TILE_TONES = {
+  healthy: { solid: '#2E9E5B', tint: '#E3F4EA', border: '#79C898' },
+  low: { solid: '#E08A00', tint: '#FFF1D6', border: '#F2BE63' },
+  out: { solid: '#C9485B', tint: '#FBE7EA', border: '#E6A3AE' },
+};
+
+const TILE_WIDTH = 148;
+
 const styles = StyleSheet.create({
+  tile: {
+    width: TILE_WIDTH,
+    borderRadius: 2,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  tileOut: { opacity: 0.92 },
+  tilePicture: {
+    height: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tilePictureOut: { height: 84 },
+  tileImage: { width: 76, height: 76 },
+  tileQty: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderBottomLeftRadius: 2,
+  },
+  tileQtyText: {
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
+  },
+  tileBody: { padding: SPACING.sm, gap: 4 },
+  tileName: {
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  tilePill: { alignSelf: 'flex-start', borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2 },
+  tilePillText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  tileMeta: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  tileId: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textTertiary,
+  },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,

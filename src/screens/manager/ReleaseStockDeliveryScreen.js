@@ -387,6 +387,8 @@ export default function ReleaseStockDeliveryScreen() {
         initialLockedAgentId={pickerLockedAgentId}
         teamMembers={teamMembers}
         targetRecipientId={targetRecipient?.id || null}
+        featuredAgentIds={[recipient?.id, targetRecipient?.id].filter(Boolean)}
+        viaAgentId={targetRecipient ? recipient?.id || null : null}
       />
 
       <CameraCaptureModal

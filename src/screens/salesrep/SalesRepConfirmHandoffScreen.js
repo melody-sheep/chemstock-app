@@ -303,7 +303,8 @@ export default function SalesRepConfirmHandoffScreen() {
       }
 
       Alert.alert('Confirmed', 'Your receipt is recorded. Stock has been credited to your inventory.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        // Done: close this screen and go to the dashboard.
+        { text: 'OK', onPress: () => navigation.navigate('SalesRepDashboard', undefined, { pop: true }) },
       ]);
     } catch (error) {
       Alert.alert('Failed to Confirm', friendlyError(error.message) || 'Please try again.');
@@ -451,7 +452,7 @@ export default function SalesRepConfirmHandoffScreen() {
                     <Text style={styles.itemName}>{item.productName}</Text>
                     {!!item.batchNumber && <Text style={styles.itemMeta}>BN: {item.batchNumber}</Text>}
                   </View>
-                  <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                  <View style={styles.qtyChip}><Text style={styles.itemQty}>{item.quantity} pcs</Text></View>
                 </View>
               );
             })}
@@ -497,13 +498,12 @@ export default function SalesRepConfirmHandoffScreen() {
               onPress={() => setIsScannerVisible(true)}
               activeOpacity={0.8}
             >
-              <Icon name="qrCode" size={20} color={COLORS.primary} />
+              <Icon name="qrCode" size={30} color="#0085F9" />
               <Text style={styles.stepButtonText}>
                 {isDirectAwaitingScan && !fetchedDirectTx
                   ? 'Scan the QR to load the delivery'
                   : 'Scan the QR on the package'}
               </Text>
-              <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
 
@@ -526,9 +526,8 @@ export default function SalesRepConfirmHandoffScreen() {
               onPress={() => setIsCameraVisible(true)}
               activeOpacity={0.8}
             >
-              <Icon name="camera" size={20} color={COLORS.primary} />
+              <Icon name="camera" size={30} color="#0085F9" />
               <Text style={styles.stepButtonText}>Take a photo of the received items</Text>
-              <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
 
@@ -538,10 +537,16 @@ export default function SalesRepConfirmHandoffScreen() {
             onPress={handleSubmit}
             loading={isSubmitting}
             disabled={isSubmitting || !isQrValid || !photoUri}
-            height={50}
-            fontSize={15}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
             style={styles.confirmButton}
           />
+          {!isSubmitting && (!isQrValid || !photoUri) && (
+            <Text style={styles.confirmHint}>
+              {!isQrValid ? 'Scan the QR first, then take the photo.' : 'Take the receipt photo to continue.'}
+            </Text>
+          )}
 
           {!isDirectMode && (
             <TouchableOpacity
@@ -650,13 +655,13 @@ const styles = StyleSheet.create({
     color: '#7A4A00',
   },
   sectionLabel: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textTertiary,
+    fontSize: 13,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#4B5563',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
   },
   itemsCard: {
     backgroundColor: '#FFFFFF',
@@ -689,23 +694,27 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
+  qtyChip: { borderRadius: 2, backgroundColor: '#0085F9', paddingHorizontal: 8, height: 24, justifyContent: 'center' },
   itemQty: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#FFFFFF',
   },
+  // Blue dotted frames: the two things to tap, same look as the scan frames elsewhere.
   stepButton: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1, borderColor: COLORS.borderSubtle,
-    borderRadius: 8, padding: SPACING.md,
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    minHeight: 104,
+    backgroundColor: '#EAF4FF',
+    borderWidth: 1.5, borderStyle: 'dotted', borderColor: '#0085F9',
+    borderRadius: 12, padding: SPACING.md,
   },
   stepButtonText: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    color: COLORS.textPrimary,
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#0085F9',
   },
   stepDone: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
@@ -756,7 +765,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#FFFFFF',
   },
-  confirmButton: { width: '100%', marginTop: SPACING.sm },
+  confirmButton: { width: '100%', marginTop: SPACING.lg },
+  confirmHint: { textAlign: 'center', marginTop: SPACING.xs, fontSize: 13, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   issueLink: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: SPACING.sm, alignSelf: 'center',

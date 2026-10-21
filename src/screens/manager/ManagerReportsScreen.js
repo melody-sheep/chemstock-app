@@ -1,6 +1,6 @@
 // src/screens/manager/ManagerReportsScreen.js
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Animated, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -12,8 +12,13 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
+import Button from '../../components/common/Button';
+import BranchSelector from '../../components/common/BranchSelector';
+import SectionHeader from '../../components/common/SectionHeader';
+import SignaturePad from '../../components/common/SignaturePad';
 import BottomNavBar from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -24,6 +29,8 @@ import { supabase } from '../../services/supabaseClient';
 import storage from '../../utils/storage';
 import { formatDisplayDate } from '../../utils/formatters';
 import { describeReceivingScan } from '../../utils/scanLookup';
+import ScanResultSheet from '../../components/common/ScanResultSheet';
+import { getSignature, saveSignature, clearSignature, signatureToSvg } from '../../utils/signature';
 
 const PERIOD_TYPES = [
   { key: 'weekly', label: 'Weekly' },
@@ -73,23 +80,33 @@ function shiftAnchor(periodType, anchorDate, direction) {
   if (periodType === 'weekly') {
     next.setDate(next.getDate() + direction * 7);
   } else {
-    next.setMonth(next.getMonth() + direction);
+    // Move from the 1st: shifting from the 29th-31st overflowed into the wrong month
+    // (Oct 31 minus a month became Oct 1, Jan 31 plus a month skipped February).
+    return new Date(anchorDate.getFullYear(), anchorDate.getMonth() + direction, 1);
   }
   return next;
 }
 
-function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate, logoBase64 }) {
+// Only the report's own text needs escaping: names and codes go straight into the PDF's HTML.
+const esc = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate, logoBase64, signatureSvg = '' }) {
   const rows = products
     .map(
       (p) => `
         <tr>
-          <td>${p.productCode}</td>
+          <td>${esc(p.productCode)}</td>
           <td>${p.actualInventory}</td>
           <td>${p.sales}</td>
           <td>${p.returned}</td>
           <td class="${p.loss > 0 ? 'loss' : ''}">${p.loss}</td>
           <td class="${p.over > 0 ? 'over' : ''}">${p.over}</td>
-          <td class="${p.status === 'Unresolved' ? 'loss' : ''}">${p.status || 'Resolved'}</td>
+          <td class="${p.status === 'Unresolved' ? 'loss' : ''}">${esc(p.status || 'Resolved')}</td>
         </tr>`
     )
     .join('');
@@ -148,17 +165,17 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
         <div class="distributor-box">
           <div class="distributor-row">
             <span class="distributor-label">DISTRIBUTOR'S NAME</span>
-            <span class="distributor-value">${managerName || ''}</span>
+            <span class="distributor-value">${esc(managerName)}</span>
           </div>
           <div class="distributor-row">
             <span class="distributor-label">OFFICE</span>
-            <span class="distributor-value">${branchName || ''}</span>
+            <span class="distributor-value">${esc(branchName)}</span>
           </div>
         </div>
 
         <div class="bor-title">DISTRIBUTOR'S REPORT (BOR)</div>
 
-        <h1>${branchName} — ${periodLabel} Transaction Report</h1>
+        <h1>${esc(branchName)} — ${esc(periodLabel)} Transaction Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -177,7 +194,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
             </tr>
           </tfoot>
         </table>
-        <div class="sign-row">Manager Sign-off: <span>${managerName || ''}</span> Date: <span>${signOffDate}</span></div>
+        <div class="sign-row">Manager Sign-off: <span>${signatureSvg}${esc(managerName)}</span> Date: <span>${signOffDate}</span></div>
         <div class="details">
           <div><strong>System Extra Details</strong></div>
           <div>Reports accepted: ${systemDetails?.reportsAccepted ?? 0} · Auto-filed (missed): ${systemDetails?.reportsAutoFiled ?? 0}</div>
@@ -189,12 +206,12 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
   `;
 }
 
-function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64 }) {
+function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64, signatureSvg = '' }) {
   const rows = items
     .map(
       (i) => `
         <tr>
-          <td>${i.productCode}</td>
+          <td>${esc(i.productCode)}</td>
           <td>${i.quantity}</td>
         </tr>`
     )
@@ -231,7 +248,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
           </div>
         </div>
 
-        <h1>${branchName} — ${periodLabel} Received Stocks Report</h1>
+        <h1>${esc(branchName)} — ${esc(periodLabel)} Received Stocks Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -245,7 +262,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
             </tr>
           </tfoot>
         </table>
-        <div class="sign-row">Manager Sign-off: <span>${managerName || ''}</span> Date: <span>${signOffDate}</span></div>
+        <div class="sign-row">Manager Sign-off: <span>${signatureSvg}${esc(managerName)}</span> Date: <span>${signOffDate}</span></div>
       </body>
     </html>
   `;
@@ -268,7 +285,40 @@ export default function ManagerReportsScreen() {
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [managerName, setManagerName] = useState('');
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [scanSummary, setScanSummary] = useState(null);
   const [logoBase64, setLogoBase64] = useState(null);
+  // Which export is running ('print' | 'pdf' | 'chat'), for the button label.
+  const [exportingKind, setExportingKind] = useState(null);
+  // The manager's drawn signature (kept on this phone only).
+  const [signature, setSignature] = useState(null);
+  const [isSignPadVisible, setIsSignPadVisible] = useState(false);
+  // BUG 1: only the newest load may update the screen.
+  const latestLoadRef = useRef(0);
+
+  // The controls block (report type, period, branch) slides away when you scroll down and comes
+  // back when you scroll up. It floats over the report, which keeps room for it at the top, so
+  // nothing resizes while you scroll.
+  const [controlsHeight, setControlsHeight] = useState(0);
+  const controlsProgress = useRef(new Animated.Value(0)).current; // 0 shown, 1 hidden
+  const controlsHidden = useRef(false);
+  const lastScrollY = useRef(0);
+  const setControlsHidden = (hide) => {
+    if (controlsHidden.current === hide) return;
+    controlsHidden.current = hide;
+    Animated.timing(controlsProgress, { toValue: hide ? 1 : 0, duration: 50, useNativeDriver: true }).start();
+  };
+  const handleReportScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const delta = y - lastScrollY.current;
+    lastScrollY.current = y;
+    if (y <= 8) {
+      setControlsHidden(false);
+    } else if (delta > 6) {
+      setControlsHidden(true);
+    }
+    // No "scroll up" branch on purpose: the controls come back only at the very top of the sheet.
+  };
+  const controlsTranslateY = controlsProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -controlsHeight] });
 
   // Resolved once and reused on every print/export — the logo asset never
   // changes mid-session, no reason to re-read it from disk each time.
@@ -291,6 +341,16 @@ export default function ManagerReportsScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSignature(manager?.id).then((saved) => {
+      if (!cancelled) setSignature(saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [manager?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -327,6 +387,8 @@ export default function ManagerReportsScreen() {
 
   const loadReport = useCallback(async () => {
     if (!selectedBranchId) return;
+    const loadId = ++latestLoadRef.current;
+    const isStale = () => loadId !== latestLoadRef.current;
     setIsLoading(true);
     setIsUnavailableOffline(false);
     const { start, end } = getPeriodRange(periodType, anchorDate);
@@ -334,6 +396,7 @@ export default function ManagerReportsScreen() {
     const cacheKey = `${REPORT_CACHE_PREFIX}${manager?.id}:${reportKind}:${selectedBranchId}:${toISODate(start)}:${periodType}`;
     const showSavedCopy = async () => {
       const saved = await storage.get(cacheKey);
+      if (isStale()) return;
       if (saved) {
         if (reportKind === 'received') setReceivedItems(saved.receivedItems || []);
         else setReport(saved.report ?? null);
@@ -350,6 +413,7 @@ export default function ManagerReportsScreen() {
       const endOfDay = new Date(end);
       endOfDay.setHours(23, 59, 59, 999);
       const result = await inventoryService.getReceivingLogs([selectedBranchId], 200, start.toISOString(), endOfDay.toISOString());
+      if (isStale()) return;
       if (!result.success) {
         await showSavedCopy();
         return;
@@ -377,6 +441,7 @@ export default function ManagerReportsScreen() {
       storage.set(cacheKey, { receivedItems: merged });
     } else {
       const result = await reportService.getBranchReport(selectedBranchId, toISODate(start), toISODate(end));
+      if (isStale()) return;
       if (!result.success) {
         await showSavedCopy();
         return;
@@ -409,7 +474,7 @@ export default function ManagerReportsScreen() {
     setIsScannerVisible(false);
     const currentManager = await authService.getCurrentUser();
     const summary = await describeReceivingScan(qrCode, currentManager?.branchIds || []);
-    Alert.alert(summary.title, summary.message);
+    setScanSummary(summary);
   };
 
   const { start, end } = getPeriodRange(periodType, anchorDate);
@@ -418,6 +483,14 @@ export default function ManagerReportsScreen() {
   const branchName = branches.find((b) => b.id === selectedBranchId)?.name || '';
   const products = report?.products || [];
   const systemDetails = report?.systemDetails;
+  // BUG 3: no browsing into periods that have not started.
+  const nextPeriodStart = getPeriodRange(periodType, shiftAnchor(periodType, anchorDate, 1)).start;
+  const canGoForward = nextPeriodStart <= new Date();
+  const currentPeriodStart = getPeriodRange(periodType, new Date()).start;
+  const isCurrentPeriod = toISODate(start) === toISODate(currentPeriodStart);
+  // BUG 4: nothing to export while loading, or when the report has no rows.
+  const hasReportRows = reportKind === 'received' ? receivedItems.length > 0 : products.length > 0;
+  const canExport = !isLoading && hasReportRows;
 
   const buildHtml = () =>
     reportKind === 'received'
@@ -429,6 +502,7 @@ export default function ManagerReportsScreen() {
           managerName,
           signOffDate: formatDisplayDate(toISODate(new Date())),
           logoBase64,
+          signatureSvg: signatureToSvg(signature),
         })
       : buildReportHtml({
           branchName,
@@ -439,15 +513,18 @@ export default function ManagerReportsScreen() {
           managerName,
           signOffDate: formatDisplayDate(toISODate(new Date())),
           logoBase64,
+          signatureSvg: signatureToSvg(signature),
         });
 
   const handlePrint = async () => {
+    setExportingKind('print');
     setIsExporting(true);
     try {
       await Print.printAsync({ html: buildHtml() });
     } catch (error) {
       Alert.alert('Print Failed', error.message || 'Could not open the print dialog.');
     } finally {
+      setExportingKind(null);
       setIsExporting(false);
     }
   };
@@ -471,6 +548,7 @@ export default function ManagerReportsScreen() {
   };
 
   const handleDownloadPdf = async () => {
+    setExportingKind('pdf');
     setIsExporting(true);
     try {
       const uri = await getShareableReportUri();
@@ -483,11 +561,13 @@ export default function ManagerReportsScreen() {
     } catch (error) {
       Alert.alert('Export Failed', error.message || 'Could not generate the PDF.');
     } finally {
+      setExportingKind(null);
       setIsExporting(false);
     }
   };
 
   const handleShareToChat = async () => {
+    setExportingKind('chat');
     setIsExporting(true);
     try {
       const uri = await getShareableReportUri();
@@ -500,6 +580,7 @@ export default function ManagerReportsScreen() {
     } catch (error) {
       Alert.alert('Share Failed', error.message || 'Could not share the report.');
     } finally {
+      setExportingKind(null);
       setIsExporting(false);
     }
   };
@@ -517,82 +598,30 @@ export default function ManagerReportsScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56}>
+        <SecondaryHeader height={76}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>
-              {reportKind === 'received' ? 'Received Stocks' : 'Transaction Report'}
-            </Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>
+                {reportKind === 'received' ? 'Received Stocks' : 'Transaction Report'}
+              </Text>
+              <Text style={styles.pageSubtitle}>Preview, then print or share</Text>
+            </View>
             <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
-        <View style={styles.controlsWrap}>
-          <View style={styles.periodTypeRow}>
-            {REPORT_KINDS.map((k) => {
-              const isActive = k.key === reportKind;
-              return (
-                <TouchableOpacity
-                  key={k.key}
-                  style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
-                  onPress={() => setReportKind(k.key)}
-                >
-                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{k.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.periodTypeRow}>
-            {PERIOD_TYPES.map((p) => {
-              const isActive = p.key === periodType;
-              return (
-                <TouchableOpacity
-                  key={p.key}
-                  style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
-                  onPress={() => {
-                    setPeriodType(p.key);
-                    setAnchorDate(new Date());
-                  }}
-                >
-                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{p.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <View style={styles.rangeRow}>
-            <TouchableOpacity onPress={() => setAnchorDate(shiftAnchor(periodType, anchorDate, -1))} style={styles.rangeArrow}>
-              <Icon name="arrowLeft" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
-            <Text style={styles.rangeText}>{periodRangeLabel}</Text>
-            <TouchableOpacity onPress={() => setAnchorDate(shiftAnchor(periodType, anchorDate, 1))} style={styles.rangeArrow}>
-              <Icon name="arrowRight" size={16} color={COLORS.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {branches.length > 1 && (
-            <View style={styles.branchChipsRow}>
-              {branches.map((b) => (
-                <TouchableOpacity
-                  key={b.id}
-                  style={[styles.branchChip, selectedBranchId === b.id && styles.branchChipActive]}
-                  onPress={() => setSelectedBranchId(b.id)}
-                >
-                  <Text style={[styles.branchChipText, selectedBranchId === b.id && styles.branchChipTextActive]}>
-                    {b.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-
+        <View style={styles.listArea}>
         {isLoading ? (
-          <View style={styles.loadingWrap}>
+          <View style={[styles.loadingWrap, { paddingTop: controlsHeight }]}>
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingTop: controlsHeight + SPACING.sm }]}
+            onScroll={handleReportScroll}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
             <Text style={styles.previewLabel}>LIVE PAPER SHEET PREVIEW</Text>
             <Text style={styles.previewHint}>(Scroll right to review all columns)</Text>
 
@@ -605,7 +634,10 @@ export default function ManagerReportsScreen() {
                   </View>
 
                   {receivedItems.length === 0 ? (
-                    <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
+                    <View style={styles.emptyBox}>
+                      <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
+                    </View>
                   ) : (
                     receivedItems.map((item) => (
                       <View key={item.productCode} style={styles.tableRow}>
@@ -628,7 +660,10 @@ export default function ManagerReportsScreen() {
                   </View>
 
                   {products.length === 0 ? (
-                    <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No accepted reports in this period yet.'}</Text>
+                    <View style={styles.emptyBox}>
+                      <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No accepted reports in this period yet. Reports show here once you accept them.'}</Text>
+                    </View>
                   ) : (
                     products.map((p) => (
                       <View key={p.productCode} style={styles.tableRow}>
@@ -663,34 +698,94 @@ export default function ManagerReportsScreen() {
                 placeholder="Your name"
               />
               <Text style={styles.signOffDate}>Date: {formatDisplayDate(toISODate(new Date()))}</Text>
+
+              <View style={styles.signatureRow}>
+                <View style={styles.signatureBox}>
+                  {signature ? (
+                    <Svg width="100%" height="100%" viewBox={`0 0 ${signature.width} ${signature.height}`}>
+                      {signature.paths.map((d, index) => (
+                        <Path key={index} d={d} stroke="#272632" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      ))}
+                    </Svg>
+                  ) : (
+                    <Text style={styles.signaturePlaceholder}>No signature yet</Text>
+                  )}
+                </View>
+                <View style={styles.signatureActions}>
+                  <TouchableOpacity style={styles.signatureButton} onPress={() => setIsSignPadVisible(true)} accessibilityRole="button">
+                    <Icon name="pencilSimpleLine" size={14} color="#0085F9" />
+                    <Text style={styles.signatureButtonText}>{signature ? 'Redo' : 'Add signature'}</Text>
+                  </TouchableOpacity>
+                  {!!signature && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        clearSignature(manager?.id);
+                        setSignature(null);
+                      }}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.signatureClear}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+              <Text style={styles.signatureHint}>
+                Optional. Saved only on this phone and printed above your name on the PDF.
+              </Text>
             </View>
 
-            <TouchableOpacity
-              style={[styles.actionButton, styles.printButton]}
-              onPress={handlePrint}
-              disabled={isExporting}
-            >
-              <Icon name="trayUp" size={18} color="#0085F9" />
-              <Text style={styles.actionButtonTextBlue}>Share to Printer</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.pdfButton]}
+            <SectionHeader icon="document" size="md" label="Export" style={styles.exportLabel} />
+            <Button
+              title={exportingKind === 'pdf' ? 'Preparing PDF…' : 'Download Clean PDF'}
+              icon="document"
+              variant="black"
               onPress={handleDownloadPdf}
-              disabled={isExporting}
-            >
-              <Icon name="document" size={18} color="#0085F9" />
-              <Text style={styles.actionButtonTextBlue}>Download Clean PDF</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.chatButton]}
-              onPress={handleShareToChat}
-              disabled={isExporting}
-            >
-              <Icon name="send" size={18} color="#03045E" />
-              <Text style={styles.actionButtonTextNavy}>Share to Chat</Text>
-            </TouchableOpacity>
+              disabled={isExporting || !canExport}
+              loading={exportingKind === 'pdf'}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+              hasShadow={false}
+              width="100%"
+              style={styles.exportMain}
+            />
+            <View style={styles.exportRow}>
+              <View style={styles.exportCol}>
+                <Button
+                  title={exportingKind === 'print' ? 'Opening…' : 'Printer'}
+                  icon="trayUp"
+                  iconSize={18}
+                  variant="outline"
+                  accentColor="#0085F9"
+                  onPress={handlePrint}
+                  disabled={isExporting || !canExport}
+                  loading={exportingKind === 'print'}
+                  height={44}
+                  fontSize={15}
+                  borderRadius={22}
+                  hasShadow={false}
+                  width="100%"
+                />
+              </View>
+              <View style={styles.exportCol}>
+                <Button
+                  title={exportingKind === 'chat' ? 'Preparing…' : 'Chat'}
+                  icon="send"
+                  iconSize={18}
+                  variant="outline"
+                  accentColor="#7B6FE8"
+                  onPress={handleShareToChat}
+                  disabled={isExporting || !canExport}
+                  loading={exportingKind === 'chat'}
+                  height={44}
+                  fontSize={15}
+                  borderRadius={22}
+                  hasShadow={false}
+                  width="100%"
+                />
+              </View>
+            </View>
+            {!canExport && <Text style={styles.exportHint}>There is nothing to export for this period yet.</Text>}
 
             <TouchableOpacity
               style={styles.detailsToggle}
@@ -719,13 +814,111 @@ export default function ManagerReportsScreen() {
           </ScrollView>
         )}
 
+        <Animated.View
+          style={[styles.controlsWrap, styles.controlsFloat, { transform: [{ translateY: controlsTranslateY }] }]}
+          onLayout={(event) => setControlsHeight(event.nativeEvent.layout.height)}
+        >
+          <View style={styles.periodTypeRow}>
+            {REPORT_KINDS.map((k) => {
+              const isActive = k.key === reportKind;
+              return (
+                <TouchableOpacity
+                  key={k.key}
+                  style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
+                  onPress={() => setReportKind(k.key)}
+                >
+                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{k.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.periodTypeRow}>
+            {PERIOD_TYPES.map((p) => {
+              const isActive = p.key === periodType;
+              return (
+                <TouchableOpacity
+                  key={p.key}
+                  style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
+                  onPress={() => {
+                    setPeriodType(p.key);
+                    setAnchorDate(new Date());
+                  }}
+                >
+                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{p.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.rangeRow}>
+            <TouchableOpacity
+              onPress={() => setAnchorDate(shiftAnchor(periodType, anchorDate, -1))}
+              style={styles.rangeArrow}
+              accessibilityRole="button"
+              accessibilityLabel="Previous period"
+            >
+              <Icon name="arrowLeft" size={18} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.rangeText}>{periodRangeLabel}</Text>
+            <TouchableOpacity
+              onPress={() => canGoForward && setAnchorDate(shiftAnchor(periodType, anchorDate, 1))}
+              disabled={!canGoForward}
+              style={[styles.rangeArrow, !canGoForward && styles.rangeArrowDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Next period"
+              accessibilityState={{ disabled: !canGoForward }}
+            >
+              <Icon name="arrowRight" size={18} color={canGoForward ? COLORS.primary : COLORS.textTertiary} />
+            </TouchableOpacity>
+          </View>
+          {!isCurrentPeriod && (
+            <TouchableOpacity
+              style={styles.thisPeriodPill}
+              onPress={() => setAnchorDate(new Date())}
+              accessibilityRole="button"
+            >
+              <Text style={styles.thisPeriodText}>Back to {periodType === 'weekly' ? 'this week' : 'this month'}</Text>
+            </TouchableOpacity>
+          )}
+
+          {branches.length > 1 && (
+            <BranchSelector
+              branches={branches}
+              selectedId={selectedBranchId}
+              onSelect={setSelectedBranchId}
+              scrollable
+              scrollBleed={SPACING.lg}
+            />
+          )}
+        </Animated.View>
+        </View>
+
         <BottomNavBar activeTab="reports" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
+
+      <SignaturePad
+        visible={isSignPadVisible}
+        onClose={() => setIsSignPadVisible(false)}
+        onSave={(drawn) => {
+          setSignature(drawn);
+          saveSignature(manager?.id, drawn);
+          setIsSignPadVisible(false);
+        }}
+      />
 
       <QRScannerModal
         visible={isScannerVisible}
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
+      />
+      <ScanResultSheet
+        summary={scanSummary}
+        onClose={() => setScanSummary(null)}
+        onScanAgain={() => {
+          setScanSummary(null);
+          setIsScannerVisible(true);
+        }}
       />
     </>
   );
@@ -746,6 +939,13 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
   onlineText: {
@@ -756,23 +956,39 @@ const styles = StyleSheet.create({
   },
   controlsWrap: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    gap: SPACING.sm,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xs,
+    gap: 6,
+  },
+  listArea: { flex: 1, overflow: 'hidden' },
+  // Floats at the top of the report with a solid background, so rows pass cleanly under it.
+  controlsFloat: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.background,
+    zIndex: 2,
+    elevation: 2,
   },
   periodTypeRow: {
     flexDirection: 'row',
-    borderRadius: 12,
-    backgroundColor: '#F1F3F6',
-    padding: 4,
+    borderRadius: 20,
+    backgroundColor: '#ECEEF3',
+    padding: 3,
   },
   periodTypeButton: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 9,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   periodTypeButtonActive: {
     backgroundColor: '#FFFFFF',
+    borderColor: '#0085F9',
   },
   periodTypeText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -780,7 +996,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   periodTypeTextActive: {
-    color: COLORS.primary,
+    color: '#0085F9',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
@@ -791,13 +1007,62 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rangeArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  rangeArrowDisabled: { opacity: 0.5 },
+  thisPeriodPill: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#EAF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thisPeriodText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#0085F9',
+  },
+  emptyBox: { alignItems: 'center', gap: 6, paddingVertical: SPACING.lg, width: 300 },
+  signatureRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: 4 },
+  signatureBox: {
+    flex: 1,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dotted',
+    borderColor: '#0085F9',
+    backgroundColor: '#F7FBFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  signaturePlaceholder: { fontSize: 12, color: '#9AB8D6', fontFamily: TYPOGRAPHY.fontFamily.regular },
+  signatureActions: { alignItems: 'flex-start', gap: 8 },
+  signatureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    backgroundColor: '#EAF4FF',
+  },
+  signatureButtonText: { fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#0085F9' },
+  signatureClear: { fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.medium, color: COLORS.error },
+  signatureHint: { fontSize: 11, lineHeight: 16, color: COLORS.textTertiary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  exportLabel: { marginTop: SPACING.lg, marginBottom: 0 },
+  exportMain: { marginTop: SPACING.sm },
+  exportRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
+  exportCol: { flex: 1 },
+  exportHint: { marginTop: SPACING.sm, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   rangeText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

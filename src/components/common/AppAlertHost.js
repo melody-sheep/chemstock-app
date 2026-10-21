@@ -11,16 +11,28 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-const BAD = /\b(fail|failed|error|invalid|denied|cannot|can't|couldn't|unable|not found|refused|missing|wrong|blocked|expired|too weak|already)\b/i;
+const BAD = /\b(fail|failed|error|invalid|denied|cannot|can't|couldn't|unable|not found|refused|missing|wrong|blocked|expired|too weak)\b/i;
 // "Be careful" notices (not errors): an amber warning instead of the plain question mark.
-const WARN = /\b(far|warning|careful|different|sure|discard|unsaved|leave|anyway)\b/i;
-const GOOD = /\b(saved|success|submitted|sent|done|complete|completed|created|updated|released|received|accepted|registered|ready|thank)\b/i;
+const WARN = /\b(far|warning|careful|different|sure|discard|unsaved|leave|anyway|already)\b/i;
+const GOOD = /\b(confirmed|saved|success|submitted|sent|done|complete|completed|created|updated|released|received|accepted|registered|ready|thank|reset|finished|reported)\b/i;
 
 // What the message is about decides its icon and colour, so errors, successes
 // and plain notices don't all look the same.
+// Not an error and not a success: the phone is offline, the feature isn't there yet, or there is nothing to show.
+const OFFLINE = /\b(internet|offline)\b/i;
+const NEUTRAL = /\b(unavailable|not available|coming soon|no location)\b/i;
+// Something the person still has to fill in or allow: a gentle amber notice.
+const INPUT = /\b(required|needed|nothing|no items|no products|almost there|choose|set item dates|weak password|password mismatch|validation)\b/i;
+// Refusals that don't use the word "failed".
+const NOT_OK = /\b(not recognized|mismatch|not pending|not enough)\b/i;
+
 function toneOf(title, buttons) {
   if (buttons.some((b) => b.style === 'destructive')) return 'bad';
-  if (BAD.test(title)) return 'bad';
+  if (OFFLINE.test(title)) return 'offline';
+  if (NEUTRAL.test(title)) return 'neutral';
+  // "Already received" is a refusal, not a success, even though it contains a success word.
+  if (INPUT.test(title) || /\balready\b/i.test(title)) return 'warn';
+  if (NOT_OK.test(title) || BAD.test(title)) return 'bad';
   if (GOOD.test(title)) return 'good';
   if (WARN.test(title)) return 'warn';
   return 'info';
@@ -30,8 +42,25 @@ const TONES = {
   bad: { icon: 'warningTriangle', color: COLORS.error },
   good: { icon: 'checkCircle', color: COLORS.success },
   warn: { icon: 'warningTriangle', color: '#F59E0B' },
-  info: { icon: 'question', color: COLORS.primary },
+  info: { icon: 'question', color: '#0085F9' },
+  offline: { icon: 'wifiSlash', color: '#475569' },
+  neutral: { icon: 'info', color: '#64748B' },
 };
+
+// Inside a notice the picture says what it is about (first match wins).
+const ICON_HINTS = [
+  [/photo|camera/i, 'camera'],
+  [/location/i, 'location'],
+  [/permission|password/i, 'lock'],
+  [/date/i, 'calendar'],
+  [/coming soon/i, 'hourglass'],
+  [/product|item|nothing|stock/i, 'package'],
+];
+function iconFor(toneKey, title, fallback) {
+  if (toneKey !== 'warn' && toneKey !== 'neutral') return fallback;
+  const hint = ICON_HINTS.find(([pattern]) => pattern.test(title));
+  return hint ? hint[1] : fallback;
+}
 
 const DISTANCE = /(\b\d[\d.,]*\s?(?:km|m)\b)/;
 
@@ -56,7 +85,9 @@ export default function AppAlertHost() {
   if (!current) return null;
 
   const { id, title, message, buttons, cancelable, onDismiss } = current;
-  const tone = TONES[toneOf(title, buttons)];
+  const toneKey = toneOf(title, buttons);
+  const tone = TONES[toneKey];
+  const iconName = iconFor(toneKey, title, tone.icon);
   const cancelButton = buttons.find((b) => b.style === 'cancel');
   const actions = buttons.filter((b) => b !== cancelButton);
 
@@ -78,7 +109,7 @@ export default function AppAlertHost() {
       <View style={styles.iconWrap}>
         <View style={[styles.iconRing, { backgroundColor: tone.color + '14' }]}>
           <View style={[styles.iconCircle, { backgroundColor: tone.color + '26' }]}>
-            <Icon name={tone.icon} size={28} color={tone.color} />
+            <Icon name={iconName} size={28} color={tone.color} />
           </View>
         </View>
       </View>
@@ -102,6 +133,7 @@ export default function AppAlertHost() {
         <Button
           title={cancelButton.text || 'Cancel'}
           variant="outline"
+          accentColor={cancelButton.accent}
           onPress={() => press(cancelButton)}
           height={48}
           fontSize={16}

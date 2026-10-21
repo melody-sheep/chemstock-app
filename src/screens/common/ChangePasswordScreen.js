@@ -20,7 +20,6 @@ import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 import friendlyError from '../../utils/friendlyError';
 import requireOnline from '../../utils/requireOnline';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
@@ -33,11 +32,12 @@ import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScroll
 const MIN_PASSWORD_LENGTH = 8;
 const SPECIAL_CHAR_PATTERN = /[!@#$%^&*(),.?":{}|<>_]/;
 
+// Shown as a live checklist. These are the same rules the submit already enforces.
 const REQUIREMENTS = [
-  'At least 8 characters long',
-  'Contains at least one letter and one number',
-  'Includes at least one special character (e.g. ! @ # $ %)',
-  'Different from your current password',
+  { label: 'At least 8 characters long', test: (pw) => pw.length >= MIN_PASSWORD_LENGTH },
+  { label: 'At least one letter and one number', test: (pw) => /[A-Za-z]/.test(pw) && /[0-9]/.test(pw) },
+  { label: 'One special character (! @ # $ %)', test: (pw) => SPECIAL_CHAR_PATTERN.test(pw) },
+  { label: 'Different from your current one', test: (pw, current) => pw.length > 0 && pw !== current },
 ];
 
 export default function ChangePasswordScreen() {
@@ -51,6 +51,19 @@ export default function ChangePasswordScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleBack = () => navigation.goBack();
+
+  // Display only: how many of the rules the new password already meets.
+  const metCount = REQUIREMENTS.filter((req) => req.test(newPassword, currentPassword)).length;
+  const strength =
+    newPassword.length === 0
+      ? null
+      : metCount <= 1
+      ? { label: 'Weak', color: COLORS.error, filled: 1 }
+      : metCount <= 3
+      ? { label: 'Almost there', color: '#D98200', filled: 2 }
+      : { label: 'Strong', color: COLORS.success, filled: 3 };
+  const showMatch = confirmPassword.length > 0 && newPassword.length > 0;
+  const passwordsMatch = confirmPassword === newPassword;
 
   const handleUpdatePassword = async () => {
     if (isSubmitting) return;
@@ -141,18 +154,18 @@ export default function ChangePasswordScreen() {
         />
 
         <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.heroCard}>
+          <View style={styles.hero}>
             <View style={styles.iconWrap}>
-              <Icon name="lock" size={24} color={COLORS.primary} weight="fill" />
+              <Icon name="lock" size={22} color="#D98200" weight="fill" />
             </View>
-            <Text style={styles.heroTitle}>Update Your Password</Text>
-            <Text style={styles.heroSubtitle}>
-              Choose a strong password you don't use anywhere else.
-            </Text>
+            <View style={styles.heroTextCol}>
+              <Text style={styles.heroTitle}>Update your password</Text>
+              <Text style={styles.heroSubtitle}>Choose a strong password you don't use anywhere else.</Text>
+            </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Current Password</Text>
-          <View style={styles.groupCard}>
+          <Text style={styles.sectionLabel}>Current password</Text>
+          <View style={styles.fieldGroup}>
             <Input
               placeholder="Enter current password"
               value={currentPassword}
@@ -166,8 +179,8 @@ export default function ChangePasswordScreen() {
             />
           </View>
 
-          <Text style={styles.sectionLabel}>New Password</Text>
-          <View style={styles.groupCard}>
+          <Text style={styles.sectionLabel}>New password</Text>
+          <View style={styles.fieldGroup}>
             <Input
               placeholder="Enter new password"
               value={newPassword}
@@ -192,14 +205,37 @@ export default function ChangePasswordScreen() {
             />
           </View>
 
-          <View style={styles.requirementsCard}>
-            <Text style={styles.requirementsTitle}>Password Requirements</Text>
-            {REQUIREMENTS.map((req) => (
-              <View key={req} style={styles.requirementRow}>
-                <Icon name="checkCircle" size={14} color={COLORS.success} />
-                <Text style={styles.requirementText}>{req}</Text>
-              </View>
+          {showMatch && (
+            <View style={styles.matchRow}>
+              <Icon name={passwordsMatch ? 'checkCircle' : 'xCircle'} size={16} color={passwordsMatch ? COLORS.success : COLORS.error} weight="fill" />
+              <Text style={[styles.matchText, { color: passwordsMatch ? '#1E7A3A' : COLORS.error }]}>
+                {passwordsMatch ? 'Passwords match' : 'Passwords do not match yet'}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.strengthRow}>
+            {[1, 2, 3].map((n) => (
+              <View
+                key={n}
+                style={[styles.strengthBar, { backgroundColor: strength && strength.filled >= n ? strength.color : '#E3E6EC' }]}
+              />
             ))}
+            <Text style={[styles.strengthLabel, { color: strength ? strength.color : '#9AA3B2' }]}>
+              {strength ? strength.label : 'Strength'}
+            </Text>
+          </View>
+
+          <View style={styles.requirements}>
+            {REQUIREMENTS.map((req) => {
+              const met = req.test(newPassword, currentPassword);
+              return (
+                <View key={req.label} style={styles.requirementRow}>
+                  <Icon name="checkCircle" size={16} color={met ? COLORS.success : '#C5CBD6'} weight={met ? 'fill' : 'regular'} />
+                  <Text style={[styles.requirementText, met && styles.requirementTextMet]}>{req.label}</Text>
+                </View>
+              );
+            })}
           </View>
 
           <Button
@@ -208,6 +244,9 @@ export default function ChangePasswordScreen() {
             onPress={handleUpdatePassword}
             loading={isSubmitting}
             disabled={isSubmitting}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
             style={styles.submitButton}
           />
 
@@ -228,74 +267,56 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.lg,
   },
-  heroCard: {
+  hero: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 16,
-    paddingVertical: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.cardSoft,
+    gap: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
   },
   iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.primaryLight,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#D982001A',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
   },
+  heroTextCol: { flex: 1 },
   heroTitle: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   heroSubtitle: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#94a3b8',
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    textAlign: 'center',
   },
   sectionLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
+    fontSize: 12,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  groupCard: {
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    marginBottom: SPACING.md,
-    padding: 12,
-    ...SHADOWS.cardSoft,
-  },
-  requirementsCard: {
-    backgroundColor: '#F7F9FC',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-    marginBottom: SPACING.lg,
-  },
-  requirementsTitle: {
-    fontSize: 12,
-    color: '#272632',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    letterSpacing: 0.8,
     marginBottom: 2,
+    marginTop: SPACING.md,
+  },
+  fieldGroup: { marginBottom: -SPACING.xs },
+  matchRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
+  matchText: { fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.medium },
+  strengthRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.md },
+  strengthBar: { flex: 1, height: 5, borderRadius: 3, maxWidth: 70 },
+  strengthLabel: { marginLeft: 4, fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  requirements: {
+    gap: 8,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   requirementRow: {
     flexDirection: 'row',
@@ -303,9 +324,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   requirementText: {
-    fontSize: 12,
-    color: '#555353',
+    flex: 1,
+    fontSize: 13,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+  requirementTextMet: {
+    color: '#1E7A3A',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   submitButton: {
     width: '100%',

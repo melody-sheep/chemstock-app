@@ -1,8 +1,9 @@
 // src/screens/manager/ReleaseStockScanReviewScreen.js
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Image, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
@@ -15,11 +16,16 @@ import QRScannerModal from '../../components/common/QRScannerModal';
 import CustomModal from '../../components/common/Modal';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { daysUntil } from '../../utils/formatters';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
+const LEVEL_OK = { label: 'In-stock', bg: '#E1F4E8', color: '#1E7A3A' };
+const LEVEL_LOW = { label: 'Almost out', bg: '#FFF1D6', color: '#B26400' };
 
 import { isExpired } from '../../utils/expiry';
 
@@ -39,6 +45,9 @@ export default function ReleaseStockScanReviewScreen() {
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType, qrCode } = route.params;
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
+  // While a quantity box is being typed in, what it currently shows (so it can be empty for a moment).
+  const [qtyText, setQtyText] = useState({});
 
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -158,6 +167,40 @@ export default function ReleaseStockScanReviewScreen() {
     );
   };
 
+  const forgetText = (id) =>
+    setQtyText((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  const handleStep = (id, delta) => {
+    forgetText(id);
+    handleAdjustQty(id, delta);
+  };
+  // Typed quantity: digits only, never more than the stock on hand.
+  const handleTypeQty = (id, text) => {
+    const digits = text.replace(/\D/g, '');
+    setItems((prev) =>
+      prev.map((item) =>
+        item.branchInventoryId === id ? { ...item, releaseQty: Math.min(item.currentQty, parseInt(digits, 10) || 0) } : item
+      )
+    );
+    setQtyText((prev) => {
+      const item = items.find((x) => x.branchInventoryId === id);
+      const capped = Math.min(item ? item.currentQty : 0, parseInt(digits, 10) || 0);
+      return { ...prev, [id]: digits === '' ? '' : String(capped) };
+    });
+  };
+  const handleSetAll = (id, toAll) => {
+    forgetText(id);
+    setItems((prev) => prev.map((item) => (item.branchInventoryId === id ? { ...item, releaseQty: toAll ? item.currentQty : 0 } : item)));
+  };
+  const handleRemoveItem = (id) => {
+    forgetText(id);
+    setItems((prev) => prev.filter((item) => item.branchInventoryId !== id));
+  };
+
   const releaseItems = items.filter((item) => item.releaseQty > 0);
   const totalUnits = releaseItems.reduce((sum, item) => sum + item.releaseQty, 0);
 
@@ -187,9 +230,11 @@ export default function ReleaseStockScanReviewScreen() {
           </View>
         </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
@@ -227,37 +272,95 @@ export default function ReleaseStockScanReviewScreen() {
             </View>
           ) : (
             <View style={styles.itemsCard}>
-              {items.map((item, index) => (
-                <View
-                  key={item.branchInventoryId}
-                  style={[styles.itemRow, index === 0 && styles.itemRowFirst]}
-                >
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{item.productName}</Text>
-                    <Text style={styles.itemMeta}>Current stock: {item.currentQty} pcs</Text>
-                    {item.expDate && (
-                      <Text style={styles.itemMeta}>Exp: {new Date(item.expDate).toLocaleDateString()}</Text>
-                    )}
+              {items.map((item, index) => {
+                const image = PRODUCT_CATALOG.find((p) => p.code === item.productCode || p.code === item.productName)?.image;
+                const level = item.currentQty < STOCK_HEALTHY_THRESHOLD ? LEVEL_LOW : LEVEL_OK;
+                const days = item.expDate ? daysUntil(item.expDate) : null;
+                const nearExpiry = days !== null && days >= 0 && days <= NEAR_EXPIRY_DAYS;
+                const all = item.releaseQty === item.currentQty;
+                return (
+                  <View
+                    key={item.branchInventoryId}
+                    style={[styles.itemRowC, index === 0 && styles.itemRowFirst, item.releaseQty === 0 && styles.itemRowZero]}
+                  >
+                    <View style={styles.itemTopC}>
+                      <View style={styles.thumbC}>
+                        {image ? (
+                          <Image source={image} style={styles.thumbImageC} resizeMode="contain" />
+                        ) : (
+                          <Icon name="package" size={24} color="#94a3b8" />
+                        )}
+                      </View>
+                      <View style={styles.itemInfoC}>
+                        <Text style={styles.itemNameC} numberOfLines={2}>{item.productName}</Text>
+                        <Text style={styles.itemMetaC}>
+                          Stock {item.currentQty} pcs{item.expDate ? ` · Exp ${new Date(item.expDate).toLocaleDateString()}` : ''}
+                        </Text>
+                        <View style={styles.tagRowC}>
+                          <View style={[styles.tagC, { backgroundColor: level.bg }]}>
+                            <Text style={[styles.tagTextC, { color: level.color }]}>{level.label}</Text>
+                          </View>
+                          {nearExpiry && (
+                            <View style={[styles.tagC, { backgroundColor: '#FFF1D6' }]}>
+                              <Text style={[styles.tagTextC, { color: '#B26400' }]}>Near expiry</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      {items.length > 1 && (
+                        <TouchableOpacity
+                          onPress={() => handleRemoveItem(item.branchInventoryId)}
+                          hitSlop={8}
+                          style={styles.removeBtnC}
+                          accessibilityLabel={`Remove ${item.productName} from this release`}
+                          accessibilityRole="button"
+                        >
+                          <Icon name="trash" size={18} color={COLORS.error} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View style={styles.qtyRowC}>
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleStep(item.branchInventoryId, -1)}
+                        accessibilityLabel={`Decrease ${item.productName} release quantity`}
+                      >
+                        <Icon name="minus" size={14} color={COLORS.primary} />
+                      </TouchableOpacity>
+                      <TextInput
+                        style={styles.qtyInputC}
+                        value={item.branchInventoryId in qtyText ? qtyText[item.branchInventoryId] : String(item.releaseQty)}
+                        keyboardType="number-pad"
+                        selectTextOnFocus
+                        maxLength={5}
+                        onChangeText={(text) => handleTypeQty(item.branchInventoryId, text)}
+                        onEndEditing={() => forgetText(item.branchInventoryId)}
+                        accessibilityLabel={`${item.productName} release quantity`}
+                      />
+                      <TouchableOpacity
+                        style={styles.stepperBtn}
+                        onPress={() => handleStep(item.branchInventoryId, 1)}
+                        accessibilityLabel={`Increase ${item.productName} release quantity`}
+                      >
+                        <Icon name="plus" size={14} color={COLORS.primary} />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1 }} />
+                      <TouchableOpacity
+                        style={styles.allBtnC}
+                        onPress={() => handleSetAll(item.branchInventoryId, !all)}
+                        accessibilityRole="button"
+                        accessibilityLabel={all ? 'Set quantity to zero' : 'Release all of this stock'}
+                      >
+                        <Text style={styles.allBtnTextC}>{all ? 'Clear' : 'All'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.hintC, all && styles.hintAllC, item.releaseQty === 0 && styles.hintZeroC]}>
+                      {item.releaseQty === 0 ? 'Not included in this release' : `Releasing ${item.releaseQty} of ${item.currentQty}`}
+                    </Text>
                   </View>
-                  <View style={styles.stepperInline}>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.branchInventoryId, -1)}
-                      accessibilityLabel={`Decrease ${item.productName} release quantity`}
-                    >
-                      <Icon name="minus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <Text style={styles.stepperValue}>{item.releaseQty}</Text>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.branchInventoryId, 1)}
-                      accessibilityLabel={`Increase ${item.productName} release quantity`}
-                    >
-                      <Icon name="plus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
 
@@ -269,14 +372,18 @@ export default function ReleaseStockScanReviewScreen() {
           )}
 
           {releaseItems.length > 0 && (
-            <Text style={styles.summaryText}>
-              📦 {releaseItems.length} item{releaseItems.length === 1 ? '' : 's'}, {totalUnits} units to release
-            </Text>
+            <View style={styles.summaryCardC}>
+              <Icon name="package" size={18} color={COLORS.primary} />
+              <Text style={styles.summaryCardText}>
+                {releaseItems.length} item{releaseItems.length === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'} to release
+              </Text>
+            </View>
           )}
 
         </ScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
             title="Next"
             icon="arrowRight"
@@ -365,6 +472,28 @@ export default function ReleaseStockScanReviewScreen() {
 }
 
 const styles = StyleSheet.create({
+  contentTarget: { flex: 1 },
+  itemRowC: { padding: SPACING.md, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 10 },
+  itemRowZero: { backgroundColor: '#FAFAFB' },
+  itemTopC: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  thumbC: { width: 56, height: 56, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  thumbImageC: { width: '100%', height: '100%' },
+  itemInfoC: { flex: 1 },
+  itemNameC: { fontSize: TYPOGRAPHY.fontSize.base, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  itemMetaC: { marginTop: 2, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  tagRowC: { marginTop: 5, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tagC: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  tagTextC: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  removeBtnC: { padding: 4 },
+  qtyRowC: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  qtyInputC: { minWidth: 72, height: 44, borderWidth: 1.5, borderColor: '#B9D9FF', borderRadius: 12, textAlign: 'center', fontSize: 18, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', backgroundColor: '#FFFFFF', paddingVertical: 0 },
+  allBtnC: { paddingHorizontal: 16, height: 36, borderRadius: 18, backgroundColor: '#EAF4FF', alignItems: 'center', justifyContent: 'center' },
+  allBtnTextC: { fontSize: 13, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  hintC: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  hintAllC: { color: '#B26400' },
+  hintZeroC: { color: '#9AA3B2' },
+  summaryCardC: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#EAF4FF' },
+  summaryCardText: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#0A66C2', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   container: { flex: 1, backgroundColor: COLORS.background },
   addMoreButton: {
     flexDirection: 'row',

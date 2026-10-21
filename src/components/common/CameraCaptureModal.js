@@ -1,7 +1,7 @@
 // src/components/common/CameraCaptureModal.js
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -106,6 +106,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
         presentationStyle="fullScreen"
         onRequestClose={handleClose}
       >
+        <SafeAreaProvider>
         <SafeAreaView style={styles.container}>
           {previewUri ? (
             <>
@@ -192,6 +193,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                 ref={cameraRef}
                 style={styles.camera}
                 facing="back"
+                autofocus="on"
                 enableTorch={isTorchOn}
                 onCameraReady={() => setIsCameraReady(true)}
               />
@@ -225,6 +227,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
             </>
           )}
         </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
 
       <BottomSheetModal visible={visible && !hasPermission} onClose={handleClose} height={340}>

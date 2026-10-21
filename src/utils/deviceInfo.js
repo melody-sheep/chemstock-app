@@ -26,3 +26,15 @@ export const getDeviceOs = () => [cleanOsName(), Device.osVersion].filter(Boolea
  * the device field — who did it is already saved on its own.
  */
 export const getDeviceLabel = (personName) => `${getDeviceModel()} · ${personName || getDeviceOs()}`;
+
+/**
+ * Older records saved the whole build fingerprint as the OS
+ * ("Infinix/X6731-GL/…:user/release-keys 14"). For display, keep just "Android 14".
+ */
+export const cleanDeviceOs = (os) => {
+  if (!os) return '';
+  const text = String(os).trim();
+  if (!text.includes('/')) return text;
+  const last = text.split(/\s+/).pop();
+  return /^\d+(\.\d+)*$/.test(last) ? `Android ${last}` : 'Android';
+};

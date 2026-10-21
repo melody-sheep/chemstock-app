@@ -21,7 +21,6 @@ import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 import friendlyError from '../../utils/friendlyError';
 import { invalidateSavedData } from '../../utils/dataVersion';
 import { getDeviceOs } from '../../utils/deviceInfo';
@@ -265,8 +264,8 @@ export default function EditProfileScreen() {
             <View style={styles.groupCard}>
               <View style={styles.rowItem}>
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name="idCard" size={18} color="#03045E" />
+                  <View style={[styles.rowIconWrap, { backgroundColor: '#0085F91A' }]}>
+                    <Icon name="idCard" size={18} color="#0085F9" />
                   </View>
                   <Text style={styles.rowLabel}>Full Name</Text>
                 </View>
@@ -294,8 +293,8 @@ export default function EditProfileScreen() {
                 // instead of squeezing them all into the value column.
                 <View style={styles.rowItemStacked}>
                   <View style={styles.rowLeft}>
-                    <View style={styles.rowIconWrap}>
-                      <Icon name="location" size={18} color="#F04D59" />
+                    <View style={[styles.rowIconWrap, { backgroundColor: '#E5484D1A' }]}>
+                      <Icon name="location" size={18} color="#E5484D" />
                     </View>
                     <Text style={styles.rowLabel}>Branches</Text>
                     <Text style={styles.rowCount}>{branchList.length}</Text>
@@ -311,8 +310,8 @@ export default function EditProfileScreen() {
               ) : (
                 <View style={styles.rowItem}>
                   <View style={styles.rowLeft}>
-                    <View style={styles.rowIconWrap}>
-                      <Icon name="location" size={18} color="#F04D59" />
+                    <View style={[styles.rowIconWrap, { backgroundColor: '#E5484D1A' }]}>
+                      <Icon name="location" size={18} color="#E5484D" />
                     </View>
                     <Text style={styles.rowLabel}>Branch</Text>
                   </View>
@@ -331,8 +330,8 @@ export default function EditProfileScreen() {
                 accessibilityRole="button"
               >
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name="phone" size={18} color="#03045E" />
+                  <View style={[styles.rowIconWrap, { backgroundColor: '#2E9E5B1A' }]}>
+                    <Icon name="phone" size={18} color="#2E9E5B" />
                   </View>
                   <Text style={styles.rowLabel}>Phone Number</Text>
                 </View>
@@ -344,7 +343,7 @@ export default function EditProfileScreen() {
                   >
                     {hasPhoneNumber ? formatPhDisplay(user.phoneNumber) : 'Add phone number'}
                   </Text>
-                  <Icon name="notePencil" size={15} color={COLORS.primary} />
+                  <Icon name="pencilSimpleLine" size={16} color="#0085F9" />
                 </View>
               </Pressable>
             </View>
@@ -413,13 +412,19 @@ export default function EditProfileScreen() {
           </Pressable>
 
           <View style={styles.phoneModalIconWrap}>
-            <Icon name="phone" size={24} color={COLORS.primary} weight="fill" />
+            <Icon name="phone" size={26} color="#2E9E5B" weight="fill" />
           </View>
 
           <Text style={styles.phoneModalTitle}>Edit Phone Number</Text>
           <Text style={styles.phoneModalSubtitle}>
-            Enter your Philippine mobile number — it's used to reach you about deliveries.
+            Enter your Philippine mobile number. It's used to reach you about deliveries.
           </Text>
+          {hasPhoneNumber && (
+            <View style={styles.currentPhonePill}>
+              <Text style={styles.currentPhoneLabel}>Current</Text>
+              <Text style={styles.currentPhoneValue}>{formatPhDisplay(user.phoneNumber)}</Text>
+            </View>
+          )}
 
           <View style={styles.phoneModalFieldOuter}>
             <PhilippinePhoneInput
@@ -429,11 +434,13 @@ export default function EditProfileScreen() {
               error={phoneError}
               style={styles.phoneModalFieldWrap}
             />
+            <Text style={styles.phoneHint}>Example: 917 123 4567 (10 digits, no leading 0)</Text>
           </View>
 
           <View style={styles.phoneModalActions}>
             <Pressable
               style={[styles.phoneModalBtn, styles.phoneModalCancelBtn]}
+              accessibilityRole="button"
               onPress={handleCancelPhone}
               disabled={isSavingPhone}
             >
@@ -466,14 +473,10 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 16,
-    paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.cardSoft,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+    marginBottom: SPACING.xs,
   },
   avatarWrap: {
     position: 'relative',
@@ -481,7 +484,7 @@ const styles = StyleSheet.create({
   },
   avatarRing: {
     borderWidth: 3,
-    borderColor: COLORS.primaryLight,
+    borderColor: '#BFE0FF',
   },
   cameraBadge: {
     position: 'absolute',
@@ -492,7 +495,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#0085F9',
     borderWidth: 3,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -529,30 +532,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sectionLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
+    fontSize: 12,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 4,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+    marginTop: SPACING.md,
   },
   groupCard: {
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
     marginBottom: SPACING.md,
-    paddingHorizontal: 12,
-    ...SHADOWS.cardSoft,
   },
   rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 10,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
   },
   rowLeft: {
     flexDirection: 'row',
@@ -561,8 +564,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowItemStacked: {
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 10,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
   },
   rowCount: {
     minWidth: 20,
@@ -587,24 +596,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#FDEDEE',
+    backgroundColor: '#EAF4FF',
   },
   branchChipText: {
     fontSize: 12,
-    color: '#B4232F',
+    color: '#0A66C2',
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
   },
   rowIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowLabel: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -612,7 +621,7 @@ const styles = StyleSheet.create({
   rowValue: {
     flexShrink: 1,
     textAlign: 'right',
-    fontSize: 12,
+    fontSize: 13,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
@@ -621,10 +630,7 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
   },
-  rowDivider: {
-    height: 1,
-    backgroundColor: '#EEF2F7',
-  },
+  rowDivider: { height: 0 },
   phoneEditTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -646,10 +652,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   phoneModalIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.primaryLight,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#2E9E5B1A',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -664,7 +670,7 @@ const styles = StyleSheet.create({
   },
   phoneModalSubtitle: {
     marginTop: 4,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     paddingHorizontal: SPACING.sm,
     fontSize: 12,
     lineHeight: 17,
@@ -684,18 +690,39 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginTop: SPACING.xs,
   },
+  currentPhonePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: SPACING.md,
+    paddingHorizontal: 12,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F3F6',
+  },
+  currentPhoneLabel: { fontSize: 12, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.regular },
+  currentPhoneValue: { fontSize: 13, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  phoneHint: {
+    marginTop: 6,
+    marginBottom: SPACING.md,
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
   phoneModalBtn: {
     flex: 1,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   phoneModalCancelBtn: {
-    backgroundColor: '#F1F3F6',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#D5DAE3',
   },
   phoneModalCancelText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -704,7 +731,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   phoneModalSaveText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
