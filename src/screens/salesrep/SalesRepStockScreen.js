@@ -15,7 +15,7 @@ import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import StockBatchCard from '../../components/common/StockBatchCard';
 import StockSectionHeader from '../../components/common/StockSectionHeader';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CustomModal from '../../components/common/Modal';
 import BranchSelector from '../../components/common/BranchSelector';
@@ -84,9 +84,10 @@ export const loadStockData = async (previous) => {
 
 export default function SalesRepStockScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-stock', loadStockData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('sales-rep-stock', loadStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
   const stock = snapshot?.stock ?? [];
@@ -274,7 +275,7 @@ export default function SalesRepStockScreen() {
         <View style={styles.listArea}>
         {isLoading ? (
           <ScrollView
-          refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControlAt(headerHeight)} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm, paddingBottom: bottomNavHeight + SPACING.xl }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
             <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
             <View style={styles.skeletonCardRow}>
               <SkeletonBlock width={152} height={140} borderRadius={12} />
@@ -292,7 +293,7 @@ export default function SalesRepStockScreen() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+          <ScrollView refreshControl={refreshControlAt(headerHeight)} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm, paddingBottom: bottomNavHeight + SPACING.xl }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
             {showHealthy && (
             <>
             <StockSectionHeader

@@ -103,6 +103,13 @@ Fab.propTypes = {
  * the FAB is a sibling of that clipped row (not inside it), so its own
  * float above the border is unaffected by the clip.
  */
+// What the bar covers at the bottom of a screen: its own height plus the phone's bottom inset. A list above it
+// needs at least this much padding at its end, or the last rows hide behind the bar and cannot be scrolled to.
+export function useBottomNavBarHeight() {
+  const insets = useSafeAreaInsets();
+  return BAR_HEIGHT + insets.bottom;
+}
+
 export default function BottomNavBar({
   activeTab = 'dashboard',
   onTabPress = null,

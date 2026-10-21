@@ -6,6 +6,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { Camera } from 'expo-camera';
 import Icon from './Icon';
+import Alert from '../../utils/appAlert';
+import { resetHints } from './HintChip';
 import useOutbox from '../../hooks/useOutbox';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import { COLORS } from '../../constants/colors';
@@ -88,6 +90,11 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
       return;
     }
     Linking.openSettings();
+  };
+
+  const handleShowTips = async () => {
+    await resetHints();
+    Alert.alert('Tips Reset', 'The how-to tips will show again on the screens that have them.');
   };
 
   const handleSyncNow = async () => {
@@ -173,6 +180,21 @@ export default function SettingsDeviceSection({ agentId = null, styles: shared }
           </View>
         )}
       </View>
+      <View style={shared.rowDivider} />
+      <View style={shared.rowItem}>
+        <View style={shared.rowLeft}>
+          <View style={[shared.rowIconWrap, { backgroundColor: '#0085F91A' }]}>
+            <Icon name="info" size={18} color="#0085F9" />
+          </View>
+          <View style={local.textWrap}>
+            <Text style={shared.rowLabel}>Tips</Text>
+            <Text style={shared.rowSubLabel}>Short how-to notes shown on some screens.</Text>
+          </View>
+        </View>
+        <Pressable style={local.tipsButton} onPress={handleShowTips} accessibilityRole="button">
+          <Text style={local.tipsButtonText}>Show again</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -203,6 +225,8 @@ const local = StyleSheet.create({
     paddingVertical: 7,
     backgroundColor: COLORS.primary,
   },
+  tipsButton: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 0, borderWidth: 1, borderColor: '#0085F9', backgroundColor: 'rgba(255, 255, 255, 0.7)' },
+  tipsButtonText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   syncButtonText: {
     fontSize: 12,
     color: '#FFFFFF',

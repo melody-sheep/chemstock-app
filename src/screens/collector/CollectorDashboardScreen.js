@@ -1,6 +1,6 @@
 // src/screens/collector/CollectorDashboardScreen.js
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, RefreshControl, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
@@ -17,12 +17,14 @@ import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
 import UserAvatar from '../../components/common/UserAvatar';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
+import WelcomeOverview from '../../components/common/WelcomeOverview';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -50,6 +52,7 @@ const MAIN_OPERATIONS = [
 
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
   const [user, setUser] = useState(null);
@@ -66,6 +69,7 @@ export default function CollectorDashboardScreen() {
   const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
   const notificationCount = liveUnreadCount ?? loadedNotificationCount;
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Same FB/IG-style collapsing header as the other dashboards — see
   // ManagerDashboardScreen for why it's JS-driven (diffClamp + transform).
@@ -79,8 +83,9 @@ export default function CollectorDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true);
+  // `silent` (pull-to-refresh) keeps the screen as it is instead of flashing the skeleton.
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
 
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
@@ -136,6 +141,15 @@ export default function CollectorDashboardScreen() {
       loadDashboardData();
     }, [loadDashboardData])
   );
+
+  const handlePullRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadDashboardData(true);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // A queued delivery just synced, so the server list has changed.
   const previousQueuedCount = useRef(queuedFinishes.length);
@@ -296,12 +310,16 @@ export default function CollectorDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={handlePullRefresh} colors={['#03045E']} tintColor="#03045E" progressViewOffset={SECONDARY_HEADER_HEIGHT} />
+            }
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
           {outboxCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
@@ -536,6 +554,7 @@ export default function CollectorDashboardScreen() {
           fabLabel="Deliver"
         />
       </View>
+      <WelcomeOverview role="collector" userId={user?.id} name={user?.full_name || user?.username} />
     </>
   );
 }

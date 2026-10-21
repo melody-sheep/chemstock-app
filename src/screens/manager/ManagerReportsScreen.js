@@ -16,7 +16,7 @@ import Button from '../../components/common/Button';
 import BranchSelector from '../../components/common/BranchSelector';
 import SectionHeader from '../../components/common/SectionHeader';
 import SignaturePad from '../../components/common/SignaturePad';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS } from '../../constants/colors';
@@ -270,6 +270,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
 
 export default function ManagerReportsScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const [manager, setManager] = useState(null);
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
@@ -617,7 +618,7 @@ export default function ManagerReportsScreen() {
           </View>
         ) : (
           <ScrollView
-            contentContainerStyle={[styles.content, { paddingTop: controlsHeight + SPACING.sm }]}
+            contentContainerStyle={[styles.content, { paddingTop: controlsHeight + SPACING.sm, paddingBottom: bottomNavHeight + SPACING.xl }]}
             onScroll={handleReportScroll}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}

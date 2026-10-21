@@ -242,6 +242,11 @@ export default function useCachedFocusLoader(cacheKey, load, { freshMs = FRESH_M
     }
   }, [refresh]);
   const refreshControl = <RefreshControl refreshing={isRefreshing} onRefresh={pullToRefresh} colors={['#03045E']} tintColor="#03045E" />;
+  // Screens with a header floating over the list: the spinner would sit hidden behind it until the pull is very
+  // long. This puts the spinner's resting place just under the header (Android; iOS ignores the offset).
+  const refreshControlAt = (offset = 0) => (
+    <RefreshControl refreshing={isRefreshing} onRefresh={pullToRefresh} colors={['#03045E']} tintColor="#03045E" progressViewOffset={offset} />
+  );
 
-  return { data, isLoading, refresh, savedAt, isUnavailable, refreshControl };
+  return { data, isLoading, refresh, savedAt, isUnavailable, refreshControl, refreshControlAt };
 }

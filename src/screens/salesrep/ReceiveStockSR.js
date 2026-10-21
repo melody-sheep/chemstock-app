@@ -22,7 +22,9 @@ import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useOutbox from '../../hooks/useOutbox';
 import { getInitials } from '../../utils/initials';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
 import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
@@ -230,6 +232,7 @@ export default function ReceiveStockSR() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HintChip id="receive-scan" text={"Scan the QR code your Collector or Manager shows you, then take the photo proof to confirm the handover."} style={{ marginBottom: SPACING.md }} />
           {pendingCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>

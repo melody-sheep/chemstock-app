@@ -7,7 +7,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from '../../components/common/Icon';
 import CustomModal from '../../components/common/Modal';
 import Header from '../../components/common/Header';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
@@ -54,9 +54,10 @@ export const loadReportsData = async (previous) => {
 
 export default function SalesRepReportsScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('sales-rep-reports', loadReportsData);
   const reports = snapshot?.reports ?? [];
   const [selectedReport, setSelectedReport] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -199,7 +200,7 @@ export default function SalesRepReportsScreen() {
         ) : (
           <View style={styles.listArea}>
           <ScrollView
-          refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControlAt(headerHeight)} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm, paddingBottom: bottomNavHeight + SPACING.xl }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
             {!todayAlreadySubmitted && (
               <Pressable style={styles.submitBanner} onPress={handleSubmitToday}>
                 <View style={styles.submitBannerIconWrap}>

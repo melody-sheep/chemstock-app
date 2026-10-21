@@ -27,6 +27,7 @@ import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -87,7 +88,7 @@ export default function RequestStockSR() {
   const bottomActionBarHeight = useBottomActionBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('sales-rep-request-stock', loadRequestableStockData);
   const agent = snapshot?.agent ?? null;
   const branches = snapshot?.branches ?? [];
   const stock = snapshot?.stock ?? [];
@@ -373,7 +374,7 @@ export default function RequestStockSR() {
         <View style={styles.listArea}>
         {isLoading ? (
           <ScrollView
-          refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControlAt(headerHeight)} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
             <SkeletonBlock width={180} height={18} borderRadius={4} style={styles.skeletonSectionTitle} />
             <View style={styles.skeletonCardRow}>
               <SkeletonBlock width={152} height={140} borderRadius={12} />
@@ -391,7 +392,8 @@ export default function RequestStockSR() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+          <ScrollView refreshControl={refreshControlAt(headerHeight)} contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]} onScroll={handleListScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false}>
+            <HintChip id="request-pick" text={"Tap a product to add it to your request, then open the list at the bottom to review and send it."} style={{ marginBottom: SPACING.md }} />
             {showHealthy && (
             <>
             <StockSectionHeader

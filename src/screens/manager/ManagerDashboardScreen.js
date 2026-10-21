@@ -16,7 +16,7 @@ import StatCard from '../../components/common/StatCard';
 import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
@@ -30,6 +30,8 @@ import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
+import PermissionsCard from '../../components/common/PermissionsCard';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -80,6 +82,7 @@ const MAIN_OPERATIONS = [
 
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const route = useRoute();
   // Only set by the activation screen: shown once, then cleared so it never comes back.
   const justActivated = route.params?.justActivated === true;
@@ -180,7 +183,7 @@ export default function ManagerDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
   const user = snapshot?.user ?? null;
   const totalUnits = snapshot?.totalUnits ?? null;
   const recentLogs = snapshot?.recentLogs ?? [];
@@ -357,13 +360,14 @@ export default function ManagerDashboardScreen() {
           </Animated.View>
 
           <ScrollView
-          refreshControl={refreshControl}
+          refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
           {isLoading ? (
             <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
           ) : (
@@ -545,6 +549,9 @@ export default function ManagerDashboardScreen() {
               </View>
             </View>
           ))}
+
+          <Text style={styles.welcomeListLabel}>PERMISSIONS NEEDED</Text>
+          <PermissionsCard />
         </ScrollView>
         <Button title="Get Started" variant="black" onPress={closeWelcome} height={48} fontSize={16} borderRadius={24} width="100%" style={styles.welcomeButton} />
       </CustomModal>

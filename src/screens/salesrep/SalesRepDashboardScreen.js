@@ -18,8 +18,9 @@ import StatCard from '../../components/common/StatCard';
 import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import WelcomeOverview from '../../components/common/WelcomeOverview';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
@@ -27,6 +28,7 @@ import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
 import { formatBranchLabel } from '../../utils/branchLabel';
@@ -109,6 +111,7 @@ const MAIN_OPERATIONS = [
 
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
@@ -192,7 +195,7 @@ export default function SalesRepDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading, savedAt, refreshControl } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, savedAt, refreshControlAt } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
   useEffect(() => {
     if (savedAt && getConnectionStatus().online) primeOtherScreens();
   }, [savedAt]);
@@ -384,13 +387,14 @@ export default function SalesRepDashboardScreen() {
           </Animated.View>
 
           <ScrollView
-          refreshControl={refreshControl}
+          refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
           {isLoading ? (
             <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
           ) : (
@@ -539,6 +543,7 @@ export default function SalesRepDashboardScreen() {
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
       />
+      <WelcomeOverview role="sales_rep" userId={user?.id} name={user?.full_name || user?.username} />
     </>
   );
 }

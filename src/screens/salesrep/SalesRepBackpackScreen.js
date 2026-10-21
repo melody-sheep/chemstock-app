@@ -66,7 +66,7 @@ export const loadBackpackData = async (previous) => {
 
 export default function SalesRepBackpackScreen() {
   const navigation = useNavigation();
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-backpack', loadBackpackData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('sales-rep-backpack', loadBackpackData);
   const agent = snapshot?.agent ?? null;
   // Stock received offline shows here right away, counted in the total.
   const { pending: queuedEntries } = useOutbox();
@@ -186,7 +186,7 @@ export default function SalesRepBackpackScreen() {
 
         <View style={styles.listArea}>
           <ScrollView
-            refreshControl={refreshControl}
+            refreshControl={refreshControlAt(headerHeight)}
             contentContainerStyle={[styles.content, { paddingTop: headerHeight + SPACING.sm }]}
             onScroll={handleListScroll}
             scrollEventThrottle={16}

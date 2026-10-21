@@ -17,6 +17,7 @@ import SearchDropdownField from '../../components/common/SearchDropdownField';
 import SelectedProductsRow from '../../components/common/SelectedProductsRow';
 import RegisteredItemsList from '../../components/common/RegisteredItemsList';
 import ShipmentProofRow from '../../components/common/ShipmentProofRow';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -169,6 +170,7 @@ export default function AddNewBatchesScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <HintChip id="receive-dates" text={"Pick the products, then tap the MFG and EXP chips on each item to set its dates. A waybill photo is required."} style={{ marginBottom: SPACING.md }} />
           <SectionHeader icon="package" size="md" label="Search product" style={styles.sectionHeaderFirst} />
           <SearchDropdownField
             value={searchText}

@@ -19,6 +19,7 @@ import inventoryService from '../../services/inventoryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { daysUntil } from '../../utils/formatters';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -237,6 +238,8 @@ export default function ReleaseStockScanReviewScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Stepper currentStep={2} labels={STEP_LABELS} />
+
+          <HintChip id="release-qty" text={"Type a quantity or use + and −. \"All\" releases the whole stock of that item; the bin removes it."} style={{ marginBottom: SPACING.md }} />
 
           <Text style={styles.sectionTitle}>Items to Release</Text>
 

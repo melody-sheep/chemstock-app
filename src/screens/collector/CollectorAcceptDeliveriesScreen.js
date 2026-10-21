@@ -17,6 +17,7 @@ import BottomActionBar, { useBottomActionBarHeight } from '../../components/comm
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import { getInitials } from '../../utils/initials';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -217,6 +218,7 @@ export default function CollectorAcceptDeliveriesScreen() {
           contentContainerStyle={[styles.content, showNextBar && { paddingBottom: bottomActionBarHeight + SPACING.lg }]}
           showsVerticalScrollIndicator={false}
         >
+          <HintChip id="accept-longpress" text={"Press and hold a delivery for more actions: Start Delivery, Return to Manager or Cancel."} style={{ marginBottom: SPACING.md }} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateChipRow}>
             {DATE_FILTERS.map((option) => {
               const active = option.key === dateFilter;
