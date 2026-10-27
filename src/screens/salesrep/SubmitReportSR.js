@@ -1,7 +1,9 @@
 // src/screens/salesrep/SubmitReportSR.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, Pressable, TextInput, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, Pressable, TextInput, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
@@ -9,6 +11,8 @@ import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import Icon from '../../components/common/Icon';
 import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
+import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -33,9 +37,8 @@ function isNearExpiry(expDate) {
   return days <= NEAR_EXPIRY_DAYS;
 }
 
-// discrepancy = (sold + return) - inCustody. 0 = none, negative = loss/missing,
-// positive = over. Mirrors the server-side generated column exactly, for
-// instant client-side feedback ahead of the authoritative submit.
+// discrepancy = (sold + return) - inCustody. A negative value is the
+// unreported balance that stays in the backpack and carries forward.
 function computeDiscrepancy(sold, ret, inCustody) {
   return (Number(sold) || 0) + (Number(ret) || 0) - inCustody;
 }
@@ -100,11 +103,29 @@ function FigureInput({ value, onChangeText, onFocus, onBlur, focused, editable }
   );
 }
 
+// Reports are one per day, and the day changes at midnight in the Philippines (UTC+8).
+const msUntilNextReportDay = () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  return DAY - ((Date.now() + 8 * 60 * 60 * 1000) % DAY);
+};
+const formatWait = (ms) => {
+  const minutes = Math.max(1, Math.ceil(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+};
+
 export default function SubmitReportSR() {
   const navigation = useNavigation();
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
   const agent = snapshot?.agent ?? null;
   const reportDate = snapshot?.reportDate ?? null;
+  const [msToNextReport, setMsToNextReport] = useState(msUntilNextReportDay());
+  useEffect(() => {
+    const timer = setInterval(() => setMsToNextReport(msUntilNextReportDay()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   const alreadySubmitted = snapshot?.alreadySubmitted ?? false;
   const branchName = snapshot?.branchName ?? null;
   const items = snapshot?.items ?? [];
@@ -302,7 +323,7 @@ export default function SubmitReportSR() {
           'Report Submitted — Discrepancy Found',
           `Your daily report has been sent to your manager for review. ${discrepantCount} item${discrepantCount === 1 ? '' : 's'} had a discrepancy — resolve it under Alerts/Discrepancies.`,
           [
-            { text: 'Later', onPress: () => navigation.goBack(), style: 'cancel' },
+            { text: 'Later', onPress: () => navigation.goBack(), style: 'cancel', accent: '#D92D3A' },
             {
               text: 'Resolve Now',
               onPress: () => navigation.replace('AlertsDiscrepanciesSR'),
@@ -348,8 +369,9 @@ export default function SubmitReportSR() {
           </View>
         ) : (
           <>
+            <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
             <KeyboardAwareScrollView
-          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControl} contentContainerStyle={[styles.content, !isReportLocked && items.length > 0 && { paddingBottom: bottomActionBarHeight + SPACING.lg }]} showsVerticalScrollIndicator={false}>
               {/* Only an SR assigned to more than one branch ever sees this —
                   informational only, derived automatically from which branch
                   their current stock came from, never something to pick. */}
@@ -367,7 +389,7 @@ export default function SubmitReportSR() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pendingBannerTitle}>
-                      Pending — {pendingCount} waiting to sync
+                      Pending — {pendingCount} waiting to send
                     </Text>
                     <Text style={styles.pendingBannerText}>
                       Saved on this device. Sends automatically once you're back online.
@@ -388,7 +410,7 @@ export default function SubmitReportSR() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.pendingBannerTitle}>
-                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to sync
+                      {queuedReceiptCount === 1 ? '1 receipt' : `${queuedReceiptCount} receipts`} waiting to send
                     </Text>
                     <Text style={styles.pendingBannerText}>
                       It isn't in today's figures. You can still file today's report — that stock will be in your next report once it syncs.
@@ -410,6 +432,10 @@ export default function SubmitReportSR() {
                     <Text style={styles.submittedBannerText}>
                       You've already filed today's daily report. Come back tomorrow to submit the next one.
                     </Text>
+                    <View style={styles.countdownPill}>
+                      <Icon name="clock" size={14} color="#1E7A3A" />
+                      <Text style={styles.countdownText}>Next report opens in {formatWait(msToNextReport)}, at midnight</Text>
+                    </View>
                     <Pressable
                       onPress={() => navigation.navigate('SalesRepReports', { openToday: true })}
                       style={styles.viewReportButton}
@@ -463,9 +489,14 @@ export default function SubmitReportSR() {
                 </View>
               ) : (
                 <View style={styles.itemsList}>
-                  <Text style={styles.figuresHint}>
-                    Sold = sold to customers. Returned to branch = unsold stock you hand back to the branch today.
-                  </Text>
+                  <View style={styles.hintStrip}>
+                    <Icon name="question" size={16} color="#0085F9" weight="fill" />
+                    <Text style={styles.figuresHint}>
+                      <Text style={styles.hintStrong}>Sold</Text> = units sold since your last submitted report. Include missed-day sales here; the total is recorded on this report's date.{' '}
+                      <Text style={styles.hintStrong}>Returned</Text> = unsold stock you hand back to the branch today.
+                      {' '}Any remaining balance stays in your backpack for the next report.
+                    </Text>
+                  </View>
                   {items.map((item) => {
                     const f = figures[item.productCode] || { sold: '', returns: '' };
                     const discrepancy = computeDiscrepancy(f.sold, f.returns, item.inCustodyQuantity);
@@ -497,18 +528,23 @@ export default function SubmitReportSR() {
                           <View style={styles.itemDetails}>
                             <View style={styles.itemNameRow}>
                               <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
-                              <View style={[styles.discBadge, discrepancy === 0 ? styles.discBadgeSuccess : styles.discBadgeError]}>
+                              <View style={[styles.discBadge, discrepancy === 0 ? styles.discBadgeSuccess : styles.discBadgeCarryForward]}>
                                 <Icon
                                   name={discrepancy === 0 ? 'checkCircle' : 'warningTriangle'}
                                   size={10}
-                                  color={discrepancy === 0 ? '#1E7A3A' : '#B91C1C'}
+                                  color={discrepancy === 0 ? '#1E7A3A' : '#B26400'}
                                 />
-                                <Text style={[styles.discBadgeText, discrepancy === 0 ? styles.discBadgeTextSuccess : styles.discBadgeTextError]}>
-                                  {discrepancy === 0 ? 'Balanced' : `${Math.abs(discrepancy)} Missing`}
+                                <Text style={[styles.discBadgeText, discrepancy === 0 ? styles.discBadgeTextSuccess : styles.discBadgeTextCarryForward]}>
+                                  {discrepancy === 0 ? 'Balanced' : `${Math.abs(discrepancy)} Unreported`}
                                 </Text>
                               </View>
                             </View>
                             <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+                            {discrepancy < 0 && (
+                              <Text style={styles.carryForwardExplanation}>
+                                Remains in your inventory for the next report.
+                              </Text>
+                            )}
                             <View style={styles.itemMetaRow}>
                               <Icon name="trayDown" size={11} color="#555353" />
                               <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
@@ -564,9 +600,16 @@ export default function SubmitReportSR() {
 
               {!isReportLocked && items.length > 0 && (
                 <View style={styles.photoSection}>
-                  <Text style={styles.listTitle}>Handover Photo</Text>
+                  <View style={styles.photoTitleRow}>
+                    <Text style={styles.listTitle}>Handover Photo</Text>
+                    {!photoUri && (
+                      <View style={styles.requiredPill}>
+                        <Text style={styles.requiredPillText}>Required</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.photoSectionHint}>
-                    Required — a photo of your remaining stock on hand, taken at the time you file this report.
+                    A photo of your remaining stock on hand, taken when you file this report.
                   </Text>
                   <Pressable onPress={photoUri ? handleViewPhoto : handleOpenCamera}>
                     {photoUri ? (
@@ -578,7 +621,9 @@ export default function SubmitReportSR() {
                       </View>
                     ) : (
                       <View style={styles.photoPlaceholder}>
-                        <Icon name="camera" size={36} color="#03045E" />
+                        <View style={styles.cameraCircle}>
+                          <Icon name="camera" size={26} color="#03045E" />
+                        </View>
                         <Text style={styles.photoText}>Tap to capture proof</Text>
                       </View>
                     )}
@@ -586,23 +631,22 @@ export default function SubmitReportSR() {
                 </View>
               )}
             </KeyboardAwareScrollView>
+            </BlurTargetView>
 
             {!isReportLocked && items.length > 0 && (
-              <View style={styles.footer}>
-                <Pressable
-                  style={[styles.primaryButton, (isSubmitting || !photoUri) && styles.primaryButtonDisabled]}
+              <BottomActionBar variant="glass" blurTarget={blurTarget}>
+                {!photoUri && !isSubmitting && <Text style={styles.barHint}>Take the handover photo to continue.</Text>}
+                <Button
+                  title="Finalize & Submit Daily Report"
+                  variant="black"
                   onPress={handleFinalize}
+                  loading={isSubmitting}
                   disabled={isSubmitting || !photoUri}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>
-                      {photoUri ? 'Finalize & Submit Daily Report' : 'Take a Handover Photo First'}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
+                  height={48}
+                  fontSize={16}
+                  borderRadius={24}
+                />
+              </BottomActionBar>
             )}
           </>
         )}
@@ -623,6 +667,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  contentTarget: { flex: 1 },
+  hintStrip: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, backgroundColor: '#EAF4FF' },
+  hintStrong: { fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#272632' },
+  photoTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  requiredPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12, backgroundColor: '#FDECEC' },
+  requiredPillText: { fontSize: 12, color: '#B91C1C', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  cameraCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#E6E8F5', alignItems: 'center', justifyContent: 'center' },
+  barHint: { marginBottom: 8, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   submittedBanner: {
     flexDirection: 'row',
@@ -643,6 +695,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  countdownPill: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.7)' },
+  countdownText: { fontSize: 12, color: '#1E7A3A', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   submittedBannerTitle: {
     fontSize: 13,
     color: '#1D6A3A',
@@ -650,7 +704,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   submittedBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#1D6A3A',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -678,30 +732,30 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   figuresHint: {
-    fontSize: 11,
+    flex: 1,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   photoSectionHint: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   listTitle: {
     color: '#272632',
     fontSize: 18,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-    marginBottom: 10,
   },
   photoPlaceholder: {
     borderWidth: 1.5,
     borderColor: '#D7E3F1',
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    height: 160,
+    height: 130,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -743,7 +797,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   branchText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
@@ -773,7 +827,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -785,7 +839,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -823,7 +877,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 6,
@@ -855,8 +909,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   thumbnail: {
-    width: 80,
-    height: 90,
+    width: 64,
+    height: 72,
     borderRadius: 8,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
@@ -877,7 +931,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   nearExpiryText: {
-    fontSize: 8,
+    fontSize: 11,
     color: '#B26400',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -909,19 +963,25 @@ const styles = StyleSheet.create({
   discBadgeSuccess: {
     backgroundColor: '#EAFBF2',
   },
-  discBadgeError: {
-    backgroundColor: '#FBDCDC',
+  discBadgeCarryForward: {
+    backgroundColor: '#FFF1D6',
   },
   discBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   discBadgeTextSuccess: {
     color: '#1E7A3A',
   },
-  discBadgeTextError: {
-    color: '#B91C1C',
+  discBadgeTextCarryForward: {
+    color: '#8A5A00',
+  },
+  carryForwardExplanation: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#8A5A00',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   itemFullName: {
     fontSize: 12,
@@ -936,7 +996,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   itemMeta: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -955,7 +1015,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   figureLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -964,8 +1024,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DBE4EE',
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    height: 40,
+    borderRadius: 12,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -975,7 +1035,7 @@ const styles = StyleSheet.create({
   // Sized to its digits (never stretched), so Android never re-centres it.
   figureInputText: {
     minWidth: 2,
-    height: 40,
+    height: 44,
     paddingVertical: 0,
     paddingHorizontal: 0,
     includeFontPadding: false,

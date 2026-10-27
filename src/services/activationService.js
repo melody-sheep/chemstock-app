@@ -153,7 +153,7 @@ class ActivationService extends BaseService {
         };
       }
 
-      this.log('error', 'Validation error', { key, error: error.message });
+      this.log('error', 'Validation error', { key: maskCode(key), error: error.message });
 
       return {
         success: false,

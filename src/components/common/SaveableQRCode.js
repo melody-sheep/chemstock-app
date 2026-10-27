@@ -1,6 +1,7 @@
 // src/components/common/SaveableQRCode.js
 import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import Alert from '../../utils/appAlert';
 import PropTypes from 'prop-types';
 import BrandedQRCode from './BrandedQRCode';
 import { captureRef } from 'react-native-view-shot';
@@ -34,7 +35,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
  *      does not itself save a copy anywhere on the device.
  */
 const SaveableQRCode = forwardRef(function SaveableQRCode(
-  { value, size = 200, showValueText = true, style = {} },
+  { value, size = 200, showValueText = true, style = {}, compact = false },
   ref
 ) {
   const qrRef = useRef(null);
@@ -251,7 +252,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
   useImperativeHandle(ref, () => ({ shareAsImage: handleShareAsImage }));
 
   return (
-    <View style={[styles.card, style]}>
+    <View style={[styles.card, compact && styles.cardCompact, style]}>
       {/* Off-screen (opacity 0, absolutely positioned so it doesn't affect
           layout) — captured by getBrandedCardAsset() for Save/Share.
           collapsable={false} is required on Android or view-shot can
@@ -271,19 +272,19 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
         </View>
       </View>
 
-      <View style={styles.qrWrap}>
+      <View style={[styles.qrWrap, compact && styles.qrWrapCompact]}>
         {/* collapsable={false}: required on Android for view-shot, as above. */}
         <View ref={qrRef} collapsable={false} style={styles.qrCapture}>
           <BrandedQRCode value={value} size={size} />
         </View>
       </View>
       {showValueText && (
-        <View style={styles.codeBlock}>
+        <View style={[styles.codeBlock, compact && styles.fullBleedCompact]}>
           <Text style={styles.codeLabel}>Batch code</Text>
-          <Text style={styles.codeText}>{value}</Text>
+          <Text style={styles.codeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
         </View>
       )}
-      <View style={styles.actions}>
+      <View style={[styles.actions, compact && styles.actionsCompact, compact && styles.fullBleedCompact]}>
         <Button
           title={isSaving ? 'Saving…' : 'Save to Gallery'}
           variant="fill"
@@ -294,8 +295,9 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           loading={isSaving}
           disabled={isSaving || isPrinting}
           height={48}
-          fontSize={15}
-          style={styles.fullWidth}
+          fontSize={compact ? 14 : 15}
+          borderRadius={24}
+          style={compact ? styles.halfWidth : styles.fullWidth}
         />
         <Button
           title={isPrinting ? 'Printing…' : 'Print QR Code'}
@@ -307,8 +309,9 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           loading={isPrinting}
           disabled={isPrinting || isSaving}
           height={48}
-          fontSize={15}
-          style={styles.fullWidth}
+          fontSize={compact ? 14 : 15}
+          borderRadius={24}
+          style={compact ? styles.halfWidth : styles.fullWidth}
         />
       </View>
     </View>
@@ -322,6 +325,8 @@ SaveableQRCode.propTypes = {
   size: PropTypes.number,
   showValueText: PropTypes.bool,
   style: PropTypes.object,
+  // Tighter spacing, Save and Print side by side (used where the QR must share the screen).
+  compact: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({
@@ -350,6 +355,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginHorizontal: SPACING.lg,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#F4F6FA',
   },
   codeLabel: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -360,11 +368,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   codeText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
-    letterSpacing: 0.5,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+    letterSpacing: 0.3,
   },
   actions: {
     alignSelf: 'stretch',
@@ -373,6 +381,25 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: '100%',
+  },
+  halfWidth: {
+    width: '48.5%',
+  },
+  // inside the card's own padding, no extra side margin
+  fullBleedCompact: {
+    marginHorizontal: 0,
+  },
+  cardCompact: {
+    gap: SPACING.md,
+    paddingVertical: SPACING.md,
+  },
+  qrWrapCompact: {
+    paddingVertical: 0,
+  },
+  actionsCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 0,
   },
   offscreenWrap: {
     position: 'absolute',
@@ -410,7 +437,7 @@ const styles = StyleSheet.create({
   },
   brandedLabel: {
     marginTop: 28,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 1.5,
     textTransform: 'uppercase',

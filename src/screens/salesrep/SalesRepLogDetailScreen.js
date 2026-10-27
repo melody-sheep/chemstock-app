@@ -2,7 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Image, ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRoute } from '@react-navigation/native';
+import UserAvatar from '../../components/common/UserAvatar';
+import authService from '../../services/authService';
+import { getDeliveryParties } from '../../services/presenceService';
+import { getInitials } from '../../utils/initials';
+import { cleanDeviceOs } from '../../utils/deviceInfo';
 import Header from '../../components/common/Header';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import SectionHeader from '../../components/common/SectionHeader';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { formatDateTime } from '../../utils/formatters';
 import Icon from '../../components/common/Icon';
 import SaveableQRCode from '../../components/common/SaveableQRCode';
 import ImageViewerModal from '../../components/common/ImageViewerModal';
@@ -17,6 +26,22 @@ const REQUEST_STATUS_META = {
   declined: { label: 'Declined', color: COLORS.error },
 };
 
+// Sharp MFG / EXP chips, the same colours as on Receive Stock.
+const DATE_TONE = { MFG: '#1E6FE0', EXP: '#D6336C' };
+const imageFor = (item) => PRODUCT_CATALOG.find((p) => p.code === item.productCode || p.code === item.productName)?.image;
+
+const REQUEST_TONE = {
+  pending: { label: 'Pending', color: '#B26400', bg: '#FFF1D6' },
+  accepted: { label: 'Accepted', color: '#1E7A3A', bg: '#EAFBF2' },
+  declined: { label: 'Declined', color: '#B91C1C', bg: '#FBDCDC' },
+};
+
+const NOTE_BY_TYPE = {
+  request: 'A saved record of the stock request you sent. It cannot be edited.',
+  delivery: 'A saved record of a delivery that reached you. It cannot be edited.',
+  accepted: 'A saved record of stock you accepted. It cannot be edited. Scan its QR code anytime to track the release.',
+};
+
 export default function SalesRepLogDetailScreen() {
   const route = useRoute();
   const log = route.params?.log;
@@ -24,6 +49,20 @@ export default function SalesRepLogDetailScreen() {
   const [photoUrl, setPhotoUrl] = useState(null);
   const [isPhotoLoading, setIsPhotoLoading] = useState(false);
   const [isViewerVisible, setIsViewerVisible] = useState(false);
+  // The Collector on a delivery, with their current profile photo (the saved log only has the name).
+  const [parties, setParties] = useState(null);
+  useEffect(() => {
+    if (log?.logType !== 'delivery' || !log?.transactionId) return undefined;
+    let active = true;
+    authService.getCurrentUser().then((user) =>
+      getDeliveryParties(user?.id, log.transactionId).then((result) => {
+        if (active) setParties(result);
+      })
+    );
+    return () => {
+      active = false;
+    };
+  }, [log]);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,6 +109,14 @@ export default function SalesRepLogDetailScreen() {
     return log.releasedByName ? `Stock Accepted — ${log.releasedByName}` : 'Stock Accepted';
   };
 
+  const requestTone = REQUEST_TONE[log.status] || REQUEST_TONE.pending;
+  const tone =
+    log.logType === 'request'
+      ? requestTone
+      : log.logType === 'delivery'
+      ? { label: 'Delivered', color: '#4c9f70', bg: '#4c9f7020' }
+      : { label: 'Accepted', color: '#0096C7', bg: '#CAF0F8' };
+
   return (
     <>
       <StatusBar style="light" />
@@ -83,15 +130,22 @@ export default function SalesRepLogDetailScreen() {
           textColor="#FFFFFF"
         />
 
+        <SecondaryHeader height={76}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={2}>{getTitle()}</Text>
+              <Text style={styles.pageSubtitle}>{formatDateTime(new Date(log.createdAt))}</Text>
+            </View>
+            <View style={[styles.typePill, { backgroundColor: tone.bg }]}>
+              <Text style={[styles.typePillText, { color: tone.color }]}>{tone.label}</Text>
+            </View>
+          </View>
+        </SecondaryHeader>
+
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.detailTitle}>{getTitle()}</Text>
-          <Text style={styles.detailSubtitle}>
-            {new Date(log.createdAt).toLocaleString()}
-          </Text>
-
           {log.logType === 'request' && log.status === 'declined' && log.declineReason && (
             <View style={styles.declineBanner}>
               <Icon name="warningTriangle" size={16} color={COLORS.error} />
@@ -99,30 +153,47 @@ export default function SalesRepLogDetailScreen() {
             </View>
           )}
 
-          <View style={styles.sectionHeader}>
-            <Icon name="package" size={14} color={COLORS.textTertiary} />
-            <Text style={styles.detailSectionLabel}>Items</Text>
-          </View>
-          <View style={styles.itemsCard}>
-            {(log.items || []).map((item, index) => (
-              <View
-                key={`${item.productCode}-${index}`}
-                style={[styles.itemRow, index === 0 && styles.itemRowFirst]}
-              >
-                <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.itemMeta}>
-                  Qty: {item.quantity}
-                  {item.mfgDate ? `   Mfg: ${new Date(item.mfgDate).toLocaleDateString()}` : ''}
-                  {item.expDate ? `   Exp: ${new Date(item.expDate).toLocaleDateString()}` : ''}
-                </Text>
-              </View>
-            ))}
+          <SectionHeader icon="package" size="md" label={`Items (${(log.items || []).length})`} style={styles.labelFirst} />
+          <View style={styles.itemsList}>
+            {(log.items || []).map((item, index) => {
+              const image = imageFor(item);
+              return (
+                <View key={`${item.productCode}-${index}`} style={styles.itemCard}>
+                  <View style={styles.itemThumb}>
+                    {image ? (
+                      <Image source={image} style={styles.itemImage} resizeMode="contain" />
+                    ) : (
+                      <Icon name="package" size={22} color={COLORS.textSecondary} />
+                    )}
+                  </View>
+                  <View style={styles.itemInfo}>
+                    <View style={styles.itemTitleRow}>
+                      <Text style={styles.itemName}>{item.productName}</Text>
+                      <Text style={styles.itemQty}>Qty {item.quantity}</Text>
+                    </View>
+                    {(item.mfgDate || item.expDate) && (
+                      <View style={styles.chipRow}>
+                        {!!item.mfgDate && (
+                          <View style={[styles.dateChip, { backgroundColor: DATE_TONE.MFG }]}>
+                            <Text style={styles.dateChipLabel}>MFG</Text>
+                            <Text style={styles.dateChipValue}>{new Date(item.mfgDate).toLocaleDateString()}</Text>
+                          </View>
+                        )}
+                        {!!item.expDate && (
+                          <View style={[styles.dateChip, { backgroundColor: DATE_TONE.EXP }]}>
+                            <Text style={styles.dateChipLabel}>EXP</Text>
+                            <Text style={styles.dateChipValue}>{new Date(item.expDate).toLocaleDateString()}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
-          <View style={styles.sectionHeader}>
-            <Icon name="idCard" size={14} color={COLORS.textTertiary} />
-            <Text style={styles.detailSectionLabel}>Details</Text>
-          </View>
+          <SectionHeader icon="clipboardText" size="md" label="Details" style={styles.labelSpaced} />
           <View style={styles.metaCard}>
             {(log.logType === 'request' ? log.latitude != null : log.gps) && (
               <View style={styles.metaRow}>
@@ -142,17 +213,34 @@ export default function SalesRepLogDetailScreen() {
             )}
             {log.logType === 'delivery' && (
               <View style={styles.metaRow}>
-                <Icon name="person" size={16} color={COLORS.primary} />
+                <UserAvatar
+                  photoUrl={parties?.collector?.photoUrl || null}
+                  size={32}
+                  fallbackText={getInitials(log.collectorName || 'Collector')}
+                  backgroundColor="#FFF1D6"
+                  fallbackTextColor="#B26400"
+                />
                 <Text style={styles.metaText}>{log.collectorName || 'Collector'} (Collector)</Text>
+              </View>
+            )}
+            {log.logType !== 'request' && log.logType !== 'delivery' && !!log.releasedByName && (
+              <View style={styles.metaRow}>
+                <UserAvatar
+                  size={32}
+                  fallbackText={getInitials(log.releasedByName)}
+                  backgroundColor="#EAF4FF"
+                  fallbackTextColor="#03045E"
+                />
+                <Text style={styles.metaText}>Released by {log.releasedByName}</Text>
               </View>
             )}
             {(log.logType === 'request' ? log.deviceModel : log.media?.deviceModel) && (
               <View style={styles.metaRow}>
-                <Icon name="package" size={16} color={COLORS.textSecondary} />
+                <Icon name="phone" size={16} color={COLORS.textSecondary} />
                 <Text style={styles.metaText}>
                   {log.logType === 'request'
-                    ? [log.deviceModel, log.deviceOs].filter(Boolean).join(' - ')
-                    : [log.media.deviceModel, log.media.deviceOs].filter(Boolean).join(' - ')}
+                    ? [log.deviceModel, cleanDeviceOs(log.deviceOs)].filter(Boolean).join(' · ')
+                    : [log.media.deviceModel, cleanDeviceOs(log.media.deviceOs)].filter(Boolean).join(' · ')}
                 </Text>
               </View>
             )}
@@ -160,18 +248,12 @@ export default function SalesRepLogDetailScreen() {
 
           {log.logType !== 'request' && log.logType !== 'delivery' && (
             <>
-              <View style={styles.sectionHeader}>
-                <Icon name="qrCode" size={14} color={COLORS.textTertiary} />
-                <Text style={styles.detailSectionLabel}>Release QR Code</Text>
-              </View>
-              <SaveableQRCode value={log.qrCode} size={180} style={styles.qrCard} />
+              <SectionHeader icon="qrCode" size="md" label="Release QR code" style={styles.labelSpaced} />
+              <SaveableQRCode value={log.qrCode} size={156} compact style={styles.qrCard} />
 
               {log.media?.storagePath && (
                 <>
-                  <View style={styles.sectionHeader}>
-                    <Icon name="camera" size={14} color={COLORS.textTertiary} />
-                    <Text style={styles.detailSectionLabel}>Acceptance Proof</Text>
-                  </View>
+                  <SectionHeader icon="camera" size="md" label="Acceptance proof" style={styles.labelSpaced} />
                   {isPhotoLoading ? (
                     <ActivityIndicator
                       size="small"
@@ -198,6 +280,11 @@ export default function SalesRepLogDetailScreen() {
               )}
             </>
           )}
+
+          <View style={styles.noteRow}>
+            <Icon name="lock" size={13} color={COLORS.textTertiary} />
+            <Text style={styles.noteText}>{NOTE_BY_TYPE[log.logType] || NOTE_BY_TYPE.accepted}</Text>
+          </View>
         </ScrollView>
       </View>
 
@@ -223,20 +310,27 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
     paddingBottom: SPACING['3xl'],
   },
-  detailTitle: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
-    letterSpacing: 0.2,
-  },
-  detailSubtitle: {
-    marginTop: 4,
-    marginBottom: SPACING.md,
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textTertiary,
-  },
+  titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, paddingHorizontal: SPACING.md },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageTitle: { fontSize: TYPOGRAPHY.fontSize.lg, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#272632' },
+  pageSubtitle: { marginTop: 2, fontSize: TYPOGRAPHY.fontSize.xs, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textSecondary },
+  typePill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  typePillText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  labelFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  labelSpaced: { marginTop: SPACING.lg, marginBottom: 0 },
+  itemsList: { gap: SPACING.sm, marginTop: SPACING.sm },
+  itemCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm, borderRadius: 12, borderWidth: 1, borderColor: '#E5E5E5', backgroundColor: '#FFFFFF' },
+  itemThumb: { width: 52, height: 52, borderRadius: 10, borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  itemImage: { width: '100%', height: '100%' },
+  itemInfo: { flex: 1, gap: 6 },
+  itemTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  itemQty: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.success },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  dateChip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 26, paddingHorizontal: 8, borderRadius: 0 },
+  dateChipLabel: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: 'rgba(255,255,255,0.85)' },
+  dateChipValue: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#FFFFFF' },
+  noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: SPACING.lg, paddingHorizontal: 4 },
+  noteText: { flex: 1, fontSize: 11, lineHeight: 16, fontFamily: TYPOGRAPHY.fontFamily.regular, color: COLORS.textTertiary },
   declineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -284,10 +378,11 @@ const styles = StyleSheet.create({
   },
   itemRowFirst: { borderTopWidth: 0 },
   itemName: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textPrimary,
+    flexShrink: 1,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
   },
   itemMeta: {
     marginTop: 2,
@@ -296,16 +391,17 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   metaCard: {
+    marginTop: SPACING.sm,
     borderWidth: 1,
-    borderColor: '#ECEEF1',
-    borderRadius: 8,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    padding: SPACING.sm,
+    padding: SPACING.md,
     gap: SPACING.sm,
   },
   metaRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: SPACING.sm,
   },
   metaText: {
@@ -316,12 +412,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   qrCard: {
-    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
   },
   photoWrap: {
+    marginTop: SPACING.sm,
     width: '100%',
-    height: 180,
-    borderRadius: 8,
+    height: 200,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#F1F5F9',
   },

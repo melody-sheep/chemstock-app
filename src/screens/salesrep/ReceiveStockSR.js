@@ -1,6 +1,8 @@
 // src/screens/salesrep/ReceiveStockSR.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
+import { getQuickPosition } from '../../utils/quickLocation';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +23,9 @@ import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useOutbox from '../../hooks/useOutbox';
 import { getInitials } from '../../utils/initials';
+import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
+import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
 import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
@@ -136,14 +140,23 @@ export default function ReceiveStockSR() {
     if (!agent || !photoUri || !batch || isSubmitting) return;
     setIsSubmitting(true);
 
+    // The accept saves the position in gps_coordinates, where latitude and longitude cannot be empty. Use the fix that
+    // came with the photo; if there is none, look again before giving up (a clear message, not a database error).
+    const position = coords || (await getQuickPosition({ timeoutMs: 6000 }));
+    if (!position) {
+      setIsSubmitting(false);
+      Alert.alert('Location Needed', 'Your location could not be found. Check that Location is turned on and ChemStock is allowed to use it, then try again.');
+      return;
+    }
+
     // The scan + lookup that produced `batch` always happened live — a QR
     // code carries no data of its own, so only this final confirmation step
     // can ever be queued. Mirrors the daily report / return request pattern.
     const acceptPayload = {
       qrCode: batch.qrCode,
       agentId: agent.id,
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
       deviceModel: Device.modelName,
       deviceOs: getDeviceOs(),
     };
@@ -187,37 +200,22 @@ export default function ReceiveStockSR() {
     }
   };
 
-  const handleDone = () => navigation.navigate('SalesRepDashboard');
+  // Back to the dashboard already in the stack (not a second copy on top of it).
+  const handleDone = () => navigation.navigate('SalesRepDashboard', undefined, { pop: true });
 
-  if (isAccepted) {
-    return (
-      <>
-        <StatusBar style="light" />
-        <View style={styles.screen}>
-          <View style={[styles.topBar, { height: 56 + insets.top, paddingTop: insets.top }]}>
-            <Text style={styles.topBarTitle}>{isQueuedAccept ? 'Saved — Will Send Later' : 'Stock Accepted'}</Text>
-          </View>
-          <View style={styles.successWrap}>
-            <Icon
-              name={isQueuedAccept ? 'clock' : 'checkCircle'}
-              size={48}
-              color={isQueuedAccept ? COLORS.warning : COLORS.success}
-              weight="fill"
-            />
-            <Text style={styles.successTitle}>
-              {isQueuedAccept ? "You're Offline — Saved On This Device" : 'Stock Accepted Successfully'}
-            </Text>
-            <Text style={styles.successSubtitle}>
-              {isQueuedAccept
-                ? `Your confirmation for ${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'} (${totalUnits} units) is saved and will send automatically once you're back online.`
-                : `${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'}, ${totalUnits} units added to your stock`}
-            </Text>
-            <Button title="Done" variant="black" onPress={handleDone} style={styles.doneButton} />
-          </View>
-        </View>
-      </>
+  // The result is a centred message over the screen instead of a full "success" page.
+  const unitsLabel = `${batch?.items?.length || 0} item${(batch?.items?.length || 0) === 1 ? '' : 's'}, ${totalUnits} units`;
+  useEffect(() => {
+    if (!isAccepted) return;
+    Alert.alert(
+      isQueuedAccept ? 'Saved — will send later' : 'Stock accepted',
+      isQueuedAccept
+        ? `You're offline. Your confirmation for ${unitsLabel} is saved on this device and sends automatically once you're back online.`
+        : `${unitsLabel} added to your stock.`,
+      [{ text: 'Done', onPress: handleDone }],
+      { cancelable: false }
     );
-  }
+  }, [isAccepted]);
 
   return (
     <>
@@ -244,13 +242,14 @@ export default function ReceiveStockSR() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HintChip id="receive-scan" text={"Scan the QR code your Collector or Manager shows you, then take the photo proof to confirm the handover."} style={{ marginBottom: SPACING.md }} />
           {pendingCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
                 <Icon name="clock" size={14} color="#FFFFFF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.pendingBannerTitle}>Pending — {pendingCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerTitle}>Pending — {pendingCount} waiting to send</Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
                 </Text>
@@ -421,7 +420,10 @@ export default function ReceiveStockSR() {
       <CameraCaptureModal
         visible={isCameraVisible}
         onClose={() => setIsCameraVisible(false)}
-        onCapture={setPhotoUri}
+        onCapture={(uri, photoCoords) => {
+          setPhotoUri(uri);
+          if (photoCoords) setCoords(photoCoords);
+        }}
       />
     </>
   );
@@ -479,7 +481,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#1E7A3A',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -518,7 +520,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -530,7 +532,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -590,7 +592,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   scanSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
@@ -712,7 +714,7 @@ const styles = StyleSheet.create({
   },
   itemMeta: {
     color: '#555353',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
@@ -737,7 +739,7 @@ const styles = StyleSheet.create({
   },
   requiredText: {
     color: '#BE123C',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
@@ -797,7 +799,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: '#272632',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     flexShrink: 1,

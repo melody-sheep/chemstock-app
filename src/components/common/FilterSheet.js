@@ -9,6 +9,11 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { RADIUS } from '../../styles/radius';
 
+// Two colour families only: blue for the choices, a darker blue for the date range, red for clearing.
+const CHIP_BLUE = '#0085F9';
+const CHIP_BLUE_TEXT = '#0A66C2';
+const DATE_TONE = '#03045E';
+
 const formatShortDate = (date) =>
   date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
 
@@ -86,11 +91,11 @@ export default function FilterSheet({
   const hasActiveDateRange = !!(dateRange?.from && dateRange?.to);
 
   return (
+    <>
     <CustomModal visible={visible} onClose={onClose} height="auto" maxHeight={620}>
       <View style={styles.headerRow}>
         <View style={styles.headerTextCol}>
           <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>Tap to select</Text>
         </View>
         <TouchableOpacity
           onPress={onClose}
@@ -105,120 +110,64 @@ export default function FilterSheet({
 
       <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
         <View style={styles.list}>
-          {options.map((option) => {
-            const isSelected = option.key === selectedKey;
-            return (
-              <TouchableOpacity
-                key={option.key}
-                style={[styles.row, isSelected && styles.rowSelected]}
-                onPress={() => handleSelect(option.key)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isSelected }}
-              >
-                {!!option.icon && (
-                  <View style={styles.rowIconWrap}>
-                    <Icon name={option.icon} size={20} color={COLORS.primary} duotoneColor="transparent" />
-                  </View>
-                )}
-                <View style={styles.rowTextCol}>
-                  <Text style={[styles.rowText, isSelected && styles.rowTextSelected]}>{option.label}</Text>
-                  {!!option.description && <Text style={styles.rowDescription}>{option.description}</Text>}
-                </View>
-                <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                  {isSelected && <Icon name="check" size={12} color="#FFFFFF" weight="bold" />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          <View style={styles.chipWrap}>
+            {options.map((option) => {
+              const isSelected = option.key === selectedKey;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.chip,
+                    isSelected
+                      ? { backgroundColor: option.tone || CHIP_BLUE, borderColor: option.tone || CHIP_BLUE }
+                      : option.tone
+                      ? { backgroundColor: option.tone + '14', borderColor: option.tone + '55' }
+                      : { backgroundColor: '#EAF4FF', borderColor: '#B9D9FF' },
+                  ]}
+                  onPress={() => handleSelect(option.key)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  {!!option.icon && <Icon name={option.icon} size={16} color={isSelected ? '#FFFFFF' : option.tone || CHIP_BLUE_TEXT} />}
+                  <Text style={[styles.chipText, { color: isSelected ? '#FFFFFF' : option.tone || CHIP_BLUE_TEXT }]}>{option.label}</Text>
+                  {isSelected && <Icon name="check" size={13} color="#FFFFFF" weight="bold" />}
+                </TouchableOpacity>
+              );
+            })}
 
-          {supportsDateRange && (
-            <>
+            {supportsDateRange && (
               <TouchableOpacity
-                style={styles.row}
+                style={[
+                  styles.chip,
+                  hasActiveDateRange
+                    ? { backgroundColor: DATE_TONE, borderColor: DATE_TONE }
+                    : { backgroundColor: '#FFFFFF', borderColor: DATE_TONE },
+                ]}
                 onPress={openDateSection}
                 activeOpacity={0.7}
                 accessibilityRole="button"
               >
-                <View style={styles.rowIconWrap}>
-                  <Icon name="calendar" size={20} color={COLORS.primary} />
-                </View>
-                <View style={styles.rowTextCol}>
-                  <Text style={styles.rowText}>Custom date range</Text>
-                  <Text style={styles.rowDescription}>
-                    {hasActiveDateRange
-                      ? `${formatShortDate(dateRange.from)} – ${formatShortDate(dateRange.to)}`
-                      : 'Pick a specific period'}
-                  </Text>
-                </View>
+                <Icon name="calendar" size={16} color={hasActiveDateRange ? '#FFFFFF' : DATE_TONE} />
+                <Text style={[styles.chipText, { color: hasActiveDateRange ? '#FFFFFF' : DATE_TONE }]}>
+                  {hasActiveDateRange
+                    ? `${formatShortDate(dateRange.from)} – ${formatShortDate(dateRange.to)}`
+                    : 'Custom range'}
+                </Text>
                 {hasActiveDateRange && (
                   <TouchableOpacity
                     onPress={clearDateRange}
-                    activeOpacity={0.7}
+                    hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Clear date range"
                   >
-                    <Text style={styles.clearRangeText}>Clear</Text>
+                    <Icon name="xCircle" size={15} color="#FFFFFF" weight="fill" />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
+            )}
+          </View>
 
-              {isDateSectionOpen && (
-                <View style={styles.dateSection}>
-                  <View style={styles.dateInputsRow}>
-                    <TouchableOpacity
-                      style={styles.dateInput}
-                      onPress={() => setActivePickerField('from')}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dateInputLabel}>From</Text>
-                      <Text style={styles.dateInputValue}>
-                        {pendingFrom ? formatShortDate(pendingFrom) : 'Select'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.dateInput}
-                      onPress={() => setActivePickerField('to')}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dateInputLabel}>To</Text>
-                      <Text style={styles.dateInputValue}>
-                        {pendingTo ? formatShortDate(pendingTo) : 'Select'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.applyRangeButton, (!pendingFrom || !pendingTo) && styles.applyRangeButtonDisabled]}
-                    onPress={applyDateRange}
-                    disabled={!pendingFrom || !pendingTo}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.applyRangeText}>Apply range</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {activePickerField === 'from' && (
-                <DateTimePicker
-                  value={pendingFrom || new Date()}
-                  mode="date"
-                  display="calendar"
-                  maximumDate={pendingTo || undefined}
-                  onChange={handleDateChange('from')}
-                />
-              )}
-              {activePickerField === 'to' && (
-                <DateTimePicker
-                  value={pendingTo || new Date()}
-                  mode="date"
-                  display="calendar"
-                  minimumDate={pendingFrom || undefined}
-                  onChange={handleDateChange('to')}
-                />
-              )}
-            </>
-          )}
         </View>
       </ScrollView>
 
@@ -235,6 +184,64 @@ export default function FilterSheet({
         </TouchableOpacity>
       )}
     </CustomModal>
+
+    {supportsDateRange && (
+      <CustomModal visible={isDateSectionOpen} onClose={() => setIsDateSectionOpen(false)} variant="center">
+        <View style={styles.dateIconWrap}>
+          <Icon name="calendar" size={24} color={DATE_TONE} />
+        </View>
+        <Text style={styles.dateTitle}>Custom range</Text>
+        <Text style={styles.dateSubtitle}>Pick a start and an end date.</Text>
+
+        <View style={styles.dateInputsRow}>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setActivePickerField('from')} activeOpacity={0.7}>
+            <Text style={styles.dateInputLabel}>From</Text>
+            <Text style={[styles.dateInputValue, !pendingFrom && styles.dateInputPlaceholder]}>
+              {pendingFrom ? formatShortDate(pendingFrom) : 'Select'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.dateInput} onPress={() => setActivePickerField('to')} activeOpacity={0.7}>
+            <Text style={styles.dateInputLabel}>To</Text>
+            <Text style={[styles.dateInputValue, !pendingTo && styles.dateInputPlaceholder]}>
+              {pendingTo ? formatShortDate(pendingTo) : 'Select'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.applyRangeButton, (!pendingFrom || !pendingTo) && styles.applyRangeButtonDisabled]}
+          onPress={applyDateRange}
+          disabled={!pendingFrom || !pendingTo}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+        >
+          <Text style={styles.applyRangeText}>Apply range</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dateCancel} onPress={() => setIsDateSectionOpen(false)} accessibilityRole="button">
+          <Text style={styles.dateCancelText}>Cancel</Text>
+        </TouchableOpacity>
+
+        {activePickerField === 'from' && (
+          <DateTimePicker
+            value={pendingFrom || new Date()}
+            mode="date"
+            display="calendar"
+            maximumDate={pendingTo || undefined}
+            onChange={handleDateChange('from')}
+          />
+        )}
+        {activePickerField === 'to' && (
+          <DateTimePicker
+            value={pendingTo || new Date()}
+            mode="date"
+            display="calendar"
+            minimumDate={pendingFrom || undefined}
+            onChange={handleDateChange('to')}
+          />
+        )}
+      </CustomModal>
+    )}
+    </>
   );
 }
 
@@ -248,6 +255,8 @@ FilterSheet.propTypes = {
       label: PropTypes.string.isRequired,
       description: PropTypes.string,
       icon: PropTypes.string,
+      // Optional colour for this one option (e.g. a red-pink for Returns).
+      tone: PropTypes.string,
     })
   ).isRequired,
   selectedKey: PropTypes.string.isRequired,
@@ -303,13 +312,24 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.error,
   },
-  list: { gap: SPACING.xs },
+  list: { gap: 2 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, paddingTop: SPACING.xs, paddingBottom: SPACING.sm },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 40,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  chipText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    minHeight: 56,
-    paddingVertical: 12,
+    minHeight: 48,
+    paddingVertical: 8,
     paddingHorizontal: SPACING.sm,
     borderRadius: RADIUS.md,
     borderWidth: 1,
@@ -364,17 +384,42 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.error,
   },
-  dateSection: {
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.xs,
-    padding: SPACING.sm,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.placeholderBg,
-    gap: SPACING.sm,
+  dateIconWrap: {
+    alignSelf: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EAF4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateTitle: {
+    marginTop: SPACING.sm,
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  dateSubtitle: {
+    marginTop: 2,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  dateInputPlaceholder: { color: COLORS.textTertiary },
+  dateCancel: { alignItems: 'center', paddingTop: SPACING.sm },
+  dateCancelText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: COLORS.textSecondary,
   },
   dateInputsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   dateInput: {
     flex: 1,
@@ -386,7 +431,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
   },
   dateInputLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textTertiary,
   },
@@ -398,13 +443,14 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   applyRangeButton: {
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.sm,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    backgroundColor: '#03045E',
   },
   applyRangeButtonDisabled: {
-    backgroundColor: COLORS.primary + '55',
+    backgroundColor: '#03045E55',
   },
   applyRangeText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

@@ -36,6 +36,12 @@ export default function BottomActionBar({ children, style, variant = 'solid', bl
     style,
   ];
 
+  // Android release builds draw the live blur as a dark grey slab (Expo Go does not), so Android gets a plain
+  // near-white bar instead; iOS keeps the frosted blur.
+  if (isGlass && Platform.OS === 'android') {
+    return <View style={[...containerStyle, styles.containerAndroidGlass]}>{children}</View>;
+  }
+
   if (isGlass) {
     return (
       <View style={containerStyle}>
@@ -75,6 +81,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingTop: BAR_PADDING_VERTICAL,
+  },
+  containerAndroidGlass: {
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderTopColor: '#E5E7EB',
   },
   containerGlass: {
     backgroundColor: 'transparent',

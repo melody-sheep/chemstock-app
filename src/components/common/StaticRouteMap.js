@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import PropTypes from 'prop-types';
 import { COLORS } from '../../constants/colors';
 import { ICONS } from './Icon';
+import { LEAFLET_JS, LEAFLET_CSS } from '../../vendor/leafletBundle';
 
 const FALLBACK_CENTER = { latitude: 8.4542, longitude: 124.6319 };
 
@@ -32,6 +33,9 @@ function buildHtml({
   destinationAvatar,
   originAvatar,
   showRoute = true,
+  fill = false,
+  fitBottom = 120,
+  fitTop = 200,
 }) {
   const extraPoints = (destinations || []).map((d) => ({ latitude: d.latitude, longitude: d.longitude }));
   const points = [originCoords, destinationCoords, lastCheckpoint, ...extraPoints].filter(Boolean);
@@ -41,16 +45,23 @@ function buildHtml({
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>${LEAFLET_CSS}</style>
   <style>
     html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: 0; }
     .leaflet-control-zoom { ${showZoomControl ? 'right: 8px !important; top: 8px !important;' : 'display: none;'} }
+    /* Overlapping people: only the picked one keeps its name tag, the rest dim. */
+    .rm-hide .rm-tag { display: none !important; }
+    .rm-dim { opacity: 0.5; }
+    /* Two markers a little apart: the left tag leans left and the right one leans right. */
+    .rm-tl .rm-tag { left: auto !important; right: 50% !important; transform: none !important; margin-right: -14px; }
+    .rm-tr .rm-tag { left: 50% !important; transform: none !important; margin-left: -14px; }
+    .rm-tl .rm-tag > div:last-child, .rm-tr .rm-tag > div:last-child { display: none; }
     .leaflet-control-scale { ${showScale ? 'margin-bottom: 8px !important; margin-left: 8px !important;' : 'display: none;'} }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>${LEAFLET_JS}</script>
   <script>
     var map = L.map('map', {
       zoomControl: false,
@@ -90,18 +101,39 @@ function buildHtml({
     function labelTagHtml(lines) {
       var clean = (lines || []).filter(Boolean);
       if (!clean.length) return '';
-      var rows = clean.map(function (line, i) {
-        var style = i === 0
-          ? 'font-size:12px;font-weight:700;color:#FFFFFF;'
-          : 'font-size:10px;font-weight:500;color:rgba(255,255,255,0.8);margin-top:2px;';
-        // A long line (e.g. a checkpoint note) wraps to two lines at most
-        // inside a capped width instead of running off the screen.
+      // "Name (Role) · note": the name in bold, the role as a small coloured chip, the note below.
+      var first = String(clean[0]);
+      var open = first.indexOf('('), close = first.lastIndexOf(')');
+      var name = first, role = '', extra = '';
+      if (open > 0 && close > open) {
+        name = first.slice(0, open).trim();
+        role = first.slice(open + 1, close).trim();
+        extra = first.slice(close + 1).trim();
+        while (extra.charAt(0) === '\u00b7' || extra.charAt(0) === ' ') extra = extra.slice(1);
+      }
+      var roleColor = role === 'You' ? '#E63946' : role === 'Collector' ? '#C97A00' : '#0085F9';
+      var chip = role
+        ? '<span style="margin-left:6px;padding:1px 7px;border-radius:9px;font-size:10px;font-weight:700;white-space:nowrap;color:' + roleColor + ';background:' + roleColor + '1F;">' + role + '</span>'
+        : '';
+      var head = '<div style="display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#272632;line-height:1.3;">' +
+        '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">' + name + '</span>' + chip + '</div>';
+      var rest = clean.slice(1);
+      if (extra) rest.unshift(extra);
+      var body = rest.map(function (line) {
+        var isCoord = String(line).indexOf('\u00b0') > -1;
+        var style = isCoord
+          ? 'font-size:10px;font-weight:500;color:#9AA0A6;margin-top:3px;'
+          : 'font-size:11px;font-weight:500;color:#555353;margin-top:2px;';
+        // A long line (e.g. a checkpoint note) wraps to two lines at most inside a capped width.
         return '<div style="' + style + 'line-height:1.3;text-align:center;overflow-wrap:anywhere;' +
-          'display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:' + (i === 0 ? 1 : 2) + ';">' + line + '</div>';
+          'display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:2;">' + line + '</div>';
       }).join('');
-      return '<div style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;' +
-        'width:max-content;max-width:210px;background:#272632;padding:6px 10px;border-radius:8px;display:flex;flex-direction:column;align-items:center;">' +
-        rows + '</div>';
+      return '<div class="rm-tag" style="position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:10px;' +
+        'width:max-content;max-width:230px;background:#FFFFFF;padding:7px 11px;border-radius:10px;border:1px solid #E5E7EB;' +
+        'box-shadow:0 3px 10px rgba(0,0,0,0.18);display:flex;flex-direction:column;align-items:center;">' +
+        head + body +
+        '<div style="position:absolute;left:50%;bottom:-5px;width:8px;height:8px;background:#FFFFFF;border-right:1px solid #E5E7EB;border-bottom:1px solid #E5E7EB;transform:translateX(-50%) rotate(45deg);"></div>' +
+        '</div>';
     }
 
     function dot(color) {
@@ -180,7 +212,12 @@ function buildHtml({
     window.mapCommand = function (command) {
       if (command === 'zoomIn') map.zoomIn();
       else if (command === 'zoomOut') map.zoomOut();
-      else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { paddingTopLeft: [48, 200], paddingBottomRight: [80, 120], maxZoom: 16 });
+      else if (command === 'recenter' && bounds.length) map.fitBounds(bounds, { paddingTopLeft: [48, ${fitTop}], paddingBottomRight: [80, ${fitBottom}], maxZoom: 16 });
+      else if (command.indexOf('select:') === 0) {
+        // A person picked from a list outside the map: highlight their marker, dim the rest.
+        selectedId = command.slice(7) || null;
+        applyClasses();
+      }
       else if (command.indexOf('focusOn:') === 0) {
         var parts = command.slice(8).split(',');
         var lat = parseFloat(parts[0]);
@@ -204,14 +241,83 @@ function buildHtml({
     var destinationAvatar = ${destinationAvatar ? JSON.stringify(destinationAvatar) : 'null'};
     var originAvatar = ${originAvatar ? JSON.stringify(originAvatar) : 'null'};
 
+    // Every marker is registered here so people standing on the same spot can be fanned out and
+    // picked one at a time. The route arrows keep using the true coordinates.
+    var OVERLAP_PX = 44, SPREAD_PX = 54, TAG_WIDTH_PX = 230;
+    var entries = [];
+    var selectedId = null;
+    function addEntry(id, lat, lng, icon) {
+      var marker = L.marker([lat, lng], { icon: icon, interactive: true, keyboard: false }).addTo(map);
+      var entry = { id: id, lat: lat, lng: lng, marker: marker, clusterSize: 1 };
+      marker.on('click', function (ev) {
+        L.DomEvent.stopPropagation(ev);
+        selectedId = selectedId === id ? null : id;
+        applyClasses();
+      });
+      entries.push(entry);
+      return marker;
+    }
+    function toggleClass(el, name, on) {
+      if (on) L.DomUtil.addClass(el, name); else L.DomUtil.removeClass(el, name);
+    }
+    function applyClasses() {
+      entries.forEach(function (e) {
+        var el = e.marker.getElement();
+        if (!el) return;
+        var overlapped = e.clusterSize > 1;
+        toggleClass(el, 'rm-hide', (overlapped || e.tagSide === 'hide') && selectedId !== e.id);
+        toggleClass(el, 'rm-tl', e.tagSide === 'l');
+        toggleClass(el, 'rm-tr', e.tagSide === 'r');
+        toggleClass(el, 'rm-dim', !!selectedId && selectedId !== e.id);
+        e.marker.setZIndexOffset(selectedId === e.id ? 2000 : 0);
+      });
+    }
+    function layout() {
+      var pts = entries.map(function (e) { return map.latLngToContainerPoint([e.lat, e.lng]); });
+      var taken = {};
+      entries.forEach(function (e, i) {
+        if (taken[i]) return;
+        var group = [i];
+        taken[i] = true;
+        for (var j = i + 1; j < entries.length; j++) {
+          if (!taken[j] && pts[i].distanceTo(pts[j]) < OVERLAP_PX) { group.push(j); taken[j] = true; }
+        }
+        var cx = 0, cy = 0;
+        group.forEach(function (idx) { cx += pts[idx].x; cy += pts[idx].y; });
+        cx /= group.length; cy /= group.length;
+        group.forEach(function (idx, k) {
+          var item = entries[idx];
+          item.clusterSize = group.length;
+          if (group.length === 1) {
+            item.marker.setLatLng([item.lat, item.lng]);
+          } else {
+            item.marker.setLatLng(map.containerPointToLatLng(L.point(cx + (k - (group.length - 1) / 2) * SPREAD_PX, cy)));
+          }
+        });
+      });
+      // Single markers whose tags would run into each other: lean the tags apart.
+      var singles = entries.filter(function (e) { return e.clusterSize === 1; }).map(function (e) {
+        return { e: e, p: map.latLngToContainerPoint(e.marker.getLatLng()) };
+      }).sort(function (a, b) { return a.p.x - b.p.x; });
+      entries.forEach(function (e) { e.tagSide = ''; });
+      singles.forEach(function (item, i) {
+        var prev = singles[i - 1], next = singles[i + 1];
+        var hasLeft = prev && item.p.x - prev.p.x < TAG_WIDTH_PX && Math.abs(item.p.y - prev.p.y) < 70;
+        var hasRight = next && next.p.x - item.p.x < TAG_WIDTH_PX && Math.abs(next.p.y - item.p.y) < 70;
+        item.e.tagSide = hasRight && !hasLeft ? 'l' : hasLeft && !hasRight ? 'r' : hasLeft && hasRight ? 'hide' : '';
+      });
+      applyClasses();
+    }
+    map.on('zoomend', layout);
+    map.on('click', function () {
+      if (selectedId) { selectedId = null; applyClasses(); }
+    });
+
     if (origin) {
       var originLines = originLabel ? [originLabel, formatCoord(origin)] : null;
-      L.marker([origin.latitude, origin.longitude], {
-        icon: originAvatar
-          ? avatarMarker(originAvatar, '#0085F9', originLines)
-          : originLines ? labeledDot('#0085F9', originLines) : dot('#0085F9'),
-        interactive: false,
-      }).addTo(map);
+      addEntry('origin', origin.latitude, origin.longitude, originAvatar
+        ? avatarMarker(originAvatar, '#0085F9', originLines)
+        : originLines ? labeledDot('#0085F9', originLines) : dot('#0085F9'));
       bounds.push([origin.latitude, origin.longitude]);
     }
     if (destination) {
@@ -219,7 +325,7 @@ function buildHtml({
       var destinationIcon = destinationAvatar
         ? avatarMarker(destinationAvatar, '#E63946', destinationLines)
         : destinationLines ? labeledDot('#E63946', destinationLines) : dot('#E63946');
-      L.marker([destination.latitude, destination.longitude], { icon: destinationIcon, interactive: false }).addTo(map);
+      addEntry('destination', destination.latitude, destination.longitude, destinationIcon);
       bounds.push([destination.latitude, destination.longitude]);
     }
     if (lastCheckpoint) {
@@ -227,17 +333,14 @@ function buildHtml({
       var checkpointIcon = lastCheckpointAvatar
         ? avatarMarker(lastCheckpointAvatar, '#F4A825', checkpointLines)
         : pulsingDot('#F4A825', checkpointLines);
-      L.marker([lastCheckpoint.latitude, lastCheckpoint.longitude], {
-        icon: checkpointIcon,
-        interactive: false,
-      }).addTo(map);
+      addEntry('checkpoint', lastCheckpoint.latitude, lastCheckpoint.longitude, checkpointIcon);
       bounds.push([lastCheckpoint.latitude, lastCheckpoint.longitude]);
     }
     if (destinations) {
-      destinations.forEach(function (d) {
+      destinations.forEach(function (d, di) {
         var lines = [[d.label, d.distanceLabel].filter(Boolean).join(' · '), formatCoord(d)];
         var color = d.color || (d.delivered ? '#4c9f70' : '#E63946');
-        L.marker([d.latitude, d.longitude], { icon: d.avatar ? avatarMarker(d.avatar, color, lines) : labeledPin(color, lines), interactive: false }).addTo(map);
+        addEntry(d.id || ('stop-' + di), d.latitude, d.longitude, d.avatar ? avatarMarker(d.avatar, color, lines) : labeledPin(color, lines));
         bounds.push([d.latitude, d.longitude]);
       });
     }
@@ -250,15 +353,16 @@ function buildHtml({
     } else if (destination) {
       routePoints.push([destination.latitude, destination.longitude]);
     }
-    // Dashed route made only of arrowheads. The colour blends from the
-    // collector (orange) at the start of the route to the Sales Rep (red) at the end.
-    function mixHex(a, b, t) {
-      var pa = [1, 3, 5].map(function (i) { return parseInt(a.substr(i, 2), 16); });
-      var pb = [1, 3, 5].map(function (i) { return parseInt(b.substr(i, 2), 16); });
-      return '#' + pa.map(function (v, i) {
-        return Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0');
-      }).join('');
+    // Dashed route made only of arrowheads. The part still to travel is coloured by how far
+    // it is: green up to 200 m, orange up to 1 km, red beyond. The part already travelled
+    // (start -> the latest checkpoint) is grey.
+    var ROUTE_GREEN = '#2E9E5B', ROUTE_ORANGE = '#F59E0B', ROUTE_RED = '#E63946', ROUTE_DONE = '#9AA0A6';
+    function tierColor(meters) {
+      if (meters <= 200) return ROUTE_GREEN;
+      if (meters <= 1000) return ROUTE_ORANGE;
+      return ROUTE_RED;
     }
+    var travelledLegs = (origin && lastCheckpoint) ? 1 : 0;
     function arrowIcon(color, rotationDeg) {
       return L.divIcon({
         className: '',
@@ -275,13 +379,13 @@ function buildHtml({
         var a = points[i], b = points[i + 1];
         // Bearing from north, clockwise: the arrow is drawn pointing up, so this is its rotation.
         var bearing = Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+        var legColor = i < travelledLegs ? ROUTE_DONE : tierColor(L.latLng(a[0], a[1]).distanceTo(L.latLng(b[0], b[1])));
         for (var k = 0; k < stepsPerLeg; k += 2) {
           // Arrows sit on the even steps, so they form the dashed line by themselves.
           var t0 = k / stepsPerLeg, t1 = (k + 1) / stepsPerLeg;
           var p0 = [a[0] + (b[0] - a[0]) * t0, a[1] + (b[1] - a[1]) * t0];
           var p1 = [a[0] + (b[0] - a[0]) * t1, a[1] + (b[1] - a[1]) * t1];
-          var progress = (i + (t0 + t1) / 2) / legs;
-          var color = mixHex('#F4A825', '#E63946', progress);
+          var color = legColor;
           var mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
           L.marker(mid, { icon: arrowIcon(color, bearing), interactive: false, zIndexOffset: -1000 }).addTo(map);
         }
@@ -295,8 +399,13 @@ function buildHtml({
     if (bounds.length > 1) {
       // Keep markers (and the name tag above each) clear of the legend /
       // Online / Cancel pills on the top-left and the zoom buttons on the right.
-      map.fitBounds(bounds, { paddingTopLeft: [48, 200], paddingBottomRight: [80, 120] });
+      map.fitBounds(bounds, { paddingTopLeft: [48, ${fitTop}], paddingBottomRight: [80, ${fitBottom}] });
+    } else if (bounds.length === 1 && ${fill ? 'true' : 'false'}) {
+      // One point only (e.g. the trip start): lift it so a bottom sheet doesn't cover it.
+      map.panBy([0, 90], { animate: false });
     }
+    layout();
+    [400, 1100].forEach(function (delay) { setTimeout(layout, delay); });
   </script>
 </body>
 </html>`;
@@ -319,6 +428,8 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
   destinationAvatar,
   originAvatar,
   showRoute = true,
+  fitBottom = 120,
+  fitTop = 200,
 }, ref) {
   const webViewRef = useRef(null);
 
@@ -331,6 +442,8 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
     // the person whose name card was just tapped, rather than the
     // fit-everything-in-view behavior `recenter` does.
     focusOn: (latitude, longitude, zoom = 16) => sendMapCommand(`focusOn:${latitude},${longitude},${zoom}`),
+    // Highlights one marker by its id (null clears it).
+    selectMarker: (id) => sendMapCommand(`select:${id || ''}`),
   }));
 
   const sendMapCommand = (command) => {
@@ -367,6 +480,9 @@ const StaticRouteMap = forwardRef(function StaticRouteMap({
             destinationAvatar,
             originAvatar,
             showRoute,
+            fill,
+            fitBottom,
+            fitTop,
           }),
         }}
         onLayout={handleLayout}
@@ -400,6 +516,10 @@ StaticRouteMap.propTypes = {
   showZoomControl: PropTypes.bool,
   showScale: PropTypes.bool,
   fill: PropTypes.bool,
+  // Room kept under the markers (px) when the map frames them, for a bottom sheet.
+  fitBottom: PropTypes.number,
+  // Same for the top, so the name tags above the markers stay in view.
+  fitTop: PropTypes.number,
   originLabel: PropTypes.string,
   destinationLabel: PropTypes.string,
   lastCheckpointLabel: PropTypes.string,

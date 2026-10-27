@@ -8,12 +8,15 @@ import Constants from 'expo-constants';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, hasStoredAuthSession } from './src/services/supabaseClient';
 import authService from './src/services/authService';
+import { installNotificationHandler } from './src/services/pushService';
 import { getConnectionStatus } from './src/services/connectionStatus';
 import SplashLoader from './src/components/common/SplashLoader';
 import PermissionsPrompt from './src/components/common/PermissionsPrompt';
+import AppAlertHost from './src/components/common/AppAlertHost';
 import { installGlobalErrorHandler, installConsoleErrorFormatter, debugLog } from './src/utils/logger';
 installGlobalErrorHandler();
 installConsoleErrorFormatter();
+installNotificationHandler();
 
 const appStartedAt = Date.now();
 
@@ -98,6 +101,11 @@ export default function App() {
       });
       current = next;
       changedAt = Date.now();
+      // The step supabase-js documents for React Native: refresh the Manager's login only while the app is
+      // open. Without it a timer left over from before the pause can fire together with the refresh on
+      // return, and two refreshes of one login make the server end it ("session expired").
+      if (next === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
     });
     return () => subscription.remove();
   }, []);
@@ -181,6 +189,9 @@ export default function App() {
 
         {/* First launch after a fresh install: ask for location + camera once. */}
         {!isConnecting && <PermissionsPrompt />}
+
+        {/* Every message in the app (was the grey system popup) is drawn here. */}
+        <AppAlertHost />
 
         {isSplashMounted && (
           <Animated.View

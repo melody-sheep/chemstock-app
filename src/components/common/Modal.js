@@ -24,6 +24,7 @@ export default function CustomModal({
   backgroundColor = '#FFFFFF',
   closeOnBackdropPress = true,
   backdropOpacity = 0.2,
+  scrollableContent = false,
   // 'sheet' (default): bottom sheet, slides up, full width, rounded top
   // corners only. 'center': small dialog centered on screen, fades/dissolves
   // in instead of sliding, always sized to its content (height is ignored).
@@ -37,6 +38,16 @@ export default function CustomModal({
   const { inset: keyboardInset } = useKeyboardInset(overlayRef);
   // With the keyboard open, a tall sheet must not run off the top.
   const availableHeight = Dimensions.get('window').height - keyboardInset - insets.top - SPACING.md;
+  const containerStyle = [
+    isCentered ? styles.centerContainer : styles.modalContainer,
+    {
+      ...(isCentered || height === 'auto' ? {} : { height: keyboardInset > 0 ? Math.min(height, availableHeight) : height }),
+      ...(keyboardInset > 0 ? { maxHeight: availableHeight } : {}),
+      ...(!isCentered && height === 'auto' && maxHeight ? { maxHeight } : {}),
+      ...(isCentered ? {} : { paddingBottom: Math.max(insets.bottom + SPACING.sm, SPACING.lg) }),
+      backgroundColor: backgroundColor,
+    },
+  ];
   const handleBackdropPress = () => {
     if (closeOnBackdropPress) {
       onClose();
@@ -50,35 +61,29 @@ export default function CustomModal({
       animationType={isCentered ? 'none' : 'slide'}
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={handleBackdropPress}>
-        <View
-          ref={overlayRef}
-          collapsable={false}
-          style={[
-            styles.overlay,
-            isCentered && styles.overlayCentered,
-            { backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})` },
-            keyboardInset > 0 && { paddingBottom: keyboardInset },
-          ]}
-        >
+      <View
+        ref={overlayRef}
+        collapsable={false}
+        style={[
+          styles.overlay,
+          isCentered && styles.overlayCentered,
+          { backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})` },
+          keyboardInset > 0 && { paddingBottom: keyboardInset },
+        ]}
+      >
+        <TouchableWithoutFeedback onPress={handleBackdropPress}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+        {scrollableContent ? (
+          <View style={containerStyle}>
+            {children}
+          </View>
+        ) : (
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View
-              style={[
-                isCentered ? styles.centerContainer : styles.modalContainer,
-                {
-                  ...(isCentered || height === 'auto' ? {} : { height: keyboardInset > 0 ? Math.min(height, availableHeight) : height }),
-                  ...(keyboardInset > 0 ? { maxHeight: availableHeight } : {}),
-                  ...(!isCentered && height === 'auto' && maxHeight ? { maxHeight } : {}),
-                  ...(isCentered ? {} : { paddingBottom: Math.max(insets.bottom, SPACING.lg) }),
-                  backgroundColor: backgroundColor,
-                },
-              ]}
-            >
-              {children}
-            </View>
+            <View style={containerStyle}>{children}</View>
           </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+        )}
+      </View>
     </Modal>
   );
 }

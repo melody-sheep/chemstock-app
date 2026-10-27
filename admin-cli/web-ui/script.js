@@ -574,6 +574,13 @@
     if (!c) return '';
     if (c.valid === false) return `<div class="notice notice-bad">${icon('warning-circle')}<div>That doesn't look like a valid email.</div></div>`;
     const notes = [];
+    if (c.legit && c.legit.legit === false) {
+      notes.push(
+        `<div class="notice notice-bad">${icon('warning-circle')}<div>${esc(c.legit.message)}${
+          c.legit.suggestion ? `<div class="notice-actions"><button class="btn btn-sm" data-action="use-email-suggestion" data-email="${esc(c.legit.suggestion)}">${icon('check')} Use ${esc(c.legit.suggestion)}</button></div>` : ''
+        }</div></div>`
+      );
+    }
     if (c.account) {
       notes.push(
         `<div class="notice notice-warn">${icon('warning')}<div>This email already has an account: <b>${esc(c.account.name)}</b> (${esc(c.account.role.replace('_', ' '))}${c.account.branches.length ? ' · ' + esc(c.account.branches.join(', ')) : ''}). A new key can't be activated with it.</div></div>`
@@ -584,7 +591,10 @@
         `<div class="notice notice-warn">${icon('key')}<div>There's already an unused key for this email (expires ${fmtDate(c.openKey.expiresAt)}). Consider extending it in Activation Keys instead.</div></div>`
       );
     }
-    if (!notes.length) notes.push(`<div class="notice notice-ok">${icon('check-circle')}<div>Email is free to use.</div></div>`);
+    if (!c.legit) {
+      notes.push(`<div class="notice notice-warn">${icon('warning')}<div>The email check did not run. Restart the admin tool (<code>npm run web</code>) so it uses the latest server code.</div></div>`);
+    }
+    if (!notes.length) notes.push(`<div class="notice notice-ok">${icon('check-circle')}<div>Email looks real and is free to use.${c.legit && c.legit.unchecked ? ' (Could not reach the internet to check its domain.)' : ''}</div></div>`);
     return notes.join('');
   }
 
@@ -647,63 +657,84 @@
     const list = allBranches.filter((b) => !q || `${b.name} ${b.city || ''} ${b.region || ''}`.toLowerCase().includes(q));
     const isChosen = (id) => form.branches.some((b) => b.id === id);
     const warning = form.similarWarning;
-    return `
-      <div class="stack">
-        ${
-          form.branches.length
-            ? `<div class="field"><span class="field-label">Selected branches</span><div class="selected-chips">${form.branches
-                .map(
-                  (b, i) => `<span class="selected-chip">${icon('buildings')} ${esc(b.name)} ${b.isNew ? '<span class="new">NEW</span>' : ''}
-                    <button data-action="remove-branch" data-index="${i}" aria-label="Remove ${esc(b.name)}">${icon('x')}</button></span>`
-                )
-                .join('')}</div></div>`
-            : ''
-        }
-        <div class="field"><span class="field-label">Pick existing branches</span>
-          <div class="branch-picker">
-            <div style="padding:10px 10px 0"><div class="input-icon">${icon('magnifying-glass')}<input id="branch-search" class="input" placeholder="Search branches" value="${esc(branchQuery)}" autocomplete="off" /></div></div>
-            <div class="check-list">${
-              list.length
-                ? list
-                    .map(
-                      (b) => `<label class="check-item ${isChosen(b.id) ? 'checked' : ''}">
-                        <input type="checkbox" data-action="toggle-branch" data-id="${b.id}" ${isChosen(b.id) ? 'checked' : ''} />
-                        <span class="list-main"><span class="list-title">${esc(b.name)}</span>
-                          <div class="list-sub">${esc([b.city, b.region].filter(Boolean).join(', ') || 'No location')} · ${b.managers.length ? esc(b.managers.join(', ')) : 'No manager yet'}</div></span>
-                      </label>`
-                    )
-                    .join('')
-                : `<div class="empty">No branch matches "${esc(branchQuery)}".</div>`
-            }</div>
+    const creating = !!newBranch;
+
+    const selected = form.branches.length
+      ? form.branches
+          .map(
+            (b, i) => `<span class="selected-chip">${icon('buildings')} ${esc(b.name)} ${b.isNew ? '<span class="new">NEW</span>' : ''}
+              <button data-action="remove-branch" data-index="${i}" aria-label="Remove ${esc(b.name)}">${icon('x')}</button></span>`
+          )
+          .join('')
+      : `<span class="selected-empty">${icon('info')} Nothing selected yet. Pick a branch below, or create a new one.</span>`;
+
+    const existingPanel = `
+      <div class="picker-search">
+        <div class="input-icon">${icon('magnifying-glass')}<input id="branch-search" class="input input-lg" placeholder="Search by branch name, city or region" value="${esc(branchQuery)}" autocomplete="off" /></div>
+        <div class="picker-count">${list.length} of ${allBranches.length} branches${q ? ` matching “${esc(branchQuery)}”` : ''}</div>
+      </div>
+      <div class="branch-list">${
+        list.length
+          ? list
+              .map(
+                (b) => `<label class="branch-option ${isChosen(b.id) ? 'checked' : ''}">
+                  <input type="checkbox" data-action="toggle-branch" data-id="${b.id}" ${isChosen(b.id) ? 'checked' : ''} />
+                  <span class="branch-option-icon">${icon('buildings')}</span>
+                  <span class="branch-option-main">
+                    <span class="branch-option-name">${esc(b.name)}</span>
+                    <span class="branch-option-sub">${icon('map-pin')} ${esc([b.city, b.region].filter(Boolean).join(', ') || 'No location')}</span>
+                  </span>
+                  <span class="branch-option-managers">${b.managers.length ? esc(b.managers.join(', ')) : '<span class="badge badge-muted">No manager yet</span>'}</span>
+                </label>`
+              )
+              .join('')
+          : `<div class="empty">${icon('buildings')}No branch matches “${esc(branchQuery)}”.<div style="margin-top:12px"><button class="btn btn-sm" data-action="open-new-branch">${icon('plus')} Create it as a new branch</button></div></div>`
+      }</div>`;
+
+    const newPanel = `
+      <div class="new-branch stack">
+        <div class="form-section">
+          <div class="form-section-title"><span class="num">1</span> Find the place</div>
+          <div class="input-icon">${icon('magnifying-glass')}<input id="place-search" class="input input-lg" placeholder="e.g. Iponan, Cagayan de Oro" autocomplete="off" /></div>
+          <div id="place-results"></div>
+          <span class="osm-note">Locations © OpenStreetMap contributors · Philippines only. Picking a result fills in the boxes below.</span>
+        </div>
+        <div class="form-section">
+          <div class="form-section-title"><span class="num">2</span> Branch details</div>
+          <div class="field"><label class="field-label" for="nb-name">Branch name</label>
+            <input id="nb-name" class="input" placeholder="e.g. Iponan Branch" value="${esc(newBranch ? newBranch.name : '')}" autocomplete="off" /></div>
+          <div id="similar-box">${warning ? similarHtml(warning) : ''}</div>
+          <div class="form-grid">
+            <div class="field"><label class="field-label" for="nb-city">City / town</label>
+              <input id="nb-city" class="input" value="${esc(newBranch ? newBranch.city : '')}" autocomplete="off" /></div>
+            <div class="field"><label class="field-label" for="nb-region">Province / region</label>
+              <input id="nb-region" class="input" value="${esc(newBranch ? newBranch.region : '')}" autocomplete="off" /></div>
           </div>
+          <div class="field"><label class="field-label" for="nb-address">Address <span class="optional">(optional)</span></label>
+            <input id="nb-address" class="input" value="${esc(newBranch ? newBranch.address : '')}" autocomplete="off" /></div>
+        </div>
+        <div class="chips form-end"><button class="btn" data-action="cancel-new-branch">Cancel</button>
+          <button class="btn btn-primary" data-action="add-new-branch">${icon('plus')} Add this branch</button></div>
+      </div>`;
+
+    return `
+      <div class="step-form">
+        <div class="step-intro">
+          <h3>Which branches will this manager run?</h3>
+          <p>The manager sees stock and agents only for the branches chosen here.</p>
         </div>
 
-        ${
-          newBranch
-            ? `<div class="new-branch stack">
-                <div class="card-title" style="font-size:15px">${icon('map-pin')} New branch</div>
-                <div class="field"><label class="field-label" for="place-search">Search the location</label>
-                  <div class="input-icon">${icon('magnifying-glass')}<input id="place-search" class="input" placeholder="e.g. Iponan, Cagayan de Oro" autocomplete="off" /></div>
-                  <div id="place-results"></div>
-                  <span class="osm-note">Locations © OpenStreetMap contributors · Philippines only</span></div>
-                <div class="form-grid">
-                  <div class="field"><label class="field-label" for="nb-name">Branch name</label>
-                    <input id="nb-name" class="input" placeholder="e.g. Iponan Branch" value="${esc(newBranch.name)}" autocomplete="off" /></div>
-                  <div class="field"><label class="field-label" for="nb-city">City / town</label>
-                    <input id="nb-city" class="input" value="${esc(newBranch.city)}" autocomplete="off" /></div>
-                </div>
-                <div class="form-grid">
-                  <div class="field"><label class="field-label" for="nb-region">Province / region</label>
-                    <input id="nb-region" class="input" value="${esc(newBranch.region)}" autocomplete="off" /></div>
-                  <div class="field"><label class="field-label" for="nb-address">Address</label>
-                    <input id="nb-address" class="input" value="${esc(newBranch.address)}" autocomplete="off" /></div>
-                </div>
-                <div id="similar-box">${warning ? similarHtml(warning) : ''}</div>
-                <div class="chips"><button class="btn" data-action="cancel-new-branch">Cancel</button>
-                  <button class="btn btn-primary" data-action="add-new-branch">${icon('plus')} Add branch</button></div>
-              </div>`
-            : `<button class="btn" data-action="open-new-branch" style="align-self:flex-start">${icon('plus')} New branch</button>`
-        }
+        <div class="selected-box">
+          <div class="selected-box-head"><span class="field-label">Selected (${form.branches.length})</span></div>
+          <div class="selected-chips">${selected}</div>
+        </div>
+
+        <div class="seg" role="tablist">
+          <button class="seg-btn ${creating ? '' : 'active'}" data-action="cancel-new-branch" role="tab">${icon('list-magnifying-glass')} Choose an existing branch</button>
+          <button class="seg-btn ${creating ? 'active' : ''}" data-action="open-new-branch" role="tab">${icon('plus-circle')} Create a new branch</button>
+        </div>
+
+        <div class="panel">${creating ? newPanel : existingPanel}</div>
       </div>
       <div class="form-actions"><button class="btn" data-action="step-back">${icon('arrow-left')} Back</button>
         <button class="btn btn-primary" data-action="step-next">Next ${icon('arrow-right')}</button></div>`;
@@ -844,7 +875,7 @@
               <button class="btn btn-sm" data-action="copy-suggestion">${icon('copy')} Copy</button></div>
              <div class="checks"><span class="ok">${icon('shield-check')}Very strong · never used before</span></div>`
           : `<div class="field"><label class="field-label" for="f-code">Your key</label>
-              <input id="f-code" class="input mono" placeholder="At least 12 letters and numbers" value="${esc(form.custom)}" autocomplete="off" spellcheck="false" maxlength="64" />
+              <input id="f-code" class="input mono" placeholder="At least 8 characters (letters, numbers, symbols)" value="${esc(form.custom)}" autocomplete="off" spellcheck="false" maxlength="64" />
              </div><div id="strength-box">${strengthHtml(form.custom)}</div>`
       }
       <div class="notice notice-info">${icon('info')}<div>Valid for <b>${form.days} days</b> — until ${fmtDate(Date.now() + form.days * 86400000)}.
@@ -888,6 +919,7 @@
     if (step === 1) {
       if (form.name.trim().length < 3) return 'Enter the manager’s full name.';
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) return 'Enter a valid email address.';
+      if (form.emailCheck?.legit?.legit === false) return form.emailCheck.legit.message;
       if (form.emailCheck?.account) return 'This email already has an account.';
     }
     if (step === 2 && form.branches.length === 0) return 'Pick at least one branch.';
@@ -910,7 +942,8 @@
         managerName: form.name.trim(),
         managerEmail: form.email.trim(),
         daysValid: form.days,
-        code: form.keyMode === 'custom' ? code : '',
+        // The key shown on screen (generated or typed) is the key that gets saved.
+        code,
         acceptMedium: form.acceptMedium,
         branches: form.branches.map((b) =>
           b.isNew ? { name: b.name, city: b.city, region: b.region, address: b.address, createAnyway: Boolean(b.createAnyway) } : { id: b.id }
@@ -1109,7 +1142,7 @@
   // ============================================
   // BRANCHES
   // ============================================
-  const branchesState = { all: [], query: '' };
+  const branchesState = { all: [], query: '', filter: 'all' };
 
   async function renderBranches() {
     branchesState.all = await api('GET', '/api/branches');
@@ -1118,31 +1151,46 @@
 
   function drawBranches() {
     const q = branchesState.query.toLowerCase();
-    const rows = branchesState.all.filter((b) => !q || `${b.name} ${b.city || ''} ${b.region || ''} ${b.managers.join(' ')}`.toLowerCase().includes(q));
+    const all = branchesState.all;
+    const noManager = all.filter((b) => !b.managers.length).length;
+    const rows = all
+      .filter((b) => branchesState.filter !== 'nomanager' || !b.managers.length)
+      .filter((b) => !q || `${b.name} ${b.city || ''} ${b.region || ''} ${b.managers.join(' ')}`.toLowerCase().includes(q));
+    const chip = (key, label, count) =>
+      `<button class="filter-chip ${branchesState.filter === key ? 'active' : ''}" data-action="branches-filter" data-filter="${key}">${label} <span class="count">${count}</span></button>`;
     $('#view').innerHTML = `
-      <div class="card glass">
-        <div class="toolbar">
-          <div class="input-icon grow">${icon('magnifying-glass')}<input id="branches-search" class="input" placeholder="Search branch, city or manager" value="${esc(branchesState.query)}" autocomplete="off" /></div>
-          <span class="field-hint">New branches are added from Generate Key.</span>
+      <div class="page-intro">
+        <div>
+          <h2>${all.length} ${all.length === 1 ? 'branch' : 'branches'}</h2>
+          <p>A branch can have more than one manager. Use Edit on a card to fix its name or location.</p>
         </div>
-        ${
-          rows.length
-            ? `<div class="table-wrap"><table class="table">
-              <thead><tr><th>Branch</th><th>Location</th><th>Managers</th><th>Agents</th><th class="actions"></th></tr></thead>
-              <tbody>${rows
-                .map(
-                  (b) => `<tr>
-                    <td><b>${esc(b.name)}</b><div class="cell-sub">Added ${fmtDate(b.createdAt)}</div></td>
-                    <td>${esc([b.city, b.region].filter(Boolean).join(', ') || '—')}</td>
-                    <td>${b.managers.length ? esc(b.managers.join(', ')) : '<span class="badge badge-muted">None</span>'}</td>
-                    <td>${b.agentCount}</td>
-                    <td class="actions"><button class="btn btn-sm" data-action="edit-branch" data-id="${b.id}">${icon('pencil-simple')} Edit</button></td>
-                  </tr>`
-                )
-                .join('')}</tbody></table></div>`
-            : `<div class="empty">${icon('buildings')}No branches match.</div>`
-        }
-      </div>`;
+        <button class="btn btn-primary" data-view-link="generate">${icon('plus')} Add a branch</button>
+      </div>
+      <div class="notice notice-info" style="margin-bottom:20px">${icon('info')}<div>
+        <b>Where do new branches come from?</b> A branch is created together with its manager, in <b>Generate Key → step 2 → Create a new branch</b>. The button above takes you there.</div></div>
+      <div class="branch-tools">
+        <div class="input-icon grow">${icon('magnifying-glass')}<input id="branches-search" class="input input-lg" placeholder="Search branch, city, region or manager" value="${esc(branchesState.query)}" autocomplete="off" /></div>
+        <div class="chips">${chip('all', 'All', all.length)}${chip('nomanager', 'No manager', noManager)}</div>
+      </div>
+      ${
+        rows.length
+          ? `<div class="branch-grid">${rows
+              .map(
+                (b) => `<article class="branch-card glass">
+                  <div class="branch-card-head">
+                    <span class="branch-card-icon">${icon('buildings')}</span>
+                    <div class="branch-card-title"><b>${esc(b.name)}</b>
+                      <span class="cell-sub">Added ${fmtDate(b.createdAt)}</span></div>
+                    <button class="btn btn-sm" data-action="edit-branch" data-id="${b.id}">${icon('pencil-simple')} Edit</button>
+                  </div>
+                  <div class="branch-card-row">${icon('map-pin')}<span>${esc([b.city, b.region].filter(Boolean).join(', ') || 'No location set')}</span></div>
+                  <div class="branch-card-row">${icon('users-three')}<span>${b.managers.length ? esc(b.managers.join(', ')) : '<span class="badge badge-muted">No manager yet</span>'}</span></div>
+                  <div class="branch-card-row">${icon('user-list')}<span>${b.agentCount} ${b.agentCount === 1 ? 'agent' : 'agents'}</span></div>
+                </article>`
+              )
+              .join('')}</div>`
+          : `<div class="empty card glass">${icon('buildings')}No branches match${q ? ` “${esc(branchesState.query)}”` : ''}.</div>`
+      }`;
     const search = $('#branches-search');
     search.addEventListener(
       'input',
@@ -1166,7 +1214,7 @@
         <div class="field"><label class="field-label" for="eb-place">Search the location</label>
           <div class="input-icon">${icon('magnifying-glass')}<input id="eb-place" class="input" placeholder="e.g. Butuan City" autocomplete="off" /></div>
           <div id="eb-results"></div><span class="osm-note">Locations © OpenStreetMap contributors</span></div>
-        ${field('name', 'Branch name', b.name)}${field('city', 'City / town', b.city)}${field('region', 'Province / region', b.region)}${field('address', 'Address', b.address)}
+        ${field('name', 'Branch name', b.name)}<div class="form-grid">${field('city', 'City / town', b.city)}${field('region', 'Province / region', b.region)}</div>${field('address', 'Address', b.address)}
         <div id="eb-warning">${
           warning
             ? `<div class="notice notice-warn">${icon('warning')}<div><b>${esc(warning.message)}</b><div style="margin-top:6px">${warning.matches
@@ -1458,6 +1506,8 @@
       case 'logout': return logout();
       case 'close-drawer': return closeDrawer();
       // keys
+      case 'use-email-suggestion': form.email = el.dataset.email; form.emailCheck = null; return drawGenerate();
+      case 'branches-filter': branchesState.filter = el.dataset.filter; return drawBranches();
       case 'keys-filter': keysState.filter = el.dataset.filter; keysState.page = 1; return drawKeys();
       case 'keys-reveal': keysState.reveal = !keysState.reveal; if (keysState.reveal) logEvent('codes_revealed'); return drawKeys();
       case 'keys-page': keysState.page += Number(el.dataset.delta); return drawKeys();

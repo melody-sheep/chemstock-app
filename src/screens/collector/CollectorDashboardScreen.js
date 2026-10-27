@@ -1,9 +1,10 @@
 // src/screens/collector/CollectorDashboardScreen.js
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
@@ -13,23 +14,30 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import UserAvatar from '../../components/common/UserAvatar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
+import WelcomeOverview from '../../components/common/WelcomeOverview';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { formatBranchLabel } from '../../utils/branchLabel';
+import { getInitials } from '../../utils/initials';
 
 // Same layout/spec as ManagerDashboardScreen and SalesRepDashboardScreen —
 // this constant intentionally matches theirs so the collapsing header
 // behaves identically across all three dashboards.
-const SECONDARY_HEADER_HEIGHT = 100;
+const SECONDARY_HEADER_HEIGHT = 108;
 
 // 2nd_header_collector.png is 364x408 natively, flush against the edge
 // (no right margin) — matching the Manager dashboard's illustration
@@ -38,18 +46,6 @@ const HEADER_ILLUSTRATION_ASPECT_RATIO = 364 / 408;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
 // Same branch label rule as ManagerDashboardScreen / SalesRepDashboardScreen:
-// "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
-const BRANCH_LABEL_CHARS = 4;
-const formatBranchLabel = (branchName) =>
-  branchName
-    .split(',')
-    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
-    .filter(Boolean)
-    .map((part) => {
-      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
-      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
-    })
-    .join(', ');
 
 const MAIN_OPERATIONS = [
   { key: 'acceptDeliveries', icon: 'truck', iconColor: COLORS.colAcceptStroke, duotoneColor: COLORS.colAcceptFill, title: 'Accept Deliveries', screen: 'CollectorAcceptDeliveries' },
@@ -58,24 +54,18 @@ const MAIN_OPERATIONS = [
 
 export default function CollectorDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const [user, setUser] = useState(null);
-  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox(null, user?.id ?? null);
   const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
-  const [pendingCount, setPendingCount] = useState(null);
-  const [activeTrips, setActiveTrips] = useState([]);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [logTimes, setLogTimes] = useState([]);
-  const unseenLogCount = useUnseenLogCount(user?.id ?? null, logTimes);
-  const [loadedNotificationCount, setNotificationCount] = useState(0);
-  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
-  const notificationCount = liveUnreadCount ?? loadedNotificationCount;
-  const [isLoading, setIsLoading] = useState(true);
 
   // Same FB/IG-style collapsing header as the other dashboards — see
   // ManagerDashboardScreen for why it's JS-driven (diffClamp + transform).
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
+  const [welcomeOpen, setWelcomeOpen] = useState(null);
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -85,22 +75,26 @@ export default function CollectorDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true);
-
+  // Returns the full dashboard snapshot, saved per account and shown straight away when
+  // the screen is opened again (no skeleton) — same pattern as the Manager dashboard.
+  const loadDashboardData = async (previous) => {
     const currentUser = await authService.getCurrentUser();
-    setUser(currentUser);
+    // A different account must never see the last account's numbers.
+    const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
     const [result, notificationsResult] = await Promise.all([
       deliveryService.getMyCollectorDeliveries(currentUser?.id),
       notificationService.getMyNotifications(currentUser?.id),
     ]);
-    const all = result.success ? result.data : [];
-    if (notificationsResult.success) {
-      setNotificationCount(notificationsResult.unreadCount || 0);
+    // A failed request keeps the last snapshot instead of blanking the cards.
+    if (!result.success && prev) {
+      return {
+        ...prev,
+        user: currentUser,
+        notificationCount: notificationsResult.success ? notificationsResult.unreadCount || 0 : prev.notificationCount,
+      };
     }
-
-    setPendingCount(all.filter((d) => d.stage === 'pending_pickup').length);
+    const all = result.success ? result.data : [];
 
     // One row per distinct active trip, not per leg — a batch trip with 2
     // undelivered legs should show once on the dashboard.
@@ -113,33 +107,47 @@ export default function CollectorDashboardScreen() {
         tripsById.get(leg.tripId).legs.push(leg);
       }
     });
-    setActiveTrips(Array.from(tripsById.values()));
+    const delivered = all.filter((d) => d.stage === 'delivered');
 
-    setLogTimes(all.filter((d) => d.stage === 'delivered').map((d) => d.deliveredAt || d.createdAt));
-    setRecentLogs(
-      all
-        .filter((d) => d.stage === 'delivered')
+    return {
+      user: currentUser,
+      pendingCount: all.filter((d) => d.stage === 'pending_pickup').length,
+      readyDeliveries: all
+        .filter((d) => d.stage === 'ready_to_deliver')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+      // total = every stop of the trip (delivered ones are no longer in transit), for the progress bar.
+      activeTrips: Array.from(tripsById.values()).map((trip) => ({
+        ...trip,
+        total: Math.max(trip.legs.length, all.filter((d) => d.tripId === trip.tripId).length),
+      })),
+      logTimes: delivered.map((d) => d.deliveredAt || d.createdAt),
+      recentLogs: [...delivered]
         .sort((a, b) => new Date(b.deliveredAt || b.createdAt).getTime() - new Date(a.deliveredAt || a.createdAt).getTime())
-        .slice(0, 3)
-    );
+        .slice(0, 3),
+      notificationCount: notificationsResult.success ? notificationsResult.unreadCount || 0 : prev?.notificationCount ?? 0,
+    };
+  };
 
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-    }, [loadDashboardData])
-  );
+  const { data: snapshot, isLoading, refresh, refreshControlAt } = useCachedFocusLoader('collector-dashboard', loadDashboardData);
+  const user = snapshot?.user ?? null;
+  const pendingCount = snapshot?.pendingCount ?? null;
+  const activeTrips = snapshot?.activeTrips ?? [];
+  // Accepted and waiting to be started (the "Ready to Deliver" list on Accept Deliveries).
+  const readyDeliveries = snapshot?.readyDeliveries ?? [];
+  const recentLogs = snapshot?.recentLogs ?? [];
+  const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
+  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
+  const notificationCount = liveUnreadCount ?? snapshot?.notificationCount ?? 0;
+  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox(null, user?.id ?? null);
 
   // A queued delivery just synced, so the server list has changed.
   const previousQueuedCount = useRef(queuedFinishes.length);
   useEffect(() => {
     if (queuedFinishes.length < previousQueuedCount.current) {
-      loadDashboardData();
+      refresh({ force: true });
     }
     previousQueuedCount.current = queuedFinishes.length;
-  }, [queuedFinishes.length, loadDashboardData]);
+  }, [queuedFinishes.length, refresh]);
 
   const collectorName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
@@ -162,7 +170,18 @@ export default function CollectorDashboardScreen() {
       backgroundColor: '#FFFDF5',
       borderLeftColor: COLORS.accentGold,
       value: pendingCount === null ? '—' : String(pendingCount),
-      label: 'Pending Pickup',
+      label: 'Pending',
+      onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+    },
+    {
+      key: 'readyDeliveries',
+      icon: 'package',
+      iconColor: COLORS.success,
+      accentColor: COLORS.success,
+      backgroundColor: '#F4FBF7',
+      borderLeftColor: COLORS.success,
+      value: String(readyDeliveries.length),
+      label: 'Ready',
       onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
     },
     {
@@ -172,8 +191,8 @@ export default function CollectorDashboardScreen() {
       accentColor: COLORS.accentPink,
       backgroundColor: '#FFF5F8',
       borderLeftColor: COLORS.accentPink,
-      value: `${visibleActiveTrips.length} Active`,
-      label: 'Deliveries',
+      value: String(visibleActiveTrips.length),
+      label: 'Active',
       onPress:
         visibleActiveTrips.length > 0
           ? () => navigation.navigate('CollectorTripReview', { tripId: visibleActiveTrips[0].tripId })
@@ -241,8 +260,6 @@ export default function CollectorDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>Status</Text>
-
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
@@ -279,19 +296,22 @@ export default function CollectorDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+            ref={tourScrollRef}
+            refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
           {outboxCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
                 <Icon name="clock" size={14} color={COLORS.textWhite} />
               </View>
               <View style={styles.pendingTextCol}>
-                <Text style={styles.pendingBannerTitle}>Pending — {outboxCount} waiting to sync</Text>
+                <Text style={styles.pendingBannerTitle}>Pending — {outboxCount} waiting to send</Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
                 </Text>
@@ -304,6 +324,39 @@ export default function CollectorDashboardScreen() {
 
           <OutboxFailedNotice failed={failedItems} agentId={user?.id} onRetry={retryNow} onDiscard={discard} />
 
+          <View ref={tourRefs.focus} collapsable={false}>
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Needs attention"
+              storageKey="collector-needs-attention"
+              icon="notification"
+              emptyText="All caught up. Nothing is waiting for you."
+              rows={[
+                pendingCount > 0 && {
+                  key: 'pickups', icon: 'clockCountdown', tone: 'warn', label: 'Pending pickups',
+                  value: String(pendingCount), onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+                },
+                readyDeliveries.length > 0 && {
+                  key: 'ready', icon: 'truck', tone: 'warn', label: 'Ready to deliver',
+                  value: `${readyDeliveries.length} deliver${readyDeliveries.length === 1 ? 'y' : 'ies'}`,
+                  onPress: () => navigation.navigate('CollectorAcceptDeliveries'),
+                },
+                visibleActiveTrips.length > 0 && {
+                  key: 'trips', icon: 'truck', tone: 'warn',
+                  label: visibleActiveTrips.length === 1 ? 'Delivery in progress' : 'Deliveries in progress',
+                  value: `${visibleActiveTrips.reduce((sum, trip) => sum + trip.legs.length, 0)} stop${visibleActiveTrips.reduce((sum, trip) => sum + trip.legs.length, 0) === 1 ? '' : 's'} left`,
+                  onPress: () => navigation.navigate('CollectorTripReview', { tripId: visibleActiveTrips[0].tripId }),
+                },
+                outboxCount > 0 && {
+                  key: 'queued', icon: 'clock', tone: 'info', label: 'Waiting to send', value: String(outboxCount),
+                },
+              ]}
+            />
+          )}
+          </View>
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>
@@ -311,7 +364,7 @@ export default function CollectorDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-            <View style={styles.statsRow}>
+            <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
               {displayedStats.map((stat) => {
                 const card = (
                   <StatCard
@@ -322,6 +375,8 @@ export default function CollectorDashboardScreen() {
                     borderLeftColor={stat.borderLeftColor}
                     value={stat.value}
                     label={stat.label}
+                    iconSize={26}
+                    style={styles.statCardCompact}
                   />
                 );
                 if (stat.onPress) {
@@ -334,6 +389,49 @@ export default function CollectorDashboardScreen() {
                 return <View key={stat.key} style={styles.statTouchable}>{card}</View>;
               })}
             </View>
+          )}
+
+          {readyDeliveries.length > 0 && (
+            <>
+              <View style={styles.logsTitleRow}>
+                <Text style={[styles.sectionTitle, styles.logsTitle]}>Ready to deliver</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('CollectorAcceptDeliveries')} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.seeAll}>See all ›</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.activeList}>
+                {readyDeliveries.slice(0, 3).map((delivery) => {
+                  const units = (delivery.items || []).reduce((sum, item) => sum + item.quantity, 0);
+                  const count = (delivery.items || []).length;
+                  return (
+                    <TouchableOpacity
+                      key={delivery.transactionId}
+                      style={styles.readyCard}
+                      onPress={() => navigation.navigate('CollectorTripReview', { transactionIds: [delivery.transactionId] })}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                    >
+                      <UserAvatar
+                        photoUrl={delivery.targetRecipientPhotoUrl}
+                        fallbackText={getInitials(delivery.targetRecipientName)}
+                        size={40}
+                        backgroundColor="#F1F3F6"
+                        fallbackTextColor={COLORS.primary}
+                      />
+                      <View style={styles.readyTextCol}>
+                        <Text style={styles.readyName} numberOfLines={1}>{delivery.targetRecipientName || 'Sales Rep'}</Text>
+                        <Text style={styles.readyMeta} numberOfLines={1}>
+                          {count} item{count === 1 ? '' : 's'} · {units} unit{units === 1 ? '' : 's'} · {formatRelativeTime(delivery.createdAt)}
+                        </Text>
+                      </View>
+                      <View style={styles.readyStart}>
+                        <Text style={styles.readyStartText}>Start</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
           )}
 
           {visibleActiveTrips.length > 0 && (
@@ -355,8 +453,16 @@ export default function CollectorDashboardScreen() {
                         {trip.legs.map((leg) => leg.targetRecipientName || 'Sales Rep').join(', ')}
                       </Text>
                       <Text style={styles.activeMeta}>
-                        {trip.legs.length} stop{trip.legs.length === 1 ? '' : 's'} · In Transit
+                        {Math.max(0, (trip.total || trip.legs.length) - trip.legs.length)} of {trip.total || trip.legs.length} delivered · Next: {trip.legs[0]?.targetRecipientName || 'Sales Rep'}
                       </Text>
+                      <View style={styles.progressTrack}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            { width: `${Math.round((Math.max(0, (trip.total || trip.legs.length) - trip.legs.length) / (trip.total || trip.legs.length)) * 100)}%` },
+                          ]}
+                        />
+                      </View>
                     </View>
                     <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
                   </TouchableOpacity>
@@ -366,7 +472,7 @@ export default function CollectorDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operations</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -376,11 +482,17 @@ export default function CollectorDashboardScreen() {
                 title={operation.title}
                 onPress={() => navigation.navigate(operation.screen)}
                 style={styles.operationCard}
+                layout="tile"
               />
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Logs</Text>
+          <View style={styles.logsTitleRow}>
+            <Text style={[styles.sectionTitle, styles.logsTitle]}>Recent Logs</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('CollectorDeliveredStock')} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.seeAll}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
@@ -401,7 +513,7 @@ export default function CollectorDashboardScreen() {
                     icon="checkCircle"
                     iconColor={COLORS.success}
                     text={`Delivered to ${log.targetRecipientName || 'Sales Rep'} — ${formatRelativeTime(log.deliveredAt || log.createdAt)}`}
-                    onPress={() => navigation.navigate('CollectorDeliveredStock')}
+                    onPress={() => navigation.navigate('CollectorDeliveredStock', { focusId: log.transactionId })}
                   />
                 ))}
               </>
@@ -420,14 +532,18 @@ export default function CollectorDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={handleFabPress}
           hiddenKeys={['stock', 'reports']}
           fabIcon="truck"
+          fabBadgeCount={(pendingCount || 0) + readyDeliveries.length}
           fabLabel="Deliver"
         />
       </View>
+      <DashboardTour role="collector" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && welcomeOpen === false} />
+      <WelcomeOverview role="collector" userId={user?.id} name={user?.full_name || user?.username} onSettled={setWelcomeOpen} />
     </>
   );
 }
@@ -475,7 +591,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     gap: SPACING.sm,
-    width: '72%',
+    width: '82%',
   },
   branchGroup: {
     flexShrink: 1,
@@ -534,7 +650,7 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -546,7 +662,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textWhite,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -561,14 +677,21 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+  statCardCompact: { paddingVertical: SPACING.md + 4, paddingHorizontal: SPACING.sm },
+  readyCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm + 2, borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, backgroundColor: '#FFFFFF' },
+  readyTextCol: { flex: 1 },
+  readyName: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  readyMeta: { marginTop: 2, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  readyStart: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, backgroundColor: COLORS.primary },
+  readyStartText: { fontSize: 12, color: '#FFFFFF', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   statTouchable: {
     flex: 1,
   },
   activeList: {
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   activeCard: {
     flexDirection: 'row',
@@ -595,6 +718,8 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: '#E8ECF2', marginTop: 8, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3, backgroundColor: COLORS.success },
   activeMeta: {
     marginTop: 2,
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -604,13 +729,16 @@ const styles = StyleSheet.create({
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: SPACING.xl,
+    gap: 8,
+    marginBottom: SPACING.lg,
   },
   operationCard: {
-    width: '48%',
-    minHeight: 72,
+    width: '48.5%',
+    minHeight: 88,
   },
+  logsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  logsTitle: { marginBottom: 0 },
+  seeAll: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#0085F9' },
   logsList: {
     gap: SPACING.sm,
   },

@@ -1,12 +1,16 @@
 // src/screens/manager/ReceiveStockPreviewScreen.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Alert, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { getDeviceModel, getDeviceOs, getDeviceLabel } from '../../utils/deviceInfo';
 import Header from '../../components/common/Header';
-import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
@@ -55,6 +59,8 @@ export default function ReceiveStockPreviewScreen() {
   const [qrCode, setQrCode] = useState(null);
   const [registeredAt, setRegisteredAt] = useState(null);
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
+  const scrollRef = useRef(null);
   const { hasReachedEnd, onScroll, onContentSizeChange, onLayout } = useScrolledToEnd();
   const qrRef = useRef(null);
 
@@ -63,7 +69,17 @@ export default function ReceiveStockPreviewScreen() {
       .getCurrentUser()
       .then(async (currentManager) => {
         setManager(currentManager);
-        const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+        let managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+        // Older installs may have the manager profile cached but not the new
+        // branch-record cache. A single assigned branch can still be safely
+        // identified from the already-cached profile.
+        if (
+          managerBranches.length === 0 &&
+          currentManager?.branchIds?.length === 1 &&
+          currentManager.branchName
+        ) {
+          managerBranches = [{ id: currentManager.branchIds[0], name: currentManager.branchName }];
+        }
         setBranches(managerBranches);
         // One branch is picked for the manager; several means they must choose.
         if (managerBranches.length === 1) setSelectedBranchId(managerBranches[0].id);
@@ -97,10 +113,17 @@ export default function ReceiveStockPreviewScreen() {
   const deviceLabel = getDeviceLabel(manager?.full_name || manager?.username);
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const assignedBranchCount = manager?.branchIds?.length || 0;
   const branchStatusText = isLoadingManager
     ? 'Loading branch…'
     : selectedBranch?.name ||
-      (branches.length > 1 ? 'Choose a branch above' : 'No branch assigned to your account');
+      (assignedBranchCount > 1 && branches.length === 0
+        ? 'Branch names unavailable offline. Connect once to load them.'
+        : branches.length > 1
+          ? 'Choose a branch above'
+          : assignedBranchCount === 0
+            ? 'No branch assigned to your account'
+            : 'Branch details unavailable');
 
   const handleSetQty = (code, qty) => {
     setItems((prev) =>
@@ -210,13 +233,14 @@ export default function ReceiveStockPreviewScreen() {
             textColor="#FFFFFF"
             paddingHorizontal={SPACING.md}
           />
+          <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
           <ScrollView
-            contentContainerStyle={styles.qrScreen}
+            contentContainerStyle={[styles.qrScreen, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
             showsVerticalScrollIndicator={false}
           >
             <Icon
               name="successCircle"
-              size={64}
+              size={48}
               color={COLORS.success}
               duotoneColor={COLORS.success + '15'}
               weight="duotone"
@@ -224,40 +248,56 @@ export default function ReceiveStockPreviewScreen() {
             <Text style={styles.qrTitle}>Stock Registered Successfully</Text>
             <Text style={styles.qrSubtitle}>Scan this code anytime to track the batch.</Text>
 
-            <SaveableQRCode ref={qrRef} value={qrCode} size={150} style={styles.qrCard} />
+            <SaveableQRCode ref={qrRef} value={qrCode} size={156} compact style={styles.qrCard} />
+
+            <SectionHeader icon="clipboardText" size="md" label="Batch Details" style={styles.detailsHeader} />
 
             <View style={styles.receiptCard}>
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Branch</Text>
+                <View style={styles.receiptLabelWrap}>
+                  <Icon name="building" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.receiptLabel}>Branch</Text>
+                </View>
                 <Text style={styles.receiptValue} numberOfLines={1}>
                   {selectedBranch?.name || '—'}
                 </Text>
               </View>
               <View style={styles.receiptDivider} />
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Items</Text>
+                <View style={styles.receiptLabelWrap}>
+                  <Icon name="package" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.receiptLabel}>Items</Text>
+                </View>
                 <Text style={styles.receiptValue}>
-                  {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
+                  {items.length} item{items.length === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'}
                 </Text>
               </View>
               <View style={styles.receiptDivider} />
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Registered</Text>
+                <View style={styles.receiptLabelWrap}>
+                  <Icon name="calendar" size={16} color={COLORS.textSecondary} />
+                  <Text style={styles.receiptLabel}>Registered</Text>
+                </View>
                 <Text style={styles.receiptValue}>{formatDateTime(registeredAt)}</Text>
               </View>
             </View>
 
+          </ScrollView>
+          </BlurTargetView>
+
+          <BottomActionBar variant="glass" blurTarget={blurTarget}>
             <View style={styles.actionsRow}>
               <Button
                 title="Share"
                 variant="outline"
-                accentColor={COLORS.accentPurple}
+                accentColor={COLORS.primary}
                 icon="send"
                 iconSize={16}
                 onPress={handleShare}
                 width={HALF_BUTTON_WIDTH}
-                height={40}
-                fontSize={14}
+                height={48}
+                fontSize={15}
+                borderRadius={24}
               />
               <Button
                 title="Done"
@@ -266,11 +306,12 @@ export default function ReceiveStockPreviewScreen() {
                 iconSize={16}
                 onPress={handleDone}
                 width={HALF_BUTTON_WIDTH}
-                height={40}
-                fontSize={14}
+                height={48}
+                fontSize={15}
+                borderRadius={24}
               />
             </View>
-          </ScrollView>
+          </BottomActionBar>
         </View>
       </>
     );
@@ -289,9 +330,19 @@ export default function ReceiveStockPreviewScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SubScreenSecondaryHeader title="Generate Qr Code" />
+        <SecondaryHeader height={76}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Review & Generate QR</Text>
+              <Text style={styles.pageSubtitle}>Check everything, then register the batch</Text>
+            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
+          </View>
+        </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <KeyboardAwareScrollView
+          ref={scrollRef}
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           onScroll={onScroll}
@@ -300,34 +351,46 @@ export default function ReceiveStockPreviewScreen() {
           scrollEventThrottle={16}
         >
           {/* Heading shows straight away; chips appear once branches load. */}
-          {(isLoadingManager || branches.length > 1) && (
+          {(isLoadingManager || branches.length > 1 || assignedBranchCount > 1) && (
             <>
-              <Text style={styles.sectionTitle}>Receive into which branch?</Text>
+              <SectionHeader icon="building" size="md" label="Receive into which branch?" style={styles.sectionHeaderFirst} />
               {isLoadingManager ? (
                 <View style={styles.branchSkeletonRow}>
                   <SkeletonBlock width={130} height={36} borderRadius={20} />
                   <SkeletonBlock width={150} height={36} borderRadius={20} />
                 </View>
               ) : (
-                <BranchSelector
-                  branches={branches}
-                  selectedId={selectedBranchId}
-                  onSelect={setSelectedBranchId}
-                  edgePadding={0}
-                />
+                branches.length > 0 ? (
+                  <BranchSelector
+                    branches={branches}
+                    selectedId={selectedBranchId}
+                    onSelect={setSelectedBranchId}
+                    edgePadding={0}
+                    scrollable
+                    scrollBleed={SPACING.lg}
+                  />
+                ) : (
+                  <Text style={styles.branchUnavailableText}>
+                    Branch names aren&apos;t saved on this device yet. Connect to the internet once to load them.
+                  </Text>
+                )
               )}
             </>
           )}
 
           <RegisteredItemsList
+            scrollRef={scrollRef}
             items={items}
             onSetQty={handleSetQty}
             onDateChange={handleDateChange}
             onRemove={handleRemoveItem}
             sectionTitle="Registered Items"
+            labelHeader
+            quantityLocked
+            onEditQuantity={() => navigation.goBack()}
           />
 
-          <Text style={styles.sectionTitle}>Photo Proof</Text>
+          <SectionHeader icon="camera" size="md" label="Photo Proof" style={styles.sectionHeaderSpaced} />
           <View style={styles.photoProofCard}>
             <TouchableOpacity
               style={styles.photoProofImageWrap}
@@ -374,14 +437,18 @@ export default function ReceiveStockPreviewScreen() {
               <Text style={styles.metaText}>{formatDateTime(capturedAt)}</Text>
             </View>
 
-            <Text style={styles.summaryText}>
-              {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
-            </Text>
+            <View style={styles.summaryChip}>
+              <Icon name="package" size={16} color={COLORS.primary} />
+              <Text style={styles.summaryText}>
+                {items.length} item{items.length === 1 ? '' : 's'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'}
+              </Text>
+            </View>
           </View>
 
         </KeyboardAwareScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
             title={
               isSubmitting
@@ -399,6 +466,9 @@ export default function ReceiveStockPreviewScreen() {
             variant="black"
             onPress={handleReceiveAndGenerate}
             loading={isSubmitting}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
             disabled={
               isSubmitting ||
               !manager ||
@@ -424,7 +494,51 @@ export default function ReceiveStockPreviewScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.md },
+  contentTarget: { flex: 1 },
+  content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: 48, gap: SPACING.md },
+  sectionHeaderFirst: { marginTop: SPACING.sm, marginBottom: 0 },
+  sectionHeaderSpaced: { marginTop: SPACING.md, marginBottom: 0 },
+  titleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+  },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
+  },
+  summaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF0FF',
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -498,7 +612,6 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     textAlign: 'center',
-    marginTop: SPACING.xs,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
@@ -508,10 +621,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.xl,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.xl,
     gap: SPACING.xs,
   },
+  detailsHeader: { alignSelf: 'flex-start', marginTop: SPACING.xs, marginBottom: 0 },
+  receiptLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qrTitle: {
     marginTop: SPACING.xs,
     fontSize: TYPOGRAPHY.fontSize.lg,
@@ -521,7 +636,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   qrSubtitle: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -529,8 +644,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   qrCard: {
-    marginBottom: SPACING.sm,
-    padding: SPACING.md,
+    marginBottom: SPACING.xs,
+    paddingHorizontal: SPACING.md,
   },
   receiptCard: {
     width: '100%',
@@ -539,7 +654,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     padding: SPACING.sm,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   receiptRow: {
     flexDirection: 'row',
@@ -574,5 +689,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.sm,
     paddingTop: SPACING.sm,
+  },
+  branchUnavailableText: {
+    paddingTop: SPACING.sm,
+    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
 });

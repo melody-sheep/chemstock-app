@@ -1,8 +1,9 @@
 // src/screens/manager/ManagerDashboardScreen.js
 import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, Animated, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
@@ -12,25 +13,33 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import CustomModal from '../../components/common/Modal';
+import Button from '../../components/common/Button';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import { describeReceivingScan } from '../../utils/scanLookup';
+import ScanResultSheet from '../../components/common/ScanResultSheet';
 import agentService from '../../services/agentService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
+import PermissionsCard from '../../components/common/PermissionsCard';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
+import { formatBranchLabel } from '../../utils/branchLabel';
 
-const SECONDARY_HEADER_HEIGHT = 100;
+const SECONDARY_HEADER_HEIGHT = 92;
 
 // 2nd_header_scan_img.png is 344x400 natively; deriving the width from the
 // header height (instead of hardcoding it) keeps the image flush against
@@ -38,18 +47,6 @@ const SECONDARY_HEADER_HEIGHT = 100;
 const HEADER_ILLUSTRATION_ASPECT_RATIO = 344 / 400;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
-// "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
-const BRANCH_LABEL_CHARS = 4;
-const formatBranchLabel = (branchName) =>
-  branchName
-    .split(',')
-    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
-    .filter(Boolean)
-    .map((part) => {
-      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
-      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
-    })
-    .join(', ');
 
 const QUICK_STATS = [
   {
@@ -71,7 +68,7 @@ const QUICK_STATS = [
     backgroundColor: '#FFF5F8',
     borderLeftColor: COLORS.accentPink,
     value: '3',
-    label: 'Request',
+    label: 'Pending requests',
   },
 ];
 
@@ -86,9 +83,15 @@ const MAIN_OPERATIONS = [
 
 export default function ManagerDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
+  const route = useRoute();
+  // Only set by the activation screen: shown once, then cleared so it never comes back.
+  const justActivated = route.params?.justActivated === true;
+  const closeWelcome = () => navigation.setParams({ justActivated: undefined });
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [scanSummary, setScanSummary] = useState(null);
 
   // FB/IG-style collapsing header: diffClamp tracks the running scroll delta
   // clamped to [0, header height], so the header slides in lockstep with the
@@ -99,6 +102,9 @@ export default function ManagerDashboardScreen() {
   // (Native-driven caused a native animated-node-graph crash on this RN
   // version — see debugging notes; JS-driven sidesteps it entirely.)
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -181,7 +187,7 @@ export default function ManagerDashboardScreen() {
     };
   };
 
-  const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, refreshControlAt } = useCachedFocusLoader('manager-dashboard', loadDashboardData);
   const user = snapshot?.user ?? null;
   const totalUnits = snapshot?.totalUnits ?? null;
   const recentLogs = snapshot?.recentLogs ?? [];
@@ -212,8 +218,8 @@ export default function ManagerDashboardScreen() {
       const targetName = recipientNameById[log.target_recipient_id] || 'Sales Rep';
       return {
         key: `delivery-${log.id}`,
-        icon: 'checkCircle',
-        iconColor: COLORS.success,
+        icon: 'sealCheck',
+        iconColor: '#4c9f70',
         text: `Delivery to ${targetName} completed — ${formatRelativeTime(log.delivered_at)}`,
         log,
       };
@@ -222,8 +228,8 @@ export default function ManagerDashboardScreen() {
       const productCount = (log.items || []).length;
       return {
         key: `report-${log.reportId}`,
-        icon: 'document',
-        iconColor: COLORS.secondary,
+        icon: 'clipboardText',
+        iconColor: '#6C5CE7',
         text: `${log.agentName || 'A sales rep'} submitted today's report (${productCount} product${productCount === 1 ? '' : 's'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
@@ -232,9 +238,11 @@ export default function ManagerDashboardScreen() {
       const isLoss = log.discrepancyType === 'loss';
       return {
         key: `discrepancy-${log.reportItemId}`,
-        icon: 'warning',
-        iconColor: COLORS.error,
-        text: `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
+        icon: 'sealWarning',
+        iconColor: log.carryForwardEnabled ? '#D98200' : '#dc3545',
+        text: log.carryForwardEnabled
+          ? `Missing on report: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} units) still in backpack; carried forward — ${formatRelativeTime(log.reportDate)}`
+          : `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
     }
@@ -245,8 +253,8 @@ export default function ManagerDashboardScreen() {
     const recipient = isRelease && recipientNameById[log.received_by] ? ` to ${recipientNameById[log.received_by]}` : '';
     return {
       key: `${log.logType}-${log.id}`,
-      icon: isRelease ? 'trayUp' : 'trayDown',
-      iconColor: isRelease ? COLORS.success : COLORS.secondary,
+      icon: isRelease ? 'arrowUpRight' : 'arrowDownLeft',
+      iconColor: isRelease ? '#4c9f70' : '#0096C7',
       text: `${verb} ${units} unit${units === 1 ? '' : 's'} (${items.length} product${items.length === 1 ? '' : 's'})${recipient} — ${formatRelativeTime(log.created_at)}`,
       log,
     };
@@ -268,7 +276,7 @@ export default function ManagerDashboardScreen() {
     setIsScannerVisible(false);
     const manager = await authService.getCurrentUser();
     const summary = await describeReceivingScan(qrCode, manager?.branchIds || []);
-    Alert.alert(summary.title, summary.message);
+    setScanSummary(summary);
   };
 
   const handleScroll = Animated.event(
@@ -319,8 +327,6 @@ export default function ManagerDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>Status</Text>
-
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
@@ -357,13 +363,42 @@ export default function ManagerDashboardScreen() {
           </Animated.View>
 
           <ScrollView
-          refreshControl={refreshControl}
+            ref={tourScrollRef}
+          refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
+          <View ref={tourRefs.focus} collapsable={false}>
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Needs attention"
+              storageKey="manager-needs-attention"
+              icon="notification"
+              emptyText="All caught up. Nothing is waiting for you."
+              rows={[
+                pendingRequestCount > 0 && {
+                  key: 'requests', icon: 'peopleGroup', tone: 'warn', label: 'Stock requests',
+                  value: String(pendingRequestCount), onPress: () => navigation.navigate('AgentStockRequest'),
+                },
+                pendingReportCount > 0 && {
+                  key: 'reports', icon: 'clipboardText', tone: 'warn', label: 'Reports to accept',
+                  value: String(pendingReportCount), onPress: () => navigation.navigate('ManageReturns'),
+                },
+                openDiscrepancyCount > 0 && {
+                  key: 'discrepancies', icon: 'warningTriangle', tone: 'alert', label: 'Discrepancies to review',
+                  value: String(openDiscrepancyCount), onPress: () => navigation.navigate('ManagerAlerts'),
+                },
+              ]}
+            />
+          )}
+          </View>
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>
@@ -371,7 +406,7 @@ export default function ManagerDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-          <View style={styles.statsRow}>
+          <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
             {displayedStats.map((stat) => {
               const card = (
                 <StatCard
@@ -383,6 +418,8 @@ export default function ManagerDashboardScreen() {
                   borderLeftColor={stat.borderLeftColor}
                   value={stat.value}
                   label={stat.label}
+                  iconSize={32}
+                  style={styles.statCardCompact}
                 />
               );
               if (stat.key === 'totalItems') {
@@ -419,7 +456,7 @@ export default function ManagerDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operation</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -429,6 +466,7 @@ export default function ManagerDashboardScreen() {
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
+                layout="tile"
                 badgeCount={
                   operation.key === 'manageReturns'
                     ? pendingReportCount
@@ -440,7 +478,12 @@ export default function ManagerDashboardScreen() {
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Logs</Text>
+          <View style={styles.logsTitleRow}>
+            <Text style={[styles.sectionTitle, styles.logsTitle]}>Recent Logs</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('StockLogs')} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.seeAll}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
@@ -453,11 +496,11 @@ export default function ManagerDashboardScreen() {
                   text={log.text}
                   onPress={() => {
                     if (log.log.logType === 'delivery') {
-                      navigation.navigate('TrackDeliveries');
+                      navigation.navigate('TrackDeliveries', { focusId: log.log.id });
                     } else if (log.log.logType === 'report') {
-                      navigation.navigate('ManageReturns');
+                      navigation.navigate('ManageReturns', { focusId: log.log.reportId });
                     } else if (log.log.logType === 'discrepancy') {
-                      navigation.navigate('ManagerAlerts');
+                      navigation.navigate('ManagerAlerts', { focusId: log.log.reportItemId });
                     } else {
                       navigation.navigate('StockLogs', { initialLog: log.log });
                     }
@@ -472,6 +515,7 @@ export default function ManagerDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
@@ -479,16 +523,78 @@ export default function ManagerDashboardScreen() {
         />
       </View>
 
+      <DashboardTour role="manager" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && !justActivated} />
+      <CustomModal visible={justActivated} onClose={closeWelcome} height="auto" maxHeight={640} closeOnBackdropPress={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.welcomeScroll}>
+          <View style={styles.welcomeIconWrap}>
+            <View style={styles.welcomeRing}>
+              <View style={styles.welcomeCircle}>
+                <Icon name="checkCircle" size={30} color={COLORS.success} weight="fill" />
+              </View>
+            </View>
+          </View>
+          <Text style={styles.welcomeModalTitle}>Branch activated</Text>
+          <Text style={styles.welcomeModalText}>
+            {branchName ? `${branchName} is now registered to your account.` : 'Your branch is now registered to your account.'}{' '}
+            You're its manager: you can run its stock and its team from this device.
+          </Text>
+
+          <Text style={styles.welcomeListLabel}>WHAT YOU CAN DO</Text>
+          {[
+            { icon: 'trayDown', color: '#0085F9', bg: '#EAF4FF', title: 'Receive stock', hint: 'Register new batches and print their QR codes' },
+            { icon: 'trayUp', color: '#D98200', bg: '#FFF1D6', title: 'Release stock', hint: 'Send stock to Sales Reps, directly or through a Collector' },
+            { icon: 'clipboardText', color: '#1E7A3A', bg: '#E1F4E8', title: 'Review reports & returns', hint: 'Check daily reports and accept or reject returns' },
+            { icon: 'truck', color: '#7B6FE8', bg: '#EEEBFF', title: 'Track deliveries', hint: 'Follow trips and your team on the map' },
+            { icon: 'person', color: '#E5366B', bg: '#FDEBF1', title: 'Manage accounts', hint: 'Create and manage Sales Rep and Collector accounts' },
+          ].map((item) => (
+            <View key={item.title} style={styles.welcomeRow}>
+              <View style={[styles.welcomeRowIcon, { backgroundColor: item.bg }]}>
+                <Icon name={item.icon} size={18} color={item.color} />
+              </View>
+              <View style={styles.welcomeRowText}>
+                <Text style={styles.welcomeRowTitle}>{item.title}</Text>
+                <Text style={styles.welcomeRowHint}>{item.hint}</Text>
+              </View>
+            </View>
+          ))}
+
+          <Text style={styles.welcomeListLabel}>PERMISSIONS NEEDED</Text>
+          <PermissionsCard />
+        </ScrollView>
+        <Button title="Get Started" variant="black" onPress={closeWelcome} height={48} fontSize={16} borderRadius={24} width="100%" style={styles.welcomeButton} />
+      </CustomModal>
+
       <QRScannerModal
         visible={isScannerVisible}
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
+      />
+      <ScanResultSheet
+        summary={scanSummary}
+        onClose={() => setScanSummary(null)}
+        onScanAgain={() => {
+          setScanSummary(null);
+          setIsScannerVisible(true);
+        }}
       />
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  welcomeScroll: { flexShrink: 1 },
+  welcomeIconWrap: { alignItems: 'center', marginBottom: SPACING.md },
+  welcomeRing: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.success + '14', alignItems: 'center', justifyContent: 'center' },
+  welcomeCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.success + '26', alignItems: 'center', justifyContent: 'center' },
+  welcomeModalTitle: { fontSize: TYPOGRAPHY.fontSize.lg, color: '#272632', textAlign: 'center', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  welcomeModalText: { marginTop: SPACING.xs, fontSize: TYPOGRAPHY.fontSize.sm, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  welcomeListLabel: { marginTop: 18, marginBottom: 8, fontSize: 12, letterSpacing: 0.8, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  welcomeRowIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  welcomeRowText: { flex: 1 },
+  welcomeRowTitle: { fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  welcomeRowHint: { marginTop: 1, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  welcomeButton: { marginTop: SPACING.md },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -517,7 +623,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   welcomeText: {
-    fontSize: 25,
+    fontSize: 22,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     letterSpacing: -0.75,
@@ -529,9 +635,9 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
     gap: SPACING.sm,
-    width: '72%',
+    width: '82%',
   },
   branchGroup: {
     flexShrink: 1,
@@ -573,21 +679,25 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+  statCardCompact: { paddingVertical: SPACING.md + 4, paddingHorizontal: SPACING.sm },
   statTouchable: {
     flex: 1,
   },
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: SPACING.xl,
+    gap: 8,
+    marginBottom: SPACING.lg,
   },
   operationCard: {
-    width: '48%',
-    minHeight: 72,
+    width: '31.5%',
+    minHeight: 88,
   },
+  logsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  logsTitle: { marginBottom: 0 },
+  seeAll: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#0085F9' },
   logsList: {
     gap: SPACING.sm,
   },

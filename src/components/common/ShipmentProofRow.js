@@ -19,7 +19,8 @@ export default function ShipmentProofRow({
   photoUri,
   onOpenCamera,
   onViewPhoto,
-  label = 'Take Photo of\nWaybill/Invoice',
+  // One line by default; once a photo is taken it says so (tap to retake).
+  label = photoUri ? 'Waybill photo taken' : 'Take waybill photo',
 }) {
   return (
     <View style={styles.row}>
@@ -31,7 +32,7 @@ export default function ShipmentProofRow({
         accessibilityRole="button"
       >
         <View style={styles.cameraPanel}>
-          <Icon name="camera" size={22} color={COLORS.primary} />
+          <Icon name="camera" size={22} color="#0085F9" />
         </View>
         <Icon
           name={photoUri ? 'checkCircle' : 'xCircle'}
@@ -40,8 +41,9 @@ export default function ShipmentProofRow({
           weight="duotone"
           style={styles.statusIcon}
         />
-        <Text style={styles.text}>
-          {label} <Text style={styles.requiredAsterisk}>*</Text>
+        <Text style={styles.text} numberOfLines={1}>
+          {label}
+          {!photoUri && <Text style={styles.requiredAsterisk}> *</Text>}
         </Text>
       </TouchableOpacity>
 
@@ -53,7 +55,7 @@ export default function ShipmentProofRow({
           accessibilityLabel="View captured photo"
           accessibilityRole="button"
         >
-          <Icon name="document" size={20} color={COLORS.textSecondary} />
+          <Icon name="document" size={20} color="#0085F9" />
           <Text style={styles.viewText}>view</Text>
         </TouchableOpacity>
       )}
@@ -68,6 +70,11 @@ ShipmentProofRow.propTypes = {
   label: PropTypes.string,
 };
 
+// Blue dotted frame (as on the scan boxes) so it reads as something to press.
+const PROOF_BLUE = '#0085F9';
+const PROOF_BLUE_TINT = '#EAF4FF';
+const ROW_HEIGHT = 56;
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
@@ -76,12 +83,14 @@ const styles = StyleSheet.create({
   },
   main: {
     flex: 1,
+    height: ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderWidth: 1.5,
+    borderColor: PROOF_BLUE,
+    borderStyle: 'dotted',
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: PROOF_BLUE_TINT,
     overflow: 'hidden',
   },
   cameraPanel: {
@@ -90,14 +99,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#E5E5E5',
+    borderRightColor: '#B9D8FA',
   },
   statusIcon: {
     marginLeft: SPACING.sm,
   },
   text: {
     flex: 1,
-    paddingVertical: SPACING.sm,
     paddingLeft: SPACING.sm,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
@@ -108,20 +116,21 @@ const styles = StyleSheet.create({
     color: COLORS.error,
   },
   viewBox: {
-    width: 56,
-    height: 56,
+    width: ROW_HEIGHT,
+    height: ROW_HEIGHT,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderWidth: 1.5,
+    borderColor: PROOF_BLUE,
+    borderStyle: 'dotted',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: PROOF_BLUE_TINT,
   },
   viewText: {
     marginTop: 2,
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textSecondary,
+    color: PROOF_BLUE,
   },
 });

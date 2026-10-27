@@ -1,7 +1,7 @@
 // src/components/common/CameraCaptureModal.js
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PropTypes from 'prop-types';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -27,6 +27,8 @@ import { formatCoordinates, formatDateTime } from '../../utils/formatters';
 // `meta` lines (who / when / where) shown when given.
 export default function CameraCaptureModal({ visible, onClose, onCapture, initialUri = null, readOnly = false, meta = null }) {
   const [permission, requestPermission] = useCameraPermissions();
+  // Measured outside this pop-up window (inside it the value is not reliable on Android).
+  const insets = useSafeAreaInsets();
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [previewUri, setPreviewUri] = useState(initialUri);
   const [isTorchOn, setIsTorchOn] = useState(false);
@@ -106,7 +108,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
         presentationStyle="fullScreen"
         onRequestClose={handleClose}
       >
-        <SafeAreaView style={styles.container}>
+        <View style={[styles.container, previewUri && { paddingTop: insets.top }]}>
           {previewUri ? (
             <>
               <Image source={{ uri: previewUri }} style={styles.preview} resizeMode="contain" />
@@ -144,34 +146,44 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
               )}
 
               {readOnly ? (
-                <View style={styles.previewActions}>
+                <View style={[styles.previewActions, { paddingBottom: SPACING.lg + insets.bottom }]}>
                   <Button
                     title="Close"
                     variant="outline"
                     accentColor="#1A1A1A"
+                    height={48}
+                    fontSize={16}
+                    borderRadius={24}
                     onPress={handleClose}
                     style={[styles.actionButton, styles.glassButtonSolid]}
                   />
                 </View>
               ) : (
-              <View style={styles.previewActions}>
+              <View style={[styles.previewActions, { paddingBottom: SPACING.lg + insets.bottom }]}>
                 <Button
                   title="Retake"
                   variant="outline"
                   accentColor="#FFFFFF"
                   icon="returns"
-                  iconSize={18}
+                  iconSize={20}
+                  height={48}
+                  fontSize={16}
+                  borderRadius={24}
                   onPress={handleRetake}
                   style={[styles.actionButton, styles.glassButton]}
                 />
                 <Button
                   title="Use Photo"
-                  variant="outline"
-                  accentColor="#1A1A1A"
+                  variant="fill"
+                  accentColor="#0085F9"
                   icon="checkmark"
-                  iconSize={18}
+                  iconSize={20}
+                  iconWeight="bold"
+                  height={48}
+                  fontSize={16}
+                  borderRadius={24}
                   onPress={handleUsePhoto}
-                  style={[styles.actionButton, styles.glassButtonSolid]}
+                  style={styles.actionButton}
                 />
               </View>
               )}
@@ -182,16 +194,17 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                 ref={cameraRef}
                 style={styles.camera}
                 facing="back"
+                autofocus="on"
                 enableTorch={isTorchOn}
                 onCameraReady={() => setIsCameraReady(true)}
               />
-              <View style={styles.topBar}>
+              <View style={[styles.topBar, { top: SPACING.md + insets.top }]}>
                 <TouchableOpacity style={styles.closeButton} onPress={handleClose} accessibilityLabel="Close camera">
                   <Icon name="xCircle" size={28} color="#FFFFFF" weight="fill" />
                 </TouchableOpacity>
               </View>
               {/* Flashlight, same control as the QR scanner's top bar. */}
-              <View style={styles.torchBar}>
+              <View style={[styles.torchBar, { top: SPACING.md + insets.top }]}>
                 <TouchableOpacity
                   style={styles.closeButton}
                   onPress={() => setIsTorchOn((on) => !on)}
@@ -201,7 +214,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
                   <Icon name={isTorchOn ? 'flash' : 'flashOff'} size={24} color={COLORS.textWhite} />
                 </TouchableOpacity>
               </View>
-              <View style={styles.bottomBar}>
+              <View style={[styles.bottomBar, { bottom: SPACING.xl + insets.bottom }]}>
                 <TouchableOpacity
                   style={styles.shutterButton}
                   onPress={handleCapture}
@@ -214,7 +227,7 @@ export default function CameraCaptureModal({ visible, onClose, onCapture, initia
               </View>
             </>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
 
       <BottomSheetModal visible={visible && !hasPermission} onClose={handleClose} height={340}>
@@ -308,8 +321,10 @@ const styles = StyleSheet.create({
   },
   previewActions: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    padding: SPACING.lg,
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
     backgroundColor: '#000000',
   },
   actionButton: { flex: 1 },

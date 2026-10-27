@@ -1,5 +1,5 @@
 // src/utils/requireOnline.js
-import { Alert } from 'react-native';
+import Alert from './appAlert';
 import { getConnectionStatus } from '../services/connectionStatus';
 
 /**

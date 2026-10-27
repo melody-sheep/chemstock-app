@@ -1,6 +1,7 @@
 // src/screens/common/EditProfileScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet, Linking } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +9,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import CustomModal from '../../components/common/Modal';
+import ImageViewerModal from '../../components/common/ImageViewerModal';
 import Icon from '../../components/common/Icon';
 import PhilippinePhoneInput, {
   isValidPhNationalNumber,
@@ -20,7 +22,6 @@ import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 import friendlyError from '../../utils/friendlyError';
 import { invalidateSavedData } from '../../utils/dataVersion';
 import { getDeviceOs } from '../../utils/deviceInfo';
@@ -60,13 +61,37 @@ export default function EditProfileScreen() {
   const [isPhoneModalVisible, setIsPhoneModalVisible] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
   const [phoneError, setPhoneError] = useState(null);
+  const [managerContact, setManagerContact] = useState(null);
+  const [isLoadingManager, setIsLoadingManager] = useState(false);
+  const [managerContactError, setManagerContactError] = useState(false);
+  const [isManagerModalVisible, setIsManagerModalVisible] = useState(false);
+  const [isProfilePhotoPreviewVisible, setIsProfilePhotoPreviewVisible] = useState(false);
+
+  const loadManagerContact = useCallback(async (agentId) => {
+    setIsLoadingManager(true);
+    setManagerContactError(false);
+    const result = await profileService.getAgentManagerContact(agentId);
+    if (result.success) {
+      setManagerContact(result.data || null);
+    } else {
+      setManagerContact(null);
+      setManagerContactError(true);
+    }
+    setIsLoadingManager(false);
+  }, []);
 
   const loadUser = useCallback(async () => {
     setIsLoading(true);
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
     setIsLoading(false);
-  }, []);
+    if (currentUser?.role === 'sales_rep' || currentUser?.role === 'collector') {
+      await loadManagerContact(currentUser.id);
+    } else {
+      setManagerContact(null);
+      setManagerContactError(false);
+    }
+  }, [loadManagerContact]);
 
   useFocusEffect(
     useCallback(() => {
@@ -204,6 +229,23 @@ export default function EditProfileScreen() {
   const roleIcon = ROLE_ICONS[user?.role] || 'idCard';
   const rolePillColors = ROLE_PILL_COLORS[user?.role] || { backgroundColor: '#EEF2FF', color: COLORS.primary };
   const hasPhoneNumber = !!user?.phoneNumber;
+  const managerRowValue = isLoadingManager
+    ? 'Loading…'
+    : managerContact?.full_name || (managerContactError ? 'Could not load · tap to retry' : 'Not assigned');
+  const handleManagerRowPress = () => {
+    if (managerContact) {
+      setIsManagerModalVisible(true);
+    } else if (managerContactError && user?.id) {
+      loadManagerContact(user.id);
+    }
+  };
+  const openManagerContact = async (url) => {
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Unable to Open Contact', friendlyError(error.message) || 'Please try again.');
+    }
+  };
 
   return (
     <>
@@ -226,7 +268,14 @@ export default function EditProfileScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.heroCard}>
               <View style={styles.avatarWrap}>
-                <UserAvatar photoUrl={user?.profilePhotoUrl} size={112} iconName="person" style={styles.avatarRing} />
+                <Pressable
+                  onPress={() => user?.profilePhotoUrl && setIsProfilePhotoPreviewVisible(true)}
+                  disabled={!user?.profilePhotoUrl}
+                  accessibilityLabel={user?.profilePhotoUrl ? 'Preview profile photo' : 'No profile photo to preview'}
+                  accessibilityRole="button"
+                >
+                  <UserAvatar photoUrl={user?.profilePhotoUrl} size={88} iconName="person" style={styles.avatarRing} />
+                </Pressable>
                 <Pressable
                   style={styles.cameraBadge}
                   onPress={() => setIsSourceModalVisible(true)}
@@ -248,6 +297,7 @@ export default function EditProfileScreen() {
                 {user?.full_name || user?.username || ''}
               </Text>
               <View style={[styles.rolePill, { backgroundColor: rolePillColors.backgroundColor }]}>
+                <Icon name={roleIcon} size={14} color={rolePillColors.color} />
                 <Text style={[styles.rolePillText, { color: rolePillColors.color }]}>{roleLabel}</Text>
               </View>
 
@@ -256,7 +306,7 @@ export default function EditProfileScreen() {
                 onPress={() => setIsSourceModalVisible(true)}
                 disabled={isSaving}
               >
-                <Text style={styles.changePhotoText}>Change Photo</Text>
+                <Icon name="camera" size={15} color={COLORS.primary} />
               </Pressable>
             </View>
 
@@ -264,8 +314,8 @@ export default function EditProfileScreen() {
             <View style={styles.groupCard}>
               <View style={styles.rowItem}>
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name="idCard" size={18} color="#03045E" />
+                  <View style={[styles.rowIconWrap, { backgroundColor: '#0085F91A' }]}>
+                    <Icon name="idCard" size={18} color="#0085F9" />
                   </View>
                   <Text style={styles.rowLabel}>Full Name</Text>
                 </View>
@@ -293,8 +343,8 @@ export default function EditProfileScreen() {
                 // instead of squeezing them all into the value column.
                 <View style={styles.rowItemStacked}>
                   <View style={styles.rowLeft}>
-                    <View style={styles.rowIconWrap}>
-                      <Icon name="location" size={18} color="#F04D59" />
+                    <View style={[styles.rowIconWrap, { backgroundColor: '#E5484D1A' }]}>
+                      <Icon name="location" size={18} color="#E5484D" />
                     </View>
                     <Text style={styles.rowLabel}>Branches</Text>
                     <Text style={styles.rowCount}>{branchList.length}</Text>
@@ -310,8 +360,8 @@ export default function EditProfileScreen() {
               ) : (
                 <View style={styles.rowItem}>
                   <View style={styles.rowLeft}>
-                    <View style={styles.rowIconWrap}>
-                      <Icon name="location" size={18} color="#F04D59" />
+                    <View style={[styles.rowIconWrap, { backgroundColor: '#E5484D1A' }]}>
+                      <Icon name="location" size={18} color="#E5484D" />
                     </View>
                     <Text style={styles.rowLabel}>Branch</Text>
                   </View>
@@ -319,6 +369,31 @@ export default function EditProfileScreen() {
                     {branchList[0] || 'No branch assigned'}
                   </Text>
                 </View>
+              )}
+
+              {(user?.role === 'sales_rep' || user?.role === 'collector') && (
+                <>
+                  <View style={styles.rowDivider} />
+                  <Pressable
+                    style={styles.rowItem}
+                    onPress={handleManagerRowPress}
+                    disabled={isLoadingManager || (!managerContact && !managerContactError)}
+                    accessibilityLabel={managerContact ? `View contact details for Manager ${managerContact.full_name}` : 'Manager contact'}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.rowLeft}>
+                      <View style={[styles.rowIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                        <Icon name="idCard" size={18} color={COLORS.primary} />
+                      </View>
+                      <Text style={styles.rowLabel}>Manager</Text>
+                    </View>
+                    <View style={styles.phoneEditTrigger}>
+                      {isLoadingManager && <ActivityIndicator size="small" color={COLORS.primary} />}
+                      <Text style={styles.rowValue} numberOfLines={1}>{managerRowValue}</Text>
+                      {!!managerContact && <Icon name="arrowRight" size={14} color="#94a3b8" />}
+                    </View>
+                  </Pressable>
+                </>
               )}
 
               <View style={styles.rowDivider} />
@@ -330,8 +405,8 @@ export default function EditProfileScreen() {
                 accessibilityRole="button"
               >
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIconWrap}>
-                    <Icon name="phone" size={18} color="#03045E" />
+                  <View style={[styles.rowIconWrap, { backgroundColor: '#2E9E5B1A' }]}>
+                    <Icon name="phone" size={18} color="#2E9E5B" />
                   </View>
                   <Text style={styles.rowLabel}>Phone Number</Text>
                 </View>
@@ -343,7 +418,7 @@ export default function EditProfileScreen() {
                   >
                     {hasPhoneNumber ? formatPhDisplay(user.phoneNumber) : 'Add phone number'}
                   </Text>
-                  <Icon name="notePencil" size={15} color={COLORS.primary} />
+                  <Icon name="pencilSimpleLine" size={16} color="#0085F9" />
                 </View>
               </Pressable>
             </View>
@@ -412,13 +487,19 @@ export default function EditProfileScreen() {
           </Pressable>
 
           <View style={styles.phoneModalIconWrap}>
-            <Icon name="phone" size={24} color={COLORS.primary} weight="fill" />
+            <Icon name="phone" size={26} color="#2E9E5B" weight="fill" />
           </View>
 
           <Text style={styles.phoneModalTitle}>Edit Phone Number</Text>
           <Text style={styles.phoneModalSubtitle}>
-            Enter your Philippine mobile number — it's used to reach you about deliveries.
+            Enter your Philippine mobile number. It's used to reach you about deliveries.
           </Text>
+          {hasPhoneNumber && (
+            <View style={styles.currentPhonePill}>
+              <Text style={styles.currentPhoneLabel}>Current</Text>
+              <Text style={styles.currentPhoneValue}>{formatPhDisplay(user.phoneNumber)}</Text>
+            </View>
+          )}
 
           <View style={styles.phoneModalFieldOuter}>
             <PhilippinePhoneInput
@@ -428,11 +509,13 @@ export default function EditProfileScreen() {
               error={phoneError}
               style={styles.phoneModalFieldWrap}
             />
+            <Text style={styles.phoneHint}>Example: 917 123 4567 (10 digits, no leading 0)</Text>
           </View>
 
           <View style={styles.phoneModalActions}>
             <Pressable
               style={[styles.phoneModalBtn, styles.phoneModalCancelBtn]}
+              accessibilityRole="button"
               onPress={handleCancelPhone}
               disabled={isSavingPhone}
             >
@@ -452,6 +535,81 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </CustomModal>
+
+      <CustomModal
+        visible={isManagerModalVisible}
+        onClose={() => setIsManagerModalVisible(false)}
+        variant="center"
+        height="auto"
+      >
+        <View style={styles.managerModalContent}>
+          <Pressable
+            style={styles.phoneModalCloseBtn}
+            onPress={() => setIsManagerModalVisible(false)}
+            hitSlop={10}
+            accessibilityLabel="Close manager contact"
+            accessibilityRole="button"
+          >
+            <Icon name="xCircle" size={24} color="#94a3b8" />
+          </Pressable>
+          <View style={styles.managerModalIconWrap}>
+            <UserAvatar
+              photoUrl={managerContact?.profile_photo_url}
+              size={48}
+              iconName="person"
+              backgroundColor={COLORS.primaryLight}
+              style={styles.managerAvatar}
+            />
+          </View>
+          <Text style={styles.managerModalTitle}>{managerContact?.full_name || 'Manager'}</Text>
+          <Text style={styles.managerModalName}>Your Manager</Text>
+          <View style={styles.managerContactList}>
+            <Pressable
+              style={styles.managerContactRow}
+              onPress={() => managerContact?.email && openManagerContact(`mailto:${managerContact.email}`)}
+              disabled={!managerContact?.email}
+              accessibilityRole="button"
+              accessibilityLabel={managerContact?.email ? `Email ${managerContact.email}` : 'Manager email not provided'}
+            >
+              <Icon name="envelope" size={17} color={COLORS.primary} />
+              <View style={styles.managerContactTextWrap}>
+                <Text style={styles.managerContactLabel}>Email</Text>
+                <Text style={styles.managerContactValue}>{managerContact?.email || 'Not provided'}</Text>
+              </View>
+              {!!managerContact?.email && <Icon name="arrowRight" size={16} color="#94a3b8" />}
+            </Pressable>
+            <View style={styles.managerContactDivider} />
+            <Pressable
+              style={styles.managerContactRow}
+              onPress={() => {
+                const phone = managerContact?.phone_number?.replace(/[^\d+]/g, '');
+                if (phone) openManagerContact(`tel:${phone}`);
+              }}
+              disabled={!managerContact?.phone_number}
+              accessibilityRole="button"
+              accessibilityLabel={
+                managerContact?.phone_number
+                  ? `Call ${managerContact.full_name || 'your Manager'}`
+                  : 'Manager contact number not provided'
+              }
+            >
+              <Icon name="phone" size={17} color="#2E9E5B" />
+              <View style={styles.managerContactTextWrap}>
+                <Text style={styles.managerContactLabel}>Contact number</Text>
+                <Text style={styles.managerContactValue}>
+                  {managerContact?.phone_number ? formatPhDisplay(managerContact.phone_number) : 'Not provided'}
+                </Text>
+              </View>
+              {!!managerContact?.phone_number && <Icon name="arrowRight" size={16} color="#94a3b8" />}
+            </Pressable>
+          </View>
+        </View>
+      </CustomModal>
+      <ImageViewerModal
+        visible={isProfilePhotoPreviewVisible}
+        onClose={() => setIsProfilePhotoPreviewVisible(false)}
+        imageUri={user?.profilePhotoUrl}
+      />
     </>
   );
 }
@@ -461,26 +619,22 @@ const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.sm,
   },
   heroCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 16,
-    paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.cardSoft,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+    marginBottom: 0,
   },
   avatarWrap: {
     position: 'relative',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   avatarRing: {
     borderWidth: 3,
-    borderColor: COLORS.primaryLight,
+    borderColor: '#BFE0FF',
   },
   cameraBadge: {
     position: 'absolute',
@@ -488,10 +642,10 @@ const styles = StyleSheet.create({
     right: 0,
   },
   cameraBadgeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: COLORS.primary,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#0085F9',
     borderWidth: 3,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -504,9 +658,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rolePill: {
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
     borderRadius: 999,
   },
   rolePillText: {
@@ -515,43 +672,41 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   changePhotoBtn: {
-    marginTop: SPACING.md,
-    paddingVertical: 8,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primaryLight,
-  },
-  changePhotoText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
   },
   sectionLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
+    fontSize: 12,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 4,
+    letterSpacing: 0.8,
+    marginBottom: 0,
+    marginTop: SPACING.sm,
   },
   groupCard: {
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
     marginBottom: SPACING.md,
-    paddingHorizontal: 12,
-    ...SHADOWS.cardSoft,
   },
   rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     gap: 10,
+    marginTop: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
   },
   rowLeft: {
     flexDirection: 'row',
@@ -560,8 +715,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowItemStacked: {
-    paddingVertical: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     gap: 10,
+    marginTop: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
   },
   rowCount: {
     minWidth: 20,
@@ -570,7 +731,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#EEF2FF',
     color: COLORS.primary,
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -586,11 +747,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#FDEDEE',
+    backgroundColor: '#EAF4FF',
   },
   branchChipText: {
     fontSize: 12,
-    color: '#B4232F',
+    color: '#0A66C2',
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
   },
@@ -603,7 +764,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowLabel: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -611,7 +772,7 @@ const styles = StyleSheet.create({
   rowValue: {
     flexShrink: 1,
     textAlign: 'right',
-    fontSize: 12,
+    fontSize: 13,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
@@ -620,16 +781,71 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
   },
-  rowDivider: {
-    height: 1,
-    backgroundColor: '#EEF2F7',
-  },
+  rowDivider: { height: 0 },
   phoneEditTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   phoneModalContent: { alignItems: 'center', paddingTop: 4 },
+  managerModalContent: { alignItems: 'center', paddingTop: 2 },
+  managerModalIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
+    borderColor: '#BFE0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  managerAvatar: {
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  managerModalTitle: {
+    marginTop: 8,
+    fontSize: 17,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  managerModalName: {
+    marginTop: 0,
+    marginBottom: SPACING.sm,
+    fontSize: 13,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    textAlign: 'center',
+  },
+  managerContactList: {
+    alignSelf: 'stretch',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    backgroundColor: '#F9FAFC',
+    paddingHorizontal: 12,
+  },
+  managerContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+  },
+  managerContactTextWrap: { flex: 1 },
+  managerContactLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  managerContactValue: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+  },
+  managerContactDivider: { height: 1, backgroundColor: '#EAEFF5' },
   phoneModalHandle: {
     alignSelf: 'center',
     width: 36,
@@ -645,10 +861,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   phoneModalIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: COLORS.primaryLight,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#2E9E5B1A',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
@@ -663,7 +879,7 @@ const styles = StyleSheet.create({
   },
   phoneModalSubtitle: {
     marginTop: 4,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     paddingHorizontal: SPACING.sm,
     fontSize: 12,
     lineHeight: 17,
@@ -683,18 +899,39 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     marginTop: SPACING.xs,
   },
+  currentPhonePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: SPACING.md,
+    paddingHorizontal: 12,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F3F6',
+  },
+  currentPhoneLabel: { fontSize: 12, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.regular },
+  currentPhoneValue: { fontSize: 13, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  phoneHint: {
+    marginTop: 6,
+    marginBottom: SPACING.md,
+    fontSize: 12,
+    color: '#6B7280',
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
   phoneModalBtn: {
     flex: 1,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   phoneModalCancelBtn: {
-    backgroundColor: '#F1F3F6',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#D5DAE3',
   },
   phoneModalCancelText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -703,7 +940,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   phoneModalSaveText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -728,7 +965,7 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     lineHeight: 16,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.regular,

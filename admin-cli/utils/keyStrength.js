@@ -50,11 +50,11 @@
     var lower = code.toLowerCase();
     var personal = personalParts(context);
     var checks = [
-      { id: 'length', label: '12+ characters', ok: code.length >= 12 },
+      { id: 'length', label: '8+ characters', ok: code.length >= 8 },
       { id: 'upper', label: 'A–Z', ok: /[A-Z]/.test(code) },
       { id: 'lower', label: 'a–z', ok: /[a-z]/.test(code) },
       { id: 'digit', label: '0–9', ok: /[0-9]/.test(code) },
-      { id: 'charset', label: 'Letters and numbers only', ok: code.length > 0 && /^[A-Za-z0-9]+$/.test(code) },
+      { id: 'charset', label: 'No spaces', ok: code.length > 0 && /^\S+$/.test(code) },
       {
         id: 'common',
         label: 'No common word or sequence',
@@ -74,8 +74,8 @@
     var hardFail = checks.some(function (c) { return mustPass.indexOf(c.id) !== -1 && !c.ok; });
     var level;
     if (hardFail || passed <= 4) level = 'weak';
-    else if (passed === 5 || code.length < 14) level = 'medium';
-    else if (passed === 6 || code.length < 16) level = 'strong';
+    else if (code.length < 10 || (code.length < 12 && !/[^A-Za-z0-9]/.test(code))) level = 'medium';
+    else if (code.length < 16) level = 'strong';
     else level = 'very_strong';
     var labels = { weak: 'Weak', medium: 'Medium', strong: 'Strong', very_strong: 'Very strong' };
     return {

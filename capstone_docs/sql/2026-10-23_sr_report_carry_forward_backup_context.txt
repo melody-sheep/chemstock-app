@@ -1,0 +1,130 @@
+CHEMSTOCK - SR DAILY REPORT CARRY-FORWARD CHANGE TRAIL
+Date: 2026-10-23
+
+PURPOSE
+
+This file is a documentation trail only. It is not SQL, a database backup,
+or a rollback script. No backup or migration has been run against Supabase
+from this workspace.
+
+For rollback planning, see:
+  capstone_docs/sql/2026-10-23_sr_report_carry_forward_rollback_guide.docx
+
+The user clarified that stock a Sales Rep still physically holds must remain
+in the backpack after a daily report. It must carry into the next report and
+must not be treated as confirmed missing stock merely because it was not sold
+or returned that day.
+
+BEHAVIORAL CHANGE PREPARED
+
+Old behavior:
+- The report-building database function set every included SR inventory
+  batch's remaining_quantity to zero when a report was filed.
+- Remaining unsold units could therefore disappear from the backpack and
+  show up as missing.
+
+Prepared behavior:
+- The new report function records the starting in-custody quantity.
+- It deducts only the reported sold and returned units from SR inventory,
+  consuming batches in FIFO order.
+- Remaining units stay in the backpack and are represented as a carry-forward
+  balance. Example: 1,000 in custody - 300 sold = 700 carried forward.
+  If 500 more are received and 200 are then sold, the next balance is 1,000.
+- Auto-filed zero-sales/zero-return reports also retain the inventory.
+- The next manual report accepts sales quantities since the last submitted
+  report, including unreported sales from missed days. Those sales are stored
+  against the date of the submitted report; the system cannot infer or
+  allocate sales to each missed calendar date.
+- Earlier carry-forward rows remain in report history but are excluded from
+  active discrepancy lists to avoid repeating the same balance.
+- Pending return requests tied to an older carry-forward row are rejected
+  when a newer report supersedes it; the Sales Rep is notified to submit a
+  request against the current report if needed.
+- Accepting a return request for a carry-forward balance removes the approved
+  quantity from the SR's matching branch/batch inventory and credits the
+  branch inventory.
+- Manager report loss totals exclude negative carry-forward balances.
+- SR and Manager notifications use the wording "Missing on report — still in
+  backpack; carried forward" and clarify this is a report discrepancy, not
+  confirmation of physical loss.
+
+FILES PREPARED
+
+Database migration (not applied):
+  capstone_docs/sql/2026-10-23_sr_report_carry_forward.sql
+
+Application UI updates:
+  src/screens/salesrep/SalesRepBackpackScreen.js
+  src/screens/salesrep/SubmitReportSR.js
+  src/screens/salesrep/AlertsDiscrepanciesSR.js
+  src/screens/salesrep/ResolveDiscrepancyScreen.js
+  src/screens/salesrep/SalesRepReportsScreen.js
+  src/screens/salesrep/SalesRepLogsScreen.js
+  src/screens/salesrep/SalesRepDashboardScreen.js
+  src/screens/manager/ManagerAlertsScreen.js
+  src/screens/manager/ManageReturnsScreen.js
+  src/screens/manager/ManagerDashboardScreen.js
+  src/screens/manager/StockLogsScreen.js
+
+Related decision trail:
+  capstone_docs/MD Folder/Alther_TODO_October.md
+
+APPLICATION AND VALIDATION STATUS
+
+- Planned next action: the user intends to run the complete migration
+  capstone_docs/sql/2026-10-23_sr_report_carry_forward.sql in Supabase SQL
+  Editor. This is a recorded intention, not confirmation that it has run.
+- The migration has not been run against Supabase in this work session. Live
+  database behavior will not change until it is applied successfully.
+- Intended result: a report deducts only sold and returned units; all other
+  units remain in the SR backpack and carry into the next report.
+- Confidence limitation: the migration is designed to implement the requested
+  arithmetic, but it has not been executed against the live database schema
+  or tested with real SR/Manager report and return flows. Do not treat this
+  note as a guarantee of successful application or correct live behavior.
+- The app's Expo web export completed successfully after the UI changes.
+- git diff --check passed.
+- The migration has not been validated against the live Supabase schema or
+  executed in a PostgreSQL environment.
+- The prepared migration affects future report processing. It does not
+  restore inventory quantities already cleared by the previous function.
+- Previously cleared stock must not be restored with a broad backfill.
+  Any correction should be based on verified report and batch records and
+  confirmation that the Sales Rep still physically holds those units.
+
+IMPORTANT RECOVERY NOTES
+
+- This text file is only a trail of intent and prepared changes. It contains
+  no database rows, function definitions, credentials, or executable restore
+  steps.
+- No database backup was created by this work. Before applying the migration,
+  use Supabase's backup/PITR recovery options or create an independent
+  database dump under the project's approved process.
+- The migration is wrapped in a transaction, so a SQL error before COMMIT
+  should roll back that migration transaction. This does not replace a backup
+  or protect against later application-level issues.
+- If the migration has already been applied and a problem occurs, pause report
+  submissions and investigate with the actual deployed schema, migration
+  history, and a real database backup. Do not restore whole tables from an
+  older copy: that can erase valid reports, requests, inventory movements,
+  or notifications written since the copy.
+- CREATE OR REPLACE FUNCTION changes may require restoring the exact prior
+  function definitions and grants from the deployed database or a database
+  backup. This note does not include a tested rollback script.
+- Any stock correction should be reviewed and applied as a narrowly scoped,
+  auditable data fix after verifying the affected SR, report, product, branch,
+  and source batch.
+
+SUGGESTED LIVE TEST AFTER REVIEW AND MIGRATION
+
+1. Record the SR's starting backpack quantities and source batches.
+2. File a report with some units sold and some units neither sold nor
+   returned. Confirm only sold/returned quantities are deducted and the
+   leftover remains in the backpack.
+3. Receive additional stock and file the next report. Confirm the reported
+   in-custody quantity includes prior carried units plus new stock.
+4. Check SR and Manager alerts, report history, and logs: carried stock
+   should be labeled "Carry forward", not "Missing".
+5. Test the manager-reviewed return flow separately and verify the approved
+   quantity leaves the SR backpack and is credited to the correct branch
+   batch.

@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Icon from './Icon';
 import Button from './Button';
@@ -18,6 +19,7 @@ const CORNER_WIDTH = 4;
 // platform scanner UI (which draws its own branding and labels we can't change).
 export default function QRScannerModal({ visible, onClose, onScanned }) {
   const [permission, requestPermission] = useCameraPermissions();
+  const insets = useSafeAreaInsets();
   const hasScannedRef = useRef(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
 
@@ -82,7 +84,7 @@ export default function QRScannerModal({ visible, onClose, onScanned }) {
           )}
         </View>
 
-        {permission?.granted && <Text style={styles.hint}>Align the QR code within the frame</Text>}
+        {permission?.granted && <Text style={[styles.hint, { paddingBottom: Math.max(SPACING['3xl'], insets.bottom + SPACING.lg) }]}>Align the QR code within the frame</Text>}
       </View>
     </Modal>
   );

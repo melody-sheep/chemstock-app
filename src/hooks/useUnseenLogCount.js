@@ -52,3 +52,28 @@ export function useMarkLogsSeen() {
     }, [])
   );
 }
+
+/**
+ * For a logs screen: tells which rows are new, meaning newer than the last time this account opened its logs.
+ * Opening the screen then marks everything seen (the header badge clears), but the rows stay marked for this visit.
+ * Use it as: const isNewLog = useLogsSeenSince();  isNewLog(log.created_at)
+ */
+export function useLogsSeenSince() {
+  const [since, setSince] = useState(null);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        const user = await authService.getCurrentUser();
+        if (!user?.id) return;
+        const stored = await storage.get(SEEN_KEY_PREFIX + user.id);
+        if (active) setSince(stored || Date.now());
+        await markLogsSeen(user.id);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+  return (time) => since != null && !!time && new Date(time).getTime() > since;
+}

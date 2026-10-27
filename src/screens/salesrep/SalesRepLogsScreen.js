@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import FilterSheet from '../../components/common/FilterSheet';
 import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
@@ -16,7 +17,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
-import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
+import { useLogsSeenSince } from '../../hooks/useUnseenLogCount';
 
 const LOGS_LIMIT = 50;
 
@@ -98,26 +99,29 @@ const loadLogsData = async (previous) => {
 
 export default function SalesRepLogsScreen() {
   const route = useRoute();
-  useMarkLogsSeen();
+  const isNewLog = useLogsSeenSince();
   const navigation = useNavigation();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
   const [dateFilter, setDateFilter] = useState('all');
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
 
-  const openDetail = (log) => {
+  const openDetail = (log, { replaceThisScreen = false } = {}) => {
+    // Opened straight from a Recent Logs tap: swap this list for the target, so Back goes to
+    // where the tap came from (the dashboard) and not to a list nobody asked to see.
+    const go = replaceThisScreen ? navigation.replace : navigation.navigate;
     if (log.logType === 'discrepancy') {
-      navigation.navigate('AlertsDiscrepanciesSR');
+      go('ResolveDiscrepancy', { reportItem: log });
       return;
     }
-    navigation.navigate('SalesRepLogDetail', { log });
+    go('SalesRepLogDetail', { log });
   };
 
   // Jumped here from a tap on a Recent Logs row (Dashboard) — same pattern
   // as the Manager dashboard's jump into StockLogsScreen.
   useEffect(() => {
     if (route.params?.initialLog) {
-      openDetail(route.params.initialLog);
+      openDetail(route.params.initialLog, { replaceThisScreen: true });
     }
   }, [route.params?.initialLog && getLogKey(route.params.initialLog)]);
 
@@ -162,7 +166,7 @@ export default function SalesRepLogsScreen() {
             accessibilityLabel="Filter by date"
             accessibilityRole="button"
           >
-            <Icon name="filter" size={20} color={COLORS.primary} />
+            <Icon name="filter" size={22} color={COLORS.primary} />
             {dateFilter !== 'all' && <View style={styles.filterActiveDot} />}
           </TouchableOpacity>
         </View>
@@ -173,7 +177,7 @@ export default function SalesRepLogsScreen() {
           </View>
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>No activity yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
@@ -199,15 +203,17 @@ export default function SalesRepLogsScreen() {
                   : 'receive';
               const metaText =
                 log.logType === 'discrepancy'
-                  ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                  ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.carryForwardEnabled ? 'missing on report; still in backpack; carried forward' : log.discrepancyType === 'loss' ? 'missing' : 'over'}`
                   : summarizeItems(log.items || []);
               return (
                 <LogCard
+                  flat
                   key={getLogKey(log)}
                   type={cardType}
                   title={getTitle(log)}
                   meta={metaText}
                   time={formatRelativeTime(log.createdAt)}
+                  isNew={isNewLog(log.createdAt)}
                   onPress={() => openDetail(log)}
                 />
               );
@@ -240,19 +246,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#ECEEF1',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: 'rgba(39,38,50,0.08)',
   },
   filterRowLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textSecondary,
   },
   filterButtonWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -268,7 +272,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
-  content: { padding: SPACING.lg, gap: SPACING.xs },
+  content: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

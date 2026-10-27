@@ -15,11 +15,11 @@ export default function MapZoomControls({ onZoomIn, onZoomOut, onRecenter, style
   return (
     <View style={[styles.column, glassPanel, style]} pointerEvents="box-none">
       <TouchableOpacity style={styles.button} onPress={onZoomIn} accessibilityRole="button" accessibilityLabel="Zoom in">
-        <Icon name="plus" size={20} color={COLORS.textPrimary} />
+        <Icon name="plus" size={16} color={COLORS.textPrimary} />
       </TouchableOpacity>
       <View style={styles.divider} />
       <TouchableOpacity style={styles.button} onPress={onZoomOut} accessibilityRole="button" accessibilityLabel="Zoom out">
-        <Icon name="minus" size={20} color={COLORS.textPrimary} />
+        <Icon name="minus" size={16} color={COLORS.textPrimary} />
       </TouchableOpacity>
       {onRecenter && (
         <>
@@ -30,7 +30,7 @@ export default function MapZoomControls({ onZoomIn, onZoomOut, onRecenter, style
             accessibilityRole="button"
             accessibilityLabel="Fit route on map"
           >
-            <Icon name="navigation" size={20} color={COLORS.primary} />
+            <Icon name="navigation" size={16} color={COLORS.primary} />
           </TouchableOpacity>
         </>
       )}
@@ -48,11 +48,11 @@ MapZoomControls.propTypes = {
 const styles = StyleSheet.create({
   column: {
     position: 'absolute',
-    width: 48,
+    width: 38,
     alignItems: 'center',
-    paddingVertical: SPACING.xs,
-    borderRadius: 20,
+    paddingVertical: 2,
+    borderRadius: 19,
   },
-  button: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  divider: { width: 28, height: 1, backgroundColor: COLORS.glassBorder },
+  button: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  divider: { width: 22, height: 1, backgroundColor: COLORS.glassBorder },
 });

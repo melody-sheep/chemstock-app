@@ -7,13 +7,14 @@ import {
   Keyboard,
   Text,
   TouchableOpacity,
-  Alert,
   Platform,
 } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import AnimatedTextDot from '../../components/common/AnimatedTextDot';
 import KeyboardWrapper from '../../components/common/KeyboardWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
@@ -48,6 +49,10 @@ export default function LoginScreen() {
   // (Expo Go), the keyboard's height in a built APK.
   const containerRef = useRef(null);
   const { inset: keyboardInset } = useKeyboardInset(containerRef);
+  // The Android navigation bar draws over the bottom of the app (edge-to-edge); keep the last button above it.
+  // With the keyboard open the sheet already sits on top of it, so no extra space is needed then.
+  const insets = useSafeAreaInsets();
+  const bottomSafe = keyboardInset > 0 ? 0 : insets.bottom;
   const [isActivationWarningVisible, setIsActivationWarningVisible] = useState(false);
 
   const {
@@ -92,6 +97,8 @@ export default function LoginScreen() {
     
     if (!success) {
       if (getConnectionStatus().online) {
+        // Only the password is cleared; the username stays so it can be retyped from there.
+        setPassword('');
         Alert.alert('Login Failed', 'Invalid username or password. Please try again.');
       } else {
         Alert.alert(
@@ -161,7 +168,7 @@ export default function LoginScreen() {
               noiseOpacity={0.08}
               style={styles.bottomSheet}
             >
-              <View style={styles.sheetContent}>
+              <View style={[styles.sheetContent, { paddingBottom: SPACING.lg + bottomSafe }]}>
                 <View style={styles.usernameWrapper}>
                   <Input
                     icon="user"

@@ -67,11 +67,13 @@ TabButton.propTypes = {
   onPress: PropTypes.func,
 };
 
-function Fab({ icon, onPress }) {
+function Fab({ icon, onPress, fabRef }) {
   const { onPressIn, onPressOut, rippleStyle } = useRippleAnimation(RIPPLE_CONFIG);
 
   return (
     <Pressable
+      ref={fabRef}
+      collapsable={false}
       style={styles.fab}
       onPress={onPress}
       onPressIn={onPressIn}
@@ -80,7 +82,7 @@ function Fab({ icon, onPress }) {
       accessibilityRole="button"
     >
       <Animated.View pointerEvents="none" style={[styles.fabRipple, rippleStyle]} />
-      <Icon name={icon} size={23} color="#FFFFFF" weight="fill" />
+      <Icon name={icon} size={26} color="#FFFFFF" weight="bold" />
     </Pressable>
   );
 }
@@ -88,6 +90,7 @@ function Fab({ icon, onPress }) {
 Fab.propTypes = {
   icon: PropTypes.string.isRequired,
   onPress: PropTypes.func,
+  fabRef: PropTypes.object,
 };
 
 /**
@@ -103,13 +106,23 @@ Fab.propTypes = {
  * the FAB is a sibling of that clipped row (not inside it), so its own
  * float above the border is unaffected by the clip.
  */
+// What the bar covers at the bottom of a screen: its own height plus the phone's bottom inset. A list above it
+// needs at least this much padding at its end, or the last rows hide behind the bar and cannot be scrolled to.
+export function useBottomNavBarHeight() {
+  const insets = useSafeAreaInsets();
+  return BAR_HEIGHT + insets.bottom;
+}
+
 export default function BottomNavBar({
   activeTab = 'dashboard',
   onTabPress = null,
   onFabPress = null,
-  fabIcon = 'grid',
+  fabIcon = 'qrCode',
   fabLabel,
+  fabBadgeCount = 0,
   hiddenKeys = [],
+  // Lets a first-time tour measure the round button.
+  fabRef,
 }) {
   const insets = useSafeAreaInsets();
   // Collector has no Stock/Reports screens (see ComingSoonScreen's
@@ -147,7 +160,12 @@ export default function BottomNavBar({
         ))}
       </View>
 
-      <Fab icon={fabIcon} onPress={onFabPress} />
+      <Fab icon={fabIcon} onPress={onFabPress} fabRef={fabRef} />
+      {fabBadgeCount > 0 && (
+        <View pointerEvents="none" style={styles.fabBadge}>
+          <Text style={styles.fabBadgeText}>{fabBadgeCount > 9 ? '9+' : String(fabBadgeCount)}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -158,6 +176,8 @@ BottomNavBar.propTypes = {
   onFabPress: PropTypes.func,
   fabIcon: PropTypes.string,
   fabLabel: PropTypes.string,
+  fabBadgeCount: PropTypes.number,
+  fabRef: PropTypes.object,
   hiddenKeys: PropTypes.arrayOf(PropTypes.oneOf(['dashboard', 'stock', 'reports', 'settings'])),
 };
 
@@ -210,7 +230,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    // A white ring separates it from the page and the bar, plus a normal, barely visible shadow.
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
+  fabBadge: {
+    position: 'absolute',
+    top: -FAB_SIZE / 2 - 4,
+    left: '50%',
+    marginLeft: FAB_SIZE / 2 - 16,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 5,
+    borderRadius: 11,
+    backgroundColor: COLORS.error,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fabBadgeText: { fontSize: 11, color: '#FFFFFF', fontWeight: '700' },
   fabRipple: {
     position: 'absolute',
     width: FAB_SIZE,

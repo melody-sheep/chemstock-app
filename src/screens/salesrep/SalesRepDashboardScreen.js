@@ -1,6 +1,7 @@
 // src/screens/salesrep/SalesRepDashboardScreen.js
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, Animated, Alert, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Animated, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
@@ -14,19 +15,26 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StatCard from '../../components/common/StatCard';
+import FocusCard from '../../components/common/FocusCard';
 import ActionCard from '../../components/common/ActionCard';
 import LogListItem from '../../components/common/LogListItem';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import WelcomeOverview from '../../components/common/WelcomeOverview';
 import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import deliveryService from '../../services/deliveryService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
+import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
+import { formatBranchLabel } from '../../utils/branchLabel';
+import { manilaToday } from '../../utils/expiry';
 import { routeQrScan } from '../../utils/routeQrScan';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -61,7 +69,7 @@ const primeOtherScreens = () => {
 
 // Same layout/spec as ManagerDashboardScreen — this constant intentionally
 // matches its value so the collapsing header behaves identically.
-const SECONDARY_HEADER_HEIGHT = 100;
+const SECONDARY_HEADER_HEIGHT = 92;
 
 // 2nd_header_img_salerep.png is 404x466 natively. Unlike the Manager
 // dashboard's illustration (flush against the edge), this one gets a 16px
@@ -70,17 +78,6 @@ const HEADER_ILLUSTRATION_ASPECT_RATIO = 404 / 466;
 const HEADER_ILLUSTRATION_WIDTH = SECONDARY_HEADER_HEIGHT * HEADER_ILLUSTRATION_ASPECT_RATIO;
 
 // Same branch label rule as ManagerDashboardScreen: "IPONAN BRANCH, BUTUAN BRANCH" -> "Ipon..., Butu..."
-const BRANCH_LABEL_CHARS = 4;
-const formatBranchLabel = (branchName) =>
-  branchName
-    .split(',')
-    .map((part) => part.trim().replace(/\s*branch$/i, '').toLowerCase())
-    .filter(Boolean)
-    .map((part) => {
-      const name = part.replace(/\b\w/g, (letter) => letter.toUpperCase());
-      return name.length > BRANCH_LABEL_CHARS ? `${name.slice(0, BRANCH_LABEL_CHARS)}...` : name;
-    })
-    .join(', ');
 
 const QUICK_STATS = [
   {
@@ -116,6 +113,7 @@ const MAIN_OPERATIONS = [
 
 export default function SalesRepDashboardScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
@@ -123,6 +121,10 @@ export default function SalesRepDashboardScreen() {
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
+  const [welcomeOpen, setWelcomeOpen] = useState(null);
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -139,15 +141,22 @@ export default function SalesRepDashboardScreen() {
     // A different account must never see the last account's numbers.
     const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
-    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult, notificationsResult] =
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult, pendingHandoffsResult, discrepanciesResult, notificationsResult, lastReportResult] =
       await Promise.all([
         inventoryService.getSrInventory(currentUser?.id),
         inventoryService.getSrActivityLogs(currentUser?.id, 3),
         requestService.getMyStockRequests(currentUser?.id, 5),
         inventoryService.getMyDeliveries(currentUser?.id, 10),
+        deliveryService.getMyPendingHandoffs(currentUser?.id),
         reportService.getMyDiscrepancies(currentUser?.id, 50),
         notificationService.getMyNotifications(currentUser?.id),
+        reportService.getMyDailyReports(currentUser?.id, 1),
       ]);
+
+    let pendingHandoffCount = prev?.pendingHandoffCount ?? 0;
+    if (pendingHandoffsResult.success) {
+      pendingHandoffCount = pendingHandoffsResult.data.length;
+    }
 
     const requests = requestsResult.success ? requestsResult.data : [];
     const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
@@ -183,6 +192,12 @@ export default function SalesRepDashboardScreen() {
       pendingRequestCount: requestsResult.success
         ? requests.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId)).length
         : prev?.pendingRequestCount ?? null,
+      pendingHandoffCount,
+      pendingDirectReleaseCount: notificationsResult.success
+        ? notificationsResult.data.filter(
+          (notification) => notification.type === 'stock_released_to_you' && !notification.isRead
+        ).length
+        : prev?.pendingDirectReleaseCount ?? 0,
       openDiscrepancyCount: discrepanciesResult.success
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
@@ -191,10 +206,14 @@ export default function SalesRepDashboardScreen() {
       notificationCount: notificationsResult.success
         ? notificationsResult.unreadCount
         : prev?.notificationCount ?? 0,
+      // Day of the latest report filed (or auto-filed), for the "Today" card.
+      lastReportDate: lastReportResult.success
+        ? lastReportResult.data?.[0]?.reportDate ?? null
+        : prev?.lastReportDate ?? null,
     };
   };
 
-  const { data: snapshot, isLoading, savedAt, refreshControl } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
+  const { data: snapshot, isLoading, savedAt, refreshControlAt } = useCachedFocusLoader('sales-rep-dashboard', loadDashboardData);
   useEffect(() => {
     if (savedAt && getConnectionStatus().online) primeOtherScreens();
   }, [savedAt]);
@@ -209,6 +228,9 @@ export default function SalesRepDashboardScreen() {
   const queuedRequestCount = queuedEntries.filter((e) => e.type === 'stock_request' && e.payload?.agentId === user?.id).length;
   const pendingRequestCount = snapshot?.pendingRequestCount == null ? null : snapshot.pendingRequestCount + queuedRequestCount;
   const openDiscrepancyCount = snapshot?.openDiscrepancyCount ?? 0;
+  // "Today" card: is today's report in, waiting to send, or still to do.
+  const reportQueued = queuedEntries.some((e) => e.type === 'daily_report' && e.payload?.agentId === user?.id);
+  const reportDoneToday = snapshot?.lastReportDate === manilaToday();
   const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
   const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
   const notificationCount = liveUnreadCount ?? snapshot?.notificationCount ?? 0;
@@ -239,8 +261,10 @@ export default function SalesRepDashboardScreen() {
       return {
         key: `discrepancy-${log.reportItemId}`,
         icon: 'warning',
-        iconColor: COLORS.error,
-        text: `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
+        iconColor: log.carryForwardEnabled ? '#D98200' : COLORS.error,
+        text: log.carryForwardEnabled
+          ? `Missing on report: ${log.productName} (${Math.abs(log.discrepancy)} units) still in backpack; carried forward — ${formatRelativeTime(log.reportDate)}`
+          : `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
     }
@@ -344,8 +368,6 @@ export default function SalesRepDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.statusText}>Status</Text>
-
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>
@@ -382,13 +404,48 @@ export default function SalesRepDashboardScreen() {
           </Animated.View>
 
           <ScrollView
-          refreshControl={refreshControl}
+            ref={tourScrollRef}
+          refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+          <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
+          <View ref={tourRefs.focus} collapsable={false}>
+          {isLoading ? (
+            <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
+          ) : (
+            <FocusCard
+              title="Today"
+              storageKey="sales-rep-today"
+              icon="clock"
+              emptyText="Nothing to do right now."
+              rows={[
+                totalUnits !== null && {
+                  key: 'backpack', icon: 'backpack', tone: 'info', label: 'In your backpack',
+                  value: `${totalUnits.toLocaleString()} item${totalUnits === 1 ? '' : 's'}`,
+                  onPress: () => navigation.navigate('SalesRepBackpack'),
+                },
+                reportQueued
+                  ? { key: 'report', icon: 'clipboardText', tone: 'info', label: 'Daily report', value: 'Waiting to send', onPress: () => navigation.navigate('SubmitReportSR') }
+                  : reportDoneToday
+                    ? { key: 'report', icon: 'clipboardText', tone: 'good', label: 'Daily report', value: 'Submitted', onPress: () => navigation.navigate('SubmitReportSR') }
+                    : totalUnits > 0 && { key: 'report', icon: 'clipboardText', tone: 'warn', label: 'Daily report', value: 'Due today', onPress: () => navigation.navigate('SubmitReportSR') },
+                pendingRequestCount > 0 && {
+                  key: 'requests', icon: 'peopleGroup', tone: 'warn', label: 'Stock requests',
+                  value: `${pendingRequestCount} pending`, onPress: () => navigation.navigate('SalesRepStockRequests'),
+                },
+                openDiscrepancyCount > 0 && {
+                  key: 'discrepancies', icon: 'warningTriangle', tone: 'alert', label: 'To resolve',
+                  value: String(openDiscrepancyCount), onPress: () => navigation.navigate('AlertsDiscrepanciesSR'),
+                },
+              ]}
+            />
+          )}
+          </View>
+
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
             <View style={styles.statsRow}>
@@ -396,7 +453,7 @@ export default function SalesRepDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-            <View style={styles.statsRow}>
+            <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
               {displayedStats.map((stat) => {
                 const card = (
                   <StatCard
@@ -407,6 +464,8 @@ export default function SalesRepDashboardScreen() {
                     borderLeftColor={stat.borderLeftColor}
                     value={stat.value}
                     label={stat.label}
+                    iconSize={32}
+                    style={styles.statCardCompact}
                   />
                 );
                 if (stat.key === 'totalItems') {
@@ -443,7 +502,7 @@ export default function SalesRepDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operations</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -453,12 +512,24 @@ export default function SalesRepDashboardScreen() {
                 title={operation.title}
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
-                badgeCount={operation.key === 'alerts' ? openDiscrepancyCount : 0}
+                layout="tile"
+                badgeCount={
+                  operation.key === 'alerts'
+                    ? openDiscrepancyCount
+                    : operation.key === 'receiveStock'
+                      ? (snapshot?.pendingHandoffCount ?? 0) + (snapshot?.pendingDirectReleaseCount ?? 0)
+                      : 0
+                }
               />
             ))}
           </View>
 
-          <Text style={styles.sectionTitle}>Recent Logs</Text>
+          <View style={styles.logsTitleRow}>
+            <Text style={[styles.sectionTitle, styles.logsTitle]}>Recent Logs</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SalesRepLogs')} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.seeAll}>See all ›</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.logsList}>
             {isLoading ? (
               <SkeletonList count={3} lines={1} thumbSize={36} />
@@ -470,12 +541,10 @@ export default function SalesRepDashboardScreen() {
                   iconColor={log.iconColor}
                   text={log.text}
                   onPress={() => {
-                    if (log.log.logType === 'delivery') {
-                      navigation.navigate('SalesRepTrackDeliveries');
-                    } else if (log.log.logType === 'discrepancy') {
-                      navigation.navigate('AlertsDiscrepanciesSR');
+                    if (log.log.logType === 'discrepancy') {
+                      navigation.navigate('ResolveDiscrepancy', { reportItem: log.log });
                     } else {
-                      navigation.navigate('SalesRepLogs', { initialLog: log.log });
+                      navigation.navigate('SalesRepLogDetail', { log: log.log });
                     }
                   }}
                 />
@@ -488,6 +557,7 @@ export default function SalesRepDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
@@ -500,6 +570,8 @@ export default function SalesRepDashboardScreen() {
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
       />
+      <DashboardTour role="sales_rep" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && welcomeOpen === false} />
+      <WelcomeOverview role="sales_rep" userId={user?.id} name={user?.full_name || user?.username} onSettled={setWelcomeOpen} />
     </>
   );
 }
@@ -533,7 +605,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   welcomeText: {
-    fontSize: 25,
+    fontSize: 22,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     letterSpacing: -0.75,
@@ -545,9 +617,9 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
     gap: SPACING.sm,
-    width: '72%',
+    width: '82%',
   },
   branchGroup: {
     flexShrink: 1,
@@ -589,21 +661,25 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+  statCardCompact: { paddingVertical: SPACING.md + 4, paddingHorizontal: SPACING.sm },
   statTouchable: {
     flex: 1,
   },
   operationsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: SPACING.xl,
+    gap: 8,
+    marginBottom: SPACING.lg,
   },
   operationCard: {
-    width: '48%',
-    minHeight: 72,
+    width: '31.5%',
+    minHeight: 88,
   },
+  logsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  logsTitle: { marginBottom: 0 },
+  seeAll: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: '#0085F9' },
   logsList: {
     gap: SPACING.sm,
   },

@@ -6,15 +6,23 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
+import UserAvatar from '../../components/common/UserAvatar';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
 import QRScannerModal from '../../components/common/QRScannerModal';
+import { getInitials } from '../../utils/initials';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
+
+// Blue frame so the scan box reads as something you can tap (as on Receive Stock).
+const SCAN_BLUE = '#0085F9';
+const SCAN_BLUE_TINT = '#EAF4FF';
+const ROLE_LABEL = { collector: 'Collector', sales_rep: 'Sales Rep' };
 
 export default function ReleaseStockMethodScreen() {
   const navigation = useNavigation();
@@ -46,9 +54,12 @@ export default function ReleaseStockMethodScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56}>
+        <SecondaryHeader height={76}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Pick Products</Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Choose a Batch</Text>
+              <Text style={styles.pageSubtitle}>Scan its QR, or register new items</Text>
+            </View>
             <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
@@ -56,22 +67,54 @@ export default function ReleaseStockMethodScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
-          <Text style={styles.recipientNote}>
-            Releasing to <Text style={styles.recipientName}>{recipient.fullName}</Text>
-          </Text>
+          {/* Who this release is for (already chosen on the last screen). */}
+          <View style={styles.summaryCard}>
+              <View style={styles.summaryPerson}>
+                <UserAvatar
+                  photoUrl={recipient.profilePhotoUrl}
+                  fallbackText={getInitials(recipient.fullName)}
+                  size={36}
+                  backgroundColor={COLORS.primaryLight}
+                  fallbackTextColor={COLORS.primary}
+                />
+                <View style={styles.summaryTextCol}>
+                  <Text style={styles.summaryCaption}>{targetRecipient ? (ROLE_LABEL[recipient.role] || 'Recipient') : 'Releasing to'}</Text>
+                  <Text style={styles.summaryName} numberOfLines={1}>{recipient.fullName}</Text>
+                </View>
+              </View>
+            {targetRecipient && (
+              <>
+                <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
+              <View style={styles.summaryPerson}>
+                <UserAvatar
+                  photoUrl={targetRecipient.profilePhotoUrl}
+                  fallbackText={getInitials(targetRecipient.fullName)}
+                  size={36}
+                  backgroundColor={COLORS.primaryLight}
+                  fallbackTextColor={COLORS.primary}
+                />
+                <View style={styles.summaryTextCol}>
+                  <Text style={styles.summaryCaption}>Deliver to</Text>
+                  <Text style={styles.summaryName} numberOfLines={1}>{targetRecipient.fullName}</Text>
+                </View>
+              </View>
+              </>
+            )}
+          </View>
 
-          <Text style={styles.sectionTitle}>Shipment Identification</Text>
+          <SectionHeader icon="qrCode" size="md" label="Scan a batch QR" style={styles.labelFirst} />
           <TouchableOpacity style={styles.scanBox} onPress={() => setIsScannerVisible(true)} activeOpacity={0.7}>
-            <Icon name="qrCode" size={56} color={COLORS.textPrimary} />
+            <Icon name="qrCode" size={56} color={SCAN_BLUE} />
             <Text style={styles.scanTitle}>Scan QR Code</Text>
-            <Text style={styles.scanSubtitle}>(For QR-enabled batches)</Text>
+            <Text style={styles.scanSubtitle}>(For batches that already have a QR)</Text>
           </TouchableOpacity>
 
-          <Text style={styles.sectionTitle}>Items not in the system?</Text>
+          <SectionHeader icon="package" size="md" label="No QR yet?" style={styles.labelSpaced} />
           <TouchableOpacity style={styles.urgentBox} onPress={handleQuickRegister} activeOpacity={0.7}>
-            <Icon name="plus" size={18} color={COLORS.error} weight="bold" />
-            <Text style={styles.urgentText}>Quick Register (Urgent)</Text>
+            <Icon name="plus" size={18} color={COLORS.accentOrange} weight="bold" />
+            <Text style={styles.urgentText}>Register New Items</Text>
           </TouchableOpacity>
+          <Text style={styles.helperText}>Use this for items that are not in the system yet.</Text>
         </ScrollView>
       </View>
 
@@ -107,7 +150,49 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.sm, paddingBottom: 40 },
+  labelFirst: { marginTop: SPACING.md, marginBottom: 0 },
+  labelSpaced: { marginTop: SPACING.lg, marginBottom: 0 },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+  },
+  summaryPerson: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  summaryTextCol: { flex: 1 },
+  summaryCaption: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  summaryName: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  helperText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
   recipientNote: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
@@ -128,15 +213,15 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
   scanBox: {
-    minHeight: 140,
+    minHeight: 168,
     borderWidth: 1.5,
-    borderColor: '#757575',
+    borderColor: SCAN_BLUE,
     borderStyle: 'dotted',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SCAN_BLUE_TINT,
     marginTop: SPACING.sm,
   },
   scanTitle: {
@@ -144,14 +229,13 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.primary,
   },
   scanSubtitle: {
     marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    fontStyle: 'italic',
     color: COLORS.textSecondary,
   },
   urgentBox: {
@@ -160,16 +244,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.xs,
     height: 52,
-    borderRadius: 12,
-    backgroundColor: COLORS.error + '12',
+    borderRadius: 26,
+    backgroundColor: COLORS.accentOrange + '14',
     borderWidth: 1,
-    borderColor: COLORS.error + '40',
+    borderColor: COLORS.accentOrange + '66',
     marginTop: SPACING.sm,
   },
   urgentText: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.error,
+    color: COLORS.accentOrange,
   },
 });

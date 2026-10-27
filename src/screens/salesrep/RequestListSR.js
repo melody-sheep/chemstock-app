@@ -1,7 +1,9 @@
 // src/screens/salesrep/RequestListSR.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
@@ -10,12 +12,14 @@ import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondary
 import Icon from '../../components/common/Icon';
 import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import authService from '../../services/authService';
 import requestService from '../../services/requestService';
 import outboxService from '../../services/outboxService';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import useOutbox from '../../hooks/useOutbox';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { STOCK_HEALTHY_THRESHOLD } from '../../constants/inventory';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -26,6 +30,11 @@ import { getDeviceLabel, getDeviceOs } from '../../utils/deviceInfo';
 export default function RequestListSR() {
   const navigation = useNavigation();
   const route = useRoute();
+  const blurTarget = useRef(null);
+  // Items and details can be folded away, like the release summary on the Manager side. Both start open.
+  const [itemsOpen, setItemsOpen] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const bottomActionBarHeight = useBottomActionBarHeight();
 
   const [items, setItems] = useState(route.params?.items || []);
   // Branch stock rows passed from Request Stock. The cap follows the branch
@@ -158,7 +167,12 @@ export default function RequestListSR() {
         throw liveError;
       }
 
-      setIsSent(true);
+      Alert.alert(
+        'Request sent',
+        `${items.length} item${items.length === 1 ? '' : 's'}, ${totalUnits} units sent to your branch manager.`,
+        [{ text: 'OK', onPress: handleDone }],
+        { cancelable: false }
+      );
     } catch (error) {
       Alert.alert('Failed to Send Request', friendlyError(error.message) || 'Please try again.');
     } finally {
@@ -194,7 +208,8 @@ export default function RequestListSR() {
         <Header showBackButton backButtonText="Request Stock" height={56} backgroundColor="#03045E" textColor="#FFFFFF" paddingHorizontal={SPACING.md} />
         <SubScreenSecondaryHeader title="Request List" />
 
-        <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <KeyboardAwareScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.lg }]} showsVerticalScrollIndicator={false}>
           {pendingCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
@@ -202,7 +217,7 @@ export default function RequestListSR() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.pendingBannerTitle}>
-                  Pending — {pendingCount} waiting to sync
+                  Pending — {pendingCount} waiting to send
                 </Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
@@ -216,112 +231,176 @@ export default function RequestListSR() {
 
           <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
-          <Text style={styles.sectionTitle}>Sending to {branchName || 'branch'}</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryIcon}>
+              <Icon name="building" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.summaryTextCol}>
+              <Text style={styles.summaryLabel}>SENDING TO</Text>
+              <Text style={styles.summaryBranch} numberOfLines={1}>{branchName || 'branch'}</Text>
+            </View>
+            <View style={styles.summaryCount}>
+              <Text style={styles.summaryCountText}>
+                {items.length} item{items.length === 1 ? '' : 's'} · {totalUnits} pcs
+              </Text>
+            </View>
+          </View>
 
-          <Text style={styles.sectionTitle}>Requested Items</Text>
+          <TouchableOpacity
+            style={styles.foldHeader}
+            onPress={() => setItemsOpen((value) => !value)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={itemsOpen ? 'Collapse items' : 'Expand items'}
+            accessibilityState={{ expanded: itemsOpen }}
+          >
+            <Text style={styles.foldLabel}>ITEMS</Text>
+            <View style={{ flex: 1 }} />
+            <View style={styles.foldPill}>
+              <Text style={styles.foldPillText}>{itemsOpen ? 'Show less' : `Show all (${items.length})`}</Text>
+              <View style={{ transform: [{ rotate: itemsOpen ? '180deg' : '0deg' }] }}>
+                <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+              </View>
+            </View>
+          </TouchableOpacity>
 
           {items.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Icon name="boxPackage" size={28} color={COLORS.textSecondary} />
+              <Icon name="package" size={28} color={COLORS.textSecondary} />
               <Text style={styles.emptyText}>No items in your request.</Text>
             </View>
           ) : (
             <View style={styles.itemsCard}>
-              {items.map((item, index) => (
-                <View key={item.productCode} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
-                  <View style={styles.thumbnail}>
-                    {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
-                      <Image
-                        source={PRODUCT_CATALOG.find((p) => p.code === item.productCode).image}
-                        style={styles.thumbnailImage}
-                        resizeMode="contain"
-                      />
-                    ) : (
-                      <Icon name="boxPackage" size={22} color="#94a3b8" />
-                    )}
+              {(itemsOpen ? items : items.slice(0, 1)).map((item, index) => {
+                const atBranch = availableAt(item.productCode, selectedBranchId);
+                const short = isShortAtBranch(item);
+                const pill = short || atBranch === 0
+                  ? { bg: '#FDECEC', color: '#B91C1C' }
+                  : atBranch < STOCK_HEALTHY_THRESHOLD
+                  ? { bg: '#FFF1D6', color: '#B26400' }
+                  : { bg: '#E1F4E8', color: '#1E7A3A' };
+                const catalogImage = PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image;
+                return (
+                  <View key={item.productCode} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                    <View style={styles.thumbnail}>
+                      {catalogImage ? (
+                        <Image source={catalogImage} style={styles.thumbnailImage} resizeMode="contain" />
+                      ) : (
+                        <Icon name="package" size={22} color="#94a3b8" />
+                      )}
+                    </View>
+                    <View style={styles.itemInfo}>
+                      <View style={styles.itemTitleRow}>
+                        <Text style={styles.itemName} numberOfLines={1}>{item.productName}</Text>
+                        <TouchableOpacity
+                          onPress={() => handleRemove(item.productCode)}
+                          style={styles.removeBtn}
+                          hitSlop={8}
+                          accessibilityLabel={`Remove ${item.productName}`}
+                        >
+                          <Icon name="trash" size={18} color={COLORS.error} />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.itemBottomRow}>
+                      <View style={[styles.stockPill, { backgroundColor: pill.bg }]}>
+                        <Text style={[styles.stockPillText, { color: pill.color }]}>
+                          {short ? `Only ${atBranch} left` : `${atBranch} pcs at branch`}
+                        </Text>
+                      </View>
+                      <View style={styles.stepperInline}>
+                        <TouchableOpacity
+                          style={styles.stepperBtn}
+                          onPress={() => handleAdjustQty(item.productCode, -1)}
+                          accessibilityLabel={`Decrease ${item.productName} quantity`}
+                        >
+                          <Icon name="minus" size={14} color={COLORS.primary} weight="bold" />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.qtyInput}
+                          value={String(item.quantity)}
+                          keyboardType="number-pad"
+                          selectTextOnFocus
+                          maxLength={5}
+                          onChangeText={(text) =>
+                            handleSetQty(item.productCode, parseInt(text.replace(/\D/g, ''), 10) || 0)
+                          }
+                          onEndEditing={() => handleSetQty(item.productCode, Math.max(1, item.quantity))}
+                          accessibilityLabel={`${item.productName} quantity`}
+                        />
+                        <TouchableOpacity
+                          style={[styles.stepperBtn, styles.stepperBtnPlus]}
+                          onPress={() => handleAdjustQty(item.productCode, 1)}
+                          accessibilityLabel={`Increase ${item.productName} quantity`}
+                        >
+                          <Icon name="plus" size={14} color="#FFFFFF" weight="bold" />
+                        </TouchableOpacity>
+                      </View>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>{item.productName}</Text>
-                    <Text style={styles.itemMeta}>Code: {item.productCode}</Text>
-                    {isShortAtBranch(item) && (
-                      <Text style={styles.shortText}>
-                        Only {availableAt(item.productCode, selectedBranchId)} pcs at this branch
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.stepperInline}>
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.productCode, -1)}
-                      accessibilityLabel={`Decrease ${item.productName} quantity`}
-                    >
-                      <Icon name="minus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                    <TextInput
-                      style={styles.qtyInput}
-                      value={String(item.quantity)}
-                      keyboardType="number-pad"
-                      selectTextOnFocus
-                      maxLength={5}
-                      onChangeText={(text) =>
-                        handleSetQty(item.productCode, parseInt(text.replace(/\D/g, ''), 10) || 0)
-                      }
-                      onEndEditing={() => handleSetQty(item.productCode, Math.max(1, item.quantity))}
-                      accessibilityLabel={`${item.productName} quantity`}
-                    />
-                    <TouchableOpacity
-                      style={styles.stepperBtn}
-                      onPress={() => handleAdjustQty(item.productCode, 1)}
-                      accessibilityLabel={`Increase ${item.productName} quantity`}
-                    >
-                      <Icon name="plus" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity onPress={() => handleRemove(item.productCode)} style={styles.removeBtn}>
-                    <Icon name="trash" size={16} color={COLORS.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
 
-          {items.length > 0 && (
-            <Text style={styles.summaryText}>
-              📦 {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units to request
-            </Text>
-          )}
-
-          <Text style={styles.sectionTitle}>Request Details</Text>
+          <TouchableOpacity
+            style={styles.foldHeader}
+            onPress={() => setDetailsOpen((value) => !value)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={detailsOpen ? 'Collapse request details' : 'Expand request details'}
+            accessibilityState={{ expanded: detailsOpen }}
+          >
+            <Text style={styles.foldLabel}>REQUEST DETAILS</Text>
+            <View style={{ flex: 1 }} />
+            <View style={styles.foldPill}>
+              <Text style={styles.foldPillText}>{detailsOpen ? 'Show less' : 'Show all'}</Text>
+              <View style={{ transform: [{ rotate: detailsOpen ? '180deg' : '0deg' }] }}>
+                <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+              </View>
+            </View>
+          </TouchableOpacity>
           <View style={styles.metaCard}>
             <View style={styles.metaRow}>
-              <Icon name="location" size={16} color={COLORS.error} />
+              <View style={[styles.metaIcon, { backgroundColor: '#FDECEC' }]}>
+                <Icon name="location" size={16} color={COLORS.error} />
+              </View>
               <Text style={styles.metaText}>
                 {coords ? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}` : locationError || 'Locating…'}
               </Text>
             </View>
+            {detailsOpen && (
+            <>
             <View style={styles.metaRow}>
-              <Icon name="building" size={16} color={COLORS.primary} />
-              <Text style={styles.metaText}>{branchName || 'Loading branch…'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Icon name="package" size={16} color={COLORS.textSecondary} />
+              <View style={[styles.metaIcon, { backgroundColor: '#EAF4FF' }]}>
+                <Icon name="package" size={16} color={COLORS.primary} />
+              </View>
               <Text style={styles.metaText}>{deviceLabel || 'Unknown device'}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Icon name="calendar" size={16} color={COLORS.textSecondary} />
+              <View style={[styles.metaIcon, { backgroundColor: '#F1F3F6' }]}>
+                <Icon name="calendar" size={16} color={COLORS.textSecondary} />
+              </View>
               <Text style={styles.metaText}>{capturedAt.toLocaleString()}</Text>
             </View>
+            </>
+            )}
           </View>
+        </KeyboardAwareScrollView>
+        </BlurTargetView>
 
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
             title={isSubmitting ? 'Sending…' : 'Send Request'}
             variant="black"
             onPress={handleSend}
             loading={isSubmitting}
             disabled={isSubmitting || !agent || items.length === 0 || !selectedBranchId}
-            style={styles.sendButton}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
-        </KeyboardAwareScrollView>
+        </BottomActionBar>
       </View>
     </>
   );
@@ -329,7 +408,37 @@ export default function RequestListSR() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.md },
+  contentTarget: { flex: 1 },
+  content: { padding: SPACING.lg, paddingBottom: 48, gap: SPACING.sm },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  summaryIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#EAF4FF', alignItems: 'center', justifyContent: 'center' },
+  summaryTextCol: { flex: 1 },
+  summaryLabel: { fontSize: 11, letterSpacing: 0.8, color: COLORS.textTertiary, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  summaryBranch: { marginTop: 1, fontSize: TYPOGRAPHY.fontSize.base, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  summaryCount: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: '#EAF4FF' },
+  summaryCountText: { fontSize: TYPOGRAPHY.fontSize.xs, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  foldHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginTop: SPACING.sm, paddingVertical: 4 },
+  foldLabel: { fontSize: 12, letterSpacing: 0.8, color: COLORS.textTertiary, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  foldPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, backgroundColor: '#EAF4FF' },
+  foldPillText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  foldHint: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  sectionLabel: { marginTop: SPACING.sm, fontSize: 12, letterSpacing: 0.8, color: COLORS.textTertiary, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  itemTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  itemBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.xs, marginTop: 6 },
+  stockPill: { flexShrink: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  stockPillText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  stepperBtnPlus: { backgroundColor: COLORS.primary },
+  metaIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   pendingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,7 +464,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -367,7 +476,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -401,10 +510,11 @@ const styles = StyleSheet.create({
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: SPACING.sm,
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
   },
@@ -422,7 +532,9 @@ const styles = StyleSheet.create({
     height: '70%',
   },
   itemInfo: { flex: 1 },
+  itemNameFlex: { flex: 1 },
   itemName: {
+    flex: 1,
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
@@ -430,15 +542,15 @@ const styles = StyleSheet.create({
   },
   itemMeta: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
-  stepperInline: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  stepperInline: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stepperBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
@@ -454,14 +566,14 @@ const styles = StyleSheet.create({
   removeBtn: { padding: 4 },
   shortText: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.error,
   },
   qtyInput: {
-    minWidth: 52,
-    height: 34,
+    minWidth: 44,
+    height: 30,
     borderWidth: 1,
     borderColor: '#D0D5DD',
     borderRadius: 8,
@@ -484,8 +596,9 @@ const styles = StyleSheet.create({
     borderColor: '#E5E5E5',
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    padding: SPACING.md,
-    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    gap: 6,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   metaText: {

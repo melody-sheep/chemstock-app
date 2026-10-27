@@ -1,6 +1,7 @@
 // src/screens/salesrep/ReceiveStockTypeSR.js
 import React, { useState, useCallback } from 'react';
-import { View, Text, Image, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +9,7 @@ import Icon from '../../components/common/Icon';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { RADIUS } from '../../styles/radius';
@@ -16,11 +18,13 @@ import friendlyError, { isNetworkError } from '../../utils/friendlyError';
 import { savedReceivableDeliveries } from '../../utils/srDeliveries';
 import { getConnectionStatus } from '../../services/connectionStatus';
 import Header from '../../components/common/Header';
+import SectionHeader from '../../components/common/SectionHeader';
 
 export default function ReceiveStockTypeSR() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadDirectReleaseCount, setUnreadDirectReleaseCount] = useState(0);
   const [isChecking, setIsChecking] = useState(false);
 
   // Refresh the pending count every time the screen comes into focus.
@@ -34,11 +38,26 @@ export default function ReceiveStockTypeSR() {
           if (!agent?.id) {
             throw new Error('Current account is unavailable.');
           }
-          const result = await deliveryService.getMyPendingHandoffs(agent.id);
+          const [result, notificationsResult] = await Promise.all([
+            deliveryService.getMyPendingHandoffs(agent.id),
+            notificationService.getMyNotifications(agent.id),
+          ]);
           if (!result.success) {
             throw new Error(result.message || 'Could not load pending deliveries.');
           }
           if (active) setPendingCount((result.data || []).length);
+          if (notificationsResult.success && active) {
+            setUnreadDirectReleaseCount(
+              notificationsResult.data.filter(
+                (notification) => notification.type === 'stock_released_to_you' && !notification.isRead
+              ).length
+            );
+          } else if (!notificationsResult.success) {
+            console.warn(
+              '[WARN] [ReceiveStockTypeSR] Failed to refresh direct release notification:',
+              notificationsResult.message
+            );
+          }
         } catch (error) {
           console.warn('[WARN] [ReceiveStockTypeSR] Failed to refresh pending handoff count:', error);
           // Offline: count from the deliveries saved on this phone.
@@ -112,28 +131,30 @@ export default function ReceiveStockTypeSR() {
         <View style={styles.summaryBar}>
           <View style={{ flex: 1 }}>
             <Text style={styles.summaryTitle}>Receive Stock</Text>
-            <Text style={styles.summarySubtitle}>Handoff Verification</Text>
+            <Text style={styles.summarySubtitle}>How did the stock reach you?</Text>
           </View>
-          <LiveStatusPill
-            pillStyle={styles.statusPill}
-            dotStyle={styles.statusDot}
-            textStyle={styles.statusText}
-            offlinePillStyle={styles.statusPillOffline}
-            offlineDotStyle={styles.statusDotOffline}
-            offlineTextStyle={styles.statusTextOffline}
-          />
+          <LiveStatusPill pillStyle={styles.statusPill} dotStyle={styles.statusDot} textStyle={styles.statusText} />
         </View>
 
         {/* Main content */}
         <View style={styles.content}>
-          <Text style={styles.sectionHeading}>Select Handover Type</Text>
+          <SectionHeader icon="package" size="md" label="Choose the handover type" style={styles.labelFirst} />
 
           {/* Direct From Manager card */}
           <Pressable
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            style={({ pressed }) => [
+              styles.card,
+              styles.cardDirect,
+              unreadDirectReleaseCount > 0 && styles.cardWithNotification,
+              pressed && styles.cardPressed,
+            ]}
             onPress={() => handleSelectType('manager')}
             accessibilityRole="button"
-            accessibilityLabel="Receive stock directly from manager"
+            accessibilityLabel={
+              unreadDirectReleaseCount > 0
+                ? `Receive stock directly from manager, ${unreadDirectReleaseCount} new release${unreadDirectReleaseCount === 1 ? '' : 's'}`
+                : 'Receive stock directly from manager'
+            }
           >
             <View style={styles.cardTop}>
               <View style={[styles.cardIconWrap, styles.cardIconWrapDirect]}>
@@ -141,18 +162,41 @@ export default function ReceiveStockTypeSR() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>Direct From Manager</Text>
-                <Text style={styles.cardSubtitle}>Pick up directly from the main branch.</Text>
+                <Text style={styles.cardSubtitle}>You pick it up at the branch and scan its QR.</Text>
               </View>
+              <Icon name="arrowRight" size={20} color={COLORS.primary} />
             </View>
-            <View style={styles.cardAction}>
-              <Text style={styles.cardActionText}>Continue</Text>
-              <Icon name="arrowRight" size={18} color={COLORS.primary} />
-            </View>
+            {unreadDirectReleaseCount > 0 && (
+              <View style={styles.notificationSummary}>
+                <Text style={styles.notificationSummaryText}>
+                  {unreadDirectReleaseCount} release{unreadDirectReleaseCount === 1 ? '' : 's'}
+                </Text>
+                <View style={styles.notificationIconWrap}>
+                  <Icon name="notification" size={17} color={COLORS.error} />
+                  <View style={styles.notificationCount}>
+                    <Text style={styles.notificationCountText}>
+                      {unreadDirectReleaseCount > 99 ? '99+' : unreadDirectReleaseCount}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </Pressable>
+
+          <View style={styles.orRow}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>or</Text>
+            <View style={styles.orLine} />
+          </View>
 
           {/* Via Collector Delivery card */}
           <Pressable
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            style={({ pressed }) => [
+              styles.card,
+              styles.cardCollector,
+              pendingCount > 0 && styles.cardWithNotification,
+              pressed && styles.cardPressed,
+            ]}
             onPress={() => handleSelectType('rider')}
             disabled={isChecking}
             accessibilityRole="button"
@@ -168,36 +212,36 @@ export default function ReceiveStockTypeSR() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>Via Collector Delivery</Text>
-                <Text style={styles.cardSubtitle}>
-                  A rider brought the batch to your zone.
-                </Text>
+                <Text style={styles.cardSubtitle}>A collector brought the batch to you.</Text>
               </View>
-              {pendingCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {pendingCount > 99 ? '99+' : pendingCount}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.cardAction}>
-              <Text style={[styles.cardActionText, { color: COLORS.accentPink }]}>
-                {isChecking ? 'Checking…' : 'View pending'}
-              </Text>
               {isChecking ? (
                 <ActivityIndicator size="small" color={COLORS.accentPink} />
               ) : (
-                <Icon name="arrowRight" size={18} color={COLORS.accentPink} />
+                <Icon name="arrowRight" size={20} color={COLORS.accentPink} />
               )}
             </View>
+            {pendingCount > 0 && (
+              <View style={styles.notificationSummary}>
+                <Text style={styles.notificationSummaryText}>
+                  {pendingCount} {pendingCount === 1 ? 'delivery' : 'deliveries'}
+                </Text>
+                <View style={styles.notificationIconWrap}>
+                  <Icon name="notification" size={17} color={COLORS.error} />
+                  <View style={styles.notificationCount}>
+                    <Text style={styles.notificationCountText}>
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </Pressable>
 
           {/* Helper text */}
           <View style={styles.hintRow}>
             <Icon name="question" size={14} color={COLORS.textTertiary} />
             <Text style={styles.hintText}>
-              Not sure which one? Check the waybill — a collector brings the stock to you, a direct
-              release you pick up from the branch.
+              Not sure? Check the waybill. A collector brings the stock to you; a direct release you pick up yourself.
             </Text>
           </View>
         </View>
@@ -252,8 +296,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   summaryTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
-    color: COLORS.primary,
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
@@ -263,26 +307,11 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EAFBF2',
-    borderRadius: 999,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#A7E8C4',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    backgroundColor: '#1E7A3A',
-    marginRight: 5,
-  },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
   statusText: {
-    color: '#1E7A3A',
-    fontSize: 10,
+    color: COLORS.success,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
@@ -300,9 +329,15 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    gap: SPACING.md,
+    paddingTop: SPACING.sm,
+    gap: SPACING.sm,
   },
+  labelFirst: { marginTop: SPACING.sm, marginBottom: 2 },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginVertical: SPACING.xs },
+  orLine: { flex: 1, height: 1, backgroundColor: 'rgba(39,38,50,0.1)' },
+  orText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.medium, color: COLORS.textSecondary },
+  cardDirect: { borderLeftWidth: 4, borderLeftColor: COLORS.primary },
+  cardCollector: { borderLeftWidth: 4, borderLeftColor: COLORS.accentPink },
   sectionHeading: {
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.textPrimary,
@@ -312,12 +347,55 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   card: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
     padding: SPACING.md,
     gap: SPACING.md,
+  },
+  cardWithNotification: {
+    paddingBottom: 38,
+  },
+  notificationSummary: {
+    position: 'absolute',
+    right: SPACING.md,
+    bottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notificationSummaryText: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  notificationIconWrap: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationCount: {
+    position: 'absolute',
+    top: -3,
+    right: -5,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    paddingHorizontal: 3,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  notificationCountText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   cardPressed: {
     opacity: 0.85,
@@ -328,9 +406,9 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   cardIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: RADIUS.md,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -342,8 +420,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.textPrimary,
   },
   cardSubtitle: {
@@ -382,7 +460,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#FFFFFF',
@@ -391,22 +469,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: SPACING.xs,
-    paddingHorizontal: SPACING.xs,
+    padding: SPACING.sm,
+    borderRadius: 10,
+    backgroundColor: '#F1F3F6',
     marginTop: SPACING.sm,
     marginBottom: SPACING.xl,
   },
   hintText: {
     flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    color: COLORS.textTertiary,
-    lineHeight: 16,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
   illustration: {
     position: 'absolute',
     right: 0,
-    width: 160,
-    height: 160,
-    opacity: 0.9,
+    width: 170,
+    height: 170,
+    opacity: 0.95,
   },
 });

@@ -283,6 +283,26 @@ class ReportService extends BaseService {
   // Manager-facing
   // ---------------------------------------------------------------------
 
+  /**
+   * Manager: remind the Sales Rep about one unreported / unsettled item (a notification and a push).
+   * At most once per item every 3 hours; data.sent is false (with data.nextAllowedAt) when it is too soon.
+   */
+  async nudgeReportItem(reportItemId) {
+    debugLog('info', 'ReportService', 'Nudging a Sales Rep about a report item', { reportItemId });
+
+    try {
+      this.validateRequired(['reportItemId'], { reportItemId });
+      const { data, error } = await supabase.rpc('nudge_report_item', { p_report_item_id: reportItemId });
+      if (error) {
+        throw new Error(error.message || 'Failed to send the reminder');
+      }
+      return { success: true, data };
+    } catch (error) {
+      this.log('error', 'nudgeReportItem failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to send the reminder' };
+    }
+  }
+
   async acceptDailyReport(reportId) {
     debugLog('info', 'ReportService', 'Accepting daily report', { reportId });
 

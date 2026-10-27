@@ -26,7 +26,7 @@ export default function DeliveryTimeline({ entries, emptyText = 'No location upd
               <View style={[styles.dot, index === entries.length - 1 && styles.dotActive]} />
               {index < entries.length - 1 && <View style={styles.line} />}
             </View>
-            <View style={styles.textWrap}>
+            <View style={[styles.textWrap, index === entries.length - 1 && styles.textWrapLast]}>
               <Text style={styles.label}>{entry.label}</Text>
               <Text style={styles.time}>{formatCheckpointTime(entry.createdAt)}</Text>
             </View>
@@ -54,7 +54,8 @@ const styles = StyleSheet.create({
     borderColor: '#EAEFF5',
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
   },
   emptyText: {
     fontSize: 12,
@@ -62,14 +63,15 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontStyle: 'italic',
   },
-  row: { flexDirection: 'row', gap: 12 },
-  dotCol: { alignItems: 'center', width: 14 },
-  dot: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#DBE4EE', marginTop: 4 },
+  row: { flexDirection: 'row', gap: 10 },
+  dotCol: { alignItems: 'center', width: 12 },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#DBE4EE', marginTop: 4 },
   dotActive: { backgroundColor: COLORS.primary },
-  line: { width: 3, flex: 1, minHeight: 24, backgroundColor: '#EAEFF5' },
-  textWrap: { flex: 1, paddingBottom: 18 },
+  line: { width: 2, flex: 1, minHeight: 12, backgroundColor: '#EAEFF5' },
+  textWrap: { flex: 1, paddingBottom: 8 },
+  textWrapLast: { paddingBottom: 0 },
   label: {
-    fontSize: TYPOGRAPHY.fontSize.base,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -78,6 +80,6 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 3,
+    marginTop: 1,
   },
 });

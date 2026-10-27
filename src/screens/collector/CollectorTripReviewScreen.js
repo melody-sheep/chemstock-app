@@ -1,8 +1,10 @@
 // src/screens/collector/CollectorTripReviewScreen.js
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { getDeliveryParties } from '../../services/presenceService';
-import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Alert, Linking, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, Linking, Dimensions, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import Header from '../../components/common/Header';
@@ -10,6 +12,7 @@ import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondary
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
 import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
 import CustomModal from '../../components/common/Modal';
 import authService from '../../services/authService';
@@ -24,6 +27,8 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
 import requireOnline from '../../utils/requireOnline';
+
+const HALF_BUTTON_WIDTH = (Dimensions.get('window').width - SPACING.lg * 2 - SPACING.sm) / 2;
 
 const ROLE_LABELS = {
   manager: 'Branch Manager',
@@ -56,6 +61,10 @@ export default function CollectorTripReviewScreen() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCancelDialogVisible, setIsCancelDialogVisible] = useState(false);
   const [viewingParty, setViewingParty] = useState(null);
+  // Which recipients have their QR code open (closed to begin with, so the screen stays short).
+  const [qrOpenById, setQrOpenById] = useState({});
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const [isLoadingPartyDetail, setIsLoadingPartyDetail] = useState(false);
 
   const load = useCallback(async () => {
@@ -133,6 +142,16 @@ export default function CollectorTripReviewScreen() {
     }
   };
 
+  // Opened from "Start Trip" on the accept-stock message: runs the normal Start Trip once the
+  // deliveries are loaded (same checks, same call), so the Collector lands on the map.
+  const autoStart = route.params?.autoStart === true;
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || isLoading || !agent || tripId || legs.length === 0) return;
+    autoStartedRef.current = true;
+    handleStartTrip();
+  }, [autoStart, isLoading, agent, tripId, legs.length]);
+
   const handleCancelTrip = async () => {
     if (!agent || !tripId || isCancelling) return;
     if (!requireOnline('Cancelling a trip')) return;
@@ -144,7 +163,7 @@ export default function CollectorTripReviewScreen() {
         throw new Error(result.message);
       }
       setIsCancelDialogVisible(false);
-      navigation.navigate('CollectorAcceptDeliveries');
+      navigation.navigate('CollectorAcceptDeliveries', undefined, { pop: true });
     } catch (error) {
       setIsCancelDialogVisible(false);
       Alert.alert('Failed to Cancel Trip', friendlyError(error.message) || 'Please try again.');
@@ -236,22 +255,19 @@ export default function CollectorTripReviewScreen() {
         />
         <SubScreenSecondaryHeader title="Delivery Details" />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sectionLabel}>Collector</Text>
-          <View style={styles.routeRow}>
-            <View style={[styles.routeDot, { backgroundColor: COLORS.primary }]} />
-            <Text style={styles.routeLabel}>From</Text>
-            <Text style={styles.routeValue} numberOfLines={1}>
-              {agent?.branchName || 'Branch'}
-            </Text>
-          </View>
-          <View style={styles.personCard}>
-            <View style={styles.avatarCircle}>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + (isActiveTrip ? 60 : 0) + SPACING.lg }]} showsVerticalScrollIndicator={false}>
+          <View style={styles.summaryCardC}>
+            <View style={styles.summaryIconC}>
               <Icon name="truck" size={20} color={COLORS.primary} />
             </View>
-            <View style={styles.personTextWrap}>
-              <Text style={styles.personName}>{agent?.full_name || agent?.username}</Text>
-              <Text style={styles.personRole}>Collector</Text>
+            <View style={styles.summaryTextC}>
+              <Text style={styles.summaryTitleC}>
+                {legs.length} deliver{legs.length === 1 ? 'y' : 'ies'} · {totalUnits} units
+              </Text>
+              <Text style={styles.summaryHintC} numberOfLines={1}>
+                {agent?.branchName || 'Branch'} · {agent?.full_name || agent?.username} (Collector)
+              </Text>
             </View>
             {isActiveTrip && (
               <View style={[styles.statusPill, tripStatus === 'completed' ? styles.statusPillDone : styles.statusPillActive]}>
@@ -260,43 +276,38 @@ export default function CollectorTripReviewScreen() {
             )}
           </View>
 
-          <Text style={styles.sectionLabel}>Recipients</Text>
-          {legs.map((leg) => (
-            <View key={leg.transactionId} style={styles.legBlock}>
-              <View style={styles.routeRow}>
-                <View style={[styles.routeDot, { backgroundColor: COLORS.accentOrange }]} />
-                <Text style={styles.routeLabel}>To</Text>
-                <Text style={styles.routeValue} numberOfLines={1}>
-                  {leg.targetRecipientName || 'Sales Rep'}
-                </Text>
-              </View>
-              <Pressable
-                style={styles.personCard}
-                onPress={() =>
-                  handleViewParty({
-                    agentId: leg.targetRecipientId,
-                    name: leg.targetRecipientName || 'Sales Rep',
-                    role: 'sales_rep',
-                    profilePhotoUrl: partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl,
-                  })
-                }
-              >
-                <UserAvatar
-                  photoUrl={partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl}
-                  fallbackText={getInitials(leg.targetRecipientName)}
-                  size={40}
-                  backgroundColor="#F1F3F6"
-                  fallbackTextColor={COLORS.primary}
-                />
-                <View style={styles.personTextWrap}>
-                  <Text style={styles.personName}>{leg.targetRecipientName || 'Sales Rep'}</Text>
-                  <Text style={styles.personRole}>Sales Representative</Text>
-                </View>
-                <Icon name="arrowRight" size={16} color="#94a3b8" />
-              </Pressable>
-              <View style={styles.itemsCard}>
+          <Text style={styles.sectionLabelC}>{isActiveTrip ? 'RECIPIENTS' : 'DELIVER TO'}</Text>
+          {legs.map((leg) => {
+            const isQrOpen = !!qrOpenById[leg.transactionId];
+            return (
+              <View key={leg.transactionId} style={styles.legCardC}>
+                <Pressable
+                  style={styles.legPersonRow}
+                  onPress={() =>
+                    handleViewParty({
+                      agentId: leg.targetRecipientId,
+                      name: leg.targetRecipientName || 'Sales Rep',
+                      role: 'sales_rep',
+                      profilePhotoUrl: partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl,
+                    })
+                  }
+                >
+                  <UserAvatar
+                    photoUrl={partiesById[leg.transactionId]?.salesRep?.photoUrl || leg.targetRecipientPhotoUrl}
+                    fallbackText={getInitials(leg.targetRecipientName)}
+                    size={40}
+                    backgroundColor="#F1F3F6"
+                    fallbackTextColor={COLORS.primary}
+                  />
+                  <View style={styles.personTextWrap}>
+                    <Text style={styles.personName}>{leg.targetRecipientName || 'Sales Rep'}</Text>
+                    <Text style={styles.personRole}>Sales Representative</Text>
+                  </View>
+                  <Icon name="arrowRight" size={16} color="#94a3b8" />
+                </Pressable>
+
                 {(leg.items || []).map((item, index) => (
-                  <View key={`${item.batchNumber}-${index}`} style={[styles.itemRow, index === 0 && styles.itemRowFirst]}>
+                  <View key={`${item.batchNumber}-${index}`} style={styles.legItemRow}>
                     <View style={styles.itemIconWrap}>
                       {PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image ? (
                         <Image
@@ -314,61 +325,80 @@ export default function CollectorTripReviewScreen() {
                     <Text style={styles.itemMeta}>Qty: {item.quantity}</Text>
                   </View>
                 ))}
+
                 {leg.qrCode && (
-                  <View style={styles.qrSection}>
-                    <Text style={styles.qrTitle}>PRODUCT QR — SCAN TO VERIFY</Text>
-                    <View style={styles.qrTile}>
-                      <BrandedQRCode value={leg.qrCode} size={160} />
-                    </View>
-                  </View>
+                  <>
+                    <Pressable
+                      style={styles.legQrHeader}
+                      onPress={() => setQrOpenById((prev) => ({ ...prev, [leg.transactionId]: !prev[leg.transactionId] }))}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isQrOpen }}
+                    >
+                      <Icon name="qrCode" size={20} color={COLORS.primary} />
+                      <Text style={styles.legQrTitle}>Product QR · scan to verify</Text>
+                      <View style={styles.foldPillC}>
+                        <Text style={styles.foldPillTextC}>{isQrOpen ? 'Hide QR' : 'Show QR'}</Text>
+                        <View style={{ transform: [{ rotate: isQrOpen ? '180deg' : '0deg' }] }}>
+                          <Icon name="caretDown" size={14} color="#0085F9" weight="bold" />
+                        </View>
+                      </View>
+                    </Pressable>
+                    {isQrOpen && (
+                      <View style={styles.qrTile}>
+                        <BrandedQRCode value={leg.qrCode} size={200} />
+                      </View>
+                    )}
+                  </>
                 )}
               </View>
-            </View>
-          ))}
-
-          <View style={styles.summaryRow}>
-            <Icon name="package" size={14} color={COLORS.textSecondary} />
-            <Text style={styles.summaryText}>
-              {legs.length} deliver{legs.length === 1 ? 'y' : 'ies'} · {totalUnits} units total
-            </Text>
-          </View>
+            );
+          })}
 
           {!isActiveTrip && (
-            <View style={styles.noticeBox}>
-              <Icon name="warningTriangle" size={16} color={COLORS.error} />
-              <Text style={styles.noticeText}>Double check the details before delivering the stock to avoid mistakes.</Text>
+            <View style={styles.noticeSlim}>
+              <Icon name="warningTriangle" size={14} color={COLORS.error} />
+              <Text style={styles.noticeSlimText}>Double check the details before delivering the stock.</Text>
             </View>
           )}
+        </ScrollView>
+        </BlurTargetView>
 
-          <View style={{ height: 8 }} />
-
+        <BottomActionBar key={isCancelDialogVisible ? "dim" : "clear"} variant="glass" blurTarget={blurTarget}>
           {isActiveTrip ? (
-            <View style={styles.buttonRow}>
-              <Button
-                title="Cancel Delivery"
-                variant="outline"
-                onPress={() => setIsCancelDialogVisible(true)}
-                disabled={tripStatus === 'completed'}
-                style={styles.actionButton}
-                height={44}
-                fontSize={15}
-              />
+            <View style={styles.barStack}>
               <Button
                 title="Track Delivery"
                 variant="black"
                 onPress={handleTrack}
                 disabled={tripStatus === 'completed'}
-                style={styles.actionButton}
-                height={44}
-                fontSize={15}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+              />
+              <Button
+                title="Cancel Delivery"
+                variant="outline"
+                accentColor="#E5366B"
+                onPress={() => setIsCancelDialogVisible(true)}
+                disabled={tripStatus === 'completed'}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+                hasShadow={false}
               />
             </View>
           ) : (
-            <Button title={isStarting ? 'Starting…' : 'Start Trip'} variant="black" onPress={handleStartTrip} loading={isStarting} />
+            <Button
+              title={isStarting ? 'Starting…' : 'Start Trip'}
+              variant="black"
+              onPress={handleStartTrip}
+              loading={isStarting}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+            />
           )}
-
-          <View style={{ height: 24 }} />
-        </ScrollView>
+        </BottomActionBar>
       </View>
 
       <ConfirmationDialog
@@ -377,8 +407,9 @@ export default function CollectorTripReviewScreen() {
         onConfirm={handleCancelTrip}
         title="Cancel Delivery?"
         description="This will cancel the remaining, undelivered stops on this trip. Deliveries already finished stay marked delivered."
-        confirmLabel={isCancelling ? 'Cancelling…' : 'Cancel Delivery'}
-        cancelLabel="Keep Trip"
+        confirmLabel={isCancelling ? 'Cancelling…' : 'Yes, cancel delivery'}
+        cancelLabel="Keep trip"
+        destructive
       />
 
       <CustomModal visible={!!viewingParty} onClose={() => setViewingParty(null)} height="auto">
@@ -452,6 +483,23 @@ export default function CollectorTripReviewScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  contentTarget: { flex: 1 },
+  summaryCardC: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.sm + 2, borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, backgroundColor: '#FFFFFF' },
+  summaryIconC: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#EAF4FF', alignItems: 'center', justifyContent: 'center' },
+  summaryTextC: { flex: 1 },
+  summaryTitleC: { fontSize: TYPOGRAPHY.fontSize.base, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  summaryHintC: { marginTop: 1, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  sectionLabelC: { marginTop: SPACING.xs, fontSize: 12, letterSpacing: 0.8, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  legCardC: { borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, backgroundColor: '#FFFFFF', padding: SPACING.sm + 2, gap: SPACING.sm },
+  legPersonRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  legItemRow: { flexDirection: 'row', alignItems: 'center', paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  legQrHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  legQrTitle: { flex: 1, fontSize: TYPOGRAPHY.fontSize.sm, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  foldPillC: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: '#EAF4FF' },
+  foldPillTextC: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  noticeSlim: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10, backgroundColor: '#FDECEC' },
+  noticeSlimText: { flex: 1, fontSize: 12, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
+  barStack: { gap: SPACING.sm },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: SPACING.lg, gap: SPACING.sm },
   sectionLabel: {
@@ -475,7 +523,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   routeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textTertiary,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -514,7 +562,7 @@ const styles = StyleSheet.create({
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   statusPillActive: { backgroundColor: '#E3F2FF' },
   statusPillDone: { backgroundColor: '#EAFBF2' },
-  statusPillText: { fontSize: 10, fontWeight: '700', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily.bold },
+  statusPillText: { fontSize: 11, fontWeight: '700', color: COLORS.primary, fontFamily: TYPOGRAPHY.fontFamily.bold },
   legBlock: { gap: SPACING.sm, marginBottom: SPACING.sm },
   itemsCard: {
     borderWidth: 1,
@@ -548,7 +596,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   qrTitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: '600',
@@ -558,6 +606,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   summaryText: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
@@ -570,7 +620,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: SPACING.sm,
   },
-  noticeText: { flex: 1, fontSize: 11, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
+  noticeText: { flex: 1, fontSize: 12, color: '#BE123C', fontFamily: TYPOGRAPHY.fontFamily.medium },
   buttonRow: { flexDirection: 'column', gap: SPACING.sm },
   actionButton: { width: '100%' },
   partyModalContent: { alignItems: 'center', paddingTop: 4, paddingBottom: 8 },
@@ -639,7 +689,7 @@ const styles = StyleSheet.create({
   },
   partyModalPhoneTextWrap: { flex: 1 },
   partyModalPhoneLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#94a3b8',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     textTransform: 'uppercase',

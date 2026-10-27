@@ -13,7 +13,7 @@ import { SPACING } from '../../styles/spacing';
  * ScrollView/gap-based layout) specifically to avoid the Android stacking
  * issues BranchSelector hit earlier tonight.
  */
-export default function InfoTooltip({ message, size = 16 }) {
+export default function InfoTooltip({ message, size = 16, color = null }) {
   const [visible, setVisible] = useState(false);
 
   return (
@@ -24,7 +24,7 @@ export default function InfoTooltip({ message, size = 16 }) {
         accessibilityRole="button"
         accessibilityLabel="More info"
       >
-        <View style={[styles.badge, { width: size, height: size, borderRadius: size / 2 }]}>
+        <View style={[styles.badge, { width: size, height: size, borderRadius: size / 2 }, color && { backgroundColor: color }]}>
           <Text style={[styles.badgeText, { fontSize: size * 0.65 }]}>?</Text>
         </View>
       </Pressable>
@@ -46,6 +46,8 @@ export default function InfoTooltip({ message, size = 16 }) {
 InfoTooltip.propTypes = {
   message: PropTypes.string.isRequired,
   size: PropTypes.number,
+  // Badge colour; leave out for the usual red.
+  color: PropTypes.string,
 };
 
 const styles = StyleSheet.create({

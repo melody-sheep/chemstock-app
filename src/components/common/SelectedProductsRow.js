@@ -3,6 +3,7 @@ import React from 'react';
 import { Text, ScrollView, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import ProductChip from './ProductChip';
+import SectionHeader from './SectionHeader';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -12,10 +13,14 @@ import { TYPOGRAPHY } from '../../styles/typography';
  * (or a muted empty message). Owns none of the item data itself; the caller
  * still owns `items` and receives removals via `onRemove(code)`.
  */
-export default function SelectedProductsRow({ items, onRemove, title = 'Selected Products' }) {
+export default function SelectedProductsRow({ items, onRemove, title = 'Selected Products', labelHeader = false }) {
   return (
     <>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      {labelHeader ? (
+        <SectionHeader icon="checkCircle" size="md" label={title} style={{ marginTop: SPACING.md, marginBottom: 0 }} />
+      ) : (
+        <Text style={styles.sectionTitle}>{title}</Text>
+      )}
       {items.length === 0 ? (
         <Text style={styles.mutedText}>No products selected yet.</Text>
       ) : (
@@ -44,6 +49,7 @@ SelectedProductsRow.propTypes = {
   items: PropTypes.array.isRequired,
   onRemove: PropTypes.func.isRequired,
   title: PropTypes.string,
+  labelHeader: PropTypes.bool,
 };
 
 const styles = StyleSheet.create({

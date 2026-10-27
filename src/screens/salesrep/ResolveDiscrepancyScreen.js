@@ -1,13 +1,17 @@
 // src/screens/salesrep/ResolveDiscrepancyScreen.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import OutboxFailedNotice from '../../components/common/OutboxFailedNotice';
+import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { COLORS } from '../../constants/colors';
@@ -80,6 +84,8 @@ export default function ResolveDiscrepancyScreen() {
   const reportItem = route.params?.reportItem;
 
   const [agent, setAgent] = useState(null);
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const [photoUri, setPhotoUri] = useState(null);
   const [photoCoords, setPhotoCoords] = useState(null);
   const [uploadedPhoto, setUploadedPhoto] = useState(null); // { uri, storagePath } — avoids re-upload on retry
@@ -268,6 +274,7 @@ export default function ResolveDiscrepancyScreen() {
   }
 
   const isLoss = reportItem.discrepancyType === 'loss';
+  const isCarryForward = reportItem.carryForwardEnabled && isLoss;
   // alreadyQueued (offline, unsynced) has only the local file; a synced
   // request's photo comes from storage via the signed URL above.
   const displayPhotoUrl = alreadyQueued ? queuedEntry?.localPhotoUri : requestPhotoUrl;
@@ -286,7 +293,8 @@ export default function ResolveDiscrepancyScreen() {
           onBackPress={handleBack}
         />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <ScrollView contentContainerStyle={[styles.content, !isLocked && { paddingBottom: bottomActionBarHeight + SPACING.lg }]} showsVerticalScrollIndicator={false}>
           {pendingCount > 0 && (
             <View style={styles.pendingBanner}>
               <View style={styles.pendingIconCircle}>
@@ -294,7 +302,7 @@ export default function ResolveDiscrepancyScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.pendingBannerTitle}>
-                  Pending — {pendingCount} waiting to sync
+                  Pending — {pendingCount} waiting to send
                 </Text>
                 <Text style={styles.pendingBannerText}>
                   Saved on this device. Sends automatically once you're back online.
@@ -309,24 +317,22 @@ export default function ResolveDiscrepancyScreen() {
           <OutboxFailedNotice failed={failedItems} agentId={agent?.id} onRetry={retryNow} onDiscard={discard} />
 
           {isLocked && (
-            <View style={[styles.statusWrap, isSettled && styles.statusWrapSettled]}>
-              <View style={[styles.statusIconCircle, isSettled && styles.statusIconCircleSettled]}>
-                <Icon name="check" size={20} color="#FFFFFF" weight="bold" />
+            <View style={[styles.statusWrap, isSettled ? styles.statusWrapSettled : styles.statusWrapPending]}>
+              <View style={[styles.statusIconCircle, isSettled ? styles.statusIconCircleSettled : styles.statusIconCirclePending]}>
+                <Icon name={isSettled ? 'check' : 'clock'} size={16} color="#FFFFFF" weight="bold" />
               </View>
-              <Text style={[styles.statusTitle, isSettled && styles.statusTitleSettled]}>
-                {isSettled
-                  ? 'Settled'
-                  : alreadyQueued
-                  ? 'Already Requested — Waiting to Send'
-                  : 'Already Requested — Pending Manager Review'}
-              </Text>
-              <Text style={[styles.statusText, isSettled && styles.statusTextSettled]}>
-                {isSettled
-                  ? 'Your manager approved this return and it has been settled.'
-                  : alreadyQueued
-                  ? "You already requested this return while offline. It's saved on this device and will upload automatically once you're back online — no need to submit it again."
-                  : "A return request for this item has already been sent and is waiting on your manager's review — no need to submit it again."}
-              </Text>
+              <View style={styles.statusTextCol}>
+                <Text style={[styles.statusTitle, isSettled ? styles.statusTitleSettled : styles.statusTitlePending]}>
+                  {isSettled ? 'Settled' : alreadyQueued ? 'Saved — waiting to send' : 'Waiting for manager review'}
+                </Text>
+                <Text style={[styles.statusText, isSettled ? styles.statusTextSettled : styles.statusTextPending]}>
+                  {isSettled
+                    ? 'Your manager approved this return and it has been settled.'
+                    : alreadyQueued
+                    ? "You requested this return while offline. It uploads automatically once you're back online — no need to submit it again."
+                    : "This return was already sent and is waiting on your manager's review — no need to submit it again."}
+                </Text>
+              </View>
             </View>
           )}
 
@@ -370,7 +376,7 @@ export default function ResolveDiscrepancyScreen() {
               <View style={styles.figureColumn}>
                 <View style={styles.figureLabelRow}>
                   <Icon name="trayDown" size={11} color="#272632" />
-                  <Text style={styles.figureLabel}>In Custody</Text>
+                  <Text style={styles.figureLabel}>Custody</Text>
                 </View>
                 <View style={styles.figureBox}>
                   <Text style={styles.figureValue}>{reportItem.inCustodyQuantity}</Text>
@@ -396,13 +402,13 @@ export default function ResolveDiscrepancyScreen() {
               </View>
               <View style={styles.figureColumn}>
                 <View style={styles.figureLabelRow}>
-                  <Icon name="warningTriangle" size={11} color="#B91C1C" />
-                  <Text style={[styles.figureLabel, styles.discrepancyLabel]}>
-                    {isLoss ? 'Missing' : 'Over'}
+                  <Icon name="warningTriangle" size={11} color={isCarryForward ? '#B26400' : '#B91C1C'} />
+                  <Text style={[styles.figureLabel, isCarryForward ? styles.carryForwardLabel : styles.discrepancyLabel]}>
+                    {isCarryForward ? 'Carry fwd.' : isLoss ? 'Missing' : 'Over'}
                   </Text>
                 </View>
-                <View style={[styles.figureBox, styles.figureBoxError]}>
-                  <Text style={[styles.figureValue, styles.figureValueError]}>
+                <View style={[styles.figureBox, isCarryForward ? styles.figureBoxCarryForward : styles.figureBoxError]}>
+                  <Text style={[styles.figureValue, isCarryForward ? styles.figureValueCarryForward : styles.figureValueError]}>
                     {Math.abs(reportItem.discrepancy)}
                   </Text>
                 </View>
@@ -412,7 +418,9 @@ export default function ResolveDiscrepancyScreen() {
 
           {!isLocked && (
             <Text style={styles.helperText}>
-              {isLoss
+              {isCarryForward
+                ? `These units were not included in the report and remain in your inventory. Request a return only for units you are physically handing back; manager approval removes them from your inventory and credits the branch.`
+                : isLoss
                 ? `This will request the return of the ${Math.abs(reportItem.discrepancy)} missing unit(s) once your manager reviews the photo evidence below.`
                 : `This will flag the ${Math.abs(reportItem.discrepancy)} extra unit(s) reported for manager review with the photo evidence below.`}
             </Text>
@@ -433,7 +441,9 @@ export default function ResolveDiscrepancyScreen() {
                   </View>
                 ) : (
                   <View style={styles.photoPlaceholder}>
-                    <Icon name="camera" size={36} color="#03045E" />
+                    <View style={styles.cameraCircle}>
+                      <Icon name="camera" size={26} color="#03045E" />
+                    </View>
                     <Text style={styles.photoText}>Tap to capture proof</Text>
                   </View>
                 )}
@@ -441,80 +451,76 @@ export default function ResolveDiscrepancyScreen() {
             </View>
           ) : (
             <View style={styles.photoSection}>
-              <Text style={styles.listTitle}>{isSettled ? 'Submitted Photo' : 'Photo Proof'}</Text>
-              {displayPhotoUrl ? (
-                <Pressable onPress={() => setIsViewingSubmittedPhoto(true)}>
-                  <View style={styles.photoPreviewWrap}>
-                    <Image source={{ uri: displayPhotoUrl }} style={styles.photoPreview} resizeMode="cover" />
-                    <View style={styles.expandBadge}>
-                      <Icon name="expand" size={14} color="#FFFFFF" />
-                    </View>
-                  </View>
-                </Pressable>
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  {!isDetailLoaded && !alreadyQueued ? (
-                    <ActivityIndicator color={COLORS.primary} />
-                  ) : (
-                    <>
-                      <Icon name="package" size={32} color="#94a3b8" />
-                      <Text style={styles.photoText}>Photo unavailable</Text>
-                    </>
-                  )}
-                </View>
-              )}
-
-              {requestDetail && (
-                <View style={styles.detailCard}>
-                  {requestDetail.gps && (
-                    <View style={styles.detailRow}>
-                      <View style={styles.detailLeft}>
-                        <Icon name="location" size={16} color="#F04D59" />
-                        <Text style={styles.detailLabel}>GPS</Text>
+              <Text style={styles.sectionLabel}>{isSettled ? 'EVIDENCE' : 'PHOTO PROOF'}</Text>
+              <View style={styles.evidenceCard}>
+                {displayPhotoUrl ? (
+                  <Pressable onPress={() => setIsViewingSubmittedPhoto(true)} accessibilityLabel="View photo" accessibilityRole="button">
+                    <View style={styles.evidenceThumbWrap}>
+                      <Image source={{ uri: displayPhotoUrl }} style={styles.evidenceThumb} resizeMode="cover" />
+                      <View style={styles.expandBadgeSmall}>
+                        <Icon name="expand" size={12} color="#FFFFFF" />
                       </View>
-                      <Text style={styles.detailValue}>
-                        {requestDetail.gps.latitude.toFixed(4)}°, {requestDetail.gps.longitude.toFixed(4)}°
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={[styles.evidenceThumbWrap, styles.evidenceThumbEmpty]}>
+                    {!isDetailLoaded && !alreadyQueued ? (
+                      <ActivityIndicator color={COLORS.primary} />
+                    ) : (
+                      <>
+                        <Icon name="package" size={24} color="#94a3b8" />
+                        <Text style={styles.evidenceEmptyText}>No photo</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+
+                {requestDetail && (
+                  <View style={styles.evidenceDetails}>
+                    {requestDetail.gps && (
+                      <View style={styles.evidenceRow}>
+                        <Icon name="location" size={15} color="#F04D59" />
+                        <Text style={styles.evidenceText}>
+                          {requestDetail.gps.latitude.toFixed(4)}°, {requestDetail.gps.longitude.toFixed(4)}°
+                        </Text>
+                      </View>
+                    )}
+                    {requestDetail.media?.deviceModel && (
+                      <View style={styles.evidenceRow}>
+                        <Icon name="package" size={15} color="#0085F9" />
+                        <Text style={styles.evidenceText}>{requestDetail.media.deviceModel}</Text>
+                      </View>
+                    )}
+                    <View style={styles.evidenceRow}>
+                      <Icon name="clock" size={15} color="#00B4D8" />
+                      <Text style={styles.evidenceText}>
+                        {isSettled ? 'Settled ' : 'Requested '}
+                        {formatDateTime(new Date(requestDetail.resolvedAt && isSettled ? requestDetail.resolvedAt : requestDetail.createdAt))}
                       </Text>
                     </View>
-                  )}
-                  {requestDetail.media?.deviceModel && (
-                    <View style={styles.detailRow}>
-                      <View style={styles.detailLeft}>
-                        <Icon name="moreVertical" size={16} color="#00B4D8" />
-                        <Text style={styles.detailLabel}>Device</Text>
-                      </View>
-                      <Text style={styles.detailValue}>{requestDetail.media.deviceModel}</Text>
-                    </View>
-                  )}
-                  <View style={[styles.detailRow, styles.detailRowLast]}>
-                    <View style={styles.detailLeft}>
-                      <Icon name="clock" size={16} color="#00B4D8" />
-                      <Text style={styles.detailLabel}>{isSettled ? 'Settled' : 'Requested'}</Text>
-                    </View>
-                    <Text style={styles.detailValue}>
-                      {formatDateTime(new Date(requestDetail.resolvedAt && isSettled ? requestDetail.resolvedAt : requestDetail.createdAt))}
-                    </Text>
                   </View>
-                </View>
-              )}
+                )}
+              </View>
             </View>
           )}
         </ScrollView>
 
+        </BlurTargetView>
+
         {!isLocked && (
-          <View style={styles.footer}>
-            <Pressable
-              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
+          <BottomActionBar variant="glass" blurTarget={blurTarget}>
+            {!photoUri && !isSubmitting && <Text style={styles.barHint}>A photo is required.</Text>}
+            <Button
+              title="Request Return Stock"
+              variant="black"
               onPress={handleSubmit}
+              loading={isSubmitting}
               disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Request Return Stock</Text>
-              )}
-            </Pressable>
-          </View>
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+            />
+          </BottomActionBar>
         )}
       </View>
 
@@ -543,6 +549,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  contentTarget: { flex: 1 },
+  sectionLabel: { marginBottom: 8, fontSize: 12, letterSpacing: 0.8, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  statusTextCol: { flex: 1 },
+  statusWrapPending: { backgroundColor: '#FFF1D6', borderColor: '#F2C94C' },
+  statusIconCirclePending: { backgroundColor: '#B26400' },
+  statusTitlePending: { color: '#7A4A00' },
+  statusTextPending: { color: '#7A4A00' },
+  evidenceCard: { flexDirection: 'row', gap: 12, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#EAEFF5', backgroundColor: '#FFFFFF' },
+  evidenceThumbWrap: { width: 96, height: 96, borderRadius: 10, overflow: 'hidden' },
+  evidenceThumb: { width: '100%', height: '100%' },
+  evidenceThumbEmpty: { backgroundColor: '#F1F3F6', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  evidenceEmptyText: { fontSize: 11, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.medium },
+  expandBadgeSmall: { position: 'absolute', bottom: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(3,4,94,0.55)', alignItems: 'center', justifyContent: 'center' },
+  evidenceDetails: { flex: 1, justifyContent: 'center', gap: 8 },
+  evidenceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  evidenceText: { flex: 1, fontSize: 12, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.semibold, fontWeight: '600' },
+  cameraCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#E6E8F5', alignItems: 'center', justifyContent: 'center' },
+  barHint: { marginBottom: 8, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyText: {
     fontSize: 13,
@@ -581,7 +605,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pendingBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -593,56 +617,56 @@ const styles = StyleSheet.create({
     backgroundColor: '#B26400',
   },
   pendingRetryText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#FFFFFF',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   statusWrap: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     backgroundColor: '#EAFBF2',
     borderWidth: 1,
     borderColor: '#A7E8C4',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 12,
   },
   statusWrapSettled: {
-    backgroundColor: '#F1F3F6',
-    borderColor: '#DBE4EE',
+    backgroundColor: '#E1F4E8',
+    borderColor: '#A7E8C4',
   },
   statusIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#1E7A3A',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
   statusIconCircleSettled: {
-    backgroundColor: '#6B7280',
+    backgroundColor: '#1E7A3A',
   },
   statusTitle: {
     fontSize: 14,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-    textAlign: 'center',
   },
   statusTitleSettled: {
-    color: '#374151',
+    color: '#1E7A3A',
   },
   statusText: {
     fontSize: 12,
     color: '#2F6B48',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 17,
+    marginTop: 2,
+    lineHeight: 16,
   },
   statusTextSettled: {
-    color: '#555353',
+    color: '#2F6B48',
   },
   rejectedBanner: {
     flexDirection: 'row',
@@ -670,7 +694,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rejectedBannerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#8A1515',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -679,16 +703,16 @@ const styles = StyleSheet.create({
   itemCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   itemTopRow: {
     flexDirection: 'row',
   },
   thumbnail: {
-    width: 60,
-    height: 68,
+    width: 52,
+    height: 56,
     borderRadius: 8,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
@@ -730,7 +754,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   figureLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -738,6 +762,7 @@ const styles = StyleSheet.create({
   discrepancyLabel: {
     color: '#B91C1C',
   },
+  carryForwardLabel: { color: '#8A5A00' },
   figureBox: {
     borderWidth: 1,
     borderColor: '#DBE4EE',
@@ -750,6 +775,10 @@ const styles = StyleSheet.create({
     borderColor: '#EF4444',
     backgroundColor: '#FFFFFF',
   },
+  figureBoxCarryForward: {
+    borderColor: '#F4D28B',
+    backgroundColor: '#FFF7E6',
+  },
   figureValue: {
     fontSize: 13,
     color: '#03045E',
@@ -759,6 +788,7 @@ const styles = StyleSheet.create({
   figureValueError: {
     color: '#EF4444',
   },
+  figureValueCarryForward: { color: '#8A5A00' },
   helperText: {
     fontSize: 12,
     color: '#555353',
@@ -780,9 +810,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#D7E3F1',
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    height: 220,
+    height: 130,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -798,8 +828,8 @@ const styles = StyleSheet.create({
   },
   photoPreview: {
     width: '100%',
-    height: 240,
-    borderRadius: 8,
+    height: 200,
+    borderRadius: 12,
   },
   expandBadge: {
     position: 'absolute',
@@ -843,7 +873,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: '#272632',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },

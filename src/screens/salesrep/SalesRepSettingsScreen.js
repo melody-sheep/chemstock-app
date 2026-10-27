@@ -1,11 +1,11 @@
 // src/screens/salesrep/SalesRepSettingsScreen.js
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Image } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from '../../components/common/Icon';
-import { shareDebugLog } from '../../utils/debugReport';
 import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import BottomNavBar from '../../components/common/BottomNavBar';
@@ -15,7 +15,6 @@ import authService from '../../services/authService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { SHADOWS } from '../../styles/shadows';
 import { routeQrScan } from '../../utils/routeQrScan';
 import friendlyError from '../../utils/friendlyError';
 import SettingsDeviceSection from '../../components/common/SettingsDeviceSection';
@@ -27,6 +26,34 @@ import useOutbox from '../../hooks/useOutbox';
 // device and is often taller in a built APK than in Expo Go) or the last
 // row ends up hidden behind it instead of merely unscrolled-to.
 const BOTTOM_NAV_HEIGHT = 76;
+
+// One settings row: a coloured icon tile, the label, and a chevron (or a value on the right).
+const LOGO = require('../../../assets/ChemStockLogo.png');
+
+function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle, cardStyle, logo = false }) {
+  const content = (
+    <>
+      <View style={styles.rowLeft}>
+        <View style={[styles.rowIconWrap, { backgroundColor: color + '1A' }, logo && styles.rowIconWrapLogo]}>
+          {logo ? (
+            <Image source={LOGO} style={styles.rowLogo} resizeMode="contain" accessibilityLabel="ChemStock" />
+          ) : (
+            <Icon name={icon} size={18} color={color} style={iconStyle} />
+          )}
+        </View>
+        <Text style={[styles.rowLabel, labelStyle]}>{label}</Text>
+      </View>
+      {value ? <Text style={styles.rowValue}>{value}</Text> : onPress ? <Icon name="arrowRight" size={16} color="#94a3b8" /> : null}
+    </>
+  );
+  return onPress ? (
+    <Pressable style={[styles.rowItem, cardStyle]} onPress={onPress} accessibilityRole="button">
+      {content}
+    </Pressable>
+  ) : (
+    <View style={[styles.rowItem, cardStyle]}>{content}</View>
+  );
+}
 
 export default function SalesRepSettingsScreen() {
   const navigation = useNavigation();
@@ -88,6 +115,7 @@ export default function SalesRepSettingsScreen() {
 
   const repName = user?.full_name || user?.username || 'Sales Representative';
   const branchName = user?.branchName || 'No branch assigned';
+  const branchCount = (user?.branchIds || []).length;
 
   return (
     <>
@@ -109,97 +137,55 @@ export default function SalesRepSettingsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.profileCard}>
+          <Pressable
+            style={styles.profileBlock}
+            onPress={() => navigation.navigate('EditProfile')}
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+          >
             <UserAvatar photoUrl={user?.profilePhotoUrl} size={60} iconName="person" style={styles.avatarWrap} />
             <View style={styles.profileInfo}>
               <Text style={styles.profileName} numberOfLines={1}>{repName}</Text>
-              <Text style={styles.profileRole}>Sales Representative</Text>
+              <Text style={styles.profileRole}>
+                Sales Representative{branchCount > 0 ? ` · ${branchCount} branch${branchCount === 1 ? '' : 'es'}` : ''}
+              </Text>
               <View style={styles.profileBranchRow}>
-                <Icon name="location" size={12} color="#F04D59" />
-                <Text style={styles.profileBranch} numberOfLines={1}>{branchName}</Text>
+                <Icon name="location" size={13} color="#E5484D" />
+                <Text style={styles.profileBranch} numberOfLines={2}>{branchName}</Text>
               </View>
             </View>
-          </View>
+            <Icon name="arrowRight" size={16} color="#94a3b8" />
+          </Pressable>
 
           <Text style={styles.sectionLabel}>Account</Text>
-          <View style={styles.groupCard}>
-            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('EditProfile')}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="idCard" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>Edit Profile</Text>
-              </View>
-              <Icon name="arrowRight" size={16} color="#94a3b8" />
-            </Pressable>
-
+          <View style={styles.group}>
+            <SettingsRow icon="profile" color="#0085F9" label="Edit Profile" onPress={() => navigation.navigate('EditProfile')} />
             <View style={styles.rowDivider} />
-
-            <Pressable style={styles.rowItem} onPress={() => navigation.navigate('ChangePassword')}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="lock" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>Change Password</Text>
-              </View>
-              <Icon name="arrowRight" size={16} color="#94a3b8" />
-            </Pressable>
+            <SettingsRow icon="lock" color="#D98200" label="Change Password" onPress={() => navigation.navigate('ChangePassword')} />
           </View>
 
-          <Text style={styles.sectionLabel}>Device & Sync</Text>
+          <Text style={styles.sectionLabel}>Device & Sending</Text>
           <SettingsDeviceSection agentId={user?.id} styles={styles} />
 
           <Text style={styles.sectionLabel}>About</Text>
-          <View style={styles.groupCard}>
-            <Pressable style={styles.rowItem} onPress={() => openLegalInfo('faq')}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="question" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>FAQ</Text>
-              </View>
-              <Icon name="arrowRight" size={16} color="#94a3b8" />
-            </Pressable>
-
+          <View style={styles.group}>
+            <SettingsRow icon="question" color="#7B6FE8" label="FAQ" onPress={() => openLegalInfo('faq')} />
             <View style={styles.rowDivider} />
-
-            <Pressable style={styles.rowItem} onPress={() => openLegalInfo('legal')}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="document" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>Laws</Text>
-              </View>
-              <Icon name="arrowRight" size={16} color="#94a3b8" />
-            </Pressable>
-
+            <SettingsRow icon="document" color="#4F5BD5" label="Laws" onPress={() => openLegalInfo('legal')} />
             <View style={styles.rowDivider} />
-
-            <View style={styles.rowItem}>
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIconWrap}>
-                  <Icon name="checkCircle" size={18} color="#03045E" />
-                </View>
-                <Text style={styles.rowLabel}>App Version</Text>
-              </View>
-              <Text style={styles.rowValue}>{appVersionLabel()}</Text>
-            </View>
+            <SettingsRow logo icon="checkCircle" color="#6B7280" label="App Version" value={appVersionLabel()} />
           </View>
 
-          <View style={styles.groupCard}>
-            <Pressable style={styles.rowItem} onPress={handleLogout}>
-              <View style={styles.rowLeft}>
-                <View style={styles.logoutIconWrap}>
-                  <Icon name="arrowRight" size={18} color="#B91C1C" style={styles.logoutIcon} />
-                </View>
-                <Text style={styles.logoutText}>Log Out</Text>
-              </View>
-            </Pressable>
+          <View style={[styles.group, styles.logoutGroup]}>
+            <SettingsRow
+              icon="doorOpen"
+              color="#D92D3A"
+              label="Log Out"
+              onPress={handleLogout}
+              labelStyle={styles.logoutText}
+              cardStyle={styles.logoutCard}
+            />
           </View>
-
-          <Pressable style={styles.debugButton} onPress={shareDebugLog} accessibilityRole="button">
-            <Text style={styles.debugText}>Share Debug Log</Text>
-          </Pressable>
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -241,16 +227,14 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.lg,
     paddingBottom: 96,
   },
-  profileCard: {
+  // No card boxes: the rows sit on the screen itself, split by thin lines.
+  profileBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.cardSoft,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F7',
+    marginBottom: SPACING.xs,
   },
   avatarWrap: {
     width: 60,
@@ -267,64 +251,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 16,
+    fontSize: 18,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   profileRole: {
-    fontSize: 12,
-    color: '#555353',
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontSize: 13,
+    color: '#0085F9',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 2,
   },
   profileBranchRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 4,
     marginTop: 4,
   },
   profileBranch: {
-    fontSize: 11,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   sectionLabel: {
-    fontSize: 13,
-    color: '#94a3b8',
+    fontSize: 12,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 4,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+    marginTop: SPACING.lg,
   },
-  groupCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAEFF5',
-    borderRadius: 14,
-    marginBottom: SPACING.lg,
-    paddingHorizontal: 12,
-  },
+  // groupCard keeps its name because SettingsDeviceSection reads it; it is just a plain container now.
+  group: {},
+  groupCard: {},
+  logoutGroup: { marginTop: SPACING.lg },
+  // Each row is its own card (white, thin outline), with a gap between them.
   rowItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     gap: 10,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    borderRadius: 14,
   },
   rowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 10,
+    gap: 12,
   },
+  rowIconWrapLogo: { backgroundColor: '#EEF0FF', overflow: 'hidden' },
+  rowLogo: { width: 56, height: 56 },
   rowIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#EEF2FF',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -332,26 +322,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowLabel: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   rowSubLabel: {
-    fontSize: 10,
-    color: '#555353',
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
   },
   rowValue: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
-  rowDivider: {
-    height: 1,
-    backgroundColor: '#EEF2F7',
-  },
+  // Thin line that starts after the icon tile.
+  rowDivider: { height: 0 },
   grantedPill: {
     backgroundColor: '#EAFBF2',
     borderRadius: 999,
@@ -359,7 +348,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   grantedPillText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
@@ -367,7 +356,9 @@ const styles = StyleSheet.create({
   debugButton: {
     alignItems: 'center',
     paddingVertical: SPACING.sm,
+    marginTop: SPACING.sm,
     marginBottom: SPACING.sm,
+    gap: 2,
   },
   debugText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -376,21 +367,18 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textDecorationLine: 'underline',
   },
-  logoutIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
+  debugHint: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    textAlign: 'center',
   },
-  logoutIcon: {
-    transform: [{ rotate: '180deg' }],
+  // A soft red card, so it reads as the leave-the-account button and is not tapped by mistake.
+  logoutCard: {
+    backgroundColor: '#FDECEE',
+    borderColor: '#F6C4C9',
   },
   logoutText: {
-    color: '#B91C1C',
-    fontSize: 13,
-    fontWeight: '700',
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: '#D92D3A',
   },
 });

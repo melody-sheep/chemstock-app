@@ -1,6 +1,7 @@
 // src/screens/collector/CollectorDeliverStockScreen.js
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Animated, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Animated, ActivityIndicator, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,8 +11,7 @@ import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondary
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
 import ConfirmationDialog from '../../components/common/ConfirmationDialog';
-import MapLegend from '../../components/common/MapLegend';
-import ConnectionPill from '../../components/common/ConnectionPill';
+import MapStatusCard from '../../components/common/MapStatusCard';
 import StaticRouteMap from '../../components/common/StaticRouteMap';
 import DeliveryStatusPill from '../../components/common/DeliveryStatusPill';
 import MapZoomControls from '../../components/common/MapZoomControls';
@@ -31,7 +31,6 @@ import { getQuickPosition, getRequiredPosition } from '../../utils/quickLocation
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { glassPanel } from '../../styles/glass';
 import { getInitials } from '../../utils/initials';
 import { getDeliveryParties } from '../../services/presenceService';
 import friendlyError from '../../utils/friendlyError';
@@ -146,6 +145,11 @@ export default function CollectorDeliverStockScreen() {
   const undeliveredLegs = inTransitLegs.filter((l) => !queuedTransactionIds.has(l.transactionId));
   const hasQueuedStops = inTransitLegs.length > undeliveredLegs.length;
   const originCoords = legs[0]?.tripOriginGps || null;
+  // The Start marker is the Branch Manager where the stock was released: their photo, and when the trip began.
+  const releasedByName = legs[0]?.releasedByName || 'Branch Manager';
+  const tripStartClock = legs[0]?.createdAt
+    ? new Date(legs[0].createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : null;
   const checkpoints = legs[0]?.checkpoints || [];
   const lastCheckpoint = checkpoints.length > 0 ? checkpoints[checkpoints.length - 1] : null;
   const collectorPosition = currentPosition || (lastCheckpoint ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude } : null);
@@ -205,7 +209,7 @@ export default function CollectorDeliverStockScreen() {
   const canMarkOffline = !connection.online && !isNearAStop && destinations.length > 0;
 
   // Room for the second button when it shows.
-  const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0);
+  const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0) + Math.max(insets.bottom - SPACING.md, 0);
   // Open, the sheet fits its timeline (no empty space with one or two
   // entries), up to 55% of the map once the trip has many stops.
   const [timelineHeight, setTimelineHeight] = useState(0);
@@ -428,7 +432,7 @@ export default function CollectorDeliverStockScreen() {
     setOfflineLegId(null);
     if (wasConfirmed) {
       if (undeliveredLegs.length <= 1) {
-        navigation.navigate('CollectorDashboard');
+        navigation.navigate('CollectorDashboard', undefined, { pop: true });
       } else {
         load();
       }
@@ -446,7 +450,7 @@ export default function CollectorDeliverStockScreen() {
         throw new Error(result.message);
       }
       setIsCancelDialogVisible(false);
-      navigation.navigate('CollectorDashboard');
+      navigation.navigate('CollectorDashboard', undefined, { pop: true });
     } catch (error) {
       setIsCancelDialogVisible(false);
       Alert.alert('Failed to Cancel Trip', friendlyError(error.message) || 'Please try again.');
@@ -502,6 +506,8 @@ export default function CollectorDeliverStockScreen() {
           <StaticRouteMap ref={mapRef}
             fill
             originCoords={originCoords}
+            originLabel={`${releasedByName} (Pickup) · Trip start${tripStartClock ? ` ${tripStartClock}` : ''}`}
+            originAvatar={{ photoUrl: legs[0]?.releasedByPhotoUrl || null, initials: getInitials(releasedByName) }}
             lastCheckpoint={
               lastCheckpoint
                 ? { latitude: lastCheckpoint.latitude, longitude: lastCheckpoint.longitude, label: lastCheckpoint.label }
@@ -521,26 +527,24 @@ export default function CollectorDeliverStockScreen() {
             style={styles.zoomControls}
           />
 
-          {/* Stacked on the left so it never sits over the map's zoom control (top right). */}
-          <View style={styles.topOverlayColumn} pointerEvents="box-none">
-            <MapLegend items={MAP_LEGEND_ITEMS} />
-            <ConnectionPill />
-            <Pressable style={[styles.cancelPill, glassPanel]} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
+          {/* One card on the left so it never sits over the map's zoom control (top right). */}
+          <MapStatusCard legend={MAP_LEGEND_ITEMS} style={styles.topCard}>
+            <Pressable style={styles.cancelPill} onPress={() => setIsCancelDialogVisible(true)} hitSlop={8}>
               <Icon name="xCircle" size={14} color={COLORS.error} weight="fill" />
               <Text style={styles.cancelPillText}>Cancel</Text>
             </Pressable>
             {nearestLeg && isNearAStop ? (
               <View style={styles.nearBadge} pointerEvents="none">
-                <Icon name="location" size={12} color={COLORS.success} weight="fill" />
+                <Icon name="location" size={12} color="#0085F9" weight="fill" />
                 <Text style={styles.nearBadgeText}>Near {nearestLeg.label}</Text>
               </View>
             ) : nearestLeg?.distanceLabel ? (
               <View style={styles.nearBadge} pointerEvents="none">
-                <Icon name="navigation" size={12} color={COLORS.textSecondary} weight="fill" />
-                <Text style={styles.distanceBadgeText}>{nearestLeg.distanceLabel} to {nearestLeg.label}</Text>
+                <Icon name="navigation" size={12} color="#0085F9" weight="fill" />
+                <Text style={styles.nearBadgeText}>{nearestLeg.distanceLabel} to {nearestLeg.label}</Text>
               </View>
             ) : null}
-          </View>
+          </MapStatusCard>
 
 
           <Animated.View
@@ -628,8 +632,9 @@ export default function CollectorDeliverStockScreen() {
         onConfirm={handleCancelTrip}
         title="Cancel Delivery?"
         description="This will cancel the remaining, undelivered stops on this trip. Deliveries already finished stay marked delivered."
-        confirmLabel={isCancelling ? 'Cancelling…' : 'Cancel Delivery'}
-        cancelLabel="Keep Trip"
+        confirmLabel={isCancelling ? 'Cancelling…' : 'Yes, cancel delivery'}
+        cancelLabel="Keep trip"
+        destructive
       />
 
       <MarkDeliveredModal
@@ -655,20 +660,15 @@ const styles = StyleSheet.create({
   mapWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
   mapFill: { borderRadius: 0, borderWidth: 0 },
 
-  topOverlayColumn: {
-    position: 'absolute',
-    top: SPACING.md,
-    left: SPACING.md,
-    gap: SPACING.sm,
-    alignItems: 'flex-start',
-  },
+  topCard: { top: SPACING.md, left: SPACING.md },
   cancelPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 999,
+    backgroundColor: '#FDECEA',
   },
   cancelPillText: { fontSize: 12, color: COLORS.error, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
 
@@ -679,15 +679,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: '#EAF4FF',
   },
-  nearBadgeText: { fontSize: 11, color: COLORS.success, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
-  distanceBadgeText: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
+  nearBadgeText: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  distanceBadgeText: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.medium },
 
   zoomControls: { position: 'absolute', top: SPACING.md, right: SPACING.md },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -697,9 +692,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-    backgroundColor: COLORS.glassStrong,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: COLORS.glassBorder,
+    borderColor: '#EEF2F7',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: SPACING.sm,
@@ -722,7 +717,7 @@ const styles = StyleSheet.create({
   },
   sheetToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   sheetToggleText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },

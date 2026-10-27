@@ -10,7 +10,8 @@ const LOG_LEVELS = {
 
 const CURRENT_LOG_LEVEL = __DEV__ ? LOG_LEVELS.DEBUG : LOG_LEVELS.INFO;
 const MAX_BUFFER_LINES = 500;
-const SENSITIVE_KEY = /password|token|secret/i;
+// Exact names only (a field called "key" or "code" is an activation code); "product_code" and friends stay readable.
+const SENSITIVE_KEY = /password|token|secret|^(key|code|p_code|activation_?key)$/i;
 
 let currentScreen = 'app-start';
 const buffer = [];

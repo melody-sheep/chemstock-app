@@ -4,20 +4,28 @@ import { Text, TouchableOpacity, StyleSheet } from 'react-native';
 import PropTypes from 'prop-types';
 import Icon from './Icon';
 import { formatDisplayDate } from '../../utils/formatters';
-import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
-// Tappable MFG/EXP date control. The old version only told set apart from
-// unset by a thin border color — easy to miss and easy to misread as
-// already-set when it wasn't. Unset now gets a solid amber fill with a
-// "Tap to set" call to action; set gets a solid green fill with a
-// checkmark and the actual date rendered large/bold enough to read at a
-// glance instead of a tiny 11px line.
+// Tappable MFG / EXP date control, square-cornered. Each date has its own
+// colour so they can't be mixed up: MFG blue, EXP pinkish red. Not set yet:
+// a light tint with a dashed border and "Tap to set". Set: solid colour, white
+// text, a check mark and the date — "filled in" reads at a glance.
+const TONES = {
+  MFG: { solid: '#1E6FE0', tint: '#EAF2FF', border: '#7FA8F0', text: '#1450AA' },
+  EXP: { solid: '#D6336C', tint: '#FFEBF1', border: '#EE7FA1', text: '#A61E4D' },
+};
+
 export default function DateChip({ label, value, onPress, accessibilityLabel }) {
   const isSet = Boolean(value);
+  const tone = TONES[String(label).toUpperCase()] || TONES.MFG;
   return (
     <TouchableOpacity
-      style={[styles.chip, isSet ? styles.chipSet : styles.chipUnset]}
+      style={[
+        styles.chip,
+        isSet
+          ? { backgroundColor: tone.solid, borderColor: tone.solid }
+          : { backgroundColor: tone.tint, borderColor: tone.border, borderStyle: 'dashed' },
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -27,11 +35,11 @@ export default function DateChip({ label, value, onPress, accessibilityLabel }) 
       <Icon
         name={isSet ? 'checkmark' : 'calendar'}
         size={13}
-        color={isSet ? COLORS.success : '#B26400'}
+        color={isSet ? '#FFFFFF' : tone.text}
         weight={isSet ? 'bold' : 'regular'}
       />
-      <Text style={[styles.label, isSet ? styles.labelSet : styles.labelUnset]}>{label}</Text>
-      <Text style={[styles.value, isSet ? styles.valueSet : styles.valueUnset]}>
+      <Text style={[styles.label, { color: isSet ? '#FFFFFF' : tone.text }]}>{label}</Text>
+      <Text style={[styles.value, { color: isSet ? "#FFFFFF" : tone.text }]} numberOfLines={1}>
         {isSet ? formatDisplayDate(value) : 'Tap to set'}
       </Text>
     </TouchableOpacity>
@@ -51,44 +59,27 @@ DateChip.defaultProps = {
 };
 
 const styles = StyleSheet.create({
+  // One fixed size for both, so MFG and EXP always line up.
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     alignSelf: 'flex-start',
     gap: 5,
-    borderRadius: 8,
+    width: 144,
+    height: 30,
+    borderRadius: 0,
     borderWidth: 1.5,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  chipUnset: {
-    backgroundColor: '#FFF4E0',
-    borderColor: '#FFC56A',
-  },
-  chipSet: {
-    backgroundColor: '#E8F8EE',
-    borderColor: COLORS.success,
+    paddingHorizontal: 6,
   },
   label: {
     fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
-  labelUnset: {
-    color: '#B26400',
-  },
-  labelSet: {
-    color: '#1E7A3A',
-  },
   value: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
-  },
-  valueUnset: {
-    color: '#B26400',
-  },
-  valueSet: {
-    color: '#1E7A3A',
   },
 });

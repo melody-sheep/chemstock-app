@@ -1,11 +1,14 @@
 // src/components/common/ReportHandoffIssueModal.js
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import PropTypes from 'prop-types';
+import Alert from '../../utils/appAlert';
 import CustomModal from './Modal';
 import Button from './Button';
 import Icon from './Icon';
 import CameraCaptureModal from './CameraCaptureModal';
+import ImageViewerModal from './ImageViewerModal';
 import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -34,12 +37,17 @@ export default function ReportHandoffIssueModal({
   const [note, setNote] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
   const [isCameraVisible, setIsCameraVisible] = useState(false);
+  const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
+  // The picture could not be drawn (very large file / the sheet reopened under the camera): say so instead of a blank box.
+  const [photoFailed, setPhotoFailed] = useState(false);
 
   const reset = () => {
     setReasonCode(null);
     setNote('');
     setPhotoUri(null);
+    setPhotoFailed(false);
     setIsCameraVisible(false);
+    setIsPhotoViewerVisible(false);
   };
 
   const handleCancel = () => {
@@ -98,17 +106,41 @@ export default function ReportHandoffIssueModal({
 
           <Text style={styles.label}>Photo evidence (optional)</Text>
           {photoUri ? (
-            <TouchableOpacity
-              style={styles.photoPreviewWrap}
-              onPress={() => setIsCameraVisible(true)}
-              activeOpacity={0.85}
-            >
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              <View style={styles.photoBadge}>
+            <View style={styles.photoPreviewWrap}>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                onPress={() => setIsPhotoViewerVisible(true)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Preview photo evidence"
+              >
+                <Image
+                  key={photoUri}
+                  source={{ uri: photoUri }}
+                  style={styles.photoPreview}
+                  resizeMode="cover"
+                  fadeDuration={0}
+                  onError={() => setPhotoFailed(true)}
+                  onLoad={() => setPhotoFailed(false)}
+                />
+                {photoFailed && (
+                  <View style={styles.photoFallback}>
+                    <Icon name="camera" size={22} color={COLORS.textSecondary} />
+                    <Text style={styles.photoAddText}>Preview unavailable — use Retake</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.photoBadge}
+                onPress={() => setIsCameraVisible(true)}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Retake photo evidence"
+              >
                 <Icon name="camera" size={14} color="#FFFFFF" />
                 <Text style={styles.photoBadgeText}>Retake</Text>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.photoAddWrap}
@@ -157,7 +189,29 @@ export default function ReportHandoffIssueModal({
       <CameraCaptureModal
         visible={isCameraVisible}
         onClose={() => setIsCameraVisible(false)}
-        onCapture={setPhotoUri}
+        initialUri={photoUri}
+        onCapture={async (uri) => {
+          if (!uri) {
+            Alert.alert('Photo Not Saved', 'The camera did not return a photo. Please try again.');
+            return;
+          }
+          try {
+            const destination = `${FileSystem.cacheDirectory}handoff-issue-${Date.now()}.jpg`;
+            await FileSystem.copyAsync({ from: uri, to: destination });
+            setPhotoFailed(false);
+            setPhotoUri(destination);
+          } catch (error) {
+            console.error('[ERROR] [ReportHandoffIssueModal] Could not save captured photo for preview:', error);
+            setPhotoFailed(false);
+            setPhotoUri(uri);
+            Alert.alert('Photo Preview May Fail', 'The captured photo could not be copied to app storage. You can retake it if it does not appear.');
+          }
+        }}
+      />
+      <ImageViewerModal
+        visible={isPhotoViewerVisible}
+        onClose={() => setIsPhotoViewerVisible(false)}
+        imageUri={photoUri}
       />
     </>
   );
@@ -257,6 +311,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   photoPreview: { width: '100%', height: '100%' },
+  photoFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#F1F5F9' },
   photoBadge: {
     position: 'absolute', bottom: SPACING.sm, right: SPACING.sm,
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -264,7 +319,7 @@ const styles = StyleSheet.create({
     borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.6)',
   },
   photoBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: '#FFFFFF',

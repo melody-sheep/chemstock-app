@@ -1,31 +1,34 @@
 // src/screens/auth/ManagerActivationScreen.js
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
   TouchableOpacity,
-  Alert,
   Dimensions,
   Platform,
   Keyboard,
   Animated,
   findNodeHandle,
 } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import Header from '../../components/common/Header';
-import KeyboardWrapper from '../../components/common/KeyboardWrapper';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 import Icon from '../../components/common/Icon';
+import Button from '../../components/common/Button';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Input from '../../components/common/Input';
 import PhilippinePhoneInput, { isValidPhNationalNumber, toPhE164 } from '../../components/common/PhilippinePhoneInput';
 import SuccessFrame from '../../components/common/SuccessFrame';
+import QRScannerModal from '../../components/common/QRScannerModal';
 import Stepper from '../../components/common/Stepper';
 import useActivation from '../../hooks/useActivation';
 import friendlyError from '../../utils/friendlyError';
@@ -156,9 +159,12 @@ export default function ManagerActivationScreen() {
   // ============================================
   const [currentStep, setCurrentStep] = useState(1);
   const [showSuccessFrame, setShowSuccessFrame] = useState(false);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [branchCount, setBranchCount] = useState(0);
   const [localError, setLocalError] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const inputRef = useRef(null);
   
   const [managerUsername, setManagerUsername] = useState('');
@@ -217,12 +223,12 @@ export default function ManagerActivationScreen() {
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(slideAnim, {
           toValue: direction === 'forward' ? -30 : 30,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]).start(() => {
         if (direction === 'forward') {
@@ -238,12 +244,12 @@ export default function ManagerActivationScreen() {
           Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(slideAnim, {
             toValue: 0,
             duration: 250,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]).start(() => {
           setIsTransitioning(false);
@@ -279,17 +285,28 @@ export default function ManagerActivationScreen() {
     }, 300);
   };
 
-  const handleValidateCode = async () => {
+  // A scanned QR holds the activation code: fill it in and validate it.
+  const handleScannedCode = (data) => {
+    const scanned = String(data || '').trim();
+    if (!scanned) return;
+    setActivationKey(scanned);
     setLocalError('');
+    setTimeout(() => handleValidateCode(scanned), 250);
+  };
+
+  const handleValidateCode = async (codeOverride) => {
+    setLocalError('');
+    // (the send icon passes a press event here, so only a string counts)
+    const code = typeof codeOverride === 'string' ? codeOverride : activationKey;
 
     try {
-      if (!activationKey || !activationKey.trim()) {
+      if (!code || !code.trim()) {
         console.warn('[WARN] [ManagerActivationScreen] Empty activation code');
         setLocalError('Please enter an activation code');
         return;
       }
 
-      if (activationKey.trim().length < 4) {
+      if (code.trim().length < 4) {
         console.warn('[WARN] [ManagerActivationScreen] Activation code too short');
         setLocalError('Activation code must be at least 4 characters');
         return;
@@ -411,7 +428,7 @@ export default function ManagerActivationScreen() {
     } else if (managerPassword.length < 8) {
       errors.password = 'Password must be at least 8 characters';
       hasError = true;
-    } else if (!/[A-Z]/.test(managerPassword) && !/[a-z]/.test(managerPassword)) {
+    } else if (!/[A-Z]/.test(managerPassword) || !/[a-z]/.test(managerPassword)) {
       errors.password = 'Password must contain uppercase and lowercase letters';
       hasError = true;
     } else if (!/[0-9]/.test(managerPassword)) {
@@ -447,6 +464,7 @@ export default function ManagerActivationScreen() {
     if (result.hasSession) {
       navigation.replace('ManagerDashboard', {
         name: result.profile.fullName || result.profile.username || managerUsername,
+        justActivated: true,
       });
     } else {
       Alert.alert(
@@ -475,9 +493,9 @@ export default function ManagerActivationScreen() {
     !step2Errors.password &&
     !step2Errors.confirmPassword;
   
-  // The warning + button now scroll with the form, so only leave room for
-  // the phone's bottom bar.
-  const scrollViewPaddingBottom = 20 + (insets.bottom || 0);
+  // Extra scroll room lets the confirmation field clear both the keyboard
+  // and the fixed bottom action bar when the keyboard is open.
+  const scrollViewPaddingBottom = 200 + (insets.bottom || 0);
   
   // ============================================
   // RENDER - Step 1
@@ -490,8 +508,7 @@ export default function ManagerActivationScreen() {
     return (
       <>
         <StatusBar style="light" />
-        <KeyboardWrapper>
-          <View style={styles.container}>
+        <View style={styles.container}>
             <Header
               showBackButton={true}
               backButtonText="Back to Login"
@@ -520,6 +537,7 @@ export default function ManagerActivationScreen() {
               onFadeComplete={handleSuccessFrameFade}
             />
 
+            <BlurTargetView ref={blurTarget} style={styles.blurTarget}>
             <KeyboardAwareScrollView
               animated
               style={[
@@ -532,6 +550,8 @@ export default function ManagerActivationScreen() {
               contentContainerStyle={styles.scrollContentStep1}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              scrollEnabled
             >
               <View style={styles.stepperWrapper}>
                 <Stepper currentStep={1} />
@@ -567,7 +587,27 @@ export default function ManagerActivationScreen() {
                 {isLoading && (
                   <Text style={styles.loadingText}>Validating activation code...</Text>
                 )}
+
+                <TouchableOpacity
+                  style={styles.scanButton}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setIsScannerVisible(true);
+                  }}
+                  disabled={isLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan the activation QR code"
+                >
+                  <Icon name="qrCode" size={18} color={COLORS.primary} />
+                  <Text style={styles.scanButtonText}>Scan QR code instead</Text>
+                </TouchableOpacity>
               </View>
+
+              <QRScannerModal
+                visible={isScannerVisible}
+                onClose={() => setIsScannerVisible(false)}
+                onScanned={handleScannedCode}
+              />
 
               <View style={styles.branchContainer}>
                 <Text style={styles.branchTitle}>Location &amp; Branch Lock</Text>
@@ -585,7 +625,7 @@ export default function ManagerActivationScreen() {
                         <Icon name="checkmark" size={16} color={COLORS.success} />
                         <View style={styles.branchInfoContainer}>
                           <Text style={styles.branchNameText}>{name}</Text>
-                          {branchInfo.locations && branchInfo.locations[index] && (
+                          {!!(branchInfo.locations && branchInfo.locations[index]) && (
                             <Text style={styles.branchLocationText}>
                               {branchInfo.locations[index]}
                             </Text>
@@ -612,34 +652,31 @@ export default function ManagerActivationScreen() {
 
               <View style={styles.bottomContainerInScroll}>
                 <View style={styles.bottomWarningWrapper}>
-                  <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                  <Icon name="warningTriangle" size={22} color={COLORS.error} />
                   <Text style={styles.bottomWarningTitle}>Warning</Text>
-                  <Text style={[styles.bottomWarningText, { width: buttonWidth }]}>
+                  <Text style={[styles.bottomWarningText, styles.bottomWarningTextFill]}>
                     This will set up your device for manager access. Only continue if you're authorized to manage this branch.
                   </Text>
                 </View>
-
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[
-                      styles.continueButton,
-                      { backgroundColor: isButtonEnabled ? '#03045E' : '#555353' }
-                    ]}
-                    onPress={handleContinue}
-                    disabled={!isButtonEnabled || isTransitioning}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.buttonContent}>
-                      <Text style={styles.buttonText}>Continue to Account Setup</Text>
-                      <Icon name="arrowRight" size={20} color="#FFFFFF" />
-                    </View>
-                  </TouchableOpacity>
-                </View>
               </View>
-              <View style={styles.scrollBottomPadding} />
+              <View style={{ height: bottomActionBarHeight }} />
             </KeyboardAwareScrollView>
-          </View>
-        </KeyboardWrapper>
+            </BlurTargetView>
+
+            <BottomActionBar variant="glass" blurTarget={blurTarget}>
+              <Button
+                title="Continue to Account Setup"
+                variant="black"
+                icon="arrowRight"
+                iconPosition="right"
+                onPress={handleContinue}
+                disabled={!isButtonEnabled || isTransitioning}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+              />
+            </BottomActionBar>
+        </View>
       </>
     );
   }
@@ -647,8 +684,7 @@ export default function ManagerActivationScreen() {
   return (
     <>
       <StatusBar style="light" />
-      <KeyboardWrapper>
-        <View style={styles.container}>
+      <View style={styles.container}>
           <Header
             showBackButton={true}
             backButtonText="Back to Step 1"
@@ -671,6 +707,7 @@ export default function ManagerActivationScreen() {
             </Text>
           </View>
 
+          <BlurTargetView ref={blurTarget} style={styles.blurTarget}>
           <KeyboardAwareScrollView
               animated
             ref={scrollViewRef}
@@ -687,6 +724,7 @@ export default function ManagerActivationScreen() {
             ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             scrollEnabled={true}
           >
             <View style={styles.stepperWrapper}>
@@ -747,33 +785,31 @@ export default function ManagerActivationScreen() {
 
             <View style={styles.bottomContainerInScroll}>
               <View style={styles.bottomWarningWrapper}>
-                <Icon name="warningTriangle" size={28} color={COLORS.error} />
+                <Icon name="warningTriangle" size={22} color={COLORS.error} />
                 <Text style={styles.bottomWarningTitle}>Security Notice</Text>
-                <Text style={[styles.bottomWarningText, { width: screenWidth - (SPACING.lg * 2) }]}>
+                <Text style={[styles.bottomWarningText, styles.bottomWarningTextFill]}>
                   Create a strong password (8+ chars, numbers, and symbols). Your full name will be your manager ID.
                 </Text>
               </View>
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.continueButton,
-                    { backgroundColor: isFormValid ? '#03045E' : '#555353' }
-                  ]}
-                  onPress={handleCompleteSetup}
-                  disabled={!isFormValid || isTransitioning}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.buttonContent}>
-                    <Text style={styles.buttonText}>Complete Setup</Text>
-                    <Icon name="arrowRight" size={20} color="#FFFFFF" />
-                  </View>
-                </TouchableOpacity>
-              </View>
             </View>
-            <View style={{ height: 20 }} />
+            <View style={{ height: bottomActionBarHeight }} />
           </KeyboardAwareScrollView>
-        </View>
-      </KeyboardWrapper>
+          </BlurTargetView>
+
+          <BottomActionBar variant="glass" blurTarget={blurTarget}>
+            <Button
+              title="Complete Setup"
+              variant="black"
+              icon="arrowRight"
+              iconPosition="right"
+              onPress={handleCompleteSetup}
+              disabled={!isFormValid || isTransitioning}
+              height={48}
+              fontSize={16}
+              borderRadius={24}
+            />
+          </BottomActionBar>
+      </View>
     </>
   );
 }
@@ -782,6 +818,7 @@ export default function ManagerActivationScreen() {
 // STYLES
 // ============================================
 const styles = StyleSheet.create({
+  blurTarget: { flex: 1 },
   container: {
     flex: 1,
     backgroundColor: '#F7FEFF',
@@ -842,6 +879,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     marginTop: 12,
   },
+  scanButton: {
+    marginTop: SPACING.sm,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  scanButtonText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   loadingText: {
     marginTop: SPACING.xs,
     fontSize: 12,
@@ -863,7 +917,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   branchSubtext: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -910,7 +964,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   branchLocationText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -938,10 +992,14 @@ const styles = StyleSheet.create({
   bottomWarningWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: 4,
-    paddingBottom: 4,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#FDECEC',
   },
+  bottomWarningTextFill: { alignSelf: 'stretch' },
   bottomWarningTitle: {
     fontSize: 15,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
@@ -952,10 +1010,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   bottomWarningText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: COLORS.textSecondary,
+    color: '#7A2E2E',
     textAlign: 'center',
     lineHeight: 16,
     paddingHorizontal: 0,
@@ -966,18 +1024,18 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   continueButton: {
-    borderRadius: 12,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: SPACING.lg,
     width: screenWidth - (SPACING.lg * 2),
-    height: 50,
+    height: 52,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -1012,7 +1070,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   strengthLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     textAlign: 'right',
@@ -1045,7 +1103,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: '#757575',

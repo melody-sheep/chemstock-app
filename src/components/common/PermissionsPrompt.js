@@ -1,6 +1,6 @@
 // src/components/common/PermissionsPrompt.js
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, Image, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Camera } from 'expo-camera';
@@ -13,6 +13,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const SEEN_KEY = 'chemstock_permissions_prompted_v1';
+const LOGO = require('../../../assets/ChemStockLogo.png');
 
 const ITEMS = [
   {
@@ -109,30 +110,44 @@ export default function PermissionsPrompt() {
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={() => {}}>
-      <View style={[styles.screen, { paddingTop: insets.top + SPACING.xl, paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}>
-        <View style={styles.hero}>
-          <View style={styles.heroCircle}>
-            <Icon name="lock" size={30} color={COLORS.primary} />
-          </View>
-          <Text style={styles.title}>Allow access to get started</Text>
-          <Text style={styles.subtitle}>
-            ChemStock needs these two things to record stock movements. You can change them any time in Settings.
-          </Text>
-        </View>
-
-        <View style={styles.list}>
-          {ITEMS.map((item, index) => (
-            <View key={item.key} style={[styles.row, index > 0 && styles.rowDivider]}>
-              <View style={styles.rowIcon}>
-                <Icon name={item.icon} size={22} color={item.iconColor} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={styles.rowTitle}>{item.title}</Text>
-                <Text style={styles.rowBody}>{item.text}</Text>
-              </View>
-              {status[item.key] && <Icon name="checkCircle" size={20} color={COLORS.success} weight="fill" />}
+      <View style={[styles.screen, { paddingTop: insets.top + SPACING.xl, paddingBottom: Math.max(insets.bottom + SPACING.sm, SPACING.lg) }]}>
+        {/* A navy band under the phone's clock and battery, which are white. */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: '#03045E', zIndex: 100, elevation: 24 }} />
+        <View style={styles.body}>
+          <View style={styles.hero}>
+            <View style={styles.heroCircle}>
+              <Image source={LOGO} style={styles.logo} resizeMode="contain" accessibilityLabel="ChemStock" />
             </View>
-          ))}
+            <Text style={styles.title}>Allow access to get started</Text>
+            <Text style={styles.subtitle}>
+              ChemStock needs these two things to record stock movements. You can change them any time in Settings.
+            </Text>
+          </View>
+
+          <View style={styles.list}>
+            {ITEMS.map((item, index) => (
+              <View key={item.key} style={[styles.row, index > 0 && styles.rowDivider]}>
+                <View style={[styles.rowIcon, { backgroundColor: item.iconColor + '14' }]}>
+                  <Icon name={item.icon} size={22} color={item.iconColor} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>{item.title}</Text>
+                  <Text style={styles.rowBody}>{item.text}</Text>
+                </View>
+                {status[item.key] && (
+                  <View style={styles.allowedPill}>
+                    <Icon name="checkCircle" size={14} color={COLORS.success} weight="fill" />
+                    <Text style={styles.allowedText}>Allowed</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.privacyNote}>
+            <Icon name="lock" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.privacyText}>Location is only used while the app is open.</Text>
+          </View>
         </View>
 
         <View style={styles.footer}>
@@ -162,18 +177,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     paddingHorizontal: SPACING.lg,
-    justifyContent: 'space-between',
   },
-  hero: { alignItems: 'center', marginTop: SPACING.xl },
+  // The content sits together in the middle instead of being spread to the screen's edges.
+  body: { flex: 1, justifyContent: 'center', gap: SPACING.xl },
+  hero: { alignItems: 'center' },
+  // The logo file has wide empty margins, so it is drawn larger than the circle it sits in.
   heroCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     backgroundColor: '#EEF0FF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     marginBottom: SPACING.lg,
   },
+  logo: { width: 150, height: 150 },
   title: {
     fontSize: TYPOGRAPHY.fontSize['2xl'],
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -207,6 +226,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
+  allowedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: '#E8F6EE',
+  },
+  allowedText: { fontSize: 12, color: '#1E7A3A', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  privacyNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  privacyText: { fontSize: 12.5, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   rowTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,

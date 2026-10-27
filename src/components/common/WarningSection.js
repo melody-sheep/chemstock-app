@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   descriptionText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -86,11 +86,11 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.error,
-    lineHeight: 14,
+    lineHeight: 15,
   },
   bannerTitle: {
     fontFamily: TYPOGRAPHY.fontFamily.bold,

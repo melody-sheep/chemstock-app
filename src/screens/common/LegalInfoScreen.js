@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
 import { FAQ_CONTENT, LEGAL_CONTENT, ROLE_LABELS } from '../../constants/legalContent';
@@ -9,17 +9,36 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
+const FAQ_COLOR = '#6C63D9';
+const LEGAL_COLOR = '#3157B7';
+
+const LOGO = require('../../../assets/ChemStockLogo.png');
+
 export default function LegalInfoScreen() {
-  const navigation = useNavigation();
   const route = useRoute();
   const { type = 'faq', role = 'manager' } = route.params || {};
-
-  const title = type === 'faq' ? 'FAQ' : 'Laws';
+  const isFaq = type === 'faq';
+  const title = isFaq ? 'FAQ' : 'Laws & Policies';
   const entries = useMemo(() => {
-    if (type === 'faq') return FAQ_CONTENT[role] || FAQ_CONTENT.manager;
+    if (isFaq) return FAQ_CONTENT[role] || FAQ_CONTENT.manager;
     return LEGAL_CONTENT[role] || LEGAL_CONTENT.manager;
-  }, [role, type]);
-  const [expandedIndex, setExpandedIndex] = useState(null);
+  }, [isFaq, role]);
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [expandedLegalSections, setExpandedLegalSections] = useState([]);
+  const [search, setSearch] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All topics');
+
+  const categories = useMemo(
+    () => ['All topics', ...new Set(entries.map((entry) => entry.category).filter(Boolean))],
+    [entries],
+  );
+  const filteredFaqs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return entries.filter((entry) => (
+      (activeCategory === 'All topics' || entry.category === activeCategory)
+      && (!query || `${entry.question} ${entry.answer} ${entry.category || ''}`.toLowerCase().includes(query))
+    ));
+  }, [activeCategory, entries, search]);
 
   return (
     <>
@@ -34,57 +53,204 @@ export default function LegalInfoScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.hero}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={[styles.hero, !isFaq && styles.legalHero]}>
             <View style={styles.heroIcon}>
-              <Icon name={type === 'faq' ? 'question' : 'document'} size={28} color={COLORS.primary} weight="duotone" />
+              <Image source={LOGO} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="ChemStock" />
             </View>
             <View style={styles.heroCopy}>
-              <Text style={styles.heroTitle}>{title === 'FAQ' ? 'Help for your ChemStock workflow' : 'Rules that guide safe use'}</Text>
+              <Text style={styles.eyebrow}>{ROLE_LABELS[role] || 'ChemStock user'}</Text>
+              <Text style={styles.heroTitle}>
+                {isFaq ? 'Here to help you get things done' : 'Clear guidance for responsible use'}
+              </Text>
               <Text style={styles.heroText}>
-                {ROLE_LABELS[role] || 'ChemStock user'} · {type === 'faq' ? 'Quick answers for everyday tasks.' : 'Privacy, accountability, and operational policies.'}
+                {isFaq
+                  ? 'Search common questions or choose a topic to find a practical answer.'
+                  : 'Review the privacy and operating guidance for your ChemStock role.'}
               </Text>
             </View>
           </View>
 
-          {type === 'faq' && <Text style={styles.sectionLabel}>Common questions</Text>}
-          {entries.map((entry, index) => (
-            <View key={`${entry.title || 'question'}-${index}`} style={styles.card}>
-              {type === 'faq' ? (
-                <>
+          {isFaq ? (
+            <>
+              <View style={styles.searchBox}>
+                <Icon name="search" size={19} color={COLORS.textTertiary} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search questions"
+                  placeholderTextColor={COLORS.textTertiary}
+                  returnKeyType="search"
+                  accessibilityLabel="Search frequently asked questions"
+                />
+                {search.length > 0 && (
                   <Pressable
-                    style={styles.questionRow}
-                    onPress={() => setExpandedIndex(expandedIndex === index ? null : index)}
+                    onPress={() => setSearch('')}
+                    hitSlop={10}
                     accessibilityRole="button"
-                    accessibilityState={{ expanded: expandedIndex === index }}
+                    accessibilityLabel="Clear search"
                   >
-                    <View style={styles.entryIcon}>
-                      <Icon name={entry.icon || 'question'} size={19} color={COLORS.primary} weight="duotone" />
-                    </View>
-                    <Text style={styles.question}>{entry.question}</Text>
-                    <Icon name={expandedIndex === index ? 'caretDown' : 'arrowRight'} size={18} color={COLORS.textTertiary} />
+                    <Text style={styles.clearSearch}>Clear</Text>
                   </Pressable>
-                  {expandedIndex === index && <Text style={styles.answer}>{entry.answer}</Text>}
-                  {entry.category && <Text style={styles.category}>{entry.category}</Text>}
-                </>
-              ) : (
-                <>
-                  <View style={styles.lawHeading}>
-                    <View style={styles.entryIcon}>
-                      <Icon name={entry.icon || 'document'} size={20} color={COLORS.primary} weight="duotone" />
-                    </View>
-                    <Text style={styles.sectionTitle}>{entry.title}</Text>
+                )}
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryList}
+              >
+                {categories.map((category) => {
+                  const selected = activeCategory === category;
+                  return (
+                    <Pressable
+                      key={category}
+                      onPress={() => {
+                        setActiveCategory(category);
+                        setExpandedQuestion(null);
+                      }}
+                      style={[styles.categoryChip, selected && styles.categoryChipSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.categoryChipText, selected && styles.categoryChipTextSelected]}>
+                        {category}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.resultHeading}>
+                <Text style={styles.sectionLabel}>Questions</Text>
+                <Text style={styles.resultCount}>{filteredFaqs.length} topics</Text>
+              </View>
+
+              {filteredFaqs.length > 0 ? filteredFaqs.map((entry) => {
+                const isExpanded = expandedQuestion === entry.question;
+                return (
+                  <View key={entry.question} style={[styles.faqCard, isExpanded && styles.faqCardExpanded]}>
+                    <Pressable
+                      style={styles.questionRow}
+                      onPress={() => setExpandedQuestion(isExpanded ? null : entry.question)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isExpanded }}
+                    >
+                      <View style={[styles.entryIcon, isExpanded && styles.entryIconSelected]}>
+                        <Icon name="question" size={18} color={FAQ_COLOR} weight="duotone" />
+                      </View>
+                      <View style={styles.questionCopy}>
+                        <Text style={styles.question}>{entry.question}</Text>
+                        <Text style={styles.questionCategory}>{entry.category || 'General'}</Text>
+                      </View>
+                      <View style={[styles.expandIcon, isExpanded && styles.expandIconSelected]}>
+                        <Icon
+                          name="caretDown"
+                          size={17}
+                          color={isExpanded ? '#FFFFFF' : COLORS.textSecondary}
+                        />
+                      </View>
+                    </Pressable>
+                    {isExpanded && (
+                      <View style={styles.answerWrap}>
+                        <View style={styles.answerDivider} />
+                        <Text style={styles.answer}>{entry.answer}</Text>
+                      </View>
+                    )}
                   </View>
-                  {entry.paragraphs.map((paragraph, paragraphIndex) => (
-                    <Text key={`${entry.title}-p-${paragraphIndex}`} style={styles.answer}>
-                      {paragraph}
-                    </Text>
-                  ))}
-                </>
+                );
+              }) : (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIcon}>
+                    <Icon name="search" size={22} color={FAQ_COLOR} />
+                  </View>
+                  <Text style={styles.emptyTitle}>No matching questions</Text>
+                  <Text style={styles.emptyText}>Try another search or choose a different topic.</Text>
+                  <Pressable
+                    onPress={() => {
+                      setSearch('');
+                      setActiveCategory('All topics');
+                    }}
+                    style={styles.resetButton}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.resetButtonText}>Show all questions</Text>
+                  </Pressable>
+                </View>
               )}
-            </View>
-          ))}
-          {type === 'legal' && <Text style={styles.disclaimer}>These in-app guidelines support ChemStock operations. Follow your organization’s approved policies and applicable Philippine regulations when they provide a stricter requirement.</Text>}
+            </>
+          ) : (
+            <>
+              <View style={styles.guidanceBanner}>
+                <Icon name="info" size={19} color={LEGAL_COLOR} />
+                <Text style={styles.guidanceText}>
+                  Tap any section to show or hide its details. This is practical in-app guidance, not legal advice; follow your organization’s approved policies and applicable requirements.
+                </Text>
+              </View>
+
+              {entries.map((entry) => {
+                const isExpanded = expandedLegalSections.includes(entry.title);
+                return (
+                <View key={entry.title} style={[styles.legalCard, isExpanded && styles.legalCardExpanded]}>
+                  <Pressable
+                    style={styles.legalHeading}
+                    onPress={() => setExpandedLegalSections((current) => (
+                      isExpanded
+                        ? current.filter((title) => title !== entry.title)
+                        : [...current, entry.title]
+                    ))}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: isExpanded }}
+                    accessibilityLabel={`${isExpanded ? 'Hide' : 'Show'} ${entry.title}`}
+                  >
+                    <View style={styles.legalIcon}>
+                      <Icon name={entry.icon || 'document'} size={20} color={LEGAL_COLOR} weight="duotone" />
+                    </View>
+                    <View style={styles.legalTitleCopy}>
+                      <Text style={styles.legalTitle}>{entry.title}</Text>
+                      {entry.reference && <Text style={styles.legalReference}>{entry.reference}</Text>}
+                    </View>
+                    <View style={styles.legalToggle}>
+                      <Text style={styles.legalToggleText}>{isExpanded ? 'Hide' : 'Show'}</Text>
+                      <Icon
+                        name="caretDown"
+                        size={16}
+                        color={LEGAL_COLOR}
+                        style={isExpanded ? styles.legalToggleIconExpanded : undefined}
+                      />
+                    </View>
+                  </Pressable>
+                  {isExpanded && (
+                    <View style={styles.legalDetails}>
+                      {entry.summary && <Text style={styles.legalSummary}>{entry.summary}</Text>}
+                      {entry.paragraphs.map((paragraph, index) => (
+                        <Text key={`${entry.title}-p-${index}`} style={styles.legalParagraph}>
+                          {paragraph}
+                        </Text>
+                      ))}
+                      {entry.practices?.length > 0 && (
+                        <View style={styles.practiceBox}>
+                          <Text style={styles.practiceTitle}>What to do</Text>
+                          {entry.practices.map((practice) => (
+                            <View key={practice} style={styles.practiceRow}>
+                              <Icon name="checkCircle" size={16} color="#27834A" />
+                              <Text style={styles.practiceText}>{practice}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+                );
+              })}
+            </>
+          )}
         </ScrollView>
       </View>
     </>
@@ -103,28 +269,44 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: '#F0EEFF',
     borderRadius: 18,
     padding: SPACING.md,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  legalHero: {
+    backgroundColor: '#EDF3FF',
   },
   heroIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     marginRight: SPACING.sm,
+    borderRadius: 12,
+    backgroundColor: '#EEF0FF',
+    overflow: 'hidden',
   },
+  // The logo file has wide empty margins, so it is drawn larger than its tile.
+  heroLogo: { width: 62, height: 62 },
   heroCopy: {
     flex: 1,
   },
-  heroTitle: {
-    color: COLORS.primary,
-    fontSize: TYPOGRAPHY.fontSize.md,
+  eyebrow: {
+    color: FAQ_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  heroTitle: {
+    color: '#18233A',
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    lineHeight: 21,
     marginBottom: 3,
   },
   heroText: {
@@ -132,76 +314,305 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xs,
     lineHeight: 18,
   },
-  sectionLabel: {
-    color: COLORS.textSecondary,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    marginBottom: SPACING.sm,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  questionRow: {
+  searchBox: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#E5E9F0',
+    marginBottom: SPACING.sm,
   },
-  entryIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primaryLight,
-    marginRight: SPACING.sm,
-  },
-  question: {
+  searchInput: {
     flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.md,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#111827',
-    marginBottom: SPACING.xs,
+    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.sm,
   },
-  category: {
-    color: COLORS.secondaryDark,
+  clearSearch: {
+    color: FAQ_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  categoryList: {
+    paddingBottom: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  categoryChip: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E9F0',
+  },
+  categoryChipSelected: {
+    backgroundColor: FAQ_COLOR,
+    borderColor: FAQ_COLOR,
+  },
+  categoryChipText: {
+    color: COLORS.textSecondary,
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     fontWeight: TYPOGRAPHY.fontWeight.medium,
-    marginTop: SPACING.sm,
-    marginLeft: 42,
   },
-  lawHeading: {
+  categoryChipTextSelected: {
+    color: '#FFFFFF',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  resultHeading: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: SPACING.xs,
     marginBottom: SPACING.sm,
   },
-  sectionTitle: {
-    flex: 1,
-    fontSize: TYPOGRAPHY.fontSize.md,
+  sectionLabel: {
+    color: '#18233A',
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#111827',
+  },
+  resultCount: {
+    color: COLORS.textTertiary,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+  },
+  faqCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#E9EDF3',
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  faqCardExpanded: {
+    borderColor: '#D9D5FF',
+  },
+  questionRow: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.sm,
+  },
+  entryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0EEFF',
+    marginRight: SPACING.sm,
+  },
+  entryIconSelected: {
+    backgroundColor: '#E9E6FF',
+  },
+  questionCopy: {
+    flex: 1,
+    paddingRight: SPACING.xs,
+  },
+  question: {
+    color: '#18233A',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    lineHeight: 20,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  questionCategory: {
+    color: FAQ_COLOR,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    marginTop: 3,
+  },
+  expandIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4F5F8',
+  },
+  expandIconSelected: {
+    backgroundColor: FAQ_COLOR,
+    transform: [{ rotate: '180deg' }],
+  },
+  answerWrap: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+  },
+  answerDivider: {
+    height: 1,
+    backgroundColor: '#EEF0F5',
     marginBottom: SPACING.sm,
   },
   answer: {
+    color: '#465166',
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.regular,
-    fontWeight: TYPOGRAPHY.fontWeight.regular,
-    color: '#374151',
+    lineHeight: 22,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E9EDF3',
+  },
+  emptyIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0EEFF',
+    marginBottom: SPACING.sm,
+  },
+  emptyTitle: {
+    color: '#18233A',
+    fontSize: TYPOGRAPHY.fontSize.base,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: 4,
+  },
+  emptyText: {
+    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  resetButton: {
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: '#F0EEFF',
+    borderRadius: 10,
+  },
+  resetButtonText: {
+    color: FAQ_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  guidanceBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#EDF3FF',
+    borderRadius: 13,
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  guidanceText: {
+    flex: 1,
+    color: '#3F5276',
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    lineHeight: 18,
+    marginLeft: SPACING.xs,
+  },
+  legalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E7EBF2',
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  legalCardExpanded: {
+    borderColor: '#C9D6F2',
+  },
+  legalHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 56,
+  },
+  legalDetails: {
+    paddingTop: SPACING.sm,
+  },
+  legalToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: SPACING.xs,
+  },
+  legalToggleText: {
+    color: LEGAL_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    marginRight: 2,
+  },
+  legalToggleIconExpanded: {
+    transform: [{ rotate: '180deg' }],
+  },
+  legalIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EDF3FF',
+    marginRight: SPACING.sm,
+  },
+  legalTitleCopy: {
+    flex: 1,
+  },
+  legalTitle: {
+    color: '#18233A',
+    fontSize: TYPOGRAPHY.fontSize.base,
+    lineHeight: 21,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  legalReference: {
+    color: LEGAL_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  legalSummary: {
+    color: '#3F5276',
+    backgroundColor: '#F3F6FC',
+    borderRadius: 10,
+    padding: SPACING.sm,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    lineHeight: 20,
+    marginBottom: SPACING.sm,
+  },
+  legalParagraph: {
+    color: '#465166',
+    fontSize: TYPOGRAPHY.fontSize.sm,
     lineHeight: 22,
     marginBottom: SPACING.sm,
   },
-  disclaimer: {
-    color: COLORS.textTertiary,
+  practiceBox: {
+    backgroundColor: '#F5F8F5',
+    borderRadius: 12,
+    padding: SPACING.sm,
+    marginTop: 2,
+  },
+  practiceTitle: {
+    color: '#245E3A',
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.xs,
+  },
+  practiceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: SPACING.xs,
+  },
+  practiceText: {
+    flex: 1,
+    color: '#43554A',
     fontSize: TYPOGRAPHY.fontSize.xs,
     lineHeight: 18,
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.md,
+    marginLeft: SPACING.xs,
   },
 });

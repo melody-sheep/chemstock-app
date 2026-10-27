@@ -1,12 +1,15 @@
 // src/screens/manager/ReleaseStockRecipientScreen.js
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
@@ -26,8 +29,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
 
 const ROLE_TABS = [
-  { key: ROLES.SALES_REP, label: 'Sales Rep', subtitle: 'Handed Directly' },
-  { key: ROLES.COLLECTOR, label: 'Collector', subtitle: 'Middleman / Bridge' },
+  { key: ROLES.SALES_REP, label: 'Sales Rep', subtitle: 'Receives it directly' },
+  { key: ROLES.COLLECTOR, label: 'Collector', subtitle: 'Delivers it for you' },
 ];
 
 // Same accent-per-role scheme as ManageAccountsScreen's agent role pill,
@@ -46,6 +49,7 @@ export default function ReleaseStockRecipientScreen() {
   const route = useRoute();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
+  const blurTarget = useRef(null);
   // Set when this screen was reached via "Prepare" on a Sales Rep's stock
   // request (AgentStockRequestScreen) — pre-fills the requester as recipient
   // and skips the manual scan/quick-register choice entirely, since the
@@ -64,6 +68,21 @@ export default function ReleaseStockRecipientScreen() {
   const [searchText, setSearchText] = useState('');
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [selectedTargetRep, setSelectedTargetRep] = useState(null);
+
+  // The two swipeable card rows slide the chosen person into view (a pick near the edge
+  // used to stay half hidden).
+  const agentScrollRef = useRef(null);
+  const agentLayouts = useRef({});
+  const targetScrollRef = useRef(null);
+  const targetLayouts = useRef({});
+  useEffect(() => {
+    const layout = agentLayouts.current[selectedAgent?.id];
+    if (layout) agentScrollRef.current?.scrollTo({ x: Math.max(0, layout.x - SPACING.md), animated: true });
+  }, [selectedAgent]);
+  useEffect(() => {
+    const layout = targetLayouts.current[selectedTargetRep?.id];
+    if (layout) targetScrollRef.current?.scrollTo({ x: Math.max(0, layout.x - SPACING.md), animated: true });
+  }, [selectedTargetRep]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -116,6 +135,12 @@ export default function ReleaseStockRecipientScreen() {
   });
 
   const prefillBranchName = branches.find((b) => b.id === prefillRequest?.branchId)?.name;
+
+  // Fulfilling a request: the stock can only go to the rep who asked (the server checks this too), so
+  // every other rep in that slot is shown greyed out and can't be picked. If the requester isn't in the
+  // list at all, nothing is locked (so the screen can never get stuck).
+  const requesterId = prefillRequest?.requestedBy?.id || null;
+  const isLockedOut = (agent, list) => !!requesterId && agent.id !== requesterId && list.some((a) => a.id === requesterId);
 
   const prefillAgent = prefillRequest
     ? agents.find((a) => a.id === prefillRequest.requestedBy.id) || null
@@ -192,18 +217,17 @@ export default function ReleaseStockRecipientScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56}>
+        <SecondaryHeader height={76}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Give Out Stock</Text>
-            <View style={styles.onlinePill}>
-              <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
-              <Text style={[styles.onlineText, !connection.online && styles.onlineTextOffline]}>
-                {onlineLabel}
-              </Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Give Out Stock</Text>
+              <Text style={styles.pageSubtitle}>Choose who receives the stock</Text>
             </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
@@ -212,12 +236,14 @@ export default function ReleaseStockRecipientScreen() {
 
           {branches.length > 1 && !prefillRequest?.branchId && (
             <>
-              <Text style={styles.sectionTitle}>Release stock from which branch?</Text>
+              <SectionHeader icon="building" size="md" label="Release from which branch?" style={styles.labelFirst} />
               <BranchSelector
                 branches={branches}
                 selectedId={selectedBranchId}
                 onSelect={setSelectedBranchId}
                 edgePadding={0}
+                scrollable
+                scrollBleed={SPACING.md}
               />
             </>
           )}
@@ -228,6 +254,8 @@ export default function ReleaseStockRecipientScreen() {
               <Text style={styles.prefillBannerText}>
                 Fulfilling stock request from {prefillRequest.requestedBy.fullName}
                 {prefillBranchName ? ` · ${prefillBranchName}` : ''}
+                {'\n'}
+                <Text style={styles.prefillBannerSub}>The stock goes to {prefillRequest.requestedBy.fullName}, so other reps are locked.</Text>
               </Text>
             </View>
           )}
@@ -241,6 +269,8 @@ export default function ReleaseStockRecipientScreen() {
                   style={[styles.roleCard, isActive && styles.roleCardActive]}
                   onPress={() => handleSelectRole(tab.key)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                 >
                   {isActive && (
                     <View style={styles.roleCheckBadge}>
@@ -249,11 +279,13 @@ export default function ReleaseStockRecipientScreen() {
                   )}
                   <Icon
                     name={tab.key === ROLES.COLLECTOR ? 'truck' : 'person'}
-                    size={22}
+                    size={24}
                     color={isActive ? COLORS.primary : COLORS.textSecondary}
                   />
-                  <Text style={[styles.roleCardLabel, isActive && styles.roleCardLabelActive]}>{tab.label}</Text>
-                  <Text style={styles.roleCardSubtitle}>({tab.subtitle})</Text>
+                  <View style={styles.roleTextCol}>
+                    <Text style={[styles.roleCardLabel, isActive && styles.roleCardLabelActive]}>{tab.label}</Text>
+                    <Text style={styles.roleCardSubtitle} numberOfLines={2}>{tab.subtitle}</Text>
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -281,14 +313,27 @@ export default function ReleaseStockRecipientScreen() {
               No {ROLE_TABS.find((t) => t.key === activeRole)?.label.toLowerCase()}s found for your branch.
             </Text>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.agentRow}>
+            <>
+            <SectionHeader
+              icon={activeRole === ROLES.COLLECTOR ? 'truck' : 'person'}
+              size="md"
+              label={`${activeRole === ROLES.COLLECTOR ? 'Collectors' : 'Sales Reps'} (${visibleAgents.length})`}
+              style={styles.labelAfterSearch}
+            />
+            <ScrollView key={activeRole} ref={agentScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.agentScroll} contentContainerStyle={styles.agentRow}>
               {visibleAgents.map((agent) => {
                 const isSelected = selectedAgent?.id === agent.id;
+                const locked = activeRole === ROLES.SALES_REP && isLockedOut(agent, visibleAgents);
                 return (
                   <TouchableOpacity
                     key={agent.id}
-                    style={[styles.agentCard, isSelected && styles.agentCardSelected]}
-                    onPress={() => setSelectedAgent(agent)}
+                    style={[styles.agentCard, isSelected && styles.agentCardSelected, locked && styles.agentCardLocked]}
+                    onPress={() => !locked && setSelectedAgent(agent)}
+                    disabled={locked}
+                    accessibilityState={{ disabled: locked, selected: isSelected }}
+                    onLayout={(event) => {
+                      agentLayouts.current[agent.id] = event.nativeEvent.layout;
+                    }}
                     activeOpacity={0.7}
                   >
                     {isSelected && (
@@ -299,43 +344,38 @@ export default function ReleaseStockRecipientScreen() {
                     <UserAvatar
                       photoUrl={agent.profilePhotoUrl}
                       fallbackText={getInitials(agent.full_name)}
-                      size={44}
+                      size={40}
                       backgroundColor={COLORS.primaryLight}
                       fallbackTextColor={COLORS.primary}
                     />
-                    <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[activeRole].bg }]}>
-                      <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[activeRole].text }]}>
-                        {activeRole === ROLES.SALES_REP ? 'SALES REP' : 'COLLECTOR'}
-                      </Text>
-                    </View>
                     <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+            </>
           )}
 
           {isCollectorRole && selectedAgent && (
             <>
-              <View style={styles.targetRepLabelRow}>
-                <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[ROLES.SALES_REP].bg }]}>
-                  <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[ROLES.SALES_REP].text }]}>
-                    SALES REP
-                  </Text>
-                </View>
-                <Text style={styles.targetRepLabel}>Deliver to</Text>
-              </View>
+              <SectionHeader icon="package" size="md" label={`Deliver to which Sales Rep? (${targetReps.length})`} style={styles.labelSpaced} />
               {targetReps.length === 0 ? (
                 <Text style={styles.emptyText}>No sales reps found for your branch.</Text>
               ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.agentRow}>
+                <ScrollView ref={targetScrollRef} horizontal showsHorizontalScrollIndicator={false} style={styles.agentScroll} contentContainerStyle={styles.agentRow}>
                   {targetReps.map((agent) => {
                     const isSelected = selectedTargetRep?.id === agent.id;
+                    const locked = isLockedOut(agent, targetReps);
                     return (
                       <TouchableOpacity
                         key={agent.id}
-                        style={[styles.agentCard, isSelected && styles.agentCardSelected]}
-                        onPress={() => setSelectedTargetRep(agent)}
+                        style={[styles.agentCard, isSelected && styles.agentCardSelected, locked && styles.agentCardLocked]}
+                        onPress={() => !locked && setSelectedTargetRep(agent)}
+                        disabled={locked}
+                        accessibilityState={{ disabled: locked, selected: isSelected }}
+                        onLayout={(event) => {
+                          targetLayouts.current[agent.id] = event.nativeEvent.layout;
+                        }}
                         activeOpacity={0.7}
                       >
                         {isSelected && (
@@ -346,15 +386,10 @@ export default function ReleaseStockRecipientScreen() {
                         <UserAvatar
                           photoUrl={agent.profilePhotoUrl}
                           fallbackText={getInitials(agent.full_name)}
-                          size={44}
+                          size={40}
                           backgroundColor={COLORS.primaryLight}
                           fallbackTextColor={COLORS.primary}
                         />
-                        <View style={[styles.roleBadge, { backgroundColor: ROLE_BADGE_COLORS[ROLES.SALES_REP].bg }]}>
-                          <Text style={[styles.agentRoleLabel, { color: ROLE_BADGE_COLORS[ROLES.SALES_REP].text }]}>
-                            SALES REP
-                          </Text>
-                        </View>
                         <Text style={styles.agentName} numberOfLines={2}>{agent.full_name}</Text>
                       </TouchableOpacity>
                     );
@@ -364,17 +399,31 @@ export default function ReleaseStockRecipientScreen() {
             </>
           )}
 
-          <View style={{ height: 24 }} />
+          <View style={{ height: 8 }} />
         </ScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
-            title="Next"
-            icon="arrowRight"
+            title={
+              canProceed
+                ? 'Next'
+                : !selectedBranchId
+                ? 'Choose a Branch'
+                : !selectedAgent
+                ? isCollectorRole
+                  ? 'Pick a Collector'
+                  : 'Pick a Sales Rep'
+                : 'Pick the Sales Rep to Deliver To'
+            }
+            icon={canProceed ? 'arrowRight' : undefined}
             iconPosition="right"
             onPress={handleNext}
             disabled={!canProceed}
             variant="black"
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
         </BottomActionBar>
       </View>
@@ -383,6 +432,8 @@ export default function ReleaseStockRecipientScreen() {
 }
 
 const styles = StyleSheet.create({
+  agentCardLocked: { opacity: 0.35 },
+  prefillBannerSub: { fontSize: 12, fontWeight: '400', color: COLORS.textSecondary },
   container: { flex: 1, backgroundColor: COLORS.background },
   titleRow: {
     flex: 1,
@@ -407,7 +458,19 @@ const styles = StyleSheet.create({
   },
   onlineDotOffline: { backgroundColor: COLORS.warning },
   onlineTextOffline: { color: COLORS.warning },
+  contentTarget: { flex: 1 },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: 24 },
+  labelFirst: { marginTop: SPACING.md, marginBottom: 0 },
+  labelSpaced: { marginTop: SPACING.md, marginBottom: 0 },
+  labelAfterSearch: { marginTop: 0, marginBottom: 0 },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -415,12 +478,15 @@ const styles = StyleSheet.create({
     color: '#272632',
     marginTop: SPACING.lg,
   },
-  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg, marginBottom: SPACING.md },
+  roleRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
   roleCard: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.lg,
+    gap: SPACING.sm,
+    minHeight: 64,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E5E5',
@@ -448,8 +514,9 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   roleCardLabelActive: { color: COLORS.primary },
+  roleTextCol: { flex: 1 },
   roleCardSubtitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
@@ -490,16 +557,19 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
-  searchWrap: { marginTop: SPACING.lg },
-  agentRow: { gap: SPACING.sm, paddingTop: SPACING.md, paddingRight: SPACING.sm },
+  searchWrap: { marginTop: SPACING.md },
+  // The rows of people swipe sideways and run to the screen edge.
+  agentScroll: { marginHorizontal: -SPACING.md, marginTop: SPACING.sm },
+  agentRow: { gap: SPACING.sm, paddingHorizontal: SPACING.md },
   agentCard: {
-    width: 92,
-    minHeight: 150,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
+    minWidth: 150,
+    maxWidth: 200,
+    height: 64,
+    gap: SPACING.sm,
+    paddingLeft: SPACING.sm,
+    paddingRight: SPACING.md,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E5E5',
@@ -527,16 +597,16 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   agentRoleLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     letterSpacing: 0.4,
   },
   agentName: {
-    fontSize: 11,
+    flexShrink: 1,
+    fontSize: 13,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textPrimary,
-    textAlign: 'center',
   },
 });

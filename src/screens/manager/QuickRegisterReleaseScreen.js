@@ -1,17 +1,22 @@
 // src/screens/manager/QuickRegisterReleaseScreen.js
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
+import UserAvatar from '../../components/common/UserAvatar';
 import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import ProductPickerList from '../../components/common/ProductPickerList';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
+import { getInitials } from '../../utils/initials';
 import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import { COLORS } from '../../constants/colors';
 import { logEvent } from '../../utils/logger';
@@ -24,6 +29,7 @@ import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
+const ROLE_LABEL = { collector: 'Collector', sales_rep: 'Sales Rep' };
 
 // First reason the release can't proceed yet, or null when it can.
 function getBlockingReason(items, photoUri) {
@@ -41,6 +47,8 @@ export default function QuickRegisterReleaseScreen() {
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType } = route.params;
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
+  const scrollRef = useRef(null);
 
   const [items, setItems] = useState([]);
   const [photoUri, setPhotoUri] = useState(null);
@@ -114,49 +122,88 @@ export default function QuickRegisterReleaseScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={56}>
+        <SecondaryHeader height={76}>
           <View style={styles.titleRow}>
-            <Text style={styles.urgentPageTitle}>Urgent Release!</Text>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.urgentPageTitle} numberOfLines={1}>Register New Items</Text>
+              <Text style={styles.pageSubtitle}>Add items that are not in the system yet</Text>
+            </View>
             <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: bottomActionBarHeight + SPACING.md + (blockingReason ? SPACING.xl : 0) },
+            { paddingBottom: bottomActionBarHeight + SPACING.md + SPACING.xl },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
+          {/* Who this release is for (chosen on the first screen). */}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryPerson}>
+              <UserAvatar
+                photoUrl={recipient.profilePhotoUrl}
+                fallbackText={getInitials(recipient.fullName)}
+                size={36}
+                backgroundColor={COLORS.primaryLight}
+                fallbackTextColor={COLORS.primary}
+              />
+              <View style={styles.summaryTextCol}>
+                <Text style={styles.summaryCaption}>{targetRecipient ? (ROLE_LABEL[recipient.role] || 'Recipient') : 'Releasing to'}</Text>
+                <Text style={styles.summaryName} numberOfLines={1}>{recipient.fullName}</Text>
+              </View>
+            </View>
+            {targetRecipient && (
+              <>
+                <Icon name="arrowRight" size={16} color={COLORS.textSecondary} />
+                <View style={styles.summaryPerson}>
+                  <UserAvatar
+                    photoUrl={targetRecipient.profilePhotoUrl}
+                    fallbackText={getInitials(targetRecipient.fullName)}
+                    size={36}
+                    backgroundColor={COLORS.primaryLight}
+                    fallbackTextColor={COLORS.primary}
+                  />
+                  <View style={styles.summaryTextCol}>
+                    <Text style={styles.summaryCaption}>Deliver to</Text>
+                    <Text style={styles.summaryName} numberOfLines={1}>{targetRecipient.fullName}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+
           <ProductPickerList
+            scrollRef={scrollRef}
             items={items}
             onItemsChange={setItems}
             onOpenPicker={() => navigation.navigate('ProductSelect', { alreadyAddedCodes: items.map((item) => item.code) })}
-            queueTitle="Batches to Add"
-            queueCardHeader="Session Queue"
+            queueTitle="Items to Register"
+            queueCardHeader="List of Items"
+            labelHeader
+            emptyText="Pick a product above to add it here."
           />
 
-          <Text style={styles.sectionTitle}>Shipment Proof (Handover)</Text>
+          <SectionHeader icon="camera" size="md" label="Waybill / invoice photo" style={styles.labelSpaced} />
           <ShipmentProofRow
             photoUri={photoUri}
             onOpenCamera={handleOpenCamera}
             onViewPhoto={photoUri ? handleViewPhoto : undefined}
           />
 
-          <View style={styles.summaryRow}>
-            <Icon name="package" size={16} color={COLORS.textSecondary} />
-            <Text style={styles.summaryText}>
-              {items.length} item{items.length === 1 ? '' : 's'}, {totalUnits} units
-            </Text>
-          </View>
-
         </ScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
-          {blockingReason && <Text style={styles.blockingHint}>{blockingReason}</Text>}
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
+          <Text style={styles.blockingHint}>
+            {blockingReason || `${items.length} item${items.length === 1 ? '' : 's'} · ${totalUnits} unit${totalUnits === 1 ? '' : 's'} ready`}
+          </Text>
           <Button
             title="Next"
             icon="arrowRight"
@@ -164,6 +211,9 @@ export default function QuickRegisterReleaseScreen() {
             onPress={handleNext}
             disabled={blockingReason !== null}
             variant="black"
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
         </BottomActionBar>
 
@@ -201,7 +251,41 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.success,
   },
+  contentTarget: { flex: 1 },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.md, paddingBottom: 48 },
+  labelSpaced: { marginTop: SPACING.md, marginBottom: 0 },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
+  },
+  summaryPerson: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  summaryTextCol: { flex: 1 },
+  summaryCaption: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  summaryName: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
   blockingHint: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
@@ -221,7 +305,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.xs,
+    alignSelf: 'center',
+    gap: 8,
+    paddingHorizontal: SPACING.md,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EEF0FF',
   },
   summaryText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

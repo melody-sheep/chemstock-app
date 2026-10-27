@@ -2,7 +2,7 @@
   "expo": {
     "name": "ChemStock",
     "slug": "chemstock-mobile",
-    "version": "1.0.6",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,13 +12,14 @@
     },
     "android": {
       "package": "com.chemstock.mobile",
-      "versionCode": 6,
+      "versionCode": 13,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "android.permission.CAMERA",
@@ -67,7 +68,15 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#03045E",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "extra": {
       "eas": {

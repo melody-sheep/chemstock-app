@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import SearchDropdownField from './SearchDropdownField';
 import SelectedProductsRow from './SelectedProductsRow';
 import RegisteredItemsList from './RegisteredItemsList';
+import SectionHeader from './SectionHeader';
 import { COLORS } from '../../constants/colors';
 import { TYPOGRAPHY } from '../../styles/typography';
 
@@ -15,6 +16,10 @@ export default function ProductPickerList({
   onOpenPicker,
   queueTitle = 'Items To Be Registered',
   queueCardHeader = 'List of Items',
+  // true: icon + uppercase labels, and no "selected products" row until something is picked
+  labelHeader = false,
+  emptyText,
+  scrollRef,
 }) {
   const handleRemoveProduct = (code) => {
     onItemsChange(items.filter((item) => item.code !== code));
@@ -32,7 +37,11 @@ export default function ProductPickerList({
 
   return (
     <>
-      <Text style={styles.sectionTitle}>Search Product:</Text>
+      {labelHeader ? (
+        <SectionHeader icon="package" size="md" label="Search product" style={{ marginTop: 8, marginBottom: 0 }} />
+      ) : (
+        <Text style={styles.sectionTitle}>Search Product:</Text>
+      )}
       <SearchDropdownField
         value=""
         onChangeText={() => {}}
@@ -42,7 +51,9 @@ export default function ProductPickerList({
         buttonIcon="caretDown"
       />
 
-      <SelectedProductsRow items={items} onRemove={handleRemoveProduct} />
+      {(!labelHeader || items.length > 0) && (
+        <SelectedProductsRow items={items} onRemove={handleRemoveProduct} labelHeader={labelHeader} />
+      )}
 
       <RegisteredItemsList
         items={items}
@@ -51,6 +62,9 @@ export default function ProductPickerList({
         onRemove={handleRemoveProduct}
         sectionTitle={queueTitle}
         cardHeaderTitle={queueCardHeader}
+        labelHeader={labelHeader}
+        scrollRef={scrollRef}
+        {...(emptyText ? { emptyText } : {})}
       />
     </>
   );
@@ -62,6 +76,9 @@ ProductPickerList.propTypes = {
   onOpenPicker: PropTypes.func.isRequired,
   queueTitle: PropTypes.string,
   queueCardHeader: PropTypes.string,
+  labelHeader: PropTypes.bool,
+  emptyText: PropTypes.string,
+  scrollRef: PropTypes.object,
 };
 
 const styles = StyleSheet.create({

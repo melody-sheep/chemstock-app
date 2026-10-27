@@ -320,14 +320,11 @@ a { color: var(--accent); }
 .summary-row i { font-size: 19px; color: var(--accent); flex-shrink: 0; }
 .summary-row .muted { color: var(--text-3); }
 
-.branch-picker { border: 1px solid var(--line); border-radius: var(--radius); }
-.branch-picker .check-list { padding: 10px; max-height: 260px; }
 .selected-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .selected-chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px 7px 12px; border-radius: var(--radius); background: var(--accent-soft); border: 1px solid rgba(79, 140, 255, 0.4); font-size: 14px; font-weight: 600; }
 .selected-chip .new { font-size: 11px; color: var(--ok); font-weight: 700; }
 .selected-chip button { color: var(--text-2); display: flex; }
 .selected-chip button:hover { color: var(--bad); }
-.new-branch { padding: 18px; border: 1px dashed var(--line-strong); border-radius: var(--radius); }
 .place-results { margin-top: 6px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: #101a2e; max-height: 240px; overflow-y: auto; }
 .place-results button { display: flex; gap: 10px; width: 100%; padding: 11px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--line); }
 .place-results button:last-child { border-bottom: none; }
@@ -385,4 +382,68 @@ a { color: var(--accent); }
   .nav-item span { display: none; }
   .sidebar-footer { margin: 0 0 0 auto; border: none; padding: 0; }
   .topbar, .view { padding-left: 16px; padding-right: 16px; }
+}
+
+
+/* ---- Branches: roomier layout (picker, new-branch form, branch cards) ---- */
+.input-lg { padding-top: 13px; padding-bottom: 13px; font-size: 15.5px; }
+.optional { font-weight: 500; color: var(--text-3); }
+
+.step-form { display: flex; flex-direction: column; gap: 22px; }
+.step-intro h3 { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
+.step-intro p { color: var(--text-3); font-size: 14.5px; }
+
+.selected-box { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.02); }
+.selected-box-head { margin-bottom: 10px; }
+.selected-empty { display: inline-flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 14px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(0, 0, 0, 0.2); }
+.seg-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 10px; border-radius: var(--radius-sm); font-size: 14.5px; font-weight: 600; color: var(--text-2); }
+.seg-btn:hover { background: var(--glass); }
+.seg-btn.active { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.5); }
+.seg-btn i { font-size: 19px; }
+
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.picker-search { display: flex; flex-direction: column; gap: 8px; }
+.picker-count { font-size: 13px; color: var(--text-3); }
+
+.branch-list { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.branch-option { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.branch-option:hover { background: var(--glass); }
+.branch-option.checked { border-color: rgba(79, 140, 255, 0.55); background: var(--accent-soft); }
+.branch-option input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+.branch-option-icon { width: 38px; height: 38px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.06); font-size: 20px; color: var(--accent); flex-shrink: 0; }
+.branch-option-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.branch-option-name { font-weight: 700; font-size: 15.5px; }
+.branch-option-sub { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 13.5px; }
+.branch-option-managers { font-size: 13px; color: var(--text-2); text-align: right; max-width: 38%; }
+
+.new-branch { gap: 26px; }
+.form-section { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255, 255, 255, 0.02); }
+.form-section-title { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15.5px; }
+.form-section-title .num { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; font-size: 13px; }
+.form-end { justify-content: flex-end; }
+
+.page-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.page-intro h2 { font-size: 22px; font-weight: 800; }
+.page-intro p { color: var(--text-3); font-size: 14.5px; margin-top: 4px; max-width: 560px; }
+.branch-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+.branch-tools .grow { flex: 1; min-width: 260px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 14px; font-weight: 600; color: var(--text-2); }
+.filter-chip:hover { background: var(--glass); }
+.filter-chip.active { background: var(--accent-soft); color: var(--text); border-color: rgba(79, 140, 255, 0.55); }
+.filter-chip .count { font-size: 12px; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.09); }
+
+.branch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+.branch-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.branch-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.branch-card-icon { width: 44px; height: 44px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); font-size: 23px; flex-shrink: 0; }
+.branch-card-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 16px; }
+.branch-card-row { display: flex; align-items: flex-start; gap: 10px; font-size: 14.5px; color: var(--text-2); }
+.branch-card-row i { font-size: 18px; color: var(--text-3); margin-top: 1px; flex-shrink: 0; }
+
+@media (max-width: 820px) {
+  .seg { grid-template-columns: 1fr; }
+  .branch-option { flex-wrap: wrap; }
+  .branch-option-managers { max-width: 100%; text-align: left; flex-basis: 100%; }
 }

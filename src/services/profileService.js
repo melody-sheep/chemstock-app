@@ -15,6 +15,34 @@ class ProfileService extends BaseService {
     super('ProfileService');
   }
 
+  async getAgentManagerContact(agentId) {
+    debugLog('info', 'ProfileService', 'Fetching assigned manager contact', { agentId });
+
+    try {
+      this.validateRequired(['agentId'], { agentId });
+
+      const { data, error } = await supabase.rpc('get_agent_manager_contact', {
+        p_agent_id: agentId,
+      });
+
+      if (error) {
+        console.error('[ERROR] [ProfileService] get_agent_manager_contact RPC error:', error);
+        throw new Error(error.message || 'Failed to load manager contact');
+      }
+
+      if (!data) return { success: true, data: null };
+
+      const profilePhotoUrl = data.profile_photo_path
+        ? await resolveProfilePhotoUrl(data.profile_photo_path)
+        : null;
+
+      return { success: true, data: { ...data, profile_photo_url: profilePhotoUrl } };
+    } catch (error) {
+      this.log('error', 'getAgentManagerContact failed', { error: error.message });
+      return { success: false, message: error.message || 'Failed to load manager contact' };
+    }
+  }
+
   /**
    * Uploads a new profile photo. Same base64-read-and-upload shape as
    * uploadStockAcceptancePhoto/uploadDiscrepancyPhoto — returns the storage

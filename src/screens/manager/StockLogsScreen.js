@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import FilterSheet from '../../components/common/FilterSheet';
 import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
@@ -16,7 +17,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
-import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
+import { useLogsSeenSince } from '../../hooks/useUnseenLogCount';
 import { getLogItems } from '../../utils/stockLogUtils';
 
 const LOGS_LIMIT = 50;
@@ -119,7 +120,7 @@ const loadLogsData = async (previous) => {
 
 export default function StockLogsScreen() {
   const route = useRoute();
-  useMarkLogsSeen();
+  const isNewLog = useLogsSeenSince();
   const navigation = useNavigation();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
@@ -128,17 +129,21 @@ export default function StockLogsScreen() {
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
   const [dateRange, setDateRange] = useState(null); // { from: Date, to: Date } | null
 
-  const openDetail = (log) => {
+  const openDetail = (log, { replaceThisScreen = false } = {}) => {
+    // Opened straight from a Recent Logs tap: swap this list for the target screen, so Back
+    // goes to where the tap came from (the dashboard) and not to a list nobody asked to see.
+    const go = replaceThisScreen ? navigation.replace : navigation.navigate;
     if (log.logType === 'report') {
-      navigation.navigate('ManageReturns');
+      // The exact report, opened the same way a notification opens it.
+      go('ManageReturns', { focusId: log.reportId });
       return;
     }
     if (log.logType === 'discrepancy') {
-      navigation.navigate('ManagerAlerts');
+      go('ManagerAlerts', { focusId: log.reportItemId });
       return;
     }
 
-    navigation.navigate('StockLogDetail', { log, recipientNameById });
+    go('StockLogDetail', { log, recipientNameById });
   };
 
   // Jumped here from a tap on a Recent Logs row (Dashboard) — the row
@@ -146,9 +151,19 @@ export default function StockLogsScreen() {
   // to the detail screen instead of waiting for this screen's own list load.
   useEffect(() => {
     if (route.params?.initialLog) {
-      openDetail(route.params.initialLog);
+      openDetail(route.params.initialLog, { replaceThisScreen: true });
     }
   }, [route.params?.initialLog?.id]);
+
+  // Sent here from a fulfilled stock request: open the release it was fulfilled with. Waits for
+  // the list to load; if no log matches, the list just stays as it is.
+  useEffect(() => {
+    // openTransactionId comes from a fulfilled request; focusId from a "Stock accepted" notification.
+    const wantedId = route.params?.openTransactionId || route.params?.focusId;
+    if (!wantedId || isLoading) return;
+    const match = logs.find((log) => log.logType === 'release' && log.id === wantedId);
+    if (match) openDetail(match, { replaceThisScreen: true });
+  }, [route.params?.openTransactionId, route.params?.focusId, isLoading, logs]);
 
   const activeFilterOption = DATE_FILTER_OPTIONS.find((option) => option.key === dateFilter);
 
@@ -205,7 +220,7 @@ export default function StockLogsScreen() {
             accessibilityLabel="Filter by date"
             accessibilityRole="button"
           >
-            <Icon name="filter" size={20} color={COLORS.primary} />
+            <Icon name="filter" size={22} color={COLORS.primary} />
             {(dateFilter !== 'all' || dateRange) && <View style={styles.filterActiveDot} />}
           </TouchableOpacity>
         </View>
@@ -216,7 +231,7 @@ export default function StockLogsScreen() {
           </View>
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>No transactions yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
@@ -248,15 +263,17 @@ export default function StockLogsScreen() {
               const metaText = log.logType === 'report'
                 ? `${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'} reported`
                 : log.logType === 'discrepancy'
-                ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.carryForwardEnabled ? 'missing on report; still in backpack; carried forward' : log.discrepancyType === 'loss' ? 'missing' : 'over'}`
                 : summarizeItems(getLogItems(log));
               return (
                 <LogCard
+                  flat
                   key={`${log.logType}-${logKey}`}
                   type={cardType}
                   title={getTitle(log)}
                   meta={metaText}
                   time={formatRelativeTime(log.created_at)}
+                  isNew={isNewLog(log.created_at)}
                   onPress={() => openDetail(log)}
                 />
               );
@@ -291,19 +308,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#ECEEF1',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: 'rgba(39,38,50,0.08)',
   },
   filterRowLabel: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.textSecondary,
   },
   filterButtonWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -319,7 +334,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
-  content: { padding: SPACING.lg, gap: SPACING.xs },
+  content: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
   emptyText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,

@@ -1,20 +1,29 @@
 // src/screens/manager/ReceiveStockScreen.js
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
+import { BlurTargetView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import Header from '../../components/common/Header';
-import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
+import SecondaryHeader from '../../components/common/SecondaryHeader';
+import LiveStatusPill from '../../components/common/LiveStatusPill';
+import SectionHeader from '../../components/common/SectionHeader';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
 import Icon from '../../components/common/Icon';
-import LogListItem from '../../components/common/LogListItem';
+import LogCard from '../../components/common/LogCard';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import deliveryService from '../../services/deliveryService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import friendlyError from '../../utils/friendlyError';
+
+// Blue frame so the scan box reads as something you can tap.
+const SCAN_BLUE = '#0085F9';
+const SCAN_BLUE_TINT = '#EAF4FF';
+const HEADER_HEIGHT = 76;
 
 export default function ReceiveStockScreen() {
   const navigation = useNavigation();
@@ -25,6 +34,7 @@ export default function ReceiveStockScreen() {
   const [scannedReturns, setScannedReturns] = useState([]);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
 
   const handleDocumentPress = () => {
     navigation.navigate('StockLogs');
@@ -75,11 +85,11 @@ export default function ReceiveStockScreen() {
     if (hasScannedReturns) {
       Alert.alert(
         'Nothing Left to Register',
-        'The returns you scanned are already back in branch stock. To register a new shipment, tap Generate New Batch.'
+        'The returns you scanned are already back in branch stock. To register a new shipment, tap Add New Batch.'
       );
       return;
     }
-    Alert.alert('No Items Yet', 'Scan a QR code or generate a new batch before registering.');
+    Alert.alert('No Items Yet', 'Scan a Collector return or add a new batch before registering.');
   };
 
   return (
@@ -97,49 +107,57 @@ export default function ReceiveStockScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SubScreenSecondaryHeader title="Receive Factory Stock" />
-
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Shipment Identification</Text>
-
-            <TouchableOpacity style={styles.qrScanBox} onPress={handleScanQR} activeOpacity={0.7}>
-              <Icon name="qrCodeDetailed" size={56} color={COLORS.textPrimary} />
-              <Text style={styles.qrScanTitle}>Scan QR Code</Text>
-              <Text style={styles.qrScanSubtext}>(For products that already have QR code)</Text>
-            </TouchableOpacity>
+        <SecondaryHeader height={HEADER_HEIGHT}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleTextCol}>
+              <Text style={styles.pageTitle} numberOfLines={1}>Receive Factory Stock</Text>
+              <Text style={styles.pageSubtitle}>Register new shipments and collector returns</Text>
+            </View>
+            <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
+        </SecondaryHeader>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>No QR on Product?</Text>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <SectionHeader icon="qrCode" size="md" label="Scan a Collector Return" style={styles.sectionHeaderFirst} />
+            <TouchableOpacity style={styles.qrScanBox} onPress={handleScanQR} activeOpacity={0.7}>
+              <Icon name="qrCode" size={56} color={SCAN_BLUE} />
+              <Text style={styles.qrScanTitle}>Scan QR Code</Text>
+              <Text style={styles.qrScanSubtext}>(For stock a Collector brings back)</Text>
+            </TouchableOpacity>
 
+            <SectionHeader icon="package" size="md" label="New Factory Shipment" style={styles.sectionHeaderSpaced} />
             <Button
-              title="Generate New Batch"
+              title="Add New Batch"
               icon="plus"
               iconWeight="bold"
               onPress={handleGenerateBatch}
+              height={44}
+              fontSize={14}
+              borderRadius={22}
               style={styles.orangeButton}
             />
-          </View>
 
-          <View style={styles.section}>
-            <View style={styles.queueHeaderRow}>
-              <Text style={styles.sectionTitle}>Scanned or Queued Items</Text>
-              <Icon name="warningTriangle" size={16} color={COLORS.accentGold} />
-            </View>
-
+            <SectionHeader
+              icon="trayDown"
+              size="md"
+              style={styles.sectionHeaderSpaced}
+              label={hasScannedReturns ? `Scanned Returns (${scannedReturns.length})` : 'Scanned Returns'}
+            />
             {hasScannedReturns ? (
               <View style={styles.queueList}>
-                {scannedReturns.map((item) => (
-                  <LogListItem key={item.key} icon="trayDown" iconColor={COLORS.primary} text={item.text} />
-                ))}
+                {scannedReturns.map((item) => {
+                  // "Returned by Collector: Product x2, ..." -> title + details
+                  const [cardTitle, ...rest] = item.text.split(': ');
+                  return <LogCard key={item.key} type="receive" title={cardTitle} meta={rest.join(': ')} time="Just now" />;
+                })}
               </View>
             ) : (
               <View style={styles.emptyQueue}>
-                <Text style={styles.emptyQueueText}>Scanned Items Displays Here!</Text>
+                <Text style={styles.emptyQueueText}>Returns you scan will show here.</Text>
                 <Image
                   source={require('../../../assets/manager_assets/scanned_qr_man.png')}
                   style={styles.emptyQueueImage}
@@ -147,15 +165,17 @@ export default function ReceiveStockScreen() {
                 />
               </View>
             )}
-          </View>
+          </ScrollView>
+        </BlurTargetView>
 
-        </ScrollView>
-
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
             title="Confirm & Register New Batch"
             variant="black"
             onPress={handleConfirmRegister}
+            height={48}
+            fontSize={16}
+            borderRadius={24}
           />
         </BottomActionBar>
 
@@ -174,9 +194,52 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  contentTarget: { flex: 1 },
   content: {
-    padding: SPACING.lg,
-    paddingBottom: 40,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  sectionHeaderFirst: { marginTop: SPACING.sm, marginBottom: SPACING.md },
+  // Groups sit well apart; a label sits a little way above what it names.
+  sectionHeaderSpaced: { marginTop: SPACING.xl, marginBottom: SPACING.md },
+  titleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+  },
+  titleTextCol: { flexShrink: 1, flex: 1 },
+  pageTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#272632',
+  },
+  pageSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    fontWeight: TYPOGRAPHY.fontWeight.regular,
+    color: COLORS.textSecondary,
+  },
+  onlinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4CAF50',
+  },
+  onlineText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.success,
   },
   // Groups of closely-related controls sit close together (small gap);
   // the space BETWEEN groups is bigger, so sections read as distinct
@@ -192,29 +255,28 @@ const styles = StyleSheet.create({
     color: '#272632',
   },
   qrScanBox: {
-    minHeight: 180,
+    minHeight: 168,
     borderWidth: 1.5,
-    borderColor: '#757575',
+    borderColor: SCAN_BLUE,
     borderStyle: 'dotted',
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.md,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SCAN_BLUE_TINT,
   },
   qrScanTitle: {
-    marginTop: SPACING.sm,
+    marginTop: SPACING.md,
     fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.primary,
   },
   qrScanSubtext: {
-    marginTop: 2,
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    marginTop: SPACING.xs,
+    fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     fontWeight: TYPOGRAPHY.fontWeight.regular,
-    fontStyle: 'italic',
     color: COLORS.textSecondary,
   },
   orangeButton: {
@@ -226,10 +288,10 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   queueList: {
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   emptyQueue: {
-    minHeight: 110,
+    minHeight: 124,
     borderWidth: 1,
     borderColor: '#CBD5E1',
     borderStyle: 'dashed',
