@@ -22,6 +22,7 @@ const adminAuth = require('./utils/adminAuth');
 const { generateKeyLimiter, revokeKeyLimiter, globalLimiter } = require('./utils/rateLimiter');
 const { auditLogger } = require('./utils/auditLogger');
 const activity = require('./utils/activityLog');
+const { checkEmailLegit } = require('./utils/emailCheck');
 
 const PORT = process.env.PORT || 3001;
 // Only this computer can open the admin tool — not other devices on the Wi-Fi.
@@ -237,6 +238,7 @@ app.get('/api/check-email', async (req, res) => {
   try {
     const email = String(req.query.email || '').trim().toLowerCase();
     if (!EMAIL_PATTERN.test(email)) return res.json({ success: true, data: { valid: false } });
+    const legit = await checkEmailLegit(email);
     const [{ data: profile }, { data: keys }, revoked] = await Promise.all([
       supabase.from('user_profiles').select('id, full_name, role, branch_ids').ilike('email', email).maybeSingle(),
       supabase.from('activation_keys').select('code, manager_name, is_used, expires_at').ilike('manager_email', email),
@@ -252,6 +254,7 @@ app.get('/api/check-email', async (req, res) => {
       success: true,
       data: {
         valid: true,
+        legit,
         account: profile ? { name: profile.full_name, role: profile.role, branches: branchNames } : null,
         openKey: openKey ? { managerName: openKey.manager_name, expiresAt: asUtc(openKey.expires_at) } : null,
       },
@@ -275,6 +278,8 @@ app.post('/api/keys/generate', generateKeyLimiter, async (req, res) => {
 
   if (managerName.length < 3) return fail(res, 400, 'Enter the manager’s full name.');
   if (!EMAIL_PATTERN.test(managerEmail)) return fail(res, 400, 'Enter a valid email address.');
+  const emailLegit = await checkEmailLegit(managerEmail);
+  if (!emailLegit.legit) return fail(res, 400, emailLegit.message);
   if (requested.length === 0) return fail(res, 400, 'Pick at least one branch.');
 
   try {
