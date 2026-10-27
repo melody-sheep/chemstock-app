@@ -1,9 +1,9 @@
 // src/screens/manager/ManagerAlertsScreen.js
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
@@ -83,6 +83,25 @@ export default function ManagerAlertsScreen() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [scanSummary, setScanSummary] = useState(null);
+
+  // Sent here from a log row or a notification: open that discrepancy instead of leaving you on the list.
+  // A report id opens it only when the report has a single discrepancy; with several, the list stays.
+  const route = useRoute();
+  const focusId = route.params?.focusId || null;
+  const openedFocusIdRef = useRef(null);
+  useEffect(() => {
+    if (!focusId) {
+      openedFocusIdRef.current = null;
+      return;
+    }
+    if (isLoading || openedFocusIdRef.current === focusId) return;
+    const sameReport = alerts.filter((a) => a.reportId === focusId);
+    const match = alerts.find((a) => a.reportItemId === focusId) || (sameReport.length === 1 ? sameReport[0] : null);
+    if (match) {
+      openedFocusIdRef.current = focusId;
+      setSelectedAlert(match);
+    }
+  }, [focusId, isLoading, alerts]);
 
   const handleScanned = async (qrCode) => {
     setIsScannerVisible(false);

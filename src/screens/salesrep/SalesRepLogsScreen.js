@@ -110,7 +110,7 @@ export default function SalesRepLogsScreen() {
     // where the tap came from (the dashboard) and not to a list nobody asked to see.
     const go = replaceThisScreen ? navigation.replace : navigation.navigate;
     if (log.logType === 'discrepancy') {
-      go('AlertsDiscrepanciesSR');
+      go('ResolveDiscrepancy', { reportItem: log });
       return;
     }
     go('SalesRepLogDetail', { log });

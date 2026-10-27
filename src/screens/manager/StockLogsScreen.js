@@ -133,11 +133,12 @@ export default function StockLogsScreen() {
     // goes to where the tap came from (the dashboard) and not to a list nobody asked to see.
     const go = replaceThisScreen ? navigation.replace : navigation.navigate;
     if (log.logType === 'report') {
-      go('ManageReturns');
+      // The exact report, opened the same way a notification opens it.
+      go('ManageReturns', { focusId: log.reportId });
       return;
     }
     if (log.logType === 'discrepancy') {
-      go('ManagerAlerts');
+      go('ManagerAlerts', { focusId: log.reportItemId });
       return;
     }
 

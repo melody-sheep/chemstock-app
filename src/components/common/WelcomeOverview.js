@@ -31,7 +31,7 @@ const TOOLS = {
   ],
 };
 
-export default function WelcomeOverview({ role, userId, name }) {
+export default function WelcomeOverview({ role, userId, name, onSettled }) {
   const [visible, setVisible] = useState(false);
   const { height } = useWindowDimensions();
   const key = `chemstock_welcome_v1_${role}_${userId}`;
@@ -40,7 +40,10 @@ export default function WelcomeOverview({ role, userId, name }) {
     if (!userId) return undefined;
     let active = true;
     storage.get(key).then((seen) => {
-      if (active && !seen) setVisible(true);
+      if (!active) return;
+      if (!seen) setVisible(true);
+      // Tells the screen whether the welcome is open, so a tour waits for it to close.
+      onSettled?.(!seen);
     });
     return () => {
       active = false;
@@ -50,6 +53,7 @@ export default function WelcomeOverview({ role, userId, name }) {
   const close = () => {
     setVisible(false);
     storage.set(key, true);
+    onSettled?.(false);
   };
 
   const firstName = String(name || '').split(' ')[0];
@@ -95,6 +99,7 @@ WelcomeOverview.propTypes = {
   role: PropTypes.oneOf(['sales_rep', 'collector']).isRequired,
   userId: PropTypes.string,
   name: PropTypes.string,
+  onSettled: PropTypes.func,
 };
 
 const styles = StyleSheet.create({

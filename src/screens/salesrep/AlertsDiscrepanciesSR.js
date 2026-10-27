@@ -1,8 +1,8 @@
 // src/screens/salesrep/AlertsDiscrepanciesSR.js
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, Image, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
@@ -36,6 +36,23 @@ export default function AlertsDiscrepanciesSR() {
   const discrepancies = snapshot?.discrepancies ?? [];
   const { pending: queuedResolutions } = useOutbox('discrepancy_resolution');
   const queuedReportItemIds = new Set(queuedResolutions.map((e) => e.payload?.reportItemId));
+
+  // Sent here for one discrepancy (a notification): open it instead of leaving you on the list.
+  const route = useRoute();
+  const focusId = route.params?.focusId || null;
+  const openedFocusIdRef = useRef(null);
+  useEffect(() => {
+    if (!focusId) {
+      openedFocusIdRef.current = null;
+      return;
+    }
+    if (isLoading || openedFocusIdRef.current === focusId) return;
+    const match = discrepancies.find((d) => d.reportItemId === focusId);
+    if (match) {
+      openedFocusIdRef.current = focusId;
+      navigation.replace('ResolveDiscrepancy', { reportItem: match });
+    }
+  }, [focusId, isLoading, discrepancies]);
 
   const handleBack = () => navigation.goBack();
 

@@ -1,5 +1,5 @@
 // src/screens/collector/CollectorDashboardScreen.js
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +25,7 @@ import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
 import notificationService from '../../services/notificationService';
 import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
 import WelcomeOverview from '../../components/common/WelcomeOverview';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -61,6 +62,10 @@ export default function CollectorDashboardScreen() {
   // Same FB/IG-style collapsing header as the other dashboards — see
   // ManagerDashboardScreen for why it's JS-driven (diffClamp + transform).
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
+  const [welcomeOpen, setWelcomeOpen] = useState(null);
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -294,6 +299,7 @@ export default function CollectorDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+            ref={tourScrollRef}
             refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
@@ -321,6 +327,7 @@ export default function CollectorDashboardScreen() {
 
           <OutboxFailedNotice failed={failedItems} agentId={user?.id} onRetry={retryNow} onDiscard={discard} />
 
+          <View ref={tourRefs.focus} collapsable={false}>
           {isLoading ? (
             <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
           ) : (
@@ -351,6 +358,7 @@ export default function CollectorDashboardScreen() {
               ]}
             />
           )}
+          </View>
 
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
@@ -359,7 +367,7 @@ export default function CollectorDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-            <View style={styles.statsRow}>
+            <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
               {displayedStats.map((stat) => {
                 const card = (
                   <StatCard
@@ -467,7 +475,7 @@ export default function CollectorDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operations</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -527,6 +535,7 @@ export default function CollectorDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={handleFabPress}
@@ -536,7 +545,8 @@ export default function CollectorDashboardScreen() {
           fabLabel="Deliver"
         />
       </View>
-      <WelcomeOverview role="collector" userId={user?.id} name={user?.full_name || user?.username} />
+      <DashboardTour role="collector" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && welcomeOpen === false} />
+      <WelcomeOverview role="collector" userId={user?.id} name={user?.full_name || user?.username} onSettled={setWelcomeOpen} />
     </>
   );
 }

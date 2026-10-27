@@ -31,6 +31,7 @@ import requestService from '../../services/requestService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
 import PermissionsCard from '../../components/common/PermissionsCard';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -101,6 +102,9 @@ export default function ManagerDashboardScreen() {
   // (Native-driven caused a native animated-node-graph crash on this RN
   // version — see debugging notes; JS-driven sidesteps it entirely.)
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -362,6 +366,7 @@ export default function ManagerDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+            ref={tourScrollRef}
           refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
@@ -370,6 +375,7 @@ export default function ManagerDashboardScreen() {
             scrollEventThrottle={16}
           >
           <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
+          <View ref={tourRefs.focus} collapsable={false}>
           {isLoading ? (
             <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
           ) : (
@@ -394,6 +400,7 @@ export default function ManagerDashboardScreen() {
               ]}
             />
           )}
+          </View>
 
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
@@ -402,7 +409,7 @@ export default function ManagerDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-          <View style={styles.statsRow}>
+          <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
             {displayedStats.map((stat) => {
               const card = (
                 <StatCard
@@ -452,7 +459,7 @@ export default function ManagerDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operation</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -492,11 +499,11 @@ export default function ManagerDashboardScreen() {
                   text={log.text}
                   onPress={() => {
                     if (log.log.logType === 'delivery') {
-                      navigation.navigate('TrackDeliveries');
+                      navigation.navigate('TrackDeliveries', { focusId: log.log.id });
                     } else if (log.log.logType === 'report') {
-                      navigation.navigate('ManageReturns');
+                      navigation.navigate('ManageReturns', { focusId: log.log.reportId });
                     } else if (log.log.logType === 'discrepancy') {
-                      navigation.navigate('ManagerAlerts');
+                      navigation.navigate('ManagerAlerts', { focusId: log.log.reportItemId });
                     } else {
                       navigation.navigate('StockLogs', { initialLog: log.log });
                     }
@@ -511,6 +518,7 @@ export default function ManagerDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
@@ -518,6 +526,7 @@ export default function ManagerDashboardScreen() {
         />
       </View>
 
+      <DashboardTour role="manager" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && !justActivated} />
       <CustomModal visible={justActivated} onClose={closeWelcome} height="auto" maxHeight={640} closeOnBackdropPress={false}>
         <ScrollView showsVerticalScrollIndicator={false} style={styles.welcomeScroll}>
           <View style={styles.welcomeIconWrap}>

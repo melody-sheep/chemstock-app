@@ -30,6 +30,7 @@ import deliveryService from '../../services/deliveryService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import HintChip from '../../components/common/HintChip';
+import DashboardTour from '../../components/common/DashboardTour';
 import { COLORS } from '../../constants/colors';
 import { formatRelativeTime } from '../../utils/formatters';
 import { formatBranchLabel } from '../../utils/branchLabel';
@@ -120,6 +121,10 @@ export default function SalesRepDashboardScreen() {
   // Same FB/IG-style collapsing header as ManagerDashboardScreen — see that
   // file for why it's JS-driven (diffClamp + transform) instead of native.
   const scrollY = useRef(new Animated.Value(0)).current;
+  // First-time tour of this dashboard (DashboardTour): the scroll view and the four highlighted parts.
+  const tourScrollRef = useRef(null);
+  const tourRefs = { focus: useRef(null), stats: useRef(null), ops: useRef(null), fab: useRef(null) };
+  const [welcomeOpen, setWelcomeOpen] = useState(null);
   const clampedScrollY = useRef(
     Animated.diffClamp(scrollY, 0, SECONDARY_HEADER_HEIGHT)
   ).current;
@@ -402,6 +407,7 @@ export default function SalesRepDashboardScreen() {
           </Animated.View>
 
           <ScrollView
+            ref={tourScrollRef}
           refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
@@ -410,6 +416,7 @@ export default function SalesRepDashboardScreen() {
             scrollEventThrottle={16}
           >
           <HintChip id="dashboard-pull" text={"Pull down to refresh. Tap any card to open that screen."} style={{ marginBottom: SPACING.md }} />
+          <View ref={tourRefs.focus} collapsable={false}>
           {isLoading ? (
             <SkeletonBlock width="100%" height={38} borderRadius={12} style={{ marginBottom: SPACING.lg }} />
           ) : (
@@ -440,6 +447,7 @@ export default function SalesRepDashboardScreen() {
               ]}
             />
           )}
+          </View>
 
           <Text style={styles.sectionTitle}>Quick Stats</Text>
           {isLoading ? (
@@ -448,7 +456,7 @@ export default function SalesRepDashboardScreen() {
               <SkeletonBlock width="48%" height={84} borderRadius={12} />
             </View>
           ) : (
-            <View style={styles.statsRow}>
+            <View ref={tourRefs.stats} collapsable={false} style={styles.statsRow}>
               {displayedStats.map((stat) => {
                 const card = (
                   <StatCard
@@ -497,7 +505,7 @@ export default function SalesRepDashboardScreen() {
           )}
 
           <Text style={styles.sectionTitle}>Main Operations</Text>
-          <View style={styles.operationsGrid}>
+          <View ref={tourRefs.ops} collapsable={false} style={styles.operationsGrid}>
             {MAIN_OPERATIONS.map((operation) => (
               <ActionCard
                 key={operation.key}
@@ -537,7 +545,7 @@ export default function SalesRepDashboardScreen() {
                   text={log.text}
                   onPress={() => {
                     if (log.log.logType === 'discrepancy') {
-                      navigation.navigate('AlertsDiscrepanciesSR');
+                      navigation.navigate('ResolveDiscrepancy', { reportItem: log.log });
                     } else {
                       navigation.navigate('SalesRepLogDetail', { log: log.log });
                     }
@@ -552,6 +560,7 @@ export default function SalesRepDashboardScreen() {
         </View>
 
         <BottomNavBar
+          fabRef={tourRefs.fab}
           activeTab="dashboard"
           onTabPress={handleTabPress}
           onFabPress={() => setIsScannerVisible(true)}
@@ -564,7 +573,8 @@ export default function SalesRepDashboardScreen() {
         onClose={() => setIsScannerVisible(false)}
         onScanned={handleScanned}
       />
-      <WelcomeOverview role="sales_rep" userId={user?.id} name={user?.full_name || user?.username} />
+      <DashboardTour role="sales_rep" refs={tourRefs} scrollRef={tourScrollRef} enabled={!isLoading && !!user && welcomeOpen === false} />
+      <WelcomeOverview role="sales_rep" userId={user?.id} name={user?.full_name || user?.username} onSettled={setWelcomeOpen} />
     </>
   );
 }

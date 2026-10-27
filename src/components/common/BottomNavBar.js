@@ -67,11 +67,13 @@ TabButton.propTypes = {
   onPress: PropTypes.func,
 };
 
-function Fab({ icon, onPress }) {
+function Fab({ icon, onPress, fabRef }) {
   const { onPressIn, onPressOut, rippleStyle } = useRippleAnimation(RIPPLE_CONFIG);
 
   return (
     <Pressable
+      ref={fabRef}
+      collapsable={false}
       style={styles.fab}
       onPress={onPress}
       onPressIn={onPressIn}
@@ -88,6 +90,7 @@ function Fab({ icon, onPress }) {
 Fab.propTypes = {
   icon: PropTypes.string.isRequired,
   onPress: PropTypes.func,
+  fabRef: PropTypes.object,
 };
 
 /**
@@ -118,6 +121,8 @@ export default function BottomNavBar({
   fabLabel,
   fabBadgeCount = 0,
   hiddenKeys = [],
+  // Lets a first-time tour measure the round button.
+  fabRef,
 }) {
   const insets = useSafeAreaInsets();
   // Collector has no Stock/Reports screens (see ComingSoonScreen's
@@ -155,7 +160,7 @@ export default function BottomNavBar({
         ))}
       </View>
 
-      <Fab icon={fabIcon} onPress={onFabPress} />
+      <Fab icon={fabIcon} onPress={onFabPress} fabRef={fabRef} />
       {fabBadgeCount > 0 && (
         <View pointerEvents="none" style={styles.fabBadge}>
           <Text style={styles.fabBadgeText}>{fabBadgeCount > 9 ? '9+' : String(fabBadgeCount)}</Text>
@@ -172,6 +177,7 @@ BottomNavBar.propTypes = {
   fabIcon: PropTypes.string,
   fabLabel: PropTypes.string,
   fabBadgeCount: PropTypes.number,
+  fabRef: PropTypes.object,
   hiddenKeys: PropTypes.arrayOf(PropTypes.oneOf(['dashboard', 'stock', 'reports', 'settings'])),
 };
 
