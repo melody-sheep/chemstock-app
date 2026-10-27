@@ -1,9 +1,10 @@
 // src/screens/collector/CollectorDashboardScreen.js
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, RefreshControl, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Image, ScrollView, Animated, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import useConnectionStatus from '../../hooks/useConnectionStatus';
+import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import useOnlineLabel from '../../hooks/useOnlineLabel';
 import useUnreadNotificationCount from '../../hooks/useUnreadNotificationCount';
 import useUnseenLogCount from '../../hooks/useUnseenLogCount';
@@ -55,21 +56,7 @@ export default function CollectorDashboardScreen() {
   const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
-  const [user, setUser] = useState(null);
-  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox(null, user?.id ?? null);
   const { pending: queuedFinishes } = useOutbox('finish_delivery_leg');
-  const [pendingCount, setPendingCount] = useState(null);
-  const [activeTrips, setActiveTrips] = useState([]);
-  // Accepted and waiting to be started (the "Ready to Deliver" list on Accept Deliveries).
-  const [readyDeliveries, setReadyDeliveries] = useState([]);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [logTimes, setLogTimes] = useState([]);
-  const unseenLogCount = useUnseenLogCount(user?.id ?? null, logTimes);
-  const [loadedNotificationCount, setNotificationCount] = useState(0);
-  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
-  const notificationCount = liveUnreadCount ?? loadedNotificationCount;
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Same FB/IG-style collapsing header as the other dashboards — see
   // ManagerDashboardScreen for why it's JS-driven (diffClamp + transform).
@@ -83,28 +70,26 @@ export default function CollectorDashboardScreen() {
     extrapolate: 'clamp',
   });
 
-  // `silent` (pull-to-refresh) keeps the screen as it is instead of flashing the skeleton.
-  const loadDashboardData = useCallback(async (silent = false) => {
-    if (!silent) setIsLoading(true);
-
+  // Returns the full dashboard snapshot, saved per account and shown straight away when
+  // the screen is opened again (no skeleton) — same pattern as the Manager dashboard.
+  const loadDashboardData = async (previous) => {
     const currentUser = await authService.getCurrentUser();
-    setUser(currentUser);
+    // A different account must never see the last account's numbers.
+    const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
     const [result, notificationsResult] = await Promise.all([
       deliveryService.getMyCollectorDeliveries(currentUser?.id),
       notificationService.getMyNotifications(currentUser?.id),
     ]);
-    const all = result.success ? result.data : [];
-    if (notificationsResult.success) {
-      setNotificationCount(notificationsResult.unreadCount || 0);
+    // A failed request keeps the last snapshot instead of blanking the cards.
+    if (!result.success && prev) {
+      return {
+        ...prev,
+        user: currentUser,
+        notificationCount: notificationsResult.success ? notificationsResult.unreadCount || 0 : prev.notificationCount,
+      };
     }
-
-    setPendingCount(all.filter((d) => d.stage === 'pending_pickup').length);
-    setReadyDeliveries(
-      all
-        .filter((d) => d.stage === 'ready_to_deliver')
-        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-    );
+    const all = result.success ? result.data : [];
 
     // One row per distinct active trip, not per leg — a batch trip with 2
     // undelivered legs should show once on the dashboard.
@@ -117,48 +102,47 @@ export default function CollectorDashboardScreen() {
         tripsById.get(leg.tripId).legs.push(leg);
       }
     });
-    // total = every stop of the trip (delivered ones are no longer in transit), for the progress bar.
-    setActiveTrips(
-      Array.from(tripsById.values()).map((trip) => ({
+    const delivered = all.filter((d) => d.stage === 'delivered');
+
+    return {
+      user: currentUser,
+      pendingCount: all.filter((d) => d.stage === 'pending_pickup').length,
+      readyDeliveries: all
+        .filter((d) => d.stage === 'ready_to_deliver')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+      // total = every stop of the trip (delivered ones are no longer in transit), for the progress bar.
+      activeTrips: Array.from(tripsById.values()).map((trip) => ({
         ...trip,
         total: Math.max(trip.legs.length, all.filter((d) => d.tripId === trip.tripId).length),
-      }))
-    );
-
-    setLogTimes(all.filter((d) => d.stage === 'delivered').map((d) => d.deliveredAt || d.createdAt));
-    setRecentLogs(
-      all
-        .filter((d) => d.stage === 'delivered')
+      })),
+      logTimes: delivered.map((d) => d.deliveredAt || d.createdAt),
+      recentLogs: [...delivered]
         .sort((a, b) => new Date(b.deliveredAt || b.createdAt).getTime() - new Date(a.deliveredAt || a.createdAt).getTime())
-        .slice(0, 3)
-    );
-
-    setIsLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadDashboardData();
-    }, [loadDashboardData])
-  );
-
-  const handlePullRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await loadDashboardData(true);
-    } finally {
-      setIsRefreshing(false);
-    }
+        .slice(0, 3),
+      notificationCount: notificationsResult.success ? notificationsResult.unreadCount || 0 : prev?.notificationCount ?? 0,
+    };
   };
+
+  const { data: snapshot, isLoading, refresh, refreshControlAt } = useCachedFocusLoader('collector-dashboard', loadDashboardData);
+  const user = snapshot?.user ?? null;
+  const pendingCount = snapshot?.pendingCount ?? null;
+  const activeTrips = snapshot?.activeTrips ?? [];
+  // Accepted and waiting to be started (the "Ready to Deliver" list on Accept Deliveries).
+  const readyDeliveries = snapshot?.readyDeliveries ?? [];
+  const recentLogs = snapshot?.recentLogs ?? [];
+  const unseenLogCount = useUnseenLogCount(user?.id ?? null, snapshot?.logTimes);
+  const liveUnreadCount = useUnreadNotificationCount(user?.id ?? null, !!user?.id);
+  const notificationCount = liveUnreadCount ?? snapshot?.notificationCount ?? 0;
+  const { pendingCount: outboxCount, failed: failedItems, retryNow, discard } = useOutbox(null, user?.id ?? null);
 
   // A queued delivery just synced, so the server list has changed.
   const previousQueuedCount = useRef(queuedFinishes.length);
   useEffect(() => {
     if (queuedFinishes.length < previousQueuedCount.current) {
-      loadDashboardData();
+      refresh({ force: true });
     }
     previousQueuedCount.current = queuedFinishes.length;
-  }, [queuedFinishes.length, loadDashboardData]);
+  }, [queuedFinishes.length, refresh]);
 
   const collectorName = user?.full_name || user?.username || '';
   const branchName = user?.branchName || '';
@@ -310,9 +294,7 @@ export default function CollectorDashboardScreen() {
           </Animated.View>
 
           <ScrollView
-            refreshControl={
-              <RefreshControl refreshing={isRefreshing} onRefresh={handlePullRefresh} colors={['#03045E']} tintColor="#03045E" progressViewOffset={SECONDARY_HEADER_HEIGHT} />
-            }
+            refreshControl={refreshControlAt(SECONDARY_HEADER_HEIGHT)}
             style={styles.content}
             contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavHeight + SPACING.xl }]}
             showsVerticalScrollIndicator={false}

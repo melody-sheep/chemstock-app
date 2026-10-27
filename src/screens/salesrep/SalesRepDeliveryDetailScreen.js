@@ -69,6 +69,8 @@ const COLLAPSED_SHEET_HEIGHT = 48;
 export default function SalesRepDeliveryDetailScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  // The closed bar must sit above the phone's navigation bar (tall on 3-button phones).
+  const collapsedSheetHeight = COLLAPSED_SHEET_HEIGHT + insets.bottom;
   const route = useRoute();
   const { delivery: routeDelivery } = route.params || {};
   const [currentUser, setCurrentUser] = useState(null);
@@ -123,7 +125,7 @@ export default function SalesRepDeliveryDetailScreen() {
   const expandedHeight = mapWrapHeight ? Math.round(mapWrapHeight * 0.55) : 0;
   const animatedSheetHeight = sheetAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [COLLAPSED_SHEET_HEIGHT, Math.max(expandedHeight, COLLAPSED_SHEET_HEIGHT)],
+    outputRange: [collapsedSheetHeight, Math.max(expandedHeight, collapsedSheetHeight)],
   });
 
   if (!delivery) {
@@ -180,7 +182,7 @@ export default function SalesRepDeliveryDetailScreen() {
           <Animated.View
             style={[
               styles.bottomSheet,
-              { height: animatedSheetHeight, paddingBottom: isDetailsOpen ? Math.max(insets.bottom, SPACING.md) : 0 },
+              { height: animatedSheetHeight, paddingBottom: isDetailsOpen ? Math.max(insets.bottom, SPACING.md) : insets.bottom },
             ]}
           >
             <Pressable onPress={toggleDetails} style={styles.sheetHandleRow} hitSlop={8}>

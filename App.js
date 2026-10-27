@@ -99,6 +99,11 @@ export default function App() {
       });
       current = next;
       changedAt = Date.now();
+      // The step supabase-js documents for React Native: refresh the Manager's login only while the app is
+      // open. Without it a timer left over from before the pause can fire together with the refresh on
+      // return, and two refreshes of one login make the server end it ("session expired").
+      if (next === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
     });
     return () => subscription.remove();
   }, []);

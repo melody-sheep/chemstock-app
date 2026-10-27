@@ -1,6 +1,6 @@
 // src/screens/manager/ManageReturnsScreen.js
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -10,7 +10,7 @@ import LiveStatusPill from '../../components/common/LiveStatusPill';
 import SectionHeader from '../../components/common/SectionHeader';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import CameraCaptureModal from '../../components/common/CameraCaptureModal';
@@ -80,6 +80,7 @@ function EmptyState({ icon, title, text }) {
 
 export default function ManageReturnsScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const route = useRoute();
   const focusId = route.params?.focusId || null;
   const openedFocusIdRef = useRef(null);
@@ -184,7 +185,9 @@ export default function ManageReturnsScreen() {
       if (returnRequest.status === 'pending') {
         setActiveReturnSubTab('pending');
         // Straight to the review screen; Back then returns to Notifications.
-        navigation.replace('ReturnStockVerify', { returnRequest });
+        navigation.replace('ReturnStockVerify', {
+          returnRequest: { ...returnRequest, agentPhotoUrl: photoUrlByAgentId[returnRequest.agentId] },
+        });
       } else {
         setActiveReturnSubTab('confirmed');
         setViewedReturn(returnRequest);
@@ -194,7 +197,9 @@ export default function ManageReturnsScreen() {
 
   const handleOpenReturn = (item) => {
     if (activeReturnSubTab !== 'pending') return;
-    navigation.navigate('ReturnStockVerify', { returnRequest: item });
+    navigation.navigate('ReturnStockVerify', {
+      returnRequest: { ...item, agentPhotoUrl: photoUrlByAgentId[item.agentId] },
+    });
   };
 
   const handleAcceptReport = async () => {
@@ -269,7 +274,7 @@ export default function ManageReturnsScreen() {
           </View>
         ) : activeTab === 'reports' ? (
           <ScrollView
-          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingBottom: bottomNavHeight + 56 }]} showsVerticalScrollIndicator={false}>
             {branchFilterOptions.length > 1 && (
               <View style={styles.branchFilterWrap}>
                 <BranchSelector
@@ -375,7 +380,7 @@ export default function ManageReturnsScreen() {
               })}
             </View>
 
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavHeight + 56 }]} showsVerticalScrollIndicator={false}>
               {visibleReturns.length === 0 ? (
                 <EmptyState
                   icon="returns"
@@ -452,50 +457,68 @@ export default function ManageReturnsScreen() {
         onScanned={handleScanned}
       />
 
-      <CustomModal visible={!!selectedReport} onClose={() => setSelectedReport(null)} height="auto" maxHeight={700}>
+      <CustomModal
+        visible={!!selectedReport}
+        onClose={() => setSelectedReport(null)}
+        height={Dimensions.get('window').height * 0.68}
+        scrollableContent
+      >
         {selectedReport && (
           <>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <UserAvatar
-                photoUrl={photoUrlByAgentId[selectedReport.agentId]}
-                fallbackText={getInitials(selectedReport.agentName)}
-                size={48}
-                backgroundColor="#F1F3F6"
-                fallbackTextColor={COLORS.primary}
-              />
-              <View style={styles.sheetHeaderText}>
-                <Text style={styles.modalTitle} numberOfLines={1}>{selectedReport.agentName}</Text>
-                <View style={styles.sheetMetaRow}>
-                  {!!selectedReport.branchName && (
-                    <>
-                      <Icon name="home" size={13} color={COLORS.textSecondary} />
-                      <Text style={styles.sheetMetaText}>{selectedReport.branchName}</Text>
-                      <Text style={styles.sheetMetaText}>·</Text>
-                    </>
-                  )}
-                  <Icon name="calendar" size={13} color={COLORS.textSecondary} />
-                  <Text style={styles.sheetMetaText}>{formatDisplayDate(selectedReport.reportDate)}</Text>
+            <ScrollView
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+              style={styles.sheetScroll}
+            >
+              <View style={styles.sheetHandle} />
+              <View style={styles.sheetHeader}>
+                <UserAvatar
+                  photoUrl={photoUrlByAgentId[selectedReport.agentId]}
+                  fallbackText={getInitials(selectedReport.agentName)}
+                  size={48}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
+                <View style={styles.sheetHeaderText}>
+                  <Text style={styles.modalTitle} numberOfLines={1}>{selectedReport.agentName}</Text>
+                  <View style={styles.sheetMetaRow}>
+                    {!!selectedReport.branchName && (
+                      <>
+                        <Icon name="home" size={13} color={COLORS.textSecondary} />
+                        <Text style={styles.sheetMetaText}>{selectedReport.branchName}</Text>
+                        <Text style={styles.sheetMetaText}>·</Text>
+                      </>
+                    )}
+                    <Icon name="calendar" size={13} color={COLORS.textSecondary} />
+                    <Text style={styles.sheetMetaText}>{formatDisplayDate(selectedReport.reportDate)}</Text>
+                  </View>
                 </View>
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  selectedReport.status === 'pending' ? styles.statusBadgePending : styles.statusBadgeConfirmed,
-                ]}
-              >
-                <Text
+                <View
                   style={[
-                    styles.statusBadgeText,
-                    selectedReport.status === 'pending' ? styles.statusBadgeTextPending : styles.statusBadgeTextConfirmed,
+                    styles.statusBadge,
+                    selectedReport.status === 'pending' ? styles.statusBadgePending : styles.statusBadgeConfirmed,
                   ]}
                 >
-                  {selectedReport.status === 'pending' ? 'Pending' : 'Accepted'}
-                </Text>
+                  <Text
+                    style={[
+                      styles.statusBadgeText,
+                      selectedReport.status === 'pending' ? styles.statusBadgeTextPending : styles.statusBadgeTextConfirmed,
+                    ]}
+                  >
+                    {selectedReport.status === 'pending' ? 'Pending' : 'Accepted'}
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
+              {selectedReport.carryForwardEnabled && (selectedReport.items || []).some((item) => item.discrepancy < 0) && (
+                <View style={styles.carryForwardNote}>
+                  <Icon name="warningTriangle" size={16} color="#D98200" />
+                  <Text style={styles.carryForwardNoteText}>
+                    Unreported units remain in the Sales Rep’s inventory for the next report. They are not confirmed lost.
+                  </Text>
+                </View>
+              )}
+
               <SectionHeader icon="camera" size="md" label="Handover photo" style={styles.sheetLabelFirst} />
               {selectedReport.isAutoFiled ? (
                 <View style={styles.autoFiledNote}>
@@ -539,6 +562,8 @@ export default function ManageReturnsScreen() {
                 {(selectedReport.items || []).map((item) => {
                   const image = PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image;
                   const hasGap = item.discrepancy !== 0;
+                  const isCarryForward = item.resolutionStatus === 'carried_forward'
+                    || (selectedReport.carryForwardEnabled && item.discrepancy < 0);
                   return (
                     <View key={item.reportItemId} style={styles.modalItemCard}>
                       <View style={styles.modalItemTop}>
@@ -569,11 +594,17 @@ export default function ManageReturnsScreen() {
                           <Text style={styles.statLabel}>Return</Text>
                           <Text style={styles.statValue}>{item.returnQuantity}</Text>
                         </View>
-                        <View style={[styles.statBox, hasGap && styles.statBoxFlag]}>
-                          <Text style={[styles.statLabel, hasGap && styles.statLabelFlag]}>
-                            {hasGap ? 'Discrepancy' : 'Diff'}
+                        <View style={[styles.statBox, hasGap && styles.statBoxFlag, isCarryForward && styles.statBoxCarryForward]}>
+                          <Text style={[styles.statLabel, hasGap && styles.statLabelFlag, isCarryForward && styles.statLabelCarryForward]}>
+                            {item.resolutionStatus === 'carried_forward'
+                              ? 'Carried'
+                              : selectedReport.carryForwardEnabled && item.discrepancy < 0
+                              ? 'Unreported'
+                              : hasGap ? 'Discrepancy' : 'Diff'}
                           </Text>
-                          <Text style={[styles.statValue, hasGap && styles.statValueFlag]}>{item.discrepancy}</Text>
+                          <Text style={[styles.statValue, hasGap && styles.statValueFlag, isCarryForward && styles.statLabelCarryForward]}>
+                            {isCarryForward ? Math.abs(item.discrepancy) : item.discrepancy}
+                          </Text>
                         </View>
                       </View>
                     </View>
@@ -587,6 +618,17 @@ export default function ManageReturnsScreen() {
                 title={isAccepting ? 'Accepting…' : 'Accept Report'}
                 onPress={handleAcceptReport}
                 disabled={isAccepting}
+                height={48}
+                fontSize={16}
+                borderRadius={24}
+                style={styles.acceptButton}
+              />
+            )}
+            {selectedReport.status !== 'pending' && (
+              <Button
+                title="Close"
+                variant="outline"
+                onPress={() => setSelectedReport(null)}
                 height={48}
                 fontSize={16}
                 borderRadius={24}
@@ -986,7 +1028,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
-  sheetScroll: { flexShrink: 1 },
+  sheetScroll: { flex: 1, minHeight: 0 },
   sheetLabelFirst: { marginTop: SPACING.sm, marginBottom: 0 },
   sheetLabel: { marginTop: SPACING.lg, marginBottom: 0 },
   photoFrame: {
@@ -1032,6 +1074,25 @@ const styles = StyleSheet.create({
     color: '#8A5A00',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
+  carryForwardNote: {
+    marginTop: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 8,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: '#F59E0B66',
+    backgroundColor: '#FFF3E0',
+  },
+  carryForwardNoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#8A5A00',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
   modalItemsList: { gap: SPACING.sm, marginTop: SPACING.sm },
   modalItemCard: {
     borderWidth: 1,
@@ -1074,12 +1135,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F6F9',
   },
   statBoxFlag: { backgroundColor: '#FDECEC' },
+  statBoxCarryForward: { backgroundColor: '#FFF7E6' },
   statLabel: {
     fontSize: 11,
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   statLabelFlag: { color: '#B91C1C' },
+  statLabelCarryForward: { color: '#8A5A00' },
   statValue: {
     marginTop: 2,
     fontSize: TYPOGRAPHY.fontSize.lg,

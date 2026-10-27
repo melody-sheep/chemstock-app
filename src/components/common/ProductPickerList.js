@@ -19,6 +19,7 @@ export default function ProductPickerList({
   // true: icon + uppercase labels, and no "selected products" row until something is picked
   labelHeader = false,
   emptyText,
+  scrollRef,
 }) {
   const handleRemoveProduct = (code) => {
     onItemsChange(items.filter((item) => item.code !== code));
@@ -62,6 +63,7 @@ export default function ProductPickerList({
         sectionTitle={queueTitle}
         cardHeaderTitle={queueCardHeader}
         labelHeader={labelHeader}
+        scrollRef={scrollRef}
         {...(emptyText ? { emptyText } : {})}
       />
     </>
@@ -76,6 +78,7 @@ ProductPickerList.propTypes = {
   queueCardHeader: PropTypes.string,
   labelHeader: PropTypes.bool,
   emptyText: PropTypes.string,
+  scrollRef: PropTypes.object,
 };
 
 const styles = StyleSheet.create({

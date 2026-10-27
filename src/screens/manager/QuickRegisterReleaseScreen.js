@@ -48,6 +48,7 @@ export default function QuickRegisterReleaseScreen() {
   const { recipient, targetRecipient, branchId, movementType } = route.params;
   const bottomActionBarHeight = useBottomActionBarHeight();
   const blurTarget = useRef(null);
+  const scrollRef = useRef(null);
 
   const [items, setItems] = useState([]);
   const [photoUri, setPhotoUri] = useState(null);
@@ -133,6 +134,7 @@ export default function QuickRegisterReleaseScreen() {
 
         <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.content,
             { paddingBottom: bottomActionBarHeight + SPACING.md + SPACING.xl },
@@ -178,6 +180,7 @@ export default function QuickRegisterReleaseScreen() {
           </View>
 
           <ProductPickerList
+            scrollRef={scrollRef}
             items={items}
             onItemsChange={setItems}
             onOpenPicker={() => navigation.navigate('ProductSelect', { alreadyAddedCodes: items.map((item) => item.code) })}

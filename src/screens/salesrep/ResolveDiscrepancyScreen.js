@@ -274,6 +274,7 @@ export default function ResolveDiscrepancyScreen() {
   }
 
   const isLoss = reportItem.discrepancyType === 'loss';
+  const isCarryForward = reportItem.carryForwardEnabled && isLoss;
   // alreadyQueued (offline, unsynced) has only the local file; a synced
   // request's photo comes from storage via the signed URL above.
   const displayPhotoUrl = alreadyQueued ? queuedEntry?.localPhotoUri : requestPhotoUrl;
@@ -401,13 +402,13 @@ export default function ResolveDiscrepancyScreen() {
               </View>
               <View style={styles.figureColumn}>
                 <View style={styles.figureLabelRow}>
-                  <Icon name="warningTriangle" size={11} color="#B91C1C" />
-                  <Text style={[styles.figureLabel, styles.discrepancyLabel]}>
-                    {isLoss ? 'Missing' : 'Over'}
+                  <Icon name="warningTriangle" size={11} color={isCarryForward ? '#B26400' : '#B91C1C'} />
+                  <Text style={[styles.figureLabel, isCarryForward ? styles.carryForwardLabel : styles.discrepancyLabel]}>
+                    {isCarryForward ? 'Carry fwd.' : isLoss ? 'Missing' : 'Over'}
                   </Text>
                 </View>
-                <View style={[styles.figureBox, styles.figureBoxError]}>
-                  <Text style={[styles.figureValue, styles.figureValueError]}>
+                <View style={[styles.figureBox, isCarryForward ? styles.figureBoxCarryForward : styles.figureBoxError]}>
+                  <Text style={[styles.figureValue, isCarryForward ? styles.figureValueCarryForward : styles.figureValueError]}>
                     {Math.abs(reportItem.discrepancy)}
                   </Text>
                 </View>
@@ -417,7 +418,9 @@ export default function ResolveDiscrepancyScreen() {
 
           {!isLocked && (
             <Text style={styles.helperText}>
-              {isLoss
+              {isCarryForward
+                ? `These units were not included in the report and remain in your inventory. Request a return only for units you are physically handing back; manager approval removes them from your inventory and credits the branch.`
+                : isLoss
                 ? `This will request the return of the ${Math.abs(reportItem.discrepancy)} missing unit(s) once your manager reviews the photo evidence below.`
                 : `This will flag the ${Math.abs(reportItem.discrepancy)} extra unit(s) reported for manager review with the photo evidence below.`}
             </Text>
@@ -759,6 +762,7 @@ const styles = StyleSheet.create({
   discrepancyLabel: {
     color: '#B91C1C',
   },
+  carryForwardLabel: { color: '#8A5A00' },
   figureBox: {
     borderWidth: 1,
     borderColor: '#DBE4EE',
@@ -771,6 +775,10 @@ const styles = StyleSheet.create({
     borderColor: '#EF4444',
     backgroundColor: '#FFFFFF',
   },
+  figureBoxCarryForward: {
+    borderColor: '#F4D28B',
+    backgroundColor: '#FFF7E6',
+  },
   figureValue: {
     fontSize: 13,
     color: '#03045E',
@@ -780,6 +788,7 @@ const styles = StyleSheet.create({
   figureValueError: {
     color: '#EF4444',
   },
+  figureValueCarryForward: { color: '#8A5A00' },
   helperText: {
     fontSize: 12,
     color: '#555353',

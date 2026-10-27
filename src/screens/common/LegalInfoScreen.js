@@ -22,6 +22,7 @@ export default function LegalInfoScreen() {
     return LEGAL_CONTENT[role] || LEGAL_CONTENT.manager;
   }, [isFaq, role]);
   const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [expandedLegalSections, setExpandedLegalSections] = useState([]);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All topics');
 
@@ -56,7 +57,7 @@ export default function LegalInfoScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.hero, !isFaq && styles.legalHero]}>
-            <View style={[styles.heroIcon, !isFaq && styles.legalHeroIcon]}>
+            <View style={styles.heroIcon}>
               <Icon
                 name={isFaq ? 'question' : 'document'}
                 size={25}
@@ -191,13 +192,25 @@ export default function LegalInfoScreen() {
               <View style={styles.guidanceBanner}>
                 <Icon name="info" size={19} color={LEGAL_COLOR} />
                 <Text style={styles.guidanceText}>
-                  This is practical in-app guidance, not legal advice. Follow your organization’s approved policies and applicable requirements.
+                  Tap any section to show or hide its details. This is practical in-app guidance, not legal advice; follow your organization’s approved policies and applicable requirements.
                 </Text>
               </View>
 
-              {entries.map((entry) => (
-                <View key={entry.title} style={styles.legalCard}>
-                  <View style={styles.legalHeading}>
+              {entries.map((entry) => {
+                const isExpanded = expandedLegalSections.includes(entry.title);
+                return (
+                <View key={entry.title} style={[styles.legalCard, isExpanded && styles.legalCardExpanded]}>
+                  <Pressable
+                    style={styles.legalHeading}
+                    onPress={() => setExpandedLegalSections((current) => (
+                      isExpanded
+                        ? current.filter((title) => title !== entry.title)
+                        : [...current, entry.title]
+                    ))}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: isExpanded }}
+                    accessibilityLabel={`${isExpanded ? 'Hide' : 'Show'} ${entry.title}`}
+                  >
                     <View style={styles.legalIcon}>
                       <Icon name={entry.icon || 'document'} size={20} color={LEGAL_COLOR} weight="duotone" />
                     </View>
@@ -205,26 +218,40 @@ export default function LegalInfoScreen() {
                       <Text style={styles.legalTitle}>{entry.title}</Text>
                       {entry.reference && <Text style={styles.legalReference}>{entry.reference}</Text>}
                     </View>
-                  </View>
-                  {entry.summary && <Text style={styles.legalSummary}>{entry.summary}</Text>}
-                  {entry.paragraphs.map((paragraph, index) => (
-                    <Text key={`${entry.title}-p-${index}`} style={styles.legalParagraph}>
-                      {paragraph}
-                    </Text>
-                  ))}
-                  {entry.practices?.length > 0 && (
-                    <View style={styles.practiceBox}>
-                      <Text style={styles.practiceTitle}>What to do</Text>
-                      {entry.practices.map((practice) => (
-                        <View key={practice} style={styles.practiceRow}>
-                          <Icon name="checkCircle" size={16} color="#27834A" />
-                          <Text style={styles.practiceText}>{practice}</Text>
-                        </View>
+                    <View style={styles.legalToggle}>
+                      <Text style={styles.legalToggleText}>{isExpanded ? 'Hide' : 'Show'}</Text>
+                      <Icon
+                        name="caretDown"
+                        size={16}
+                        color={LEGAL_COLOR}
+                        style={isExpanded ? styles.legalToggleIconExpanded : undefined}
+                      />
+                    </View>
+                  </Pressable>
+                  {isExpanded && (
+                    <View style={styles.legalDetails}>
+                      {entry.summary && <Text style={styles.legalSummary}>{entry.summary}</Text>}
+                      {entry.paragraphs.map((paragraph, index) => (
+                        <Text key={`${entry.title}-p-${index}`} style={styles.legalParagraph}>
+                          {paragraph}
+                        </Text>
                       ))}
+                      {entry.practices?.length > 0 && (
+                        <View style={styles.practiceBox}>
+                          <Text style={styles.practiceTitle}>What to do</Text>
+                          {entry.practices.map((practice) => (
+                            <View key={practice} style={styles.practiceRow}>
+                              <Icon name="checkCircle" size={16} color="#27834A" />
+                              <Text style={styles.practiceText}>{practice}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   )}
                 </View>
-              ))}
+                );
+              })}
             </>
           )}
         </ScrollView>
@@ -254,16 +281,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDF3FF',
   },
   heroIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     marginRight: SPACING.sm,
-  },
-  legalHeroIcon: {
-    backgroundColor: '#FFFFFF',
   },
   heroCopy: {
     flex: 1,
@@ -500,10 +522,31 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
+  legalCardExpanded: {
+    borderColor: '#C9D6F2',
+  },
   legalHeading: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    minHeight: 56,
+  },
+  legalDetails: {
+    paddingTop: SPACING.sm,
+  },
+  legalToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: SPACING.xs,
+  },
+  legalToggleText: {
+    color: LEGAL_COLOR,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    marginRight: 2,
+  },
+  legalToggleIconExpanded: {
+    transform: [{ rotate: '180deg' }],
   },
   legalIcon: {
     width: 42,

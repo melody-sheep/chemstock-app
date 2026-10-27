@@ -20,6 +20,8 @@ export async function resetHints() {
   const ids = await readIndex();
   await Promise.all(ids.map((id) => storage.remove(PREFIX + id)));
   await storage.remove(INDEX_KEY);
+  // The highlight tips (SpotlightHint, via useFirstTimeHint) keep their own list; bring those back too.
+  await storage.remove('chemstock_seen_hints');
 }
 
 export default function HintChip({ id, text, icon = 'info', style }) {

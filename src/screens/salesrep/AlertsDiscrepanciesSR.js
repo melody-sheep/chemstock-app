@@ -66,14 +66,19 @@ export default function AlertsDiscrepanciesSR() {
         <View style={styles.itemDetails}>
           <View style={styles.itemNameRow}>
             <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
-            <View style={item.discrepancyType === 'loss' ? styles.missingBadge : styles.overBadge}>
-              <Text style={styles.missingBadgeText}>
-                {Math.abs(item.discrepancy)} {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+            <View style={item.carryForwardEnabled ? styles.carryForwardBadge : item.discrepancyType === 'loss' ? styles.missingBadge : styles.overBadge}>
+              <Text style={[styles.missingBadgeText, item.carryForwardEnabled && styles.carryForwardBadgeText]}>
+                {Math.abs(item.discrepancy)} {item.carryForwardEnabled ? 'Unreported' : item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
               </Text>
             </View>
           </View>
           {!!item.productName && item.productName !== item.productCode && (
             <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+          )}
+          {item.carryForwardEnabled && (
+            <Text style={styles.carryForwardText}>
+              Not included in this report; remains in inventory for the next report.
+            </Text>
           )}
           {queuedReportItemIds.has(item.reportItemId) ? (
             // Queued locally, not yet synced — the server doesn't know about
@@ -120,13 +125,13 @@ export default function AlertsDiscrepanciesSR() {
         </View>
         <View style={styles.figureColumn}>
           <View style={styles.figureLabelRow}>
-            <Icon name="warningTriangle" size={11} color="#B91C1C" />
-            <Text style={[styles.figureLabel, styles.missingLabel]}>
-              {item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+            <Icon name="warningTriangle" size={11} color={item.carryForwardEnabled ? '#B26400' : '#B91C1C'} />
+            <Text style={[styles.figureLabel, item.carryForwardEnabled ? styles.carryForwardLabel : styles.missingLabel]}>
+              {item.carryForwardEnabled ? 'Remaining' : item.discrepancyType === 'loss' ? 'Missing' : 'Over'}
             </Text>
           </View>
-          <View style={[styles.figureBox, styles.figureBoxError]}>
-            <Text style={[styles.figureValue, styles.figureValueError]}>{Math.abs(item.discrepancy)}</Text>
+          <View style={[styles.figureBox, item.carryForwardEnabled ? styles.figureBoxCarryForward : styles.figureBoxError]}>
+            <Text style={[styles.figureValue, item.carryForwardEnabled ? styles.figureValueCarryForward : styles.figureValueError]}>{Math.abs(item.discrepancy)}</Text>
           </View>
         </View>
       </View>
@@ -157,7 +162,7 @@ export default function AlertsDiscrepanciesSR() {
           </View>
           <Text style={styles.settledMeta}>
             Released {item.inCustodyQuantity} · Sold {item.soldQuantity} · {Math.abs(item.discrepancy)}{' '}
-            {item.discrepancyType === 'loss' ? 'missing' : 'over'}
+            {item.carryForwardEnabled ? 'report shortfall settled' : item.discrepancyType === 'loss' ? 'missing' : 'over'}
           </Text>
         </View>
         <Icon name="arrowRight" size={16} color="#94a3b8" />
@@ -311,20 +316,20 @@ const styles = StyleSheet.create({
   itemCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 0,
+    padding: 10,
   },
   itemTopRow: {
     flexDirection: 'row',
   },
   thumbnailWrap: {
-    marginRight: 12,
+    marginRight: 10,
     alignItems: 'center',
   },
   thumbnail: {
-    width: 80,
-    height: 90,
-    borderRadius: 8,
+    width: 64,
+    height: 68,
+    borderRadius: 6,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -355,6 +360,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
+  carryForwardBadge: {
+    backgroundColor: '#FFF1D6',
+    borderRadius: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  carryForwardBadgeText: { color: '#8A5A00' },
   overBadge: {
     backgroundColor: '#B26400',
     borderRadius: 8,
@@ -408,6 +420,13 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.medium,
     marginTop: 4,
   },
+  carryForwardText: {
+    fontSize: 11,
+    color: '#8A5A00',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    marginTop: 3,
+    lineHeight: 14,
+  },
   rejectedRequestText: {
     fontSize: 11,
     color: '#B91C1C',
@@ -416,8 +435,8 @@ const styles = StyleSheet.create({
   },
   figuresRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: 6,
+    marginTop: 8,
   },
   figureColumn: {
     flex: 1,
@@ -437,11 +456,12 @@ const styles = StyleSheet.create({
   missingLabel: {
     color: '#B91C1C',
   },
+  carryForwardLabel: { color: '#8A5A00' },
   figureBox: {
     borderWidth: 1,
     borderColor: '#DBE4EE',
     borderRadius: 8,
-    height: 34,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -449,6 +469,11 @@ const styles = StyleSheet.create({
     borderColor: '#EF4444',
     backgroundColor: '#FFFFFF',
   },
+  figureBoxCarryForward: {
+    borderColor: '#F4D28B',
+    backgroundColor: '#FFF7E6',
+  },
+  figureValueCarryForward: { color: '#8A5A00' },
   figureValue: {
     fontSize: 13,
     color: '#03045E',

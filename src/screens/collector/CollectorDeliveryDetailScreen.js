@@ -310,9 +310,9 @@ export default function CollectorDeliveryDetailScreen() {
                     onZoomIn={() => fullMapRef.current?.zoomIn()}
                     onZoomOut={() => fullMapRef.current?.zoomOut()}
                     onRecenter={() => fullMapRef.current?.recenter()}
-                    style={styles.fullMapZoom}
+                    style={[styles.fullMapZoom, { top: 76 + insets.top }]}
                   />
-                  <View style={styles.fullMapHeader}>
+                  <View style={[styles.fullMapHeader, { paddingTop: SPACING.md + insets.top }]}>
                     <Text style={styles.fullMapTitle}>Delivery route</Text>
                     <Pressable style={styles.mapPill} onPress={() => setIsFullMapOpen(false)} accessibilityRole="button" accessibilityLabel="Close the full map">
                       <Icon name="xCircle" size={14} color="#0085F9" />
@@ -324,7 +324,7 @@ export default function CollectorDeliveryDetailScreen() {
                       { label: 'Pickup', color: '#0085F9' },
                       { label: 'Sales Rep', color: '#E63946' },
                     ]}
-                    style={styles.fullMapCard}
+                    style={[styles.fullMapCard, { top: 76 + insets.top }]}
                   />
                 </View>
               </Modal>

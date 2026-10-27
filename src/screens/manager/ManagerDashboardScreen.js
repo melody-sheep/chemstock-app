@@ -235,8 +235,10 @@ export default function ManagerDashboardScreen() {
       return {
         key: `discrepancy-${log.reportItemId}`,
         icon: 'sealWarning',
-        iconColor: '#dc3545',
-        text: `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
+        iconColor: log.carryForwardEnabled ? '#D98200' : '#dc3545',
+        text: log.carryForwardEnabled
+          ? `Missing on report: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} units) still in backpack; carried forward — ${formatRelativeTime(log.reportDate)}`
+          : `Discrepancy flagged: ${log.agentName || 'A sales rep'} — ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
     }

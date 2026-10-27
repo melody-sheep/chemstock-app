@@ -6,7 +6,7 @@
 // (sales_rep/collector) have no Supabase session, so
 // profileService.changeAgentPassword goes through the change_agent_password
 // RPC instead, which verifies the current password server-side.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +15,8 @@ import Header from '../../components/common/Header';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
+import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
+import { BlurTargetView } from 'expo-blur';
 import authService from '../../services/authService';
 import profileService from '../../services/profileService';
 import { COLORS } from '../../constants/colors';
@@ -42,6 +44,8 @@ const REQUIREMENTS = [
 
 export default function ChangePasswordScreen() {
   const navigation = useNavigation();
+  const blurTarget = useRef(null);
+  const bottomActionBarHeight = useBottomActionBarHeight();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -153,18 +157,26 @@ export default function ChangePasswordScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <KeyboardAwareScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + 48 + SPACING.lg }]}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.hero}>
             <View style={styles.iconWrap}>
-              <Icon name="lock" size={22} color="#D98200" weight="fill" />
+              <Icon name="lock" size={24} color="#B26400" weight="regular" />
             </View>
             <View style={styles.heroTextCol}>
+              <Text style={styles.heroEyebrow}>ACCOUNT SECURITY</Text>
               <Text style={styles.heroTitle}>Update your password</Text>
-              <Text style={styles.heroSubtitle}>Choose a strong password you don't use anywhere else.</Text>
+              <Text style={styles.heroSubtitle}>Choose a strong password you haven’t used before.</Text>
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Current password</Text>
+          <View style={styles.sectionHeading}>
+            <Icon name="lock" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.sectionLabel}>Current password</Text>
+          </View>
           <View style={styles.fieldGroup}>
             <Input
               placeholder="Enter current password"
@@ -179,7 +191,10 @@ export default function ChangePasswordScreen() {
             />
           </View>
 
-          <Text style={styles.sectionLabel}>New password</Text>
+          <View style={[styles.sectionHeading, styles.newPasswordHeading]}>
+            <Icon name="key" size={16} color={COLORS.primary} />
+            <Text style={[styles.sectionLabel, styles.newPasswordLabel]}>New password</Text>
+          </View>
           <View style={styles.fieldGroup}>
             <Input
               placeholder="Enter new password"
@@ -238,6 +253,10 @@ export default function ChangePasswordScreen() {
             })}
           </View>
 
+        </KeyboardAwareScrollView>
+        </BlurTargetView>
+
+        <BottomActionBar variant="glass" blurTarget={blurTarget} style={styles.actionBar}>
           <Button
             title="Update Password"
             variant="black"
@@ -247,15 +266,16 @@ export default function ChangePasswordScreen() {
             height={48}
             fontSize={16}
             borderRadius={24}
-            style={styles.submitButton}
           />
-
-          <Pressable style={styles.cancelButton} onPress={handleBack} disabled={isSubmitting}>
+          <Pressable
+            style={styles.cancelButton}
+            onPress={handleBack}
+            disabled={isSubmitting}
+            accessibilityRole="button"
+          >
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
-
-          <View style={{ height: 24 }} />
-        </KeyboardAwareScrollView>
+        </BottomActionBar>
       </View>
     </>
   );
@@ -263,27 +283,40 @@ export default function ChangePasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  contentTarget: { flex: 1 },
   content: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    gap: SPACING.xs,
   },
   hero: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: SPACING.md,
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.lg,
+    marginBottom: SPACING.xs,
     borderBottomWidth: 1,
     borderBottomColor: '#EEF2F7',
   },
   iconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#D982001A',
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#FFF3D6',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE1A8',
   },
   heroTextCol: { flex: 1 },
+  heroEyebrow: {
+    fontSize: 10,
+    letterSpacing: 1,
+    color: '#B26400',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
   heroTitle: {
     fontSize: 17,
     color: '#272632',
@@ -298,15 +331,24 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 2,
-    marginTop: SPACING.md,
+    marginBottom: 0,
+    marginTop: 0,
   },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: SPACING.md,
+    marginBottom: 2,
+  },
+  newPasswordHeading: { marginTop: SPACING.sm },
+  newPasswordLabel: { color: COLORS.primary },
   fieldGroup: { marginBottom: -SPACING.xs },
   matchRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: SPACING.sm },
   matchText: { fontSize: 13, fontFamily: TYPOGRAPHY.fontFamily.medium },
@@ -333,12 +375,13 @@ const styles = StyleSheet.create({
     color: '#1E7A3A',
     fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
-  submitButton: {
-    width: '100%',
+  actionBar: {
+    gap: 2,
   },
   cancelButton: {
     alignItems: 'center',
-    paddingVertical: SPACING.md,
+    justifyContent: 'center',
+    minHeight: 38,
   },
   cancelText: {
     fontSize: TYPOGRAPHY.fontSize.sm,

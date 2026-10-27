@@ -258,9 +258,8 @@ export default function AgentAccountsScreen() {
               <Icon name="lock" size={16} color="#B26400" weight="fill" />
             </View>
             <Text style={styles.noticeText}>
-              <Text style={styles.noticeTextBold}>Recommended: </Text>
-              have the agent change this password themselves after their first login, from
-              Settings → Change Password.
+              <Text style={styles.noticeTextBold}>Password tip: </Text>
+              Ask the agent to change this temporary password after their first login.
             </Text>
           </View>
 
@@ -365,30 +364,30 @@ const styles = StyleSheet.create({
   },
   noticeBox: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#FFF4E0',
     borderWidth: 1,
     borderColor: '#FFE1A8',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginTop: SPACING.sm,
   },
   noticeIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 0,
     backgroundColor: '#FFE8BF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   noticeText: {
     flex: 1,
-    fontSize: 12.5,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     color: '#7A4A00',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
-    marginTop: 3,
   },
   noticeTextBold: {
     fontFamily: TYPOGRAPHY.fontFamily.bold,

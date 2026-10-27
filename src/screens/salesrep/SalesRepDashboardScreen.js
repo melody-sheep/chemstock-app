@@ -26,6 +26,7 @@ import { SkeletonList } from '../../components/ui/SkeletonCard';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
+import deliveryService from '../../services/deliveryService';
 import reportService from '../../services/reportService';
 import notificationService from '../../services/notificationService';
 import HintChip from '../../components/common/HintChip';
@@ -135,16 +136,22 @@ export default function SalesRepDashboardScreen() {
     // A different account must never see the last account's numbers.
     const prev = previous?.user?.id === currentUser?.id ? previous : null;
 
-    const [inventoryResult, logsResult, requestsResult, deliveriesResult, discrepanciesResult, notificationsResult, lastReportResult] =
+    const [inventoryResult, logsResult, requestsResult, deliveriesResult, pendingHandoffsResult, discrepanciesResult, notificationsResult, lastReportResult] =
       await Promise.all([
         inventoryService.getSrInventory(currentUser?.id),
         inventoryService.getSrActivityLogs(currentUser?.id, 3),
         requestService.getMyStockRequests(currentUser?.id, 5),
         inventoryService.getMyDeliveries(currentUser?.id, 10),
+        deliveryService.getMyPendingHandoffs(currentUser?.id),
         reportService.getMyDiscrepancies(currentUser?.id, 50),
         notificationService.getMyNotifications(currentUser?.id),
         reportService.getMyDailyReports(currentUser?.id, 1),
       ]);
+
+    let pendingHandoffCount = prev?.pendingHandoffCount ?? 0;
+    if (pendingHandoffsResult.success) {
+      pendingHandoffCount = pendingHandoffsResult.data.length;
+    }
 
     const requests = requestsResult.success ? requestsResult.data : [];
     const discrepancies = discrepanciesResult.success ? discrepanciesResult.data : [];
@@ -180,6 +187,12 @@ export default function SalesRepDashboardScreen() {
       pendingRequestCount: requestsResult.success
         ? requests.filter((r) => r.status === 'pending' || (r.status === 'accepted' && !r.fulfilledTransactionId)).length
         : prev?.pendingRequestCount ?? null,
+      pendingHandoffCount,
+      pendingDirectReleaseCount: notificationsResult.success
+        ? notificationsResult.data.filter(
+          (notification) => notification.type === 'stock_released_to_you' && !notification.isRead
+        ).length
+        : prev?.pendingDirectReleaseCount ?? 0,
       openDiscrepancyCount: discrepanciesResult.success
         ? discrepancies.filter((d) => d.resolutionStatus === 'open').length
         : prev?.openDiscrepancyCount ?? 0,
@@ -243,8 +256,10 @@ export default function SalesRepDashboardScreen() {
       return {
         key: `discrepancy-${log.reportItemId}`,
         icon: 'warning',
-        iconColor: COLORS.error,
-        text: `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
+        iconColor: log.carryForwardEnabled ? '#D98200' : COLORS.error,
+        text: log.carryForwardEnabled
+          ? `Missing on report: ${log.productName} (${Math.abs(log.discrepancy)} units) still in backpack; carried forward — ${formatRelativeTime(log.reportDate)}`
+          : `Discrepancy flagged: ${log.productName} (${Math.abs(log.discrepancy)} ${isLoss ? 'missing' : 'over'}) — ${formatRelativeTime(log.reportDate)}`,
         log,
       };
     }
@@ -493,7 +508,13 @@ export default function SalesRepDashboardScreen() {
                 onPress={operation.screen ? () => navigation.navigate(operation.screen) : undefined}
                 style={styles.operationCard}
                 layout="tile"
-                badgeCount={operation.key === 'alerts' ? openDiscrepancyCount : 0}
+                badgeCount={
+                  operation.key === 'alerts'
+                    ? openDiscrepancyCount
+                    : operation.key === 'receiveStock'
+                      ? (snapshot?.pendingHandoffCount ?? 0) + (snapshot?.pendingDirectReleaseCount ?? 0)
+                      : 0
+                }
               />
             ))}
           </View>

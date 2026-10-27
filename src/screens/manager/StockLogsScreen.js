@@ -261,7 +261,7 @@ export default function StockLogsScreen() {
               const metaText = log.logType === 'report'
                 ? `${(log.items || []).length} product${(log.items || []).length === 1 ? '' : 's'} reported`
                 : log.logType === 'discrepancy'
-                ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.carryForwardEnabled ? 'missing on report; still in backpack; carried forward' : log.discrepancyType === 'loss' ? 'missing' : 'over'}`
                 : summarizeItems(getLogItems(log));
               return (
                 <LogCard

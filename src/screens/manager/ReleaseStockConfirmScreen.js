@@ -361,7 +361,7 @@ export default function ReleaseStockConfirmScreen() {
                 totalUnits={totalUnits}
                 recipientLine={`Recipient: ${targetRecipient?.fullName || recipient.fullName} (via ${recipient.fullName})`}
                 items={displayItems}
-                defaultOpen={false}
+                defaultOpen
               />
 
               <SectionHeader icon="location" size="md" label="Chain of custody" style={styles.labelSpaced} />
@@ -431,7 +431,7 @@ export default function ReleaseStockConfirmScreen() {
                 totalUnits={totalUnits}
                 recipientLine={`Recipient: ${recipient.fullName}`}
                 items={displayItems}
-                defaultOpen={false}
+                defaultOpen={!isQuickRegister}
               />
 
               <SectionHeader
@@ -450,7 +450,7 @@ export default function ReleaseStockConfirmScreen() {
               )}
               <PhotoProofCard
                 photoUri={photoUri}
-                onView={isQuickRegister ? handleViewPhoto : handleOpenCamera}
+                onView={photoUri ? handleViewPhoto : undefined}
                 fromLabel={`From ${manager?.full_name || manager?.username || 'you'} to`}
                 toName={recipient.fullName}
               />
@@ -508,6 +508,7 @@ export default function ReleaseStockConfirmScreen() {
           onClose={handleCloseCamera}
           onCapture={isQuickRegister ? handleCloseCamera : setReleasePhotoUri}
           initialUri={isViewingPhoto ? photoUri : null}
+          readOnly={isViewingPhoto}
         />
       </View>
     </>

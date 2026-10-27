@@ -8,6 +8,8 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
 import Icon from '../../components/common/Icon';
+import UserAvatar from '../../components/common/UserAvatar';
+import ImageViewerModal from '../../components/common/ImageViewerModal';
 import CustomModal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import { COLORS } from '../../constants/colors';
@@ -16,7 +18,9 @@ import { TYPOGRAPHY } from '../../styles/typography';
 import reportService from '../../services/reportService';
 import requireOnline from '../../utils/requireOnline';
 import { supabase } from '../../services/supabaseClient';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { formatDisplayDate, formatDateTime } from '../../utils/formatters';
+import { getInitials } from '../../utils/initials';
 import friendlyError from '../../utils/friendlyError';
 
 const SHIPMENT_BUCKET = 'shipment-media';
@@ -30,6 +34,8 @@ export default function ReturnStockVerifyScreen() {
   const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDiscrepancyExpanded, setIsDiscrepancyExpanded] = useState(true);
+  const [isPhotoViewerVisible, setIsPhotoViewerVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +69,8 @@ export default function ReturnStockVerifyScreen() {
       </View>
     );
   }
+
+  const productImage = PRODUCT_CATALOG.find((product) => product.code === returnRequest.productCode)?.image;
 
   const handleApprove = () => {
     if (!requireOnline('Approving a return')) return;
@@ -120,55 +128,106 @@ export default function ReturnStockVerifyScreen() {
           paddingHorizontal={SPACING.md}
         />
 
-        <SecondaryHeader height={72}>
+        <SecondaryHeader height={52}>
           <View style={styles.verificationHeader}>
             <View style={styles.verificationTitleRow}>
-              <Text style={styles.verificationTitle}>Active Verification:</Text>
+              <Text style={styles.verificationTitle}>Return Verification</Text>
               <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
             </View>
-            <Text style={styles.verificationLine}>
-              <Text style={styles.verificationLabel}>Sales Rep: </Text>
-              {returnRequest.agentName}
-            </Text>
-            <Text style={styles.verificationLine}>
-              <Text style={styles.verificationLabel}>Report Date: </Text>
-              {formatDisplayDate(returnRequest.reportDate)}
-            </Text>
           </View>
         </SecondaryHeader>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Discrepancy Detail</Text>
+          <View style={styles.verificationDetailsCard}>
+            <View style={styles.verificationDetail}>
+              <View style={styles.salesRepDetail}>
+                <UserAvatar
+                  photoUrl={returnRequest.agentPhotoUrl}
+                  fallbackText={getInitials(returnRequest.agentName)}
+                  size={36}
+                  backgroundColor="#F1F3F6"
+                  fallbackTextColor={COLORS.primary}
+                />
+                <View style={styles.salesRepText}>
+                  <Text style={styles.verificationLabel}>Sales Rep</Text>
+                  <Text style={styles.verificationValue} numberOfLines={1}>{returnRequest.agentName}</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.verificationDetail}>
+              <Text style={styles.verificationLabel}>Report date</Text>
+              <Text style={styles.verificationValue}>{formatDisplayDate(returnRequest.reportDate)}</Text>
+              <Text style={styles.submittedAt}>
+                Submitted {formatDateTime(new Date(returnRequest.createdAt))}
+              </Text>
+            </View>
+          </View>
+
+          <Pressable
+            style={styles.sectionHeaderRow}
+            onPress={() => setIsDiscrepancyExpanded((expanded) => !expanded)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: isDiscrepancyExpanded }}
+            accessibilityLabel={`${isDiscrepancyExpanded ? 'Hide' : 'Show'} discrepancy details`}
+          >
+            <Text style={styles.sectionTitle}>Discrepancy Details</Text>
             <View
               style={[
                 styles.statusDot,
                 { backgroundColor: returnRequest.discrepancy < 0 ? '#EF4444' : '#B26400' },
               ]}
             />
-          </View>
+            <View style={{ flex: 1 }} />
+            <Text style={styles.toggleText}>{isDiscrepancyExpanded ? 'Hide' : 'Show'}</Text>
+            <Icon
+              name="caretDown"
+              size={18}
+              color={COLORS.textSecondary}
+              style={isDiscrepancyExpanded ? styles.expandedCaret : undefined}
+            />
+          </Pressable>
 
-          <View style={styles.itemCard}>
-            <View style={styles.thumbnail}>
-              <Icon name="package" size={24} color="#94a3b8" />
-            </View>
+          {isDiscrepancyExpanded && (
+            <View style={styles.itemCard}>
+              <View style={styles.thumbnail}>
+                {productImage ? (
+                  <Image
+                    source={productImage}
+                    style={styles.productImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <Icon name="package" size={24} color="#94a3b8" />
+                )}
+              </View>
 
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemCode} numberOfLines={1}>{returnRequest.productCode}</Text>
-              <Text style={styles.itemFullName} numberOfLines={1}>{returnRequest.productName}</Text>
-            </View>
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemCode} numberOfLines={1}>{returnRequest.productCode}</Text>
+                <Text style={styles.itemFullName} numberOfLines={1}>{returnRequest.productName}</Text>
+              </View>
 
-            <View style={[styles.qtyBadge, returnRequest.discrepancy < 0 ? styles.qtyBadgeDamaged : styles.qtyBadgeGood]}>
-              <Text style={[styles.qtyBadgeText, returnRequest.discrepancy < 0 ? styles.qtyBadgeTextDamaged : styles.qtyBadgeTextGood]}>
-                {Math.abs(returnRequest.discrepancy)}
-              </Text>
+              <View style={[styles.qtyBadge, returnRequest.discrepancy < 0 ? styles.qtyBadgeDamaged : styles.qtyBadgeGood]}>
+                <Text style={[styles.qtyBadgeText, returnRequest.discrepancy < 0 ? styles.qtyBadgeTextDamaged : styles.qtyBadgeTextGood]}>
+                  {Math.abs(returnRequest.discrepancy)}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
           <Text style={[styles.listTitle, styles.sectionSpacing]}>Photo Proof</Text>
           <View style={styles.photoCard}>
             {photoUrl ? (
-              <Image source={{ uri: photoUrl }} style={styles.photoLarge} resizeMode="cover" />
+              <Pressable
+                onPress={() => setIsPhotoViewerVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Preview photo proof"
+              >
+                <Image source={{ uri: photoUrl }} style={styles.photoLarge} resizeMode="cover" />
+                <View style={styles.photoPreviewHint}>
+                  <Icon name="expand" size={16} color="#FFFFFF" />
+                  <Text style={styles.photoPreviewHintText}>Tap to preview</Text>
+                </View>
+              </Pressable>
             ) : (
               <View style={styles.thumbnailLarge}>
                 <Icon name="package" size={40} color="#D8DEE8" />
@@ -210,7 +269,7 @@ export default function ReturnStockVerifyScreen() {
         </ScrollView>
 
         <View style={styles.footer}>
-          <View style={styles.footerRow}>
+          <View style={styles.footerActions}>
             <Pressable
               style={[styles.rejectButton, isSubmitting && styles.buttonDisabled]}
               onPress={() => setIsRejectModalVisible(true)}
@@ -243,6 +302,11 @@ export default function ReturnStockVerifyScreen() {
         />
         <Button title="Confirm Reject" variant="black" onPress={handleReject} disabled={isSubmitting} style={{ marginTop: SPACING.md }} />
       </CustomModal>
+      <ImageViewerModal
+        visible={isPhotoViewerVisible}
+        onClose={() => setIsPhotoViewerVisible(false)}
+        imageUri={photoUrl}
+      />
     </>
   );
 }
@@ -293,17 +357,58 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    paddingBottom: 24,
+    paddingTop: SPACING.sm,
+    paddingBottom: 12,
+  },
+  verificationDetailsCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEFF5',
+  },
+  verificationDetail: {
+    flex: 1,
+    gap: 3,
+  },
+  salesRepDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  salesRepText: {
+    flex: 1,
+    gap: 3,
+  },
+  verificationValue: {
+    color: '#272632',
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  submittedAt: {
+    color: COLORS.textSecondary,
+    fontSize: 10,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    marginTop: 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    minHeight: 36,
+    marginBottom: 6,
+  },
+  toggleText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  expandedCaret: {
+    transform: [{ rotate: '180deg' }],
   },
   sectionSpacing: {
-    marginTop: 20,
+    marginTop: 12,
   },
   sectionTitle: {
     fontSize: 15,
@@ -321,29 +426,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 14,
-    padding: 12,
-    gap: 12,
+    borderRadius: 8,
+    padding: 8,
+    gap: 10,
   },
   thumbnail: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 6,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  productImage: {
+    width: 36,
+    height: 36,
   },
   itemDetails: {
     flex: 1,
   },
   itemCode: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#272632',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
   },
   itemFullName: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#555353',
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     marginTop: 2,
@@ -382,28 +491,45 @@ const styles = StyleSheet.create({
   photoCard: {
     borderWidth: 1,
     borderColor: '#EAEFF5',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 8,
+    padding: 8,
+  },
+  photoPreviewHint: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+  },
+  photoPreviewHintText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   thumbnailLarge: {
-    height: 140,
-    borderRadius: 12,
+    height: 96,
+    borderRadius: 6,
     backgroundColor: '#F1F3F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoLarge: {
     width: '100%',
-    height: 220,
-    borderRadius: 12,
+    height: 150,
+    borderRadius: 6,
   },
   locationCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#EAEFF5',
     paddingHorizontal: 12,
-    marginTop: 16,
+    marginTop: 10,
   },
   locationRow: {
     flexDirection: 'row',
@@ -434,46 +560,46 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: 12,
-    paddingBottom: 24,
+    paddingTop: 8,
+    paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#EEF2F7',
   },
-  footerRow: {
-    flexDirection: 'row',
-    gap: 12,
+  footerActions: {
+    flexDirection: 'column',
+    gap: 8,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   primaryButton: {
-    flex: 1,
     backgroundColor: '#03045E',
-    borderRadius: 12,
-    height: 52,
+    borderRadius: 14,
+    height: 46,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },
   rejectButton: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    height: 52,
+    borderRadius: 14,
+    height: 46,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#EF4444',
   },
   rejectButtonText: {
     color: '#B91C1C',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     fontFamily: TYPOGRAPHY.fontFamily.bold,
   },

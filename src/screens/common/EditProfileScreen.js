@@ -1,6 +1,6 @@
 // src/screens/common/EditProfileScreen.js
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet, Linking } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -9,6 +9,7 @@ import * as Device from 'expo-device';
 import Header from '../../components/common/Header';
 import UserAvatar from '../../components/common/UserAvatar';
 import CustomModal from '../../components/common/Modal';
+import ImageViewerModal from '../../components/common/ImageViewerModal';
 import Icon from '../../components/common/Icon';
 import PhilippinePhoneInput, {
   isValidPhNationalNumber,
@@ -60,13 +61,37 @@ export default function EditProfileScreen() {
   const [isPhoneModalVisible, setIsPhoneModalVisible] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState('');
   const [phoneError, setPhoneError] = useState(null);
+  const [managerContact, setManagerContact] = useState(null);
+  const [isLoadingManager, setIsLoadingManager] = useState(false);
+  const [managerContactError, setManagerContactError] = useState(false);
+  const [isManagerModalVisible, setIsManagerModalVisible] = useState(false);
+  const [isProfilePhotoPreviewVisible, setIsProfilePhotoPreviewVisible] = useState(false);
+
+  const loadManagerContact = useCallback(async (agentId) => {
+    setIsLoadingManager(true);
+    setManagerContactError(false);
+    const result = await profileService.getAgentManagerContact(agentId);
+    if (result.success) {
+      setManagerContact(result.data || null);
+    } else {
+      setManagerContact(null);
+      setManagerContactError(true);
+    }
+    setIsLoadingManager(false);
+  }, []);
 
   const loadUser = useCallback(async () => {
     setIsLoading(true);
     const currentUser = await authService.getCurrentUser();
     setUser(currentUser);
     setIsLoading(false);
-  }, []);
+    if (currentUser?.role === 'sales_rep' || currentUser?.role === 'collector') {
+      await loadManagerContact(currentUser.id);
+    } else {
+      setManagerContact(null);
+      setManagerContactError(false);
+    }
+  }, [loadManagerContact]);
 
   useFocusEffect(
     useCallback(() => {
@@ -204,6 +229,23 @@ export default function EditProfileScreen() {
   const roleIcon = ROLE_ICONS[user?.role] || 'idCard';
   const rolePillColors = ROLE_PILL_COLORS[user?.role] || { backgroundColor: '#EEF2FF', color: COLORS.primary };
   const hasPhoneNumber = !!user?.phoneNumber;
+  const managerRowValue = isLoadingManager
+    ? 'Loading…'
+    : managerContact?.full_name || (managerContactError ? 'Could not load · tap to retry' : 'Not assigned');
+  const handleManagerRowPress = () => {
+    if (managerContact) {
+      setIsManagerModalVisible(true);
+    } else if (managerContactError && user?.id) {
+      loadManagerContact(user.id);
+    }
+  };
+  const openManagerContact = async (url) => {
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert('Unable to Open Contact', friendlyError(error.message) || 'Please try again.');
+    }
+  };
 
   return (
     <>
@@ -226,7 +268,14 @@ export default function EditProfileScreen() {
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.heroCard}>
               <View style={styles.avatarWrap}>
-                <UserAvatar photoUrl={user?.profilePhotoUrl} size={112} iconName="person" style={styles.avatarRing} />
+                <Pressable
+                  onPress={() => user?.profilePhotoUrl && setIsProfilePhotoPreviewVisible(true)}
+                  disabled={!user?.profilePhotoUrl}
+                  accessibilityLabel={user?.profilePhotoUrl ? 'Preview profile photo' : 'No profile photo to preview'}
+                  accessibilityRole="button"
+                >
+                  <UserAvatar photoUrl={user?.profilePhotoUrl} size={88} iconName="person" style={styles.avatarRing} />
+                </Pressable>
                 <Pressable
                   style={styles.cameraBadge}
                   onPress={() => setIsSourceModalVisible(true)}
@@ -248,6 +297,7 @@ export default function EditProfileScreen() {
                 {user?.full_name || user?.username || ''}
               </Text>
               <View style={[styles.rolePill, { backgroundColor: rolePillColors.backgroundColor }]}>
+                <Icon name={roleIcon} size={14} color={rolePillColors.color} />
                 <Text style={[styles.rolePillText, { color: rolePillColors.color }]}>{roleLabel}</Text>
               </View>
 
@@ -256,7 +306,7 @@ export default function EditProfileScreen() {
                 onPress={() => setIsSourceModalVisible(true)}
                 disabled={isSaving}
               >
-                <Text style={styles.changePhotoText}>Change Photo</Text>
+                <Icon name="camera" size={15} color={COLORS.primary} />
               </Pressable>
             </View>
 
@@ -319,6 +369,31 @@ export default function EditProfileScreen() {
                     {branchList[0] || 'No branch assigned'}
                   </Text>
                 </View>
+              )}
+
+              {(user?.role === 'sales_rep' || user?.role === 'collector') && (
+                <>
+                  <View style={styles.rowDivider} />
+                  <Pressable
+                    style={styles.rowItem}
+                    onPress={handleManagerRowPress}
+                    disabled={isLoadingManager || (!managerContact && !managerContactError)}
+                    accessibilityLabel={managerContact ? `View contact details for Manager ${managerContact.full_name}` : 'Manager contact'}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.rowLeft}>
+                      <View style={[styles.rowIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                        <Icon name="idCard" size={18} color={COLORS.primary} />
+                      </View>
+                      <Text style={styles.rowLabel}>Manager</Text>
+                    </View>
+                    <View style={styles.phoneEditTrigger}>
+                      {isLoadingManager && <ActivityIndicator size="small" color={COLORS.primary} />}
+                      <Text style={styles.rowValue} numberOfLines={1}>{managerRowValue}</Text>
+                      {!!managerContact && <Icon name="arrowRight" size={14} color="#94a3b8" />}
+                    </View>
+                  </Pressable>
+                </>
               )}
 
               <View style={styles.rowDivider} />
@@ -460,6 +535,81 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </CustomModal>
+
+      <CustomModal
+        visible={isManagerModalVisible}
+        onClose={() => setIsManagerModalVisible(false)}
+        variant="center"
+        height="auto"
+      >
+        <View style={styles.managerModalContent}>
+          <Pressable
+            style={styles.phoneModalCloseBtn}
+            onPress={() => setIsManagerModalVisible(false)}
+            hitSlop={10}
+            accessibilityLabel="Close manager contact"
+            accessibilityRole="button"
+          >
+            <Icon name="xCircle" size={24} color="#94a3b8" />
+          </Pressable>
+          <View style={styles.managerModalIconWrap}>
+            <UserAvatar
+              photoUrl={managerContact?.profile_photo_url}
+              size={48}
+              iconName="person"
+              backgroundColor={COLORS.primaryLight}
+              style={styles.managerAvatar}
+            />
+          </View>
+          <Text style={styles.managerModalTitle}>{managerContact?.full_name || 'Manager'}</Text>
+          <Text style={styles.managerModalName}>Your Manager</Text>
+          <View style={styles.managerContactList}>
+            <Pressable
+              style={styles.managerContactRow}
+              onPress={() => managerContact?.email && openManagerContact(`mailto:${managerContact.email}`)}
+              disabled={!managerContact?.email}
+              accessibilityRole="button"
+              accessibilityLabel={managerContact?.email ? `Email ${managerContact.email}` : 'Manager email not provided'}
+            >
+              <Icon name="envelope" size={17} color={COLORS.primary} />
+              <View style={styles.managerContactTextWrap}>
+                <Text style={styles.managerContactLabel}>Email</Text>
+                <Text style={styles.managerContactValue}>{managerContact?.email || 'Not provided'}</Text>
+              </View>
+              {!!managerContact?.email && <Icon name="arrowRight" size={16} color="#94a3b8" />}
+            </Pressable>
+            <View style={styles.managerContactDivider} />
+            <Pressable
+              style={styles.managerContactRow}
+              onPress={() => {
+                const phone = managerContact?.phone_number?.replace(/[^\d+]/g, '');
+                if (phone) openManagerContact(`tel:${phone}`);
+              }}
+              disabled={!managerContact?.phone_number}
+              accessibilityRole="button"
+              accessibilityLabel={
+                managerContact?.phone_number
+                  ? `Call ${managerContact.full_name || 'your Manager'}`
+                  : 'Manager contact number not provided'
+              }
+            >
+              <Icon name="phone" size={17} color="#2E9E5B" />
+              <View style={styles.managerContactTextWrap}>
+                <Text style={styles.managerContactLabel}>Contact number</Text>
+                <Text style={styles.managerContactValue}>
+                  {managerContact?.phone_number ? formatPhDisplay(managerContact.phone_number) : 'Not provided'}
+                </Text>
+              </View>
+              {!!managerContact?.phone_number && <Icon name="arrowRight" size={16} color="#94a3b8" />}
+            </Pressable>
+          </View>
+        </View>
+      </CustomModal>
+      <ImageViewerModal
+        visible={isProfilePhotoPreviewVisible}
+        onClose={() => setIsProfilePhotoPreviewVisible(false)}
+        imageUri={user?.profilePhotoUrl}
+      />
     </>
   );
 }
@@ -469,18 +619,18 @@ const styles = StyleSheet.create({
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.lg,
+    paddingTop: SPACING.sm,
   },
   heroCard: {
     alignItems: 'center',
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: '#EEF2F7',
-    marginBottom: SPACING.xs,
+    marginBottom: 0,
   },
   avatarWrap: {
     position: 'relative',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   avatarRing: {
     borderWidth: 3,
@@ -492,9 +642,9 @@ const styles = StyleSheet.create({
     right: 0,
   },
   cameraBadgeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: '#0085F9',
     borderWidth: 3,
     borderColor: '#FFFFFF',
@@ -508,9 +658,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   rolePill: {
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
     borderRadius: 999,
   },
   rolePillText: {
@@ -519,17 +672,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   changePhotoBtn: {
-    marginTop: SPACING.md,
-    paddingVertical: 8,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.primaryLight,
-  },
-  changePhotoText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
+    borderWidth: 1,
+    borderColor: '#D6E4FF',
   },
   sectionLabel: {
     fontSize: 12,
@@ -538,8 +689,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 2,
-    marginTop: SPACING.md,
+    marginBottom: 0,
+    marginTop: SPACING.sm,
   },
   groupCard: {
     marginBottom: SPACING.md,
@@ -548,10 +699,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     gap: 10,
-    marginTop: 8,
+    marginTop: 6,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EAEFF5',
@@ -564,10 +715,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rowItemStacked: {
-    paddingVertical: 10,
+    paddingVertical: 7,
     paddingHorizontal: 12,
     gap: 10,
-    marginTop: 8,
+    marginTop: 6,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EAEFF5',
@@ -605,9 +756,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   rowIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -637,6 +788,64 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   phoneModalContent: { alignItems: 'center', paddingTop: 4 },
+  managerModalContent: { alignItems: 'center', paddingTop: 2 },
+  managerModalIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 2,
+    borderColor: '#BFE0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  managerAvatar: {
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  managerModalTitle: {
+    marginTop: 8,
+    fontSize: 17,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  managerModalName: {
+    marginTop: 0,
+    marginBottom: SPACING.sm,
+    fontSize: 13,
+    color: '#555353',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    textAlign: 'center',
+  },
+  managerContactList: {
+    alignSelf: 'stretch',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EAEFF5',
+    backgroundColor: '#F9FAFC',
+    paddingHorizontal: 12,
+  },
+  managerContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+  },
+  managerContactTextWrap: { flex: 1 },
+  managerContactLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  managerContactValue: {
+    marginTop: 2,
+    fontSize: 14,
+    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: '600',
+  },
+  managerContactDivider: { height: 1, backgroundColor: '#EAEFF5' },
   phoneModalHandle: {
     alignSelf: 'center',
     width: 36,

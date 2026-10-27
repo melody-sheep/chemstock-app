@@ -1,6 +1,6 @@
 // src/components/common/RegisteredItemsList.js
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, findNodeHandle, useWindowDimensions } from 'react-native';
 import PropTypes from 'prop-types';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Icon from './Icon';
@@ -8,6 +8,7 @@ import SectionHeader from './SectionHeader';
 import DateChip from './DateChip';
 import SpotlightHint from './SpotlightHint';
 import QuantityStepper from './QuantityStepper';
+import { useBottomActionBarHeight } from './BottomActionBar';
 import { useItemDatePicker } from '../../hooks/useItemDatePicker';
 import { useFirstTimeHint } from '../../hooks/useFirstTimeHint';
 import { COLORS } from '../../constants/colors';
@@ -39,6 +40,8 @@ export default function RegisteredItemsList({
   // calls onEditQuantity (the screen sends the manager back to change it).
   quantityLocked = false,
   onEditQuantity,
+  // The screen's scroll view. Lets the first-time tip scroll the Mfg/Exp buttons clear of the fixed bottom bar.
+  scrollRef,
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   // Adding a product always opens the list so every item is on screen — a
@@ -57,6 +60,8 @@ export default function RegisteredItemsList({
   // separate explainer element to the layout.
   const firstDateGroupRef = useRef(null);
   const [spotlightTarget, setSpotlightTarget] = useState(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const bottomBarHeight = useBottomActionBarHeight();
   const measureSpotlightTarget = () => {
     firstDateGroupRef.current?.measureInWindow((x, y, width, height) => {
       // Explicit no-op guard: skip the setState if the measurement didn't
@@ -71,6 +76,38 @@ export default function RegisteredItemsList({
       });
     });
   };
+
+  // The tip may only point at the buttons when they are fully on screen. Before, a button hidden behind the
+  // fixed bottom bar was cut out of the highlight with the bar painted over it. If the buttons are not clear of the
+  // bar or the header, scroll them into view first, then measure again.
+  const clearBottom = windowHeight - bottomBarHeight - SPACING.md;
+  const clearTop = 150;
+  const targetIsClear =
+    !!spotlightTarget && spotlightTarget.y >= clearTop && spotlightTarget.y + spotlightTarget.height <= clearBottom;
+  const [revealDone, setRevealDone] = useState(false);
+  const triedReveal = useRef(false);
+  useEffect(() => {
+    if (!dateHint.isVisible || !spotlightTarget || targetIsClear || triedReveal.current) return;
+    const scroller = scrollRef?.current;
+    const node = firstDateGroupRef.current;
+    if (!scroller || !node) return;
+    triedReveal.current = true;
+    const relativeTo = scroller.getInnerViewRef?.() || findNodeHandle(scroller);
+    node.measureLayout(
+      relativeTo,
+      (_x, contentY) => {
+        scroller.scrollTo({ y: Math.max(contentY - windowHeight * 0.35, 0), animated: true });
+        setTimeout(() => {
+          measureSpotlightTarget();
+          setRevealDone(true);
+        }, 500);
+      },
+      () => setRevealDone(true)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateHint.isVisible, spotlightTarget, targetIsClear, scrollRef, windowHeight]);
+  // No scroll view to move (or it could not be moved): show the tip where the buttons are.
+  const showTip = dateHint.isVisible && !!spotlightTarget && (targetIsClear || !scrollRef || revealDone);
 
   return (
     <>
@@ -90,8 +127,9 @@ export default function RegisteredItemsList({
       ) : (
         <>
           <SpotlightHint
-            visible={dateHint.isVisible}
+            visible={showTip}
             target={spotlightTarget}
+            icon="calendar"
             title="Set the item dates"
             description="Tap Mfg and Exp to set each item's dates — Exp can't be set earlier than Mfg."
             onDismiss={dateHint.dismiss}
@@ -228,6 +266,7 @@ RegisteredItemsList.propTypes = {
   sectionTitle: PropTypes.string,
   cardHeaderTitle: PropTypes.string,
   emptyText: PropTypes.string,
+  scrollRef: PropTypes.object,
 };
 
 const styles = StyleSheet.create({

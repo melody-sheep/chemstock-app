@@ -3,8 +3,10 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import PropTypes from 'prop-types';
+import * as Clipboard from 'expo-clipboard';
 import Icon from './Icon';
 import { TYPOGRAPHY } from '../../styles/typography';
+import { manilaDateOf } from '../../utils/expiry';
 
 const TYPE_LABELS = {
   daily_report: 'Daily report',
@@ -15,6 +17,25 @@ const TYPE_LABELS = {
   delivery_checkpoint: 'Checkpoint',
   finish_delivery_leg: 'Delivery update',
 };
+
+function formatDailyReportDetails(entry) {
+  const savedAt = entry.payload?.savedAt ?? entry.createdAt;
+  const reportDate = savedAt ? manilaDateOf(savedAt) : null;
+  const items = Array.isArray(entry.payload?.items) ? entry.payload.items : [];
+  const productLines = items.length > 0
+    ? items.map((item) => (
+      `- ${item.productCode || 'Unknown product'} | sold: ${Number(item.soldQuantity) || 0} | returned: ${Number(item.returnQuantity) || 0}`
+    )).join('\n')
+    : '- No product lines found';
+
+  return [
+    'ChemStock failed daily report',
+    `Report date: ${reportDate || 'Unknown'}`,
+    'Products:',
+    productLines,
+    `Error: ${entry.lastError || 'It was not accepted.'}`,
+  ].join('\n');
+}
 
 /**
  * Shown under the pending banner for queued items the server kept rejecting.
@@ -39,6 +60,16 @@ export default function OutboxFailedNotice({ failed, agentId, onRetry, onDiscard
     );
   };
 
+  const copyReportDetails = async (entry) => {
+    try {
+      await Clipboard.setStringAsync(formatDailyReportDetails(entry));
+      Alert.alert('Copied', 'Report details copied. Paste them into your message.');
+    } catch (error) {
+      console.error('[ERROR] [OutboxFailedNotice] Failed to copy report details:', error);
+      Alert.alert('Could Not Copy', error.message || 'Please try again.');
+    }
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
@@ -57,6 +88,17 @@ export default function OutboxFailedNotice({ failed, agentId, onRetry, onDiscard
             <Text style={styles.itemReason} numberOfLines={3}>
               {entry.lastError || 'It was not accepted.'}
             </Text>
+            {entry.type === 'daily_report' && (
+              <Pressable
+                onPress={() => copyReportDetails(entry)}
+                style={styles.copyButton}
+                accessibilityRole="button"
+                accessibilityLabel="Copy failed report details"
+              >
+                <Icon name="clipboardText" size={13} color="#7F1D1D" />
+                <Text style={styles.copyText}>Copy report details</Text>
+              </Pressable>
+            )}
           </View>
           <Pressable onPress={() => confirmDiscard(entry)} style={styles.discardButton} accessibilityRole="button">
             <Text style={styles.discardText}>Discard</Text>
@@ -98,6 +140,15 @@ const styles = StyleSheet.create({
   itemTextCol: { flex: 1 },
   itemLabel: { fontSize: 12, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   itemReason: { fontSize: 12, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.regular, marginTop: 2 },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  copyText: { fontSize: 12, color: '#7F1D1D', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   discardButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,

@@ -11,7 +11,7 @@ import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import UserAvatar from '../../components/common/UserAvatar';
-import BottomNavBar from '../../components/common/BottomNavBar';
+import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import CustomModal from '../../components/common/Modal';
 import BranchSelector from '../../components/common/BranchSelector';
 import QRScannerModal from '../../components/common/QRScannerModal';
@@ -65,11 +65,13 @@ const loadAlertsData = async (previous) => {
 function alertStatus(alert) {
   if (alert.resolutionStatus === 'resolved') return { label: 'Settled', color: '#1E7A3A', bg: '#EAFBF2' };
   if (alert.latestRequest?.status === 'pending') return { label: 'Return pending', color: '#B26400', bg: '#FFF1D6' };
+  if (alert.carryForwardEnabled) return { label: 'Unreported', color: '#8A5A00', bg: '#FFF1D6' };
   return { label: 'Open', color: '#B91C1C', bg: '#FDECEC' };
 }
 
 export default function ManagerAlertsScreen() {
   const navigation = useNavigation();
+  const bottomNavHeight = useBottomNavBarHeight();
   const connection = useConnectionStatus();
   const onlineLabel = useOnlineLabel();
   const { data: snapshot, isLoading, isUnavailable, refreshControl } = useCachedFocusLoader('manager-alerts', loadAlertsData);
@@ -153,7 +155,7 @@ export default function ManagerAlertsScreen() {
           </View>
         ) : (
           <ScrollView
-          refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          refreshControl={refreshControl} contentContainerStyle={[styles.content, { paddingBottom: bottomNavHeight + 56 }]} showsVerticalScrollIndicator={false}>
             {branchFilterOptions.length > 1 && (
               <View style={styles.branchFilterWrap}>
                 <BranchSelector
@@ -233,8 +235,12 @@ export default function ManagerAlertsScreen() {
                           <Icon name="calendar" size={14} color={COLORS.textSecondary} />
                           <Text style={styles.alertMeta}>{formatDisplayDate(alert.reportDate)}</Text>
                           <Text style={styles.alertMeta}>·</Text>
-                          <Text style={[styles.alertMissing, isSettled && styles.alertMissingMuted]}>
-                            {Math.abs(alert.discrepancy)}x {isLoss ? 'Missing' : 'Over'}
+                          <Text style={[
+                            styles.alertMissing,
+                            alert.carryForwardEnabled && styles.alertCarryForward,
+                            isSettled && styles.alertMissingMuted,
+                          ]}>
+                            {Math.abs(alert.discrepancy)}x {alert.carryForwardEnabled ? 'Unreported' : isLoss ? 'Missing' : 'Over'}
                           </Text>
                         </View>
                       </View>
@@ -316,11 +322,20 @@ export default function ManagerAlertsScreen() {
                   <Text style={styles.modalFigureLabel}>Return</Text>
                   <Text style={styles.modalFigureValue}>{selectedAlert.returnQuantity}</Text>
                 </View>
-                <View style={[styles.modalFigureColumn, styles.modalFigureColumnFlag]}>
-                  <Text style={[styles.modalFigureLabel, styles.modalFigureLabelFlag]}>
-                    {selectedAlert.discrepancyType === 'loss' ? 'Missing' : 'Over'}
+                <View style={[
+                  styles.modalFigureColumn,
+                  selectedAlert.carryForwardEnabled ? styles.modalFigureColumnCarryForward : styles.modalFigureColumnFlag,
+                ]}>
+                  <Text style={[
+                    styles.modalFigureLabel,
+                    selectedAlert.carryForwardEnabled ? styles.modalFigureLabelCarryForward : styles.modalFigureLabelFlag,
+                  ]}>
+                    {selectedAlert.carryForwardEnabled ? 'Unreported' : selectedAlert.discrepancyType === 'loss' ? 'Missing' : 'Over'}
                   </Text>
-                  <Text style={[styles.modalFigureValue, styles.modalFigureValueFlag]}>
+                  <Text style={[
+                    styles.modalFigureValue,
+                    selectedAlert.carryForwardEnabled ? styles.modalFigureValueCarryForward : styles.modalFigureValueFlag,
+                  ]}>
                     {Math.abs(selectedAlert.discrepancy)}
                   </Text>
                 </View>
@@ -348,6 +363,8 @@ export default function ManagerAlertsScreen() {
                     ? 'This discrepancy has been settled.'
                     : isPending
                     ? 'A return request from this Sales Rep is pending your review in Reports & Returns.'
+                    : selectedAlert.carryForwardEnabled
+                    ? 'Not included in this report. These units remain in the Sales Rep’s inventory for the next report; this does not confirm physical loss.'
                     : 'No return request has been submitted for this discrepancy yet.'}
                 </Text>
               </View>
@@ -540,6 +557,7 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
+  alertCarryForward: { color: '#8A5A00' },
   alertMissingMuted: {
     color: COLORS.textSecondary,
     fontFamily: TYPOGRAPHY.fontFamily.medium,
@@ -617,6 +635,7 @@ const styles = StyleSheet.create({
   modalFigureColumnFlag: {
     backgroundColor: '#FDECEC',
   },
+  modalFigureColumnCarryForward: { backgroundColor: '#FFF7E6' },
   modalFigureLabel: {
     fontSize: 11,
     color: COLORS.textSecondary,
@@ -625,6 +644,7 @@ const styles = StyleSheet.create({
   modalFigureLabelFlag: {
     color: '#B91C1C',
   },
+  modalFigureLabelCarryForward: { color: '#8A5A00' },
   modalFigureValue: {
     marginTop: 2,
     fontSize: TYPOGRAPHY.fontSize.lg,
@@ -635,6 +655,7 @@ const styles = StyleSheet.create({
   modalFigureValueFlag: {
     color: '#B91C1C',
   },
+  modalFigureValueCarryForward: { color: '#8A5A00' },
   modalStatusPanel: {
     flexDirection: 'row',
     alignItems: 'center',

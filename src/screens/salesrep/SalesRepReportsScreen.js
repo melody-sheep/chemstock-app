@@ -349,12 +349,20 @@ export default function SalesRepReportsScreen() {
               </View>
             </View>
 
+            {selectedReport.carryForwardEnabled && (selectedReport.items || []).some((item) => item.discrepancy < 0) && (
+              <Text style={styles.carryForwardNote}>
+                Unreported units are not confirmed lost. They remain in the Sales Rep’s inventory for the next report unless physically returned and accepted by a Manager.
+              </Text>
+            )}
+
             <ScrollView showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
               <Text style={styles.sheetLabel}>ITEMS ({(selectedReport.items || []).length})</Text>
               <View style={styles.modalItemsList}>
                 {(selectedReport.items || []).map((item) => {
                   const image = PRODUCT_CATALOG.find((p) => p.code === item.productCode)?.image;
                   const hasGap = item.discrepancy !== 0;
+                  const isCarryForward = item.resolutionStatus === 'carried_forward'
+                    || (selectedReport.carryForwardEnabled && item.discrepancy < 0);
                   return (
                     <View key={item.reportItemId} style={styles.modalItemCard}>
                       <View style={styles.modalItemTop}>
@@ -385,9 +393,17 @@ export default function SalesRepReportsScreen() {
                           <Text style={styles.statLabel}>Return</Text>
                           <Text style={styles.statValue}>{item.returnQuantity}</Text>
                         </View>
-                        <View style={[styles.statBox, hasGap && styles.statBoxFlag]}>
-                          <Text style={[styles.statLabel, hasGap && styles.statFlagText]}>{hasGap ? 'Discrepancy' : 'Diff'}</Text>
-                          <Text style={[styles.statValue, hasGap && styles.statFlagText]}>{item.discrepancy}</Text>
+                        <View style={[styles.statBox, hasGap && styles.statBoxFlag, isCarryForward && styles.statBoxCarryForward]}>
+                          <Text style={[styles.statLabel, hasGap && styles.statFlagText, isCarryForward && styles.statCarryForwardText]}>
+                            {item.resolutionStatus === 'carried_forward'
+                              ? 'Carried'
+                              : selectedReport.carryForwardEnabled && item.discrepancy < 0
+                              ? 'Unreported'
+                              : hasGap ? 'Discrepancy' : 'Diff'}
+                          </Text>
+                          <Text style={[styles.statValue, hasGap && styles.statFlagText, isCarryForward && styles.statCarryForwardText]}>
+                            {isCarryForward ? Math.abs(item.discrepancy) : item.discrepancy}
+                          </Text>
                         </View>
                       </View>
                     </View>
@@ -666,6 +682,15 @@ const styles = StyleSheet.create({
   sheetBadgeGood: { backgroundColor: '#EAFBF2' },
   sheetBadgeWait: { backgroundColor: '#FFF1D6' },
   sheetBadgeText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
+  carryForwardNote: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#FFF7E6',
+    color: '#8A5A00',
+    fontSize: 12,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
   sheetScroll: { flexShrink: 1 },
   sheetLabel: { marginTop: 16, marginBottom: 8, fontSize: 12, letterSpacing: 0.8, color: '#6B7280', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   modalItemCard: { borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 12, padding: 10, gap: 10 },
@@ -675,9 +700,11 @@ const styles = StyleSheet.create({
   statRow: { flexDirection: 'row', gap: 6 },
   statBox: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, backgroundColor: '#F5F6F9' },
   statBoxFlag: { backgroundColor: '#FDECEC' },
+  statBoxCarryForward: { backgroundColor: '#FFF7E6' },
   statLabel: { fontSize: 11, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   statValue: { marginTop: 2, fontSize: 18, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   statFlagText: { color: '#B91C1C' },
+  statCarryForwardText: { color: '#8A5A00' },
   sheetClose: { marginTop: 14 },
   modalTitle: {
     fontSize: 17,

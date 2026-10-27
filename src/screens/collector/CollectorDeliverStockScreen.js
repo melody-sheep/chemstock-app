@@ -209,7 +209,7 @@ export default function CollectorDeliverStockScreen() {
   const canMarkOffline = !connection.online && !isNearAStop && destinations.length > 0;
 
   // Room for the second button when it shows.
-  const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0);
+  const collapsedHeight = COLLAPSED_SHEET_HEIGHT + (canMarkOffline ? 52 : 0) + Math.max(insets.bottom - SPACING.md, 0);
   // Open, the sheet fits its timeline (no empty space with one or two
   // entries), up to 55% of the map once the trip has many stops.
   const [timelineHeight, setTimelineHeight] = useState(0);

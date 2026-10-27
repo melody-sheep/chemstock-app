@@ -60,6 +60,7 @@ export default function ReceiveStockPreviewScreen() {
   const [registeredAt, setRegisteredAt] = useState(null);
   const bottomActionBarHeight = useBottomActionBarHeight();
   const blurTarget = useRef(null);
+  const scrollRef = useRef(null);
   const { hasReachedEnd, onScroll, onContentSizeChange, onLayout } = useScrolledToEnd();
   const qrRef = useRef(null);
 
@@ -68,7 +69,17 @@ export default function ReceiveStockPreviewScreen() {
       .getCurrentUser()
       .then(async (currentManager) => {
         setManager(currentManager);
-        const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+        let managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
+        // Older installs may have the manager profile cached but not the new
+        // branch-record cache. A single assigned branch can still be safely
+        // identified from the already-cached profile.
+        if (
+          managerBranches.length === 0 &&
+          currentManager?.branchIds?.length === 1 &&
+          currentManager.branchName
+        ) {
+          managerBranches = [{ id: currentManager.branchIds[0], name: currentManager.branchName }];
+        }
         setBranches(managerBranches);
         // One branch is picked for the manager; several means they must choose.
         if (managerBranches.length === 1) setSelectedBranchId(managerBranches[0].id);
@@ -102,10 +113,17 @@ export default function ReceiveStockPreviewScreen() {
   const deviceLabel = getDeviceLabel(manager?.full_name || manager?.username);
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const assignedBranchCount = manager?.branchIds?.length || 0;
   const branchStatusText = isLoadingManager
     ? 'Loading branch…'
     : selectedBranch?.name ||
-      (branches.length > 1 ? 'Choose a branch above' : 'No branch assigned to your account');
+      (assignedBranchCount > 1 && branches.length === 0
+        ? 'Branch names unavailable offline. Connect once to load them.'
+        : branches.length > 1
+          ? 'Choose a branch above'
+          : assignedBranchCount === 0
+            ? 'No branch assigned to your account'
+            : 'Branch details unavailable');
 
   const handleSetQty = (code, qty) => {
     setItems((prev) =>
@@ -324,6 +342,7 @@ export default function ReceiveStockPreviewScreen() {
 
         <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <KeyboardAwareScrollView
+          ref={scrollRef}
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           onScroll={onScroll}
@@ -332,7 +351,7 @@ export default function ReceiveStockPreviewScreen() {
           scrollEventThrottle={16}
         >
           {/* Heading shows straight away; chips appear once branches load. */}
-          {(isLoadingManager || branches.length > 1) && (
+          {(isLoadingManager || branches.length > 1 || assignedBranchCount > 1) && (
             <>
               <SectionHeader icon="building" size="md" label="Receive into which branch?" style={styles.sectionHeaderFirst} />
               {isLoadingManager ? (
@@ -341,19 +360,26 @@ export default function ReceiveStockPreviewScreen() {
                   <SkeletonBlock width={150} height={36} borderRadius={20} />
                 </View>
               ) : (
-                <BranchSelector
-                  branches={branches}
-                  selectedId={selectedBranchId}
-                  onSelect={setSelectedBranchId}
-                  edgePadding={0}
-                  scrollable
-                  scrollBleed={SPACING.lg}
-                />
+                branches.length > 0 ? (
+                  <BranchSelector
+                    branches={branches}
+                    selectedId={selectedBranchId}
+                    onSelect={setSelectedBranchId}
+                    edgePadding={0}
+                    scrollable
+                    scrollBleed={SPACING.lg}
+                  />
+                ) : (
+                  <Text style={styles.branchUnavailableText}>
+                    Branch names aren&apos;t saved on this device yet. Connect to the internet once to load them.
+                  </Text>
+                )
               )}
             </>
           )}
 
           <RegisteredItemsList
+            scrollRef={scrollRef}
             items={items}
             onSetQty={handleSetQty}
             onDateChange={handleDateChange}
@@ -663,5 +689,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: SPACING.sm,
     paddingTop: SPACING.sm,
+  },
+  branchUnavailableText: {
+    paddingTop: SPACING.sm,
+    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
   },
 });

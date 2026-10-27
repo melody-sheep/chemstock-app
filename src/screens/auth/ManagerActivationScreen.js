@@ -21,7 +21,6 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import Header from '../../components/common/Header';
-import KeyboardWrapper from '../../components/common/KeyboardWrapper';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 import Icon from '../../components/common/Icon';
 import Button from '../../components/common/Button';
@@ -494,9 +493,9 @@ export default function ManagerActivationScreen() {
     !step2Errors.password &&
     !step2Errors.confirmPassword;
   
-  // The warning + button now scroll with the form, so only leave room for
-  // the phone's bottom bar.
-  const scrollViewPaddingBottom = 20 + (insets.bottom || 0);
+  // Extra scroll room lets the confirmation field clear both the keyboard
+  // and the fixed bottom action bar when the keyboard is open.
+  const scrollViewPaddingBottom = 200 + (insets.bottom || 0);
   
   // ============================================
   // RENDER - Step 1
@@ -509,8 +508,7 @@ export default function ManagerActivationScreen() {
     return (
       <>
         <StatusBar style="light" />
-        <KeyboardWrapper>
-          <View style={styles.container}>
+        <View style={styles.container}>
             <Header
               showBackButton={true}
               backButtonText="Back to Login"
@@ -678,8 +676,7 @@ export default function ManagerActivationScreen() {
                 borderRadius={24}
               />
             </BottomActionBar>
-          </View>
-        </KeyboardWrapper>
+        </View>
       </>
     );
   }
@@ -687,8 +684,7 @@ export default function ManagerActivationScreen() {
   return (
     <>
       <StatusBar style="light" />
-      <KeyboardWrapper>
-        <View style={styles.container}>
+      <View style={styles.container}>
           <Header
             showBackButton={true}
             backButtonText="Back to Step 1"
@@ -813,8 +809,7 @@ export default function ManagerActivationScreen() {
               borderRadius={24}
             />
           </BottomActionBar>
-        </View>
-      </KeyboardWrapper>
+      </View>
     </>
   );
 }

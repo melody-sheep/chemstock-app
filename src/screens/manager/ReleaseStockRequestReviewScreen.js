@@ -1,8 +1,9 @@
 // src/screens/manager/ReleaseStockRequestReviewScreen.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Image, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { BlurTargetView } from 'expo-blur';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
@@ -10,12 +11,16 @@ import Icon from '../../components/common/Icon';
 import Stepper from '../../components/common/Stepper';
 import Button from '../../components/common/Button';
 import BottomActionBar, { useBottomActionBarHeight } from '../../components/common/BottomActionBar';
+import HintChip from '../../components/common/HintChip';
+import UserAvatar from '../../components/common/UserAvatar';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { isExpired } from '../../utils/expiry';
+import { getInitials } from '../../utils/initials';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
 
@@ -66,27 +71,44 @@ export default function ReleaseStockRequestReviewScreen() {
   const route = useRoute();
   const { recipient, targetRecipient, branchId, movementType, requestId, requestedItems } = route.params;
   const bottomActionBarHeight = useBottomActionBarHeight();
+  const blurTarget = useRef(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [shortfalls, setShortfalls] = useState([]);
+  const [loadError, setLoadError] = useState(null);
+  const [qtyText, setQtyText] = useState({});
 
   useEffect(() => {
     (async () => {
-      const manager = await authService.getCurrentUser();
-      // Only the request's own branch — allocating from every branch the
-      // manager covers could pull batches from the wrong storage.
-      const result = await inventoryService.getBranchStock(branchId ? [branchId] : manager?.branchIds || []);
-      const branchStock = result.success ? result.data : [];
+      try {
+        const manager = await authService.getCurrentUser();
+        // Only the request's own branch — allocating from every branch the
+        // manager covers could pull batches from the wrong storage.
+        const result = await inventoryService.getBranchStock(branchId ? [branchId] : manager?.branchIds || []);
+        if (!result.success) {
+          throw new Error(result.message || 'Could not load branch stock.');
+        }
 
-      const { rows, shortfalls: shorts } = allocateItems(requestedItems || [], branchStock);
-      setItems(rows);
-      setShortfalls(shorts);
-      setIsLoading(false);
+        const { rows, shortfalls: shorts } = allocateItems(requestedItems || [], result.data || []);
+        setItems(rows);
+        setShortfalls(shorts);
+      } catch (error) {
+        console.error('[ERROR] [ReleaseStockRequestReview] Failed to load branch stock:', error);
+        setLoadError('Could not load branch stock. Go back and try again.');
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, [requestedItems]);
 
   const handleAdjustQty = (branchInventoryId, delta) => {
+    setQtyText((prev) => {
+      if (!(branchInventoryId in prev)) return prev;
+      const next = { ...prev };
+      delete next[branchInventoryId];
+      return next;
+    });
     setItems((prev) =>
       prev.map((item) =>
         item.branchInventoryId === branchInventoryId
@@ -96,12 +118,35 @@ export default function ReleaseStockRequestReviewScreen() {
     );
   };
 
+  const handleTypeQty = (branchInventoryId, text) => {
+    const digits = text.replace(/\D/g, '');
+    const item = items.find((row) => row.branchInventoryId === branchInventoryId);
+    const quantity = Math.min(item?.currentQty || 0, parseInt(digits, 10) || 0);
+    setItems((prev) =>
+      prev.map((row) =>
+        row.branchInventoryId === branchInventoryId ? { ...row, releaseQty: quantity } : row
+      )
+    );
+    setQtyText((prev) => ({ ...prev, [branchInventoryId]: digits === '' ? '' : String(quantity) }));
+  };
+
+  const forgetQtyText = (branchInventoryId) => {
+    setQtyText((prev) => {
+      if (!(branchInventoryId in prev)) return prev;
+      const next = { ...prev };
+      delete next[branchInventoryId];
+      return next;
+    });
+  };
+
+  const requestedTotalUnits = (requestedItems || []).reduce((sum, item) => sum + item.quantity, 0);
+  const requestedSalesRep = movementType === 'collector' ? targetRecipient : recipient;
   const releaseItems = items.filter((item) => item.releaseQty > 0);
   const totalUnits = releaseItems.reduce((sum, item) => sum + item.releaseQty, 0);
 
   // Products where the amount being released no longer matches what the
   // Sales Rep asked for, so the Manager knows they're changing the request.
-  const changedFromRequest = isLoading
+  const changedFromRequest = isLoading || loadError
     ? []
     : (requestedItems || [])
         .map((req) => ({
@@ -135,22 +180,56 @@ export default function ReleaseStockRequestReviewScreen() {
 
         <SecondaryHeader height={56}>
           <View style={styles.titleRow}>
-            <Text style={styles.pageTitle}>Pick Products</Text>
+            <Text style={styles.pageTitle}>Review Request</Text>
             <LiveStatusPill pillStyle={styles.onlinePill} dotStyle={styles.onlineDot} textStyle={styles.onlineText} />
           </View>
         </SecondaryHeader>
 
+        <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <Stepper currentStep={2} labels={STEP_LABELS} />
 
-          <Text style={styles.sectionTitle}>Auto-Allocated from Requested Items</Text>
+          <View style={styles.requestCard}>
+            <UserAvatar
+              photoUrl={requestedSalesRep?.profilePhotoUrl}
+              fallbackText={getInitials(requestedSalesRep?.fullName)}
+              size={56}
+              backgroundColor={COLORS.primaryLight}
+              fallbackTextColor={COLORS.primary}
+            />
+            <View style={styles.requestInfo}>
+              <Text style={styles.requestEyebrow}>STOCK REQUEST</Text>
+              <Text style={styles.requestRecipient} numberOfLines={1}>{requestedSalesRep?.fullName || 'Sales Rep'}</Text>
+              {movementType === 'collector' && (
+                <Text style={styles.requestMeta}>Delivered by {recipient?.fullName || 'Collector'}</Text>
+              )}
+              <Text style={styles.requestMeta}>
+                {(requestedItems || []).length} product{(requestedItems || []).length === 1 ? '' : 's'} · {requestedTotalUnits} unit{requestedTotalUnits === 1 ? '' : 's'} requested
+              </Text>
+            </View>
+          </View>
+
+          <HintChip
+            id="release-request-qty"
+            text="Stock is allocated from eligible batches. Adjust each batch amount below; expired stock is never included."
+            style={styles.hint}
+          />
+
+          <Text style={styles.sectionTitle}>Items to Release</Text>
 
           {isLoading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : loadError ? (
+            <View style={styles.emptyBox}>
+              <Icon name="warningTriangle" size={28} color={COLORS.error} />
+              <Text style={styles.emptyTitle}>Stock Could Not Be Loaded</Text>
+              <Text style={styles.emptyText}>{loadError}</Text>
             </View>
           ) : (
             <>
@@ -177,43 +256,73 @@ export default function ReleaseStockRequestReviewScreen() {
                 </View>
               ) : (
                 <View style={styles.itemsCard}>
-                  {items.map((item, index) => (
-                    <View
-                      key={item.branchInventoryId}
-                      style={[styles.itemRow, index === 0 && styles.itemRowFirst]}
-                    >
-                      <View style={styles.itemInfo}>
-                        <Text style={styles.itemName}>{item.productName}</Text>
-                        <Text style={styles.itemMeta}>Current stock: {item.currentQty} pcs</Text>
-                        {item.expDate && (
-                          <Text style={styles.itemMeta}>Exp: {new Date(item.expDate).toLocaleDateString()}</Text>
-                        )}
+                  {items.map((item, index) => {
+                    const image = PRODUCT_CATALOG.find(
+                      (product) => product.code === item.productCode || product.code === item.productName
+                    )?.image;
+                    return (
+                      <View
+                        key={item.branchInventoryId}
+                        style={[styles.itemRow, index === 0 && styles.itemRowFirst, item.releaseQty === 0 && styles.itemRowZero]}
+                      >
+                        <View style={styles.itemTop}>
+                          <View style={styles.thumb}>
+                            {image ? (
+                              <Image source={image} style={styles.thumbImage} resizeMode="contain" />
+                            ) : (
+                              <Icon name="package" size={24} color="#94a3b8" />
+                            )}
+                          </View>
+                          <View style={styles.itemInfo}>
+                            <Text style={styles.itemName} numberOfLines={2}>{item.productName}</Text>
+                            <Text style={styles.itemMeta}>
+                              Stock {item.currentQty} pcs{item.batchNumber ? ` · Batch ${item.batchNumber}` : ''}
+                            </Text>
+                            {item.expDate && (
+                              <Text style={styles.itemMeta}>Exp {new Date(item.expDate).toLocaleDateString()}</Text>
+                            )}
+                          </View>
+                        </View>
+                        <View style={styles.qtyRow}>
+                          <TouchableOpacity
+                            style={styles.stepperBtn}
+                            onPress={() => handleAdjustQty(item.branchInventoryId, -1)}
+                            accessibilityLabel={`Decrease ${item.productName} release quantity`}
+                            accessibilityRole="button"
+                          >
+                            <Icon name="minus" size={14} color={COLORS.primary} />
+                          </TouchableOpacity>
+                          <TextInput
+                            style={styles.qtyInput}
+                            value={item.branchInventoryId in qtyText ? qtyText[item.branchInventoryId] : String(item.releaseQty)}
+                            keyboardType="number-pad"
+                            selectTextOnFocus
+                            maxLength={7}
+                            onChangeText={(text) => handleTypeQty(item.branchInventoryId, text)}
+                            onEndEditing={() => forgetQtyText(item.branchInventoryId)}
+                            accessibilityLabel={`${item.productName} release quantity`}
+                          />
+                          <TouchableOpacity
+                            style={styles.stepperBtn}
+                            onPress={() => handleAdjustQty(item.branchInventoryId, 1)}
+                            accessibilityLabel={`Increase ${item.productName} release quantity`}
+                            accessibilityRole="button"
+                          >
+                            <Icon name="plus" size={14} color={COLORS.primary} />
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={[styles.itemHint, item.releaseQty === 0 && styles.itemHintZero]}>
+                          {item.releaseQty === 0 ? 'Not included in this release' : `Releasing ${item.releaseQty} of ${item.currentQty} from this batch`}
+                        </Text>
                       </View>
-                      <View style={styles.stepperInline}>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => handleAdjustQty(item.branchInventoryId, -1)}
-                          accessibilityLabel={`Decrease ${item.productName} release quantity`}
-                        >
-                          <Icon name="minus" size={14} color={COLORS.primary} />
-                        </TouchableOpacity>
-                        <Text style={styles.stepperValue}>{item.releaseQty}</Text>
-                        <TouchableOpacity
-                          style={styles.stepperBtn}
-                          onPress={() => handleAdjustQty(item.branchInventoryId, 1)}
-                          accessibilityLabel={`Increase ${item.productName} release quantity`}
-                        >
-                          <Icon name="plus" size={14} color={COLORS.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </>
           )}
 
-          {changedFromRequest.length > 0 && (
+          {!loadError && changedFromRequest.length > 0 && (
             <View style={styles.changedBanner}>
               <Icon name="warning" size={16} color="#B26400" />
               <View style={{ flex: 1 }}>
@@ -229,14 +338,18 @@ export default function ReleaseStockRequestReviewScreen() {
           )}
 
           {releaseItems.length > 0 && (
-            <Text style={styles.summaryText}>
-              📦 {releaseItems.length} item{releaseItems.length === 1 ? '' : 's'}, {totalUnits} units to release
-            </Text>
+            <View style={styles.summaryCard}>
+              <Icon name="package" size={18} color={COLORS.primary} />
+              <Text style={styles.summaryText}>
+                {releaseItems.length} batch{releaseItems.length === 1 ? '' : 'es'} · {totalUnits} unit{totalUnits === 1 ? '' : 's'} to release
+              </Text>
+            </View>
           )}
 
         </ScrollView>
+        </BlurTargetView>
 
-        <BottomActionBar>
+        <BottomActionBar variant="glass" blurTarget={blurTarget}>
           <Button
             title="Next"
             icon="arrowRight"
@@ -252,6 +365,7 @@ export default function ReleaseStockRequestReviewScreen() {
 }
 
 const styles = StyleSheet.create({
+  contentTarget: { flex: 1 },
   container: { flex: 1, backgroundColor: COLORS.background },
   titleRow: {
     flex: 1,
@@ -275,6 +389,38 @@ const styles = StyleSheet.create({
     color: COLORS.success,
   },
   content: { paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, gap: SPACING.sm, paddingBottom: 40 },
+  requestCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    backgroundColor: '#FFFFFF',
+  },
+  requestInfo: { flex: 1 },
+  requestEyebrow: {
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: COLORS.textTertiary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  requestRecipient: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.base,
+    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+  },
+  requestMeta: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+  },
+  hint: { marginBottom: SPACING.xs },
   sectionTitle: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
@@ -346,27 +492,38 @@ const styles = StyleSheet.create({
   },
   itemsCard: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: COLORS.borderSubtle,
     borderRadius: 12,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
   },
   itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: SPACING.sm,
     padding: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: COLORS.dividerSubtle,
+    gap: 10,
   },
   itemRowFirst: { borderTopWidth: 0 },
+  itemRowZero: { backgroundColor: '#FAFAFB' },
+  itemTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  thumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: '#F7F8FA',
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 4,
+  },
+  thumbImage: { width: '100%', height: '100%' },
   itemInfo: { flex: 1 },
   itemName: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontSize: TYPOGRAPHY.fontSize.base,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#272632',
+    color: COLORS.textPrimary,
   },
   itemMeta: {
     marginTop: 2,
@@ -375,28 +532,45 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
   },
-  stepperInline: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   stepperBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#EAF4FF',
   },
-  stepperValue: {
-    minWidth: 26,
+  qtyInput: {
+    minWidth: 72,
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: '#B9D9FF',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     textAlign: 'center',
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: '#272632',
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    paddingVertical: 0,
+  },
+  itemHint: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  itemHintZero: { color: COLORS.textTertiary },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#EAF4FF',
   },
   summaryText: {
-    textAlign: 'center',
     fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.medium,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: '#272632',
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
+    color: '#0A66C2',
   },
 });

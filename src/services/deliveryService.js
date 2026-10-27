@@ -12,6 +12,7 @@ import { getConnectionStatus } from './connectionStatus';
 // Collector screen reads this one list, so falling back here covers all of
 // them when the device is offline.
 const COLLECTOR_DELIVERIES_CACHE_PREFIX = 'chemstock_cache_collector_deliveries_';
+const SR_PENDING_HANDOFFS_CACHE_PREFIX = 'chemstock_cache_sr_pending_handoffs_';
 
 class DeliveryService extends BaseService {
   constructor() {
@@ -233,6 +234,8 @@ class DeliveryService extends BaseService {
       return { success: true, data: [] };
     }
 
+    const cacheKey = SR_PENDING_HANDOFFS_CACHE_PREFIX + agentId;
+
     try {
       const { data, error } = await supabase.rpc('get_my_pending_handoffs', {
         p_agent_id: agentId,
@@ -243,9 +246,18 @@ class DeliveryService extends BaseService {
         throw new Error(error.message || 'Failed to load pending handoffs');
       }
 
-      return { success: true, data: data || [] };
+      const handoffs = data || [];
+      await storage.set(cacheKey, handoffs);
+      return { success: true, data: handoffs };
     } catch (error) {
       this.log('error', 'getMyPendingHandoffs failed', { error: error.message });
+      if (!getConnectionStatus().online) {
+        const cached = await storage.get(cacheKey);
+        if (Array.isArray(cached)) {
+          debugLog('warn', 'DeliveryService', 'Offline, showing last-known pending handoffs', { count: cached.length });
+          return { success: true, data: cached, fromCache: true };
+        }
+      }
       return { success: false, message: error.message || 'Failed to load pending handoffs', data: [] };
     }
   }

@@ -9,6 +9,7 @@ import Icon from '../../components/common/Icon';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
 import authService from '../../services/authService';
 import deliveryService from '../../services/deliveryService';
+import notificationService from '../../services/notificationService';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { RADIUS } from '../../styles/radius';
@@ -23,6 +24,7 @@ export default function ReceiveStockTypeSR() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadDirectReleaseCount, setUnreadDirectReleaseCount] = useState(0);
   const [isChecking, setIsChecking] = useState(false);
 
   // Refresh the pending count every time the screen comes into focus.
@@ -36,11 +38,26 @@ export default function ReceiveStockTypeSR() {
           if (!agent?.id) {
             throw new Error('Current account is unavailable.');
           }
-          const result = await deliveryService.getMyPendingHandoffs(agent.id);
+          const [result, notificationsResult] = await Promise.all([
+            deliveryService.getMyPendingHandoffs(agent.id),
+            notificationService.getMyNotifications(agent.id),
+          ]);
           if (!result.success) {
             throw new Error(result.message || 'Could not load pending deliveries.');
           }
           if (active) setPendingCount((result.data || []).length);
+          if (notificationsResult.success && active) {
+            setUnreadDirectReleaseCount(
+              notificationsResult.data.filter(
+                (notification) => notification.type === 'stock_released_to_you' && !notification.isRead
+              ).length
+            );
+          } else if (!notificationsResult.success) {
+            console.warn(
+              '[WARN] [ReceiveStockTypeSR] Failed to refresh direct release notification:',
+              notificationsResult.message
+            );
+          }
         } catch (error) {
           console.warn('[WARN] [ReceiveStockTypeSR] Failed to refresh pending handoff count:', error);
           // Offline: count from the deliveries saved on this phone.
@@ -125,10 +142,19 @@ export default function ReceiveStockTypeSR() {
 
           {/* Direct From Manager card */}
           <Pressable
-            style={({ pressed }) => [styles.card, styles.cardDirect, pressed && styles.cardPressed]}
+            style={({ pressed }) => [
+              styles.card,
+              styles.cardDirect,
+              unreadDirectReleaseCount > 0 && styles.cardWithNotification,
+              pressed && styles.cardPressed,
+            ]}
             onPress={() => handleSelectType('manager')}
             accessibilityRole="button"
-            accessibilityLabel="Receive stock directly from manager"
+            accessibilityLabel={
+              unreadDirectReleaseCount > 0
+                ? `Receive stock directly from manager, ${unreadDirectReleaseCount} new release${unreadDirectReleaseCount === 1 ? '' : 's'}`
+                : 'Receive stock directly from manager'
+            }
           >
             <View style={styles.cardTop}>
               <View style={[styles.cardIconWrap, styles.cardIconWrapDirect]}>
@@ -140,6 +166,21 @@ export default function ReceiveStockTypeSR() {
               </View>
               <Icon name="arrowRight" size={20} color={COLORS.primary} />
             </View>
+            {unreadDirectReleaseCount > 0 && (
+              <View style={styles.notificationSummary}>
+                <Text style={styles.notificationSummaryText}>
+                  {unreadDirectReleaseCount} release{unreadDirectReleaseCount === 1 ? '' : 's'}
+                </Text>
+                <View style={styles.notificationIconWrap}>
+                  <Icon name="notification" size={17} color={COLORS.error} />
+                  <View style={styles.notificationCount}>
+                    <Text style={styles.notificationCountText}>
+                      {unreadDirectReleaseCount > 99 ? '99+' : unreadDirectReleaseCount}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </Pressable>
 
           <View style={styles.orRow}>
@@ -150,7 +191,12 @@ export default function ReceiveStockTypeSR() {
 
           {/* Via Collector Delivery card */}
           <Pressable
-            style={({ pressed }) => [styles.card, styles.cardCollector, pressed && styles.cardPressed]}
+            style={({ pressed }) => [
+              styles.card,
+              styles.cardCollector,
+              pendingCount > 0 && styles.cardWithNotification,
+              pressed && styles.cardPressed,
+            ]}
             onPress={() => handleSelectType('rider')}
             disabled={isChecking}
             accessibilityRole="button"
@@ -167,9 +213,6 @@ export default function ReceiveStockTypeSR() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>Via Collector Delivery</Text>
                 <Text style={styles.cardSubtitle}>A collector brought the batch to you.</Text>
-                {pendingCount > 0 && (
-                  <Text style={styles.cardPending}>{pendingCount} waiting for you</Text>
-                )}
               </View>
               {isChecking ? (
                 <ActivityIndicator size="small" color={COLORS.accentPink} />
@@ -177,6 +220,21 @@ export default function ReceiveStockTypeSR() {
                 <Icon name="arrowRight" size={20} color={COLORS.accentPink} />
               )}
             </View>
+            {pendingCount > 0 && (
+              <View style={styles.notificationSummary}>
+                <Text style={styles.notificationSummaryText}>
+                  {pendingCount} {pendingCount === 1 ? 'delivery' : 'deliveries'}
+                </Text>
+                <View style={styles.notificationIconWrap}>
+                  <Icon name="notification" size={17} color={COLORS.error} />
+                  <View style={styles.notificationCount}>
+                    <Text style={styles.notificationCountText}>
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </Pressable>
 
           {/* Helper text */}
@@ -280,19 +338,6 @@ const styles = StyleSheet.create({
   orText: { fontSize: TYPOGRAPHY.fontSize.sm, fontFamily: TYPOGRAPHY.fontFamily.medium, color: COLORS.textSecondary },
   cardDirect: { borderLeftWidth: 4, borderLeftColor: COLORS.primary },
   cardCollector: { borderLeftWidth: 4, borderLeftColor: COLORS.accentPink },
-  cardPending: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#FFECF3',
-    color: COLORS.accentPink,
-    fontSize: 12,
-    fontFamily: TYPOGRAPHY.fontFamily.bold,
-    fontWeight: '700',
-    overflow: 'hidden',
-  },
   sectionHeading: {
     fontSize: TYPOGRAPHY.fontSize.base,
     color: COLORS.textPrimary,
@@ -302,12 +347,55 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   card: {
+    position: 'relative',
     backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
     padding: SPACING.md,
     gap: SPACING.md,
+  },
+  cardWithNotification: {
+    paddingBottom: 38,
+  },
+  notificationSummary: {
+    position: 'absolute',
+    right: SPACING.md,
+    bottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notificationSummaryText: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+  },
+  notificationIconWrap: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationCount: {
+    position: 'absolute',
+    top: -3,
+    right: -5,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    paddingHorizontal: 3,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  notificationCountText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: '700',
   },
   cardPressed: {
     opacity: 0.85,
@@ -397,8 +485,8 @@ const styles = StyleSheet.create({
   illustration: {
     position: 'absolute',
     right: 0,
-    width: 210,
-    height: 210,
+    width: 170,
+    height: 170,
     opacity: 0.95,
   },
 });

@@ -202,7 +202,7 @@ export default function SalesRepLogsScreen() {
                   : 'receive';
               const metaText =
                 log.logType === 'discrepancy'
-                  ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.discrepancyType === 'loss' ? 'missing' : 'over'}`
+                  ? `${log.productName} — ${Math.abs(log.discrepancy)} ${log.carryForwardEnabled ? 'missing on report; still in backpack; carried forward' : log.discrepancyType === 'loss' ? 'missing' : 'over'}`
                   : summarizeItems(log.items || []);
               return (
                 <LogCard

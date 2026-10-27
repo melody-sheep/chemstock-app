@@ -44,6 +44,7 @@ import {
   IdentificationCard,
   ArrowsOut,
   Phone,
+  EnvelopeSimple,
   Check,
   Question,
   Backpack,
@@ -54,6 +55,7 @@ import {
   ClipboardText,
   ClockCountdown,
   ArrowUUpLeft,
+  DoorOpen,
 } from 'phosphor-react-native';
 import PropTypes from 'prop-types';
 
@@ -188,6 +190,7 @@ const PHOSPHOR_ICONS = {
   qrCode: QrCode,
   plus: Plus,
   lock: Lock,
+  doorOpen: DoorOpen,
   calendar: Calendar,
   camera: Camera,
   minus: Minus,
@@ -209,6 +212,7 @@ const PHOSPHOR_ICONS = {
   idCard: IdentificationCard,
   expand: ArrowsOut,
   phone: Phone,
+  envelope: EnvelopeSimple,
   check: Check,
   question: Question,
   backpack: Backpack,
@@ -230,7 +234,7 @@ const ICON_NAMES = [
   'warning', 'navigation', 'users', 'home', 'bookmark', 'settings', 'grid',
   'qrCode', 'plus', 'lock', 'calendar', 'camera', 'minus', 'xCircle', 'caretDown', 'filter', 'flash', 'flashOff',
   'notePencil', 'pencilSimpleLine', 'clock', 'truck', 'moreVertical', 'trash', 'trashSimple', 'idCard', 'expand',
-  'phone', 'check', 'search', 'wifiSlash', 'info', 'hourglass',
+  'phone', 'envelope', 'check', 'search', 'wifiSlash', 'info', 'hourglass',
   'question', 'backpack',
   // Transaction-log icons (LogCard)
   'arrowUpRight', 'arrowDownLeft', 'sealCheck', 'sealWarning', 'clipboardText', 'clockCountdown', 'arrowUUpLeft',

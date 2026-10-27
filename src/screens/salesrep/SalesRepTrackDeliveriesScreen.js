@@ -122,27 +122,39 @@ export default function SalesRepTrackDeliveriesScreen() {
             <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : deliveries.length === 0 ? (
-          <View style={styles.loadingWrap}>
-            <Icon name="truck" size={32} color={COLORS.textSecondary} />
-            <Text style={styles.emptyText}>
-              {filterPending ? 'No pending collector deliveries right now.' : 'No incoming deliveries yet.'}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {filterPending
-                ? 'Deliveries on the way to you, or delivered and waiting for you, appear here for you to receive.'
-                : 'Stock your manager releases via a Collector will show up here.'}
-            </Text>
-            {filterPending && (
-              <TouchableOpacity
-                style={styles.scanFallbackButton}
-                onPress={() => setIsScannerVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Icon name="qrCode" size={18} color="#FFFFFF" />
-                <Text style={styles.scanFallbackText}>Scan a QR</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <ScrollView
+            contentContainerStyle={styles.emptyScrollContent}
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIconWrap}>
+                <Icon name="truck" size={30} color={COLORS.primary} />
+              </View>
+              <Text style={styles.emptyEyebrow}>DELIVERIES</Text>
+              <Text style={styles.emptyText}>
+                {filterPending ? 'Nothing to receive yet' : 'No deliveries yet'}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {filterPending
+                  ? 'New collector deliveries will appear here. Have a release QR? Scan it to receive stock.'
+                  : 'Stock released to you through a collector will appear here.'}
+              </Text>
+              {filterPending && (
+                <TouchableOpacity
+                  style={styles.scanFallbackButton}
+                  onPress={() => setIsScannerVisible(true)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan a stock release QR code"
+                >
+                  <Icon name="qrCode" size={18} color="#FFFFFF" />
+                  <Text style={styles.scanFallbackText}>Scan release QR</Text>
+                  <Icon name="arrowRight" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </ScrollView>
         ) : (
           <ScrollView
           refreshControl={refreshControl} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -224,6 +236,38 @@ export default function SalesRepTrackDeliveriesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl },
+  emptyScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.borderSubtle,
+    borderRadius: 16,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.xl,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primaryLight,
+    marginBottom: SPACING.md,
+  },
+  emptyEyebrow: {
+    color: COLORS.primary,
+    fontSize: 10,
+    letterSpacing: 1.1,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    marginBottom: SPACING.xs,
+  },
   content: { padding: SPACING.lg, gap: SPACING.sm },
   titleRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md },
   titleTextCol: { flexShrink: 1, flex: 1 },
@@ -240,10 +284,11 @@ const styles = StyleSheet.create({
   filterPillTextActive: { color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   listLabel: { marginTop: SPACING.sm, marginBottom: 0 },
   emptyText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontFamily: TYPOGRAPHY.fontFamily.semibold,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
   },
   emptySubtext: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -251,22 +296,26 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    lineHeight: 18,
+    marginTop: SPACING.sm,
   },
   scanFallbackButton: {
-    marginTop: SPACING.md,
+    alignSelf: 'stretch',
+    marginTop: SPACING.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    paddingVertical: 12,
   },
   scanFallbackText: {
     color: '#FFFFFF',
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.semibold,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
   deliveryCard: {
     flexDirection: 'row',

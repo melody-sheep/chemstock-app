@@ -16,10 +16,11 @@ export default function PhotoProofCard({ photoUri, onView, fromLabel, toName }) 
   return (
     <View style={styles.card}>
       <TouchableOpacity
-        style={styles.imageWrap}
+        style={[styles.imageWrap, !photoUri && styles.imageWrapEmpty]}
         onPress={onView}
+        disabled={!onView}
         activeOpacity={0.85}
-        accessibilityLabel="View full-size photo"
+        accessibilityLabel={onView ? 'View full-size photo' : 'Photo preview'}
         accessibilityRole="button"
       >
         {photoUri && !failed ? (
@@ -42,9 +43,11 @@ export default function PhotoProofCard({ photoUri, onView, fromLabel, toName }) 
             <Icon name="camera" size={28} color={COLORS.textSecondary} />
           </View>
         )}
-        <View style={styles.expandBadge}>
-          <Icon name="expand" size={14} color={COLORS.textWhite} />
-        </View>
+        {onView && (
+          <View style={styles.expandBadge}>
+            <Icon name="expand" size={14} color={COLORS.textWhite} />
+          </View>
+        )}
       </TouchableOpacity>
 
       {(fromLabel || toName) && (
@@ -59,7 +62,7 @@ export default function PhotoProofCard({ photoUri, onView, fromLabel, toName }) 
 
 PhotoProofCard.propTypes = {
   photoUri: PropTypes.string,
-  onView: PropTypes.func.isRequired,
+  onView: PropTypes.func,
   fromLabel: PropTypes.string,
   toName: PropTypes.string,
 };
@@ -85,6 +88,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: COLORS.background,
+  },
+  imageWrapEmpty: {
+    height: 96,
   },
   image: {
     width: '100%',

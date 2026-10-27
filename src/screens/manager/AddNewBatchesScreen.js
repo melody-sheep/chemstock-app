@@ -41,6 +41,7 @@ export default function AddNewBatchesScreen() {
   const [isViewingPhoto, setIsViewingPhoto] = useState(false);
   const bottomActionBarHeight = useBottomActionBarHeight();
   const blurTarget = useRef(null);
+  const scrollRef = useRef(null);
 
   const handleDocumentPress = () => {
     navigation.navigate('StockLogs');
@@ -166,6 +167,7 @@ export default function AddNewBatchesScreen() {
 
         <BlurTargetView ref={blurTarget} style={styles.contentTarget}>
         <KeyboardAwareScrollView
+          ref={scrollRef}
           contentContainerStyle={[styles.content, { paddingBottom: bottomActionBarHeight + SPACING.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -200,6 +202,7 @@ export default function AddNewBatchesScreen() {
           {items.length > 0 && <SelectedProductsRow items={items} onRemove={handleRemoveProduct} labelHeader />}
 
           <RegisteredItemsList
+            scrollRef={scrollRef}
             items={items}
             onSetQty={handleSetQty}
             onDateChange={handleDateChange}

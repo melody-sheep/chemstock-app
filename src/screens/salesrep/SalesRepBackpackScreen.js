@@ -18,6 +18,7 @@ import SkeletonBlock from '../../components/ui/SkeletonBlock';
 import Icon from '../../components/common/Icon';
 import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
+import reportService from '../../services/reportService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
 import { COLORS } from '../../constants/colors';
@@ -56,11 +57,20 @@ export const loadBackpackData = async (previous) => {
   const currentAgent = await authService.getCurrentUser();
   const prev = previous?.agent?.id === currentAgent?.id ? previous : null;
 
-  const result = await inventoryService.getSrInventory(currentAgent?.id);
+  const [result, discrepanciesResult] = await Promise.all([
+    inventoryService.getSrInventory(currentAgent?.id),
+    reportService.getMyDiscrepancies(currentAgent?.id, 50),
+  ]);
+  const carryForwardItems = discrepanciesResult.success
+    ? discrepanciesResult.data.filter((item) => item.carryForwardEnabled && item.resolutionStatus === 'open' && item.discrepancy < 0)
+    : null;
 
   return {
     agent: currentAgent,
     items: result.success ? result.data.filter((row) => row.remaining_quantity > 0) : prev?.items ?? [],
+    carryForwardUnits: carryForwardItems
+      ? carryForwardItems.reduce((sum, item) => sum + Math.abs(item.discrepancy), 0)
+      : prev?.carryForwardUnits ?? 0,
   };
 };
 
@@ -197,49 +207,60 @@ export default function SalesRepBackpackScreen() {
                 <SkeletonBlock width={152} height={200} borderRadius={14} />
                 <SkeletonBlock width={152} height={200} borderRadius={14} />
               </View>
-            ) : items.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <View style={styles.emptyIconCircle}>
-                  <Icon name="backpack" size={30} color="#D98200" weight="duotone" />
-                </View>
-                <Text style={styles.emptyTitle}>Your backpack is empty</Text>
-                <Text style={styles.emptyText}>Stock you receive from your manager or a collector shows up here.</Text>
-              </View>
             ) : (
               <>
-            {showHealthy && (
-            <>
-            <StockSectionHeader
-              dotColor={COLORS.success}
-              label="In-Stock"
-              count={healthyItems.length}
-              tooltip="Batches in your backpack with plenty of units left."
-            />
-            {healthyItems.length > 0 ? (
-              renderRow(healthyItems, 'healthy')
-            ) : (
-              <View style={styles.emptyBox}><Text style={styles.emptyText}>No batches at healthy levels right now.</Text></View>
-            )}
-            </>
-            )}
+                {(snapshot?.carryForwardUnits ?? 0) > 0 && (
+                  <View style={styles.carryForwardNotice}>
+                    <Icon name="info" size={16} color="#8A5A00" />
+                    <Text style={styles.carryForwardNoticeText}>
+                      {snapshot.carryForwardUnits} unreported unit{snapshot.carryForwardUnits === 1 ? '' : 's'} remain in your inventory for the next report.
+                    </Text>
+                  </View>
+                )}
+                {items.length === 0 ? (
+                  <View style={styles.emptyWrap}>
+                    <View style={styles.emptyIconCircle}>
+                      <Icon name="backpack" size={30} color="#D98200" weight="duotone" />
+                    </View>
+                    <Text style={styles.emptyTitle}>Your backpack is empty</Text>
+                    <Text style={styles.emptyText}>Stock you receive from your manager or a collector shows up here.</Text>
+                  </View>
+                ) : (
+                  <>
+                    {showHealthy && (
+                      <>
+                        <StockSectionHeader
+                          dotColor={COLORS.success}
+                          label="In-Stock"
+                          count={healthyItems.length}
+                          tooltip="Batches in your backpack with plenty of units left."
+                        />
+                        {healthyItems.length > 0 ? (
+                          renderRow(healthyItems, 'healthy')
+                        ) : (
+                          <View style={styles.emptyBox}><Text style={styles.emptyText}>No batches at healthy levels right now.</Text></View>
+                        )}
+                      </>
+                    )}
 
-            {showLow && (
-            <>
-            <StockSectionHeader
-              dotColor={COLORS.warning}
-              label="Almost Out"
-              count={lowItems.length}
-              tooltip="Batches in your backpack that are running low."
-              style={styles.sectionSpacing}
-            />
-            {lowItems.length > 0 ? (
-              renderRow(lowItems, 'low')
-            ) : (
-              <View style={styles.emptyBox}><Text style={styles.emptyText}>Nothing running low right now.</Text></View>
-            )}
-            </>
-            )}
-
+                    {showLow && (
+                      <>
+                        <StockSectionHeader
+                          dotColor={COLORS.warning}
+                          label="Almost Out"
+                          count={lowItems.length}
+                          tooltip="Batches in your backpack that are running low."
+                          style={styles.sectionSpacing}
+                        />
+                        {lowItems.length > 0 ? (
+                          renderRow(lowItems, 'low')
+                        ) : (
+                          <View style={styles.emptyBox}><Text style={styles.emptyText}>Nothing running low right now.</Text></View>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
               </>
             )}
             <View style={{ height: 24 }} />
@@ -576,6 +597,25 @@ const styles = StyleSheet.create({
   },
   content: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: 96 },
   sectionSpacing: { marginTop: SPACING.md },
+  carryForwardNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 8,
+    marginBottom: SPACING.sm,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: '#F4D28B',
+    backgroundColor: '#FFF7E6',
+  },
+  carryForwardNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    color: '#8A5A00',
+  },
   cardRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
   skeletonRow: { flexDirection: 'row', gap: SPACING.sm },
   emptyWrap: { alignItems: 'center', paddingTop: SPACING.xl * 2, gap: SPACING.xs, paddingHorizontal: SPACING.lg },

@@ -31,7 +31,7 @@ import useOutbox from '../../hooks/useOutbox';
 const BOTTOM_NAV_HEIGHT = 76;
 
 // One settings row: a coloured icon tile, the label, and a chevron (or a value on the right).
-function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle }) {
+function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle, cardStyle }) {
   const content = (
     <>
       <View style={styles.rowLeft}>
@@ -44,11 +44,11 @@ function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle
     </>
   );
   return onPress ? (
-    <Pressable style={styles.rowItem} onPress={onPress} accessibilityRole="button">
+    <Pressable style={[styles.rowItem, cardStyle]} onPress={onPress} accessibilityRole="button">
       {content}
     </Pressable>
   ) : (
-    <View style={styles.rowItem}>{content}</View>
+    <View style={[styles.rowItem, cardStyle]}>{content}</View>
   );
 }
 
@@ -160,12 +160,12 @@ export default function CollectorSettingsScreen() {
 
           <View style={[styles.group, styles.logoutGroup]}>
             <SettingsRow
-              icon="arrowRight"
+              icon="doorOpen"
               color="#D92D3A"
               label="Log Out"
               onPress={handleLogout}
               labelStyle={styles.logoutText}
-              iconStyle={styles.logoutIcon}
+              cardStyle={styles.logoutCard}
             />
           </View>
 
@@ -354,8 +354,10 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     textAlign: 'center',
   },
-  logoutIcon: {
-    transform: [{ rotate: '180deg' }],
+  // A soft red card, so it reads as the leave-the-account button and is not tapped by mistake.
+  logoutCard: {
+    backgroundColor: '#FDECEE',
+    borderColor: '#F6C4C9',
   },
   logoutText: {
     color: '#D92D3A',

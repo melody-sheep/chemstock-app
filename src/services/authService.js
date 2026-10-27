@@ -7,6 +7,7 @@ import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
 import storage from '../utils/storage';
 import { resolveProfilePhotoUrl } from '../utils/profilePhoto';
+import branchService from './branchService';
 
 // Agents (Sales Rep/Collector) log in via a username+password_hash RPC, not
 // Supabase Auth, so there's no supabase.auth session to recover their
@@ -85,24 +86,15 @@ class AuthService extends BaseService {
 
   /**
    * Look up branch names for a set of branch IDs.
-   * Degrades gracefully (empty string) if the branches table is missing
-   * or the lookup fails, so it never breaks login/session fetching.
+   * Uses the persisted branch-record cache when offline so it never blocks
+   * session restoration on a live branch lookup.
    */
   async _fetchBranchNames(branchIds) {
     if (!branchIds || branchIds.length === 0) return '';
 
     try {
-      const { data, error } = await supabase
-        .from('branches')
-        .select('name')
-        .in('id', branchIds);
-
-      if (error) {
-        console.error('[ERROR] [AuthService] Branch fetch error:', error);
-        return '';
-      }
-
-      return (data || []).map((b) => b.name).join(', ');
+      const branches = await branchService.getBranches(branchIds);
+      return branches.map((branch) => branch.name).join(', ');
     } catch (error) {
       console.error('[ERROR] [AuthService] Branch fetch error:', error);
       return '';

@@ -6,6 +6,8 @@ import { debugLog, setCurrentScreen } from '../utils/logger';
 import { supabase } from '../services/supabaseClient';
 import authService from '../services/authService';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS } from '../constants/colors';
 import LoginScreen from '../screens/auth/LoginScreen';
 import ManagerActivationScreen from '../screens/auth/ManagerActivationScreen';
 import ManagerDashboardScreen from '../screens/manager/ManagerDashboardScreen';
@@ -82,6 +84,12 @@ const trackCurrentScreen = () => {
 };
 
 export default function AppNavigator({ initialRouteName = 'Login' }) {
+  // Android draws the app under the system navigation bar (edge-to-edge). These screens have no bottom bar of
+  // their own, so the last item or button would hide under it, most of all on phones with the 3-button bar.
+  // The padding is the phone's real bottom inset: tall for 3 buttons, thin for gestures, none on old phones.
+  const insets = useSafeAreaInsets();
+  const aboveNavBar = { contentStyle: { paddingBottom: insets.bottom, backgroundColor: COLORS.background } };
+
   // The server ended the manager's login while the app was open (only when
   // it refuses the saved login — never just for being offline): go to Login
   // with a short reason instead of leaving screens that can't load.
@@ -110,14 +118,14 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="AgentAccounts" component={AgentAccountsScreen} />
         <Stack.Screen name="ReceiveStock" component={ReceiveStockScreen} />
         <Stack.Screen name="AddNewBatches" component={AddNewBatchesScreen} />
-        <Stack.Screen name="ProductBrowser" component={ProductBrowserScreen} />
+        <Stack.Screen name="ProductBrowser" component={ProductBrowserScreen} options={aboveNavBar} />
         <Stack.Screen name="ReceiveStockPreview" component={ReceiveStockPreviewScreen} />
         <Stack.Screen name="ManagerStock" component={ManagerStockScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="StockLogs" component={StockLogsScreen} />
-        <Stack.Screen name="StockLogDetail" component={StockLogDetailScreen} />
-        <Stack.Screen name="StockBatchDetail" component={StockBatchDetailScreen} />
+        <Stack.Screen name="StockLogs" component={StockLogsScreen} options={aboveNavBar} />
+        <Stack.Screen name="StockLogDetail" component={StockLogDetailScreen} options={aboveNavBar} />
+        <Stack.Screen name="StockBatchDetail" component={StockBatchDetailScreen} options={aboveNavBar} />
         <Stack.Screen name="ReleaseStockRecipient" component={ReleaseStockRecipientScreen} />
-        <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} />
+        <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} options={aboveNavBar} />
         <Stack.Screen name="ReleaseStockScanReview" component={ReleaseStockScanReviewScreen} />
         <Stack.Screen name="ReleaseStockDelivery" component={ReleaseStockDeliveryScreen} />
         <Stack.Screen name="QuickRegisterRelease" component={QuickRegisterReleaseScreen} />
@@ -125,35 +133,35 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="ReleaseStockConfirm" component={ReleaseStockConfirmScreen} />
         <Stack.Screen name="ReleaseStockRequestReview" component={ReleaseStockRequestReviewScreen} />
         <Stack.Screen name="ManageReturns" component={ManageReturnsScreen} />
-        <Stack.Screen name="ReturnStockVerify" component={ReturnStockVerifyScreen} />
+        <Stack.Screen name="ReturnStockVerify" component={ReturnStockVerifyScreen} options={aboveNavBar} />
         <Stack.Screen name="ManagerAlerts" component={ManagerAlertsScreen} />
         <Stack.Screen name="ManagerReports" component={ManagerReportsScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="TrackDeliveries" component={TrackDeliveriesScreen} />
+        <Stack.Screen name="TrackDeliveries" component={TrackDeliveriesScreen} options={aboveNavBar} />
         <Stack.Screen name="TeamMap" component={TeamMapScreen} />
         <Stack.Screen name="TrackDeliveryDetail" component={TrackDeliveryDetailScreen} />
-        <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} />
+        <Stack.Screen name="AgentStockRequest" component={AgentStockRequestScreen} options={aboveNavBar} />
         <Stack.Screen name="ManagerSettings" component={ManagerSettingsScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="LegalInfo" component={LegalInfoScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="LegalInfo" component={LegalInfoScreen} options={{ animation: 'none', ...aboveNavBar }} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} options={aboveNavBar} />
         <Stack.Screen name="ComingSoon" component={ComingSoonScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} options={aboveNavBar} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="SalesRepDashboard" component={SalesRepDashboardScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="ReceiveStockTypeSR" component={ReceiveStockTypeSR} />
-        <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} />
+        <Stack.Screen name="ReceiveStockSR" component={ReceiveStockSR} options={aboveNavBar} />
         <Stack.Screen name="RequestStockSR" component={RequestStockSR} />
         <Stack.Screen name="RequestListSR" component={RequestListSR} />
         <Stack.Screen name="SubmitReportSR" component={SubmitReportSR} />
-        <Stack.Screen name="AlertsDiscrepanciesSR" component={AlertsDiscrepanciesSR} />
-        <Stack.Screen name="ReturnStocksSR" component={ReturnStocksSR} />
+        <Stack.Screen name="AlertsDiscrepanciesSR" component={AlertsDiscrepanciesSR} options={aboveNavBar} />
+        <Stack.Screen name="ReturnStocksSR" component={ReturnStocksSR} options={aboveNavBar} />
         <Stack.Screen name="ResolveDiscrepancy" component={ResolveDiscrepancyScreen} />
         <Stack.Screen name="SalesRepStock" component={SalesRepStockScreen} options={{ animation: 'none' }} />
-        <Stack.Screen name="SalesRepBackpack" component={SalesRepBackpackScreen} />
-        <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} />
-        <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} />
-        <Stack.Screen name="SalesRepLogDetail" component={SalesRepLogDetailScreen} />
+        <Stack.Screen name="SalesRepBackpack" component={SalesRepBackpackScreen} options={aboveNavBar} />
+        <Stack.Screen name="SalesRepStockRequests" component={SalesRepStockRequestsScreen} options={aboveNavBar} />
+        <Stack.Screen name="SalesRepLogs" component={SalesRepLogsScreen} options={aboveNavBar} />
+        <Stack.Screen name="SalesRepLogDetail" component={SalesRepLogDetailScreen} options={aboveNavBar} />
         <Stack.Screen name="SalesRepConfirmHandoff" component={SalesRepConfirmHandoffScreen} />
-        <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} />
+        <Stack.Screen name="SalesRepTrackDeliveries" component={SalesRepTrackDeliveriesScreen} options={aboveNavBar} />
         <Stack.Screen name="SalesRepDeliveryDetail" component={SalesRepDeliveryDetailScreen} />
         <Stack.Screen name="SalesRepReports" component={SalesRepReportsScreen} options={{ animation: 'none' }} />
         <Stack.Screen name="SalesRepSettings" component={SalesRepSettingsScreen} options={{ animation: 'none' }} />
@@ -162,8 +170,8 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="CollectorDeliveryDetail" component={CollectorDeliveryDetailScreen} />
         <Stack.Screen name="CollectorTripReview" component={CollectorTripReviewScreen} />
         <Stack.Screen name="CollectorDeliverStock" component={CollectorDeliverStockScreen} />
-        <Stack.Screen name="CollectorDeliveredStock" component={CollectorDeliveredStockScreen} />
-        <Stack.Screen name="CollectorReturnQR" component={CollectorReturnQRScreen} />
+        <Stack.Screen name="CollectorDeliveredStock" component={CollectorDeliveredStockScreen} options={aboveNavBar} />
+        <Stack.Screen name="CollectorReturnQR" component={CollectorReturnQRScreen} options={aboveNavBar} />
         <Stack.Screen name="CollectorSettings" component={CollectorSettingsScreen} options={{ animation: 'none' }} />
       </Stack.Navigator>
     </NavigationContainer>

@@ -6,6 +6,7 @@ import { clientIdFor } from '../utils/idempotency';
 import { debugLog } from '../utils/logger';
 import storage from '../utils/storage';
 import { getConnectionStatus } from './connectionStatus';
+import branchService from './branchService';
 
 // Last successful branch request list, shown when the Manager is offline.
 const BRANCH_REQUESTS_CACHE_KEY = 'chemstock_cache_branch_stock_requests';
@@ -74,19 +75,12 @@ class RequestService extends BaseService {
 
   /**
    * The branches (id + name) a Sales Rep/Collector covers, for the branch picker
-   * on the request list. Degrades to an empty list if the lookup fails.
+   * on the request list. Uses cached records while offline.
    */
   async getAgentBranches(branchIds) {
     if (!branchIds || branchIds.length === 0) return [];
 
-    const { data, error } = await supabase.from('branches').select('id, name').in('id', branchIds);
-
-    if (error) {
-      console.error('[ERROR] [RequestService] Branch list error:', error);
-      return [];
-    }
-
-    return (data || []).sort((a, b) => a.name.localeCompare(b.name));
+    return branchService.getBranches(branchIds);
   }
 
   /**

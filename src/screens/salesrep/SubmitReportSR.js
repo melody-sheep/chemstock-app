@@ -37,9 +37,8 @@ function isNearExpiry(expDate) {
   return days <= NEAR_EXPIRY_DAYS;
 }
 
-// discrepancy = (sold + return) - inCustody. 0 = none, negative = loss/missing,
-// positive = over. Mirrors the server-side generated column exactly, for
-// instant client-side feedback ahead of the authoritative submit.
+// discrepancy = (sold + return) - inCustody. A negative value is the
+// unreported balance that stays in the backpack and carries forward.
 function computeDiscrepancy(sold, ret, inCustody) {
   return (Number(sold) || 0) + (Number(ret) || 0) - inCustody;
 }
@@ -473,8 +472,9 @@ export default function SubmitReportSR() {
                   <View style={styles.hintStrip}>
                     <Icon name="question" size={16} color="#0085F9" weight="fill" />
                     <Text style={styles.figuresHint}>
-                      <Text style={styles.hintStrong}>Sold</Text> = sold to customers.{' '}
+                      <Text style={styles.hintStrong}>Sold</Text> = units sold since your last submitted report. Include missed-day sales here; the total is recorded on this report's date.{' '}
                       <Text style={styles.hintStrong}>Returned</Text> = unsold stock you hand back to the branch today.
+                      {' '}Any remaining balance stays in your backpack for the next report.
                     </Text>
                   </View>
                   {items.map((item) => {
@@ -508,18 +508,23 @@ export default function SubmitReportSR() {
                           <View style={styles.itemDetails}>
                             <View style={styles.itemNameRow}>
                               <Text style={styles.itemCode} numberOfLines={1}>{item.productCode}</Text>
-                              <View style={[styles.discBadge, discrepancy === 0 ? styles.discBadgeSuccess : styles.discBadgeError]}>
+                              <View style={[styles.discBadge, discrepancy === 0 ? styles.discBadgeSuccess : styles.discBadgeCarryForward]}>
                                 <Icon
                                   name={discrepancy === 0 ? 'checkCircle' : 'warningTriangle'}
                                   size={10}
-                                  color={discrepancy === 0 ? '#1E7A3A' : '#B91C1C'}
+                                  color={discrepancy === 0 ? '#1E7A3A' : '#B26400'}
                                 />
-                                <Text style={[styles.discBadgeText, discrepancy === 0 ? styles.discBadgeTextSuccess : styles.discBadgeTextError]}>
-                                  {discrepancy === 0 ? 'Balanced' : `${Math.abs(discrepancy)} Missing`}
+                                <Text style={[styles.discBadgeText, discrepancy === 0 ? styles.discBadgeTextSuccess : styles.discBadgeTextCarryForward]}>
+                                  {discrepancy === 0 ? 'Balanced' : `${Math.abs(discrepancy)} Unreported`}
                                 </Text>
                               </View>
                             </View>
                             <Text style={styles.itemFullName} numberOfLines={1}>{item.productName}</Text>
+                            {discrepancy < 0 && (
+                              <Text style={styles.carryForwardExplanation}>
+                                Remains in your inventory for the next report.
+                              </Text>
+                            )}
                             <View style={styles.itemMetaRow}>
                               <Icon name="trayDown" size={11} color="#555353" />
                               <Text style={styles.itemMeta}>In Custody: {item.inCustodyQuantity}</Text>
@@ -936,8 +941,8 @@ const styles = StyleSheet.create({
   discBadgeSuccess: {
     backgroundColor: '#EAFBF2',
   },
-  discBadgeError: {
-    backgroundColor: '#FBDCDC',
+  discBadgeCarryForward: {
+    backgroundColor: '#FFF1D6',
   },
   discBadgeText: {
     fontSize: 11,
@@ -947,8 +952,14 @@ const styles = StyleSheet.create({
   discBadgeTextSuccess: {
     color: '#1E7A3A',
   },
-  discBadgeTextError: {
-    color: '#B91C1C',
+  discBadgeTextCarryForward: {
+    color: '#8A5A00',
+  },
+  carryForwardExplanation: {
+    marginTop: 3,
+    fontSize: 11,
+    color: '#8A5A00',
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
   },
   itemFullName: {
     fontSize: 12,
