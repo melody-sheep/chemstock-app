@@ -7,6 +7,7 @@ import Header from '../../components/common/Header';
 import SubScreenSecondaryHeader from '../../components/common/SubScreenSecondaryHeader';
 import CustomModal from '../../components/common/Modal';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import UserAvatar from '../../components/common/UserAvatar';
 import Button from '../../components/common/Button';
 import { getInitials } from '../../utils/initials';
@@ -19,7 +20,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
-import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
+import { useLogsSeenSince } from '../../hooks/useUnseenLogCount';
 
 function summarizeItems(items) {
   const totalUnits = (items || []).reduce((sum, item) => sum + item.quantity, 0);
@@ -29,7 +30,7 @@ function summarizeItems(items) {
 export default function CollectorDeliveredStockScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  useMarkLogsSeen();
+  const isNewLog = useLogsSeenSince();
   const focusId = route.params?.focusId || null;
   const [deliveries, setDeliveries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,7 +98,7 @@ export default function CollectorDeliveredStockScreen() {
           </View>
         ) : deliveries.length === 0 && queuedFinishes.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="successCircle" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>No completed deliveries yet.</Text>
           </View>
         ) : (
@@ -118,6 +119,7 @@ export default function CollectorDeliveredStockScreen() {
                 title={`Delivered to ${delivery.targetRecipientName || 'Sales Rep'}`}
                 meta={summarizeItems(delivery.items)}
                 time={formatRelativeTime(delivery.deliveredAt || delivery.createdAt)}
+                isNew={isNewLog(delivery.deliveredAt || delivery.createdAt)}
                 onPress={() => setSelectedDelivery(delivery)}
               />
             ))}

@@ -1,6 +1,6 @@
 // src/screens/salesrep/SalesRepSettingsScreen.js
 import React, { useState, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Image } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -28,12 +28,18 @@ import useOutbox from '../../hooks/useOutbox';
 const BOTTOM_NAV_HEIGHT = 76;
 
 // One settings row: a coloured icon tile, the label, and a chevron (or a value on the right).
-function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle, cardStyle }) {
+const LOGO = require('../../../assets/ChemStockLogo.png');
+
+function SettingsRow({ icon, color, label, onPress, value, labelStyle, iconStyle, cardStyle, logo = false }) {
   const content = (
     <>
       <View style={styles.rowLeft}>
-        <View style={[styles.rowIconWrap, { backgroundColor: color + '1A' }]}>
-          <Icon name={icon} size={18} color={color} style={iconStyle} />
+        <View style={[styles.rowIconWrap, { backgroundColor: color + '1A' }, logo && styles.rowIconWrapLogo]}>
+          {logo ? (
+            <Image source={LOGO} style={styles.rowLogo} resizeMode="contain" accessibilityLabel="ChemStock" />
+          ) : (
+            <Icon name={icon} size={18} color={color} style={iconStyle} />
+          )}
         </View>
         <Text style={[styles.rowLabel, labelStyle]}>{label}</Text>
       </View>
@@ -167,7 +173,7 @@ export default function SalesRepSettingsScreen() {
             <View style={styles.rowDivider} />
             <SettingsRow icon="document" color="#4F5BD5" label="Laws" onPress={() => openLegalInfo('legal')} />
             <View style={styles.rowDivider} />
-            <SettingsRow icon="checkCircle" color="#6B7280" label="App Version" value={appVersionLabel()} />
+            <SettingsRow logo icon="checkCircle" color="#6B7280" label="App Version" value={appVersionLabel()} />
           </View>
 
           <View style={[styles.group, styles.logoutGroup]}>
@@ -303,6 +309,8 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
+  rowIconWrapLogo: { backgroundColor: '#EEF0FF', overflow: 'hidden' },
+  rowLogo: { width: 56, height: 56 },
   rowIconWrap: {
     width: 38,
     height: 38,

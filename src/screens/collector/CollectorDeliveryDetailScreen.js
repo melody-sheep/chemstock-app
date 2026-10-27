@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, Image, ScrollView, Pressable, Modal, StyleSheet, Linking, ActivityIndicator } from 'react-native';
 import Alert from '../../utils/appAlert';
+import { getQuickPosition } from '../../utils/quickLocation';
 import { StatusBar } from 'expo-status-bar';
 import { BlurTargetView } from 'expo-blur';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -144,13 +145,22 @@ export default function CollectorDeliveryDetailScreen() {
     if (!requireOnline('Accepting stock')) return;
     setIsSubmitting(true);
 
+    // The accept saves the position in gps_coordinates, where latitude and longitude cannot be empty. Use the fix that
+    // came with the photo; if there is none, look again before giving up (a clear message, not a database error).
+    const position = coords || (await getQuickPosition({ timeoutMs: 6000 }));
+    if (!position) {
+      setIsSubmitting(false);
+      Alert.alert('Location Needed', 'Your location could not be found. Check that Location is turned on and ChemStock is allowed to use it, then try again.');
+      return;
+    }
+
     try {
       const storagePath = await inventoryService.uploadStockAcceptancePhoto(photoUri, agent.id);
       const result = await inventoryService.acceptStockRelease({
         qrCode: delivery.qrCode,
         agentId: agent.id,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+        latitude: position.latitude,
+        longitude: position.longitude,
         deviceModel: Device.modelName,
         deviceOs: getDeviceOs(),
         storagePath,
@@ -463,7 +473,10 @@ export default function CollectorDeliveryDetailScreen() {
       </View>
 
       <QRScannerModal visible={isScannerVisible} onClose={() => setIsScannerVisible(false)} onScanned={handleScanned} />
-      <CameraCaptureModal visible={isCameraVisible} onClose={() => setIsCameraVisible(false)} onCapture={setPhotoUri} />
+      <CameraCaptureModal visible={isCameraVisible} onClose={() => setIsCameraVisible(false)} onCapture={(uri, photoCoords) => {
+          setPhotoUri(uri);
+          if (photoCoords) setCoords(photoCoords);
+        }} />
 
       <CustomModal visible={isAccepted} onClose={() => {}} variant="center" closeOnBackdropPress={false}>
         <View style={styles.successIconWrap}>

@@ -41,6 +41,15 @@ export default function SignaturePad({ visible, onClose, onSave }) {
     };
   };
 
+  // A stroke can end by being taken over (a system gesture, the phone's edge) instead of a normal lift. That must
+  // keep the stroke too, or the line just drawn is lost and Save stays off.
+  const finishStroke = () => {
+    const finished = currentRef.current;
+    currentRef.current = [];
+    setCurrent([]);
+    if (finished.length > 0) setStrokes((prev) => [...prev, finished]);
+  };
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -54,12 +63,8 @@ export default function SignaturePad({ visible, onClose, onSave }) {
         currentRef.current = [...currentRef.current, pointFrom(event)];
         setCurrent(currentRef.current);
       },
-      onPanResponderRelease: () => {
-        const finished = currentRef.current;
-        currentRef.current = [];
-        setCurrent([]);
-        if (finished.length > 0) setStrokes((prev) => [...prev, finished]);
-      },
+      onPanResponderRelease: finishStroke,
+      onPanResponderTerminate: finishStroke,
     })
   ).current;
 

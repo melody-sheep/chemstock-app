@@ -7,7 +7,7 @@
 // profileService.changeAgentPassword goes through the change_agent_password
 // RPC instead, which verifies the current password server-side.
 import React, { useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
@@ -41,6 +41,8 @@ const REQUIREMENTS = [
   { label: 'One special character (! @ # $ %)', test: (pw) => SPECIAL_CHAR_PATTERN.test(pw) },
   { label: 'Different from your current one', test: (pw, current) => pw.length > 0 && pw !== current },
 ];
+
+const LOGO = require('../../../assets/ChemStockLogo.png');
 
 export default function ChangePasswordScreen() {
   const navigation = useNavigation();
@@ -164,7 +166,7 @@ export default function ChangePasswordScreen() {
         >
           <View style={styles.hero}>
             <View style={styles.iconWrap}>
-              <Icon name="lock" size={24} color="#B26400" weight="regular" />
+              <Image source={LOGO} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="ChemStock" />
             </View>
             <View style={styles.heroTextCol}>
               <Text style={styles.heroEyebrow}>ACCOUNT SECURITY</Text>
@@ -302,12 +304,15 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: '#FFF3D6',
+    backgroundColor: '#EEF0FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FFE1A8',
+    borderColor: '#DDE2FF',
+    overflow: 'hidden',
   },
+  // The logo file has wide empty margins, so it is drawn larger than the tile it sits in.
+  heroLogo: { width: 78, height: 78 },
   heroTextCol: { flex: 1 },
   heroEyebrow: {
     fontSize: 10,

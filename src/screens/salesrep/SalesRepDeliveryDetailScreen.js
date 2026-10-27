@@ -166,8 +166,9 @@ export default function SalesRepDeliveryDetailScreen() {
             lastCheckpointAvatar={parties?.collector || undefined}
             // No checkpoint yet: the Collector is shown (photo + name) at the
             // trip start instead of a bare dot. Fixed point, not live tracking.
-            originLabel={delivery.lastCheckpoint ? undefined : `${delivery.collectorName || 'Collector'} (Collector) · trip start`}
-            originAvatar={delivery.lastCheckpoint ? undefined : parties?.collector || undefined}
+            // Start is the release point: the Manager who released it (photo when known, initials otherwise), instead of a blue dot.
+            originLabel={delivery.lastCheckpoint ? `${delivery.releasedByName || 'Branch Manager'} (Manager) · release point` : `${delivery.collectorName || 'Collector'} (Collector) · trip start`}
+            originAvatar={delivery.lastCheckpoint ? { photoUrl: delivery.releasedByPhotoUrl || null, initials: getInitials(delivery.releasedByName || 'Manager') } : parties?.collector || undefined}
             destinationAvatar={currentUser ? { photoUrl: myMapPhoto, initials: getInitials(currentUser.full_name || currentUser.username) } : undefined}
             style={styles.mapFill} showScale/>
           <MapZoomControls

@@ -5,6 +5,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { debugLog, setCurrentScreen } from '../utils/logger';
 import { supabase } from '../services/supabaseClient';
 import authService from '../services/authService';
+import { listenForPushTaps } from '../services/pushService';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
@@ -75,6 +76,18 @@ const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
 let currentRouteName = null;
 
+// A tapped push opens the Notifications list, where the item can be opened like any other notification. Not
+// when nobody is logged in; and if the app was closed, wait for the navigator to be ready.
+const openNotificationsFromPush = (attempt = 0) => {
+  if (!navigationRef.isReady()) {
+    if (attempt < 15) setTimeout(() => openNotificationsFromPush(attempt + 1), 400);
+    return;
+  }
+  const name = navigationRef.getCurrentRoute()?.name;
+  if (!name || name === 'Login' || name === 'ManagerActivation' || name === 'Notifications') return;
+  navigationRef.navigate('Notifications');
+};
+
 const trackCurrentScreen = () => {
   const route = navigationRef.getCurrentRoute();
   if (!route || route.name === currentRouteName) return;
@@ -107,6 +120,8 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
     });
     return () => data?.subscription?.unsubscribe();
   }, []);
+
+  useEffect(() => listenForPushTaps(() => openNotificationsFromPush()), []);
 
   return (
     <NavigationContainer ref={navigationRef} onReady={trackCurrentScreen} onStateChange={trackCurrentScreen}>

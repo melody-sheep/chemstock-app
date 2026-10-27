@@ -4,7 +4,7 @@
 // Kept compact on purpose: everything fits on a normal phone screen without scrolling (the scroll area
 // stays only as a safety net for very small screens).
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions, Image } from 'react-native';
 import PropTypes from 'prop-types';
 import CustomModal from './Modal';
 import Button from './Button';
@@ -14,6 +14,8 @@ import storage from '../../utils/storage';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
+
+const LOGO = require('../../../assets/ChemStockLogo.png');
 
 const TOOLS = {
   sales_rep: [
@@ -63,9 +65,7 @@ export default function WelcomeOverview({ role, userId, name, onSettled }) {
       <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
         <View style={styles.header}>
           <View style={styles.ring}>
-            <View style={styles.circle}>
-              <Icon name="home" size={22} color="#0085F9" />
-            </View>
+            <Image source={LOGO} style={styles.logo} resizeMode="contain" accessibilityLabel="ChemStock" />
           </View>
           <View style={styles.headerText}>
             <Text style={styles.title}>{firstName ? `Welcome, ${firstName}!` : 'Welcome!'}</Text>
@@ -105,7 +105,9 @@ WelcomeOverview.propTypes = {
 const styles = StyleSheet.create({
   scroll: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  ring: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#0085F914', alignItems: 'center', justifyContent: 'center' },
+  ring: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#EEF0FF', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  // The logo file has wide empty margins, so it is drawn larger than the circle.
+  logo: { width: 84, height: 84 },
   circle: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#0085F926', alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
   title: { fontSize: TYPOGRAPHY.fontSize.lg, color: '#272632', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },

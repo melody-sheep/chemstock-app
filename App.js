@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import AppNavigator from './src/navigation/AppNavigator';
 import { supabase, testConnection, hasStoredAuthSession } from './src/services/supabaseClient';
 import authService from './src/services/authService';
+import { installNotificationHandler } from './src/services/pushService';
 import { getConnectionStatus } from './src/services/connectionStatus';
 import SplashLoader from './src/components/common/SplashLoader';
 import PermissionsPrompt from './src/components/common/PermissionsPrompt';
@@ -15,6 +16,7 @@ import AppAlertHost from './src/components/common/AppAlertHost';
 import { installGlobalErrorHandler, installConsoleErrorFormatter, debugLog } from './src/utils/logger';
 installGlobalErrorHandler();
 installConsoleErrorFormatter();
+installNotificationHandler();
 
 const appStartedAt = Date.now();
 

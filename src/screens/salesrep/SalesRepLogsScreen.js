@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import FilterSheet from '../../components/common/FilterSheet';
 import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
@@ -16,7 +17,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
-import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
+import { useLogsSeenSince } from '../../hooks/useUnseenLogCount';
 
 const LOGS_LIMIT = 50;
 
@@ -98,7 +99,7 @@ const loadLogsData = async (previous) => {
 
 export default function SalesRepLogsScreen() {
   const route = useRoute();
-  useMarkLogsSeen();
+  const isNewLog = useLogsSeenSince();
   const navigation = useNavigation();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
@@ -176,7 +177,7 @@ export default function SalesRepLogsScreen() {
           </View>
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>No activity yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
@@ -212,6 +213,7 @@ export default function SalesRepLogsScreen() {
                   title={getTitle(log)}
                   meta={metaText}
                   time={formatRelativeTime(log.createdAt)}
+                  isNew={isNewLog(log.createdAt)}
                   onPress={() => openDetail(log)}
                 />
               );

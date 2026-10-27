@@ -24,7 +24,7 @@ const CALLOUT_ROOM = 190;
  * link and Next / Done. (Frosted glass is a translucent white card, not a
  * blur: the blur view paints a dark slab on some Android release builds.)
  */
-export default function SpotlightHint({ visible, target, title, description, icon = 'info', step, onNext, onSkip, onDismiss }) {
+export default function SpotlightHint({ visible, target, title, description, icon = 'info', round = false, step, onNext, onSkip, onDismiss }) {
   const { width, height } = useWindowDimensions();
   const appear = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0)).current;
@@ -52,6 +52,9 @@ export default function SpotlightHint({ visible, target, title, description, ico
   const holeWidth = Math.min(target.width + SPOTLIGHT_PADDING * 2, width - holeX - 4);
   const holeHeight = Math.min(target.height + SPOTLIGHT_PADDING * 2, height - holeY - 4);
 
+  // A round button gets a round hole.
+  const holeRadius = round ? Math.min(holeWidth, holeHeight) / 2 : HOLE_RADIUS;
+
   // The card sits below the highlighted area unless it would run off the
   // bottom, in which case it flips to sit above.
   const spaceBelow = height - (holeY + holeHeight);
@@ -76,7 +79,7 @@ export default function SpotlightHint({ visible, target, title, description, ico
           <Defs>
             <Mask id="spotlight-mask" x="0" y="0" width="100%" height="100%">
               <Rect x="0" y="0" width="100%" height="100%" fill="#FFFFFF" />
-              <Rect x={holeX} y={holeY} width={holeWidth} height={holeHeight} rx={HOLE_RADIUS} fill="#000000" />
+              <Rect x={holeX} y={holeY} width={holeWidth} height={holeHeight} rx={holeRadius} fill="#000000" />
             </Mask>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" fill="rgba(9,13,32,0.66)" mask="url(#spotlight-mask)" />
@@ -91,13 +94,14 @@ export default function SpotlightHint({ visible, target, title, description, ico
               top: holeY - 5,
               width: holeWidth + 10,
               height: holeHeight + 10,
+              borderRadius: holeRadius + 5,
               opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.75] }),
             },
           ]}
         />
         <View
           pointerEvents="none"
-          style={[styles.highlightRing, { left: holeX, top: holeY, width: holeWidth, height: holeHeight }]}
+          style={[styles.highlightRing, { left: holeX, top: holeY, width: holeWidth, height: holeHeight, borderRadius: holeRadius }]}
         />
 
         <Animated.View
@@ -153,6 +157,7 @@ SpotlightHint.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string.isRequired,
   icon: PropTypes.string,
+  round: PropTypes.bool,
   step: PropTypes.shape({ index: PropTypes.number.isRequired, count: PropTypes.number.isRequired }),
   onNext: PropTypes.func,
   onSkip: PropTypes.func,

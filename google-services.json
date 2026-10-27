@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "798532909142",
+    "project_id": "chemstock-7a0c3",
+    "storage_bucket": "chemstock-7a0c3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:798532909142:android:f08a20cc1a3b19719863f7",
+        "android_client_info": {
+          "package_name": "com.chemstock.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDQF-miLDydBmJ97nik0vQ0RCOwwxaQusw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

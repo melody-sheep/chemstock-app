@@ -29,6 +29,7 @@ import agentService from '../../services/agentService';
 import requestService from '../../services/requestService';
 import { formatDisplayDate } from '../../utils/formatters';
 import { getInitials } from '../../utils/initials';
+import friendlyError from '../../utils/friendlyError';
 
 const ALL_BRANCHES_ID = 'all';
 
@@ -83,6 +84,33 @@ export default function ManagerAlertsScreen() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [scanSummary, setScanSummary] = useState(null);
+  const [isNudging, setIsNudging] = useState(false);
+
+  // Nudge: reminds the Sales Rep about this item (their bell and a push on their phone). The server allows one
+  // reminder per item every 3 hours and says when the next one is allowed.
+  const handleNudge = async (alert) => {
+    if (isNudging) return;
+    if (!connection.online) {
+      Alert.alert('No Internet Connection', 'Sending a reminder needs a connection. Connect and try again.');
+      return;
+    }
+    setIsNudging(true);
+    const result = await reportService.nudgeReportItem(alert.reportItemId);
+    setIsNudging(false);
+    const name = alert.agentName || 'the Sales Rep';
+    if (!result.success) {
+      Alert.alert('Reminder Not Sent', friendlyError(result.message) || 'Please try again.');
+      return;
+    }
+    if (result.data?.sent) {
+      Alert.alert('Reminder Sent', `${name} gets a notification about ${Math.abs(alert.discrepancy)} ${alert.productCode}.`);
+      return;
+    }
+    const next = result.data?.nextAllowedAt
+      ? new Date(result.data.nextAllowedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : null;
+    Alert.alert('Already Reminded', `You reminded ${name} about this item recently.${next ? ` You can remind them again after ${next}.` : ''}`);
+  };
 
   // Sent here from a log row or a notification: open that discrepancy instead of leaving you on the list.
   // A report id opens it only when the report has a single discrepancy; with several, the list stays.
@@ -388,6 +416,23 @@ export default function ManagerAlertsScreen() {
                 </Text>
               </View>
 
+              {!isResolved && !isPending && (
+                <>
+                  <Button
+                    title={isNudging ? 'Sending…' : `Nudge ${selectedAlert.agentName || 'Sales Rep'}`}
+                    variant="black"
+                    onPress={() => handleNudge(selectedAlert)}
+                    disabled={isNudging}
+                    hasShadow={false}
+                    height={48}
+                    fontSize={16}
+                    borderRadius={24}
+                    style={styles.nudgeButton}
+                  />
+                  <Text style={styles.nudgeHint}>Sends a reminder to their phone. Once every 3 hours per item.</Text>
+                </>
+              )}
+
               <Button
                 title="Close"
                 variant="outline"
@@ -500,6 +545,8 @@ const styles = StyleSheet.create({
   alertsList: {
     gap: SPACING.sm,
   },
+  nudgeButton: { marginTop: SPACING.md },
+  nudgeHint: { marginTop: 6, textAlign: 'center', fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',

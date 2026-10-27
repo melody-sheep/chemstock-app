@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import FilterSheet from '../../components/common/FilterSheet';
 import LogCard from '../../components/common/LogCard';
 import authService from '../../services/authService';
@@ -16,7 +17,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatRelativeTime } from '../../utils/formatters';
-import { useMarkLogsSeen } from '../../hooks/useUnseenLogCount';
+import { useLogsSeenSince } from '../../hooks/useUnseenLogCount';
 import { getLogItems } from '../../utils/stockLogUtils';
 
 const LOGS_LIMIT = 50;
@@ -119,7 +120,7 @@ const loadLogsData = async (previous) => {
 
 export default function StockLogsScreen() {
   const route = useRoute();
-  useMarkLogsSeen();
+  const isNewLog = useLogsSeenSince();
   const navigation = useNavigation();
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('manager-stock-logs', loadLogsData);
   const logs = snapshot?.logs ?? [];
@@ -230,7 +231,7 @@ export default function StockLogsScreen() {
           </View>
         ) : logs.length === 0 ? (
           <View style={styles.loadingWrap}>
-            <Icon name="trayDown" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>No transactions yet.</Text>
           </View>
         ) : filteredLogs.length === 0 ? (
@@ -272,6 +273,7 @@ export default function StockLogsScreen() {
                   title={getTitle(log)}
                   meta={metaText}
                   time={formatRelativeTime(log.created_at)}
+                  isNew={isNewLog(log.created_at)}
                   onPress={() => openDetail(log)}
                 />
               );

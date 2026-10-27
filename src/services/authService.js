@@ -3,6 +3,7 @@ import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { BaseService } from './BaseService';
 import { supabase, isRLSError, getFriendlyErrorMessage, hasStoredAuthSession, clearStoredAuthSession } from './supabaseClient';
 import { setPresenceIdentity } from './presenceService';
+import { syncPushRegistration, unregisterPush } from './pushService';
 import { getConnectionStatus } from './connectionStatus';
 import { debugLog, logError } from '../utils/logger';
 import storage from '../utils/storage';
@@ -344,6 +345,7 @@ class AuthService extends BaseService {
   async _logout() {
     resetCurrentUser();
     setPresenceIdentity(null);
+    unregisterPush();
     debugLog('info', 'AuthService', 'Logout');
 
     // Always clear both cached sessions — harmless no-op for whichever
@@ -434,6 +436,8 @@ class AuthService extends BaseService {
     // A login or logout happened meanwhile: don't overwrite it.
     if (generation !== currentUserGeneration) return currentUserCache?.user ?? user;
     setPresenceIdentity(user?.id);
+    // Push notifications: register this phone for the signed-in user (best effort, never waits).
+    syncPushRegistration(user);
     // A timed-out result is stored as stale, so the next call tries again.
     currentUserCache = { user, fetchedAt: timedOut ? 0 : Date.now() };
     return user;
@@ -453,6 +457,7 @@ class AuthService extends BaseService {
     debugLog('warn', 'AuthService', 'Manager login was ended by the server, asking to log in again');
     resetCurrentUser();
     setPresenceIdentity(null);
+    unregisterPush();
     await storage.remove(MANAGER_PROFILE_CACHE_KEY).catch(() => {});
     return true;
   }

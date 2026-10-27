@@ -819,6 +819,9 @@ export default function MapLocationPickerModal({
           originWhitelist={['*']}
         />
 
+        {/* A navy band under the phone's clock and battery: they are white, and the sheet below is white too. */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: '#03045E', zIndex: 100, elevation: 24 }} />
+
         <View
           onLayout={(e) => setHeaderHeight(Math.round(e.nativeEvent.layout.height))}
           style={[styles.headerSheet, { paddingTop: insets.top + SPACING.sm }]}

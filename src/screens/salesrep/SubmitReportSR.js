@@ -103,6 +103,17 @@ function FigureInput({ value, onChangeText, onFocus, onBlur, focused, editable }
   );
 }
 
+// Reports are one per day, and the day changes at midnight in the Philippines (UTC+8).
+const msUntilNextReportDay = () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  return DAY - ((Date.now() + 8 * 60 * 60 * 1000) % DAY);
+};
+const formatWait = (ms) => {
+  const minutes = Math.max(1, Math.ceil(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+};
+
 export default function SubmitReportSR() {
   const navigation = useNavigation();
   const blurTarget = useRef(null);
@@ -110,6 +121,11 @@ export default function SubmitReportSR() {
   const { data: snapshot, isLoading, refreshControl } = useCachedFocusLoader('sales-rep-submit-report', loadReportStatusData);
   const agent = snapshot?.agent ?? null;
   const reportDate = snapshot?.reportDate ?? null;
+  const [msToNextReport, setMsToNextReport] = useState(msUntilNextReportDay());
+  useEffect(() => {
+    const timer = setInterval(() => setMsToNextReport(msUntilNextReportDay()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   const alreadySubmitted = snapshot?.alreadySubmitted ?? false;
   const branchName = snapshot?.branchName ?? null;
   const items = snapshot?.items ?? [];
@@ -307,7 +323,7 @@ export default function SubmitReportSR() {
           'Report Submitted — Discrepancy Found',
           `Your daily report has been sent to your manager for review. ${discrepantCount} item${discrepantCount === 1 ? '' : 's'} had a discrepancy — resolve it under Alerts/Discrepancies.`,
           [
-            { text: 'Later', onPress: () => navigation.goBack(), style: 'cancel', accent: '#E5366B' },
+            { text: 'Later', onPress: () => navigation.goBack(), style: 'cancel', accent: '#D92D3A' },
             {
               text: 'Resolve Now',
               onPress: () => navigation.replace('AlertsDiscrepanciesSR'),
@@ -416,6 +432,10 @@ export default function SubmitReportSR() {
                     <Text style={styles.submittedBannerText}>
                       You've already filed today's daily report. Come back tomorrow to submit the next one.
                     </Text>
+                    <View style={styles.countdownPill}>
+                      <Icon name="clock" size={14} color="#1E7A3A" />
+                      <Text style={styles.countdownText}>Next report opens in {formatWait(msToNextReport)}, at midnight</Text>
+                    </View>
                     <Pressable
                       onPress={() => navigation.navigate('SalesRepReports', { openToday: true })}
                       style={styles.viewReportButton}
@@ -675,6 +695,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  countdownPill: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.7)' },
+  countdownText: { fontSize: 12, color: '#1E7A3A', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   submittedBannerTitle: {
     fontSize: 13,
     color: '#1D6A3A',

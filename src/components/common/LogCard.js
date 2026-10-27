@@ -32,12 +32,14 @@ export default function LogCard({
   style = {},
   // Flat: no card box. The row sits on the screen, split from the next by a faint line.
   flat = false,
+  // A row the person has not seen yet: same look as an unread notification (blue edge, soft tint, red dot).
+  isNew = false,
 }) {
   const meta_ = TYPE_META[type] || TYPE_META.receive;
 
   return (
     <TouchableOpacity
-      style={[styles.card, flat && styles.cardFlat, style]}
+      style={[styles.card, flat && styles.cardFlat, isNew && styles.cardNew, style]}
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={0.7}
@@ -45,6 +47,7 @@ export default function LogCard({
       accessibilityLabel={`${title}, ${meta}, ${time}`}
     >
       {!flat && <View style={[styles.stripe, { backgroundColor: meta_.accent }]} />}
+      {isNew && <View pointerEvents="none" style={styles.newStripe} />}
 
       <View style={[styles.iconBadge, flat && styles.iconBadgeFlat, { backgroundColor: meta_.badgeBg }]}>
         <Icon
@@ -60,6 +63,7 @@ export default function LogCard({
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
+          {isNew && <View style={styles.newDot} accessibilityLabel="New" />}
           {!!time && <Text style={styles.time}>{time}</Text>}
         </View>
         {!!meta && (
@@ -90,6 +94,7 @@ LogCard.propTypes = {
   onPress: PropTypes.func,
   style: PropTypes.object,
   flat: PropTypes.bool,
+  isNew: PropTypes.bool,
 };
 
 const TYPE_META = {
@@ -121,6 +126,9 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(39,38,50,0.08)',
     paddingVertical: 4,
   },
+  cardNew: { backgroundColor: '#F1F7FF' },
+  newStripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: '#0085F9' },
+  newDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.error, marginRight: 6 },
   iconBadgeFlat: { width: 40, height: 40, borderRadius: 12, marginLeft: 0 },
   stripe: { width: 3, alignSelf: 'stretch' },
   iconBadge: {

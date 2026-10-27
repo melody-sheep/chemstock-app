@@ -1,7 +1,6 @@
 // src/components/common/PermissionsPrompt.js
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Image, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Camera } from 'expo-camera';
@@ -112,7 +111,8 @@ export default function PermissionsPrompt() {
   return (
     <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={() => {}}>
       <View style={[styles.screen, { paddingTop: insets.top + SPACING.xl, paddingBottom: Math.max(insets.bottom + SPACING.sm, SPACING.lg) }]}>
-        <StatusBar style="dark" />
+        {/* A navy band under the phone's clock and battery, which are white. */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: '#03045E', zIndex: 100, elevation: 24 }} />
         <View style={styles.body}>
           <View style={styles.hero}>
             <View style={styles.heroCircle}>

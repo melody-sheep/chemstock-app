@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
+import { getQuickPosition } from '../../utils/quickLocation';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -139,14 +140,23 @@ export default function ReceiveStockSR() {
     if (!agent || !photoUri || !batch || isSubmitting) return;
     setIsSubmitting(true);
 
+    // The accept saves the position in gps_coordinates, where latitude and longitude cannot be empty. Use the fix that
+    // came with the photo; if there is none, look again before giving up (a clear message, not a database error).
+    const position = coords || (await getQuickPosition({ timeoutMs: 6000 }));
+    if (!position) {
+      setIsSubmitting(false);
+      Alert.alert('Location Needed', 'Your location could not be found. Check that Location is turned on and ChemStock is allowed to use it, then try again.');
+      return;
+    }
+
     // The scan + lookup that produced `batch` always happened live — a QR
     // code carries no data of its own, so only this final confirmation step
     // can ever be queued. Mirrors the daily report / return request pattern.
     const acceptPayload = {
       qrCode: batch.qrCode,
       agentId: agent.id,
-      latitude: coords?.latitude,
-      longitude: coords?.longitude,
+      latitude: position.latitude,
+      longitude: position.longitude,
       deviceModel: Device.modelName,
       deviceOs: getDeviceOs(),
     };
@@ -410,7 +420,10 @@ export default function ReceiveStockSR() {
       <CameraCaptureModal
         visible={isCameraVisible}
         onClose={() => setIsCameraVisible(false)}
-        onCapture={setPhotoUri}
+        onCapture={(uri, photoCoords) => {
+          setPhotoUri(uri);
+          if (photoCoords) setCoords(photoCoords);
+        }}
       />
     </>
   );

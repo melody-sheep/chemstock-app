@@ -15,22 +15,22 @@ const HEADERS_HEIGHT = 56 + 108;
 
 const STEPS = {
   manager: [
-    { target: 'focus', icon: 'notification', title: 'Needs attention', description: 'Stock requests, reports and discrepancies waiting for you show up here. Tap a row to open it.' },
+    { target: 'focus', trimBottom: 24, icon: 'notification', title: 'Needs attention', description: 'Stock requests, reports and discrepancies waiting for you show up here. Tap a row to open it.' },
     { target: 'stats', icon: 'grid', title: 'Quick stats', description: 'Your numbers at a glance. Tap a card to jump straight to that screen.' },
     { target: 'ops', icon: 'package', title: 'Main operations', description: 'Receive stock, release it to Sales Reps and Collectors, review returns, track deliveries and manage accounts.' },
-    { target: 'fab', fixed: true, icon: 'qrCode', title: 'Scan a QR', description: 'Scan any ChemStock QR to receive, accept or verify stock in one tap.' },
+    { target: 'fab', fixed: true, round: true, icon: 'qrCode', title: 'Scan a QR', description: 'Scan any ChemStock QR to receive, accept or verify stock in one tap.' },
   ],
   sales_rep: [
-    { target: 'focus', icon: 'clock', title: 'Today', description: 'Your backpack, the daily report and anything to resolve. Tap a row to open it.' },
+    { target: 'focus', trimBottom: 24, icon: 'clock', title: 'Today', description: 'Your backpack, the daily report and anything to resolve. Tap a row to open it.' },
     { target: 'stats', icon: 'grid', title: 'Quick stats', description: 'Your numbers at a glance. Tap a card to jump straight to that screen.' },
     { target: 'ops', icon: 'package', title: 'Main operations', description: 'Receive stock, request more, submit your daily report, track deliveries and return what you did not sell.' },
-    { target: 'fab', fixed: true, icon: 'qrCode', title: 'Scan a QR', description: 'Scan the QR your Manager or Collector shows you to receive stock.' },
+    { target: 'fab', fixed: true, round: true, icon: 'qrCode', title: 'Scan a QR', description: 'Scan the QR your Manager or Collector shows you to receive stock.' },
   ],
   collector: [
-    { target: 'focus', icon: 'notification', title: 'Needs attention', description: 'Pickups to accept, deliveries ready to go and trips in progress. Tap a row to open it.' },
+    { target: 'focus', trimBottom: 24, icon: 'notification', title: 'Needs attention', description: 'Pickups to accept, deliveries ready to go and trips in progress. Tap a row to open it.' },
     { target: 'stats', icon: 'grid', title: 'Quick stats', description: 'Pending, Ready and Active deliveries at a glance. Tap a card to open the list.' },
     { target: 'ops', icon: 'package', title: 'Main operations', description: 'Accept deliveries from your Manager and look back at what you delivered.' },
-    { target: 'fab', fixed: true, icon: 'truck', title: 'Accept deliveries', description: 'This button opens Accept Deliveries. The number on it is what is waiting for you.' },
+    { target: 'fab', fixed: true, round: true, icon: 'truck', title: 'Accept deliveries', description: 'This button opens Accept Deliveries. The number on it is what is waiting for you.' },
   ],
 };
 
@@ -102,6 +102,8 @@ export default function DashboardTour({ role, refs, enabled, scrollRef }) {
         rect = await measure(node);
         if (!rect) return advance();
       }
+      // The card highlight leaves out the space under the card (its margin), so the hole fits the card.
+      if (step.trimBottom) rect = { ...rect, height: Math.max(rect.height - step.trimBottom, 20) };
       if (!cancelled) setShown({ index, rect });
     })();
     return () => {
@@ -116,6 +118,7 @@ export default function DashboardTour({ role, refs, enabled, scrollRef }) {
       visible={active && !!shown}
       target={shown ? shown.rect : null}
       icon={step?.icon}
+      round={!!step?.round}
       title={step?.title}
       description={step?.description || ''}
       step={{ index: shown ? shown.index : 0, count: steps.length }}

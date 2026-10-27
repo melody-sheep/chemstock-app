@@ -368,9 +368,6 @@ export default function SalesRepDashboardScreen() {
                 )}
 
                 <View style={styles.statusRow}>
-                  {/* A long branch line (several branches) needs the room, so the word "Status" steps aside. */}
-                  {branchLabel.length <= 14 && <Text style={styles.statusText}>Status</Text>}
-
                   <View style={styles.statusGroup}>
                     <View style={[styles.onlineDot, !connection.online && styles.onlineDotOffline]} />
                     <Text style={[styles.statusText, !connection.online && styles.onlineTextOffline]}>

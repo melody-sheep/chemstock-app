@@ -95,7 +95,7 @@ const esc = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate, logoBase64, signatureSvg = '' }) {
+function buildReportHtml({ branchName, periodLabel, periodRange, products, systemDetails, managerName, signOffDate, logoBase64, signatureSvg = '', appLogoBase64 = null }) {
   const rows = products
     .map(
       (p) => `
@@ -148,6 +148,8 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
           td.over { color: #B26400; font-weight: 700; }
           tfoot td { font-weight: 700; background: #F8FAFC; }
           .sign-row { margin-top: 32px; font-size: 12px; }
+          .made-with { margin-top: 18px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: #6B7280; }
+          .made-with img { width: 30px; height: 30px; margin: -6px; }
           .sign-row span { display: inline-block; min-width: 220px; border-bottom: 1px solid #272632; margin-right: 24px; padding-bottom: 2px; }
           .details { margin-top: 24px; font-size: 11px; color: #555353; }
           .details div { margin-bottom: 4px; }
@@ -195,6 +197,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
           </tfoot>
         </table>
         <div class="sign-row">Manager Sign-off: <span>${signatureSvg}${esc(managerName)}</span> Date: <span>${signOffDate}</span></div>
+        ${appLogoBase64 ? `<div class="made-with"><img src="data:image/png;base64,${appLogoBase64}" alt="" />Generated with ChemStock</div>` : ''}
         <div class="details">
           <div><strong>System Extra Details</strong></div>
           <div>Reports accepted: ${systemDetails?.reportsAccepted ?? 0} · Auto-filed (missed): ${systemDetails?.reportsAutoFiled ?? 0}</div>
@@ -206,7 +209,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
   `;
 }
 
-function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64, signatureSvg = '' }) {
+function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64, signatureSvg = '', appLogoBase64 = null }) {
   const rows = items
     .map(
       (i) => `
@@ -236,6 +239,8 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
           th { background: #F1F3F6; font-weight: 700; }
           tfoot td { font-weight: 700; background: #F8FAFC; }
           .sign-row { margin-top: 32px; font-size: 12px; }
+          .made-with { margin-top: 18px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: #6B7280; }
+          .made-with img { width: 30px; height: 30px; margin: -6px; }
           .sign-row span { display: inline-block; min-width: 220px; border-bottom: 1px solid #272632; margin-right: 24px; padding-bottom: 2px; }
         </style>
       </head>
@@ -263,6 +268,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
           </tfoot>
         </table>
         <div class="sign-row">Manager Sign-off: <span>${signatureSvg}${esc(managerName)}</span> Date: <span>${signOffDate}</span></div>
+        ${appLogoBase64 ? `<div class="made-with"><img src="data:image/png;base64,${appLogoBase64}" alt="" />Generated with ChemStock</div>` : ''}
       </body>
     </html>
   `;
@@ -288,6 +294,7 @@ export default function ManagerReportsScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [scanSummary, setScanSummary] = useState(null);
   const [logoBase64, setLogoBase64] = useState(null);
+  const [appLogoBase64, setAppLogoBase64] = useState(null);
   // Which export is running ('print' | 'pdf' | 'chat'), for the button label.
   const [exportingKind, setExportingKind] = useState(null);
   // The manager's drawn signature (kept on this phone only).
@@ -333,6 +340,11 @@ export default function ManagerReportsScreen() {
           encoding: FileSystem.EncodingType.Base64,
         });
         if (!cancelled) setLogoBase64(base64);
+        // Our own logo for the small "Generated with ChemStock" line.
+        const appAsset = Asset.fromModule(require('../../../assets/ChemStockLogo.png'));
+        await appAsset.downloadAsync();
+        const appBase64 = await FileSystem.readAsStringAsync(appAsset.localUri, { encoding: FileSystem.EncodingType.Base64 });
+        if (!cancelled) setAppLogoBase64(appBase64);
       } catch (error) {
         console.error('[ERROR] [ManagerReportsScreen] Failed to load report logo:', error);
       }
@@ -503,6 +515,7 @@ export default function ManagerReportsScreen() {
           managerName,
           signOffDate: formatDisplayDate(toISODate(new Date())),
           logoBase64,
+          appLogoBase64,
           signatureSvg: signatureToSvg(signature),
         })
       : buildReportHtml({
@@ -514,6 +527,7 @@ export default function ManagerReportsScreen() {
           managerName,
           signOffDate: formatDisplayDate(toISODate(new Date())),
           logoBase64,
+          appLogoBase64,
           signatureSvg: signatureToSvg(signature),
         });
 
@@ -901,10 +915,13 @@ export default function ManagerReportsScreen() {
       <SignaturePad
         visible={isSignPadVisible}
         onClose={() => setIsSignPadVisible(false)}
-        onSave={(drawn) => {
+        onSave={async (drawn) => {
           setSignature(drawn);
-          saveSignature(manager?.id, drawn);
           setIsSignPadVisible(false);
+          // Saved under the signed-in manager. If that account has not loaded on this screen yet, look it up here:
+          // before, the signature showed but was silently never saved, and was gone the next time the screen opened.
+          const managerId = manager?.id || (await authService.getCurrentUser())?.id;
+          if (managerId) await saveSignature(managerId, drawn);
         }}
       />
 

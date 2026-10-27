@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRoute } from '@react-navigation/native';
 import Header from '../../components/common/Header';
@@ -11,6 +11,8 @@ import { TYPOGRAPHY } from '../../styles/typography';
 
 const FAQ_COLOR = '#6C63D9';
 const LEGAL_COLOR = '#3157B7';
+
+const LOGO = require('../../../assets/ChemStockLogo.png');
 
 export default function LegalInfoScreen() {
   const route = useRoute();
@@ -58,12 +60,7 @@ export default function LegalInfoScreen() {
         >
           <View style={[styles.hero, !isFaq && styles.legalHero]}>
             <View style={styles.heroIcon}>
-              <Icon
-                name={isFaq ? 'question' : 'document'}
-                size={25}
-                color={isFaq ? FAQ_COLOR : LEGAL_COLOR}
-                weight="duotone"
-              />
+              <Image source={LOGO} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="ChemStock" />
             </View>
             <View style={styles.heroCopy}>
               <Text style={styles.eyebrow}>{ROLE_LABELS[role] || 'ChemStock user'}</Text>
@@ -286,7 +283,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: SPACING.sm,
+    borderRadius: 12,
+    backgroundColor: '#EEF0FF',
+    overflow: 'hidden',
   },
+  // The logo file has wide empty margins, so it is drawn larger than its tile.
+  heroLogo: { width: 62, height: 62 },
   heroCopy: {
     flex: 1,
   },

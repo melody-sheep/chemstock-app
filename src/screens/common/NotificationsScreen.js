@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Header from '../../components/common/Header';
 import Icon from '../../components/common/Icon';
+import EmptyLogo from '../../components/common/EmptyLogo';
 import FilterSheet from '../../components/common/FilterSheet';
 import useCachedFocusLoader from '../../hooks/useCachedFocusLoader';
 import authService from '../../services/authService';
@@ -56,6 +57,7 @@ const TYPE_META = {
   delivery_disputed_collector: { icon: 'sealWarning', color: COLORS.error },
   daily_report_accepted: { icon: 'clipboardText', color: COLORS.success },
   discrepancy_found: { icon: 'warning', color: COLORS.error },
+  report_reminder: { icon: 'notification', color: '#B26400' },
   collector_return_initiated: { icon: 'arrowUUpLeft', color: COLORS.accentOrange },
   collector_return_received: { icon: 'sealCheck', color: COLORS.success },
 };
@@ -85,7 +87,7 @@ const FILTER_OPTIONS = [
     label: 'Reports',
     icon: 'clipboardText',
     description: 'Daily reports and discrepancies',
-    types: ['daily_report_submitted', 'daily_report_accepted', 'discrepancy_found'],
+    types: ['daily_report_submitted', 'daily_report_accepted', 'discrepancy_found', 'report_reminder'],
   },
   {
     key: 'returns',
@@ -391,7 +393,7 @@ export default function NotificationsScreen() {
               <RefreshControl refreshing={isRefreshing} onRefresh={handlePullRefresh} colors={[COLORS.primary]} />
             }
           >
-            <Icon name="notification" size={32} color={COLORS.textSecondary} />
+            <EmptyLogo />
             <Text style={styles.emptyText}>
               {!isFilterActive ? 'No notifications yet.' : 'No notifications in this filter.'}
             </Text>
