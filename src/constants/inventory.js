@@ -6,3 +6,5 @@
 // revisit if the team wants per-product thresholds later.
 export const STOCK_HEALTHY_THRESHOLD = 20;
 export const NEAR_EXPIRY_DAYS = 30;
+// A stock section shows a "View all" link once it has at least this many cards.
+export const VIEW_ALL_MIN_COUNT = 3;

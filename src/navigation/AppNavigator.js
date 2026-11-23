@@ -44,6 +44,7 @@ import ChangePasswordScreen from '../screens/common/ChangePasswordScreen';
 import LegalInfoScreen from '../screens/common/LegalInfoScreen';
 import NotificationsScreen from '../screens/common/NotificationsScreen';
 import StockBatchDetailScreen from '../screens/common/StockBatchDetailScreen';
+import StockSectionListScreen from '../screens/common/StockSectionListScreen';
 import SalesRepDashboardScreen from '../screens/salesrep/SalesRepDashboardScreen';
 import ReceiveStockTypeSR from '../screens/salesrep/ReceiveStockTypeSR';
 import ReceiveStockSR from '../screens/salesrep/ReceiveStockSR';
@@ -139,6 +140,7 @@ export default function AppNavigator({ initialRouteName = 'Login' }) {
         <Stack.Screen name="StockLogs" component={StockLogsScreen} options={aboveNavBar} />
         <Stack.Screen name="StockLogDetail" component={StockLogDetailScreen} options={aboveNavBar} />
         <Stack.Screen name="StockBatchDetail" component={StockBatchDetailScreen} options={aboveNavBar} />
+        <Stack.Screen name="StockSectionList" component={StockSectionListScreen} options={aboveNavBar} />
         <Stack.Screen name="ReleaseStockRecipient" component={ReleaseStockRecipientScreen} />
         <Stack.Screen name="ReleaseStockMethod" component={ReleaseStockMethodScreen} options={aboveNavBar} />
         <Stack.Screen name="ReleaseStockScanReview" component={ReleaseStockScanReviewScreen} />

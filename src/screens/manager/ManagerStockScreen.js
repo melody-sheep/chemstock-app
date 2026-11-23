@@ -12,6 +12,8 @@ import SecondaryHeader from '../../components/common/SecondaryHeader';
 import Icon from '../../components/common/Icon';
 import StockBatchCard from '../../components/common/StockBatchCard';
 import StockSectionHeader from '../../components/common/StockSectionHeader';
+import StockBatchListSheet from '../../components/common/StockBatchListSheet';
+import { groupBatchesByProduct, buildBatchDetailParams } from '../../utils/stockGroups';
 import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
 import QRScannerModal from '../../components/common/QRScannerModal';
 import CustomModal from '../../components/common/Modal';
@@ -24,7 +26,7 @@ import ScanResultSheet from '../../components/common/ScanResultSheet';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
-import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS, VIEW_ALL_MIN_COUNT } from '../../constants/inventory';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
@@ -43,6 +45,7 @@ const LEVEL_OPTIONS = [
   { key: 'all', label: 'All' },
   { key: 'healthy', label: 'In-stock' },
   { key: 'low', label: 'Almost out' },
+  { key: 'expired', label: 'Expired' },
   { key: 'out', label: 'Out of stock' },
 ];
 const SORT_OPTIONS = [
@@ -52,7 +55,7 @@ const SORT_OPTIONS = [
   { key: 'nameAsc', label: 'Name A–Z' },
 ];
 const EXPIRY_LABELS = { nearExpiry: 'Near expiry', expired: 'Expired' };
-const LEVEL_LABELS = { healthy: 'In-stock only', low: 'Almost out only', out: 'Out of stock only' };
+const LEVEL_LABELS = { healthy: 'In-stock only', low: 'Almost out only', expired: 'Expired only', out: 'Out of stock only' };
 const SORT_LABELS = { qtyDesc: 'Most stock first', qtyAsc: 'Least stock first', nameAsc: 'Name A–Z' };
 
 // Returns the full stock snapshot. A request that fails keeps its value from
@@ -98,6 +101,7 @@ export default function ManagerStockScreen() {
   const [expiryFilter, setExpiryFilter] = useState('all');
   const [levelFilter, setLevelFilter] = useState('all');
   const [sortBy, setSortBy] = useState('default');
+  const [sheetGroup, setSheetGroup] = useState(null);
   const [isFilterSheetVisible, setIsFilterSheetVisible] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
 
@@ -176,12 +180,17 @@ export default function ManagerStockScreen() {
     return daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
   };
 
-  // "default" keeps the order the batches arrive in (soonest expiry first).
+  // "default" is soonest expiry first; batches with no expiry date go last.
+  const expiryTime = (row) => (row.exp_date ? new Date(row.exp_date).getTime() : Infinity);
   const sortBatches = (rows) => {
     if (sortBy === 'qtyDesc') return [...rows].sort((a, b) => b.quantity - a.quantity);
     if (sortBy === 'qtyAsc') return [...rows].sort((a, b) => a.quantity - b.quantity);
     if (sortBy === 'nameAsc') return [...rows].sort((a, b) => a.product_name.localeCompare(b.product_name));
-    return rows;
+    return [...rows].sort((a, b) => {
+      const ta = expiryTime(a);
+      const tb = expiryTime(b);
+      return ta === tb ? 0 : ta < tb ? -1 : 1;
+    });
   };
   const hasActiveFilters = expiryFilter !== 'all' || levelFilter !== 'all' || sortBy !== 'default';
   const resetFilters = () => {
@@ -191,6 +200,7 @@ export default function ManagerStockScreen() {
   };
   const showHealthy = levelFilter === 'all' || levelFilter === 'healthy';
   const showLow = levelFilter === 'all' || levelFilter === 'low';
+  const showExpired = levelFilter === 'all' || levelFilter === 'expired';
   const showOut = levelFilter === 'all' || levelFilter === 'out';
 
   // A batch fully released down to 0 now persists (never deleted — see
@@ -204,6 +214,7 @@ export default function ManagerStockScreen() {
     branchStock.filter(
       (row) =>
         row.quantity >= STOCK_HEALTHY_THRESHOLD &&
+        !isExpired(row.exp_date) &&
         matchesQuery(row.product_name, row.product_code) &&
         matchesExpiryFilter(row)
     )
@@ -213,6 +224,17 @@ export default function ManagerStockScreen() {
       (row) =>
         row.quantity > 0 &&
         row.quantity < STOCK_HEALTHY_THRESHOLD &&
+        !isExpired(row.exp_date) &&
+        matchesQuery(row.product_name, row.product_code) &&
+        matchesExpiryFilter(row)
+    )
+  );
+  // Expired batches get their own row, whatever their quantity, so they never sit among usable stock.
+  const expiredBatches = sortBatches(
+    branchStock.filter(
+      (row) =>
+        row.quantity > 0 &&
+        isExpired(row.exp_date) &&
         matchesQuery(row.product_name, row.product_code) &&
         matchesExpiryFilter(row)
     )
@@ -222,26 +244,44 @@ export default function ManagerStockScreen() {
     (product) => !stockedCodes.has(product.code) && matchesQuery(product.name, product.code)
   );
 
-  const renderBatchRow = (batches, tone) => (
+  // One card per product; its batches open from the card.
+  const healthyGroups = groupBatchesByProduct(healthyBatches);
+  const lowGroups = groupBatchesByProduct(lowStockBatches);
+  const expiredGroups = groupBatchesByProduct(expiredBatches);
+
+  const detailParamsFor = (row) =>
+    buildBatchDetailParams(row, { variant: 'manager', branchName: selectedBranch?.name, branchId: selectedBranch?.id });
+
+  const viewAllHandler = (title, tone, count, rows) =>
+    count >= VIEW_ALL_MIN_COUNT
+      ? () =>
+          navigation.navigate('StockSectionList', {
+            title,
+            tone,
+            variant: 'manager',
+            branchName: selectedBranch?.name,
+            branchId: selectedBranch?.id,
+            sortBy,
+            rows,
+          })
+      : undefined;
+
+  const renderBatchRow = (groups, tone) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cardScroll} contentContainerStyle={styles.cardRow}>
-      {batches.map((row) => (
+      {groups.map((group) => (
         <StockBatchCard
-          key={row.id}
+          key={group.key}
           tone={tone}
-          productName={row.product_name}
-          image={PRODUCT_CATALOG.find((p) => p.code === row.product_code)?.image}
-          quantity={row.quantity}
-          batchNumber={row.batch_number}
-          expDate={row.exp_date}
+          productName={group.product_name}
+          image={PRODUCT_CATALOG.find((p) => p.code === group.product_code)?.image}
+          quantity={group.totalQuantity}
+          batchNumber={group.batches[0].batch_number}
+          expDate={group.soonestExpDate}
+          batchCount={group.batches.length}
           onPress={() =>
-            navigation.navigate('StockBatchDetail', {
-              productName: row.product_name,
-              quantity: row.quantity,
-              batchNumber: row.batch_number,
-              expDate: row.exp_date,
-              mfgDate: row.mfg_date,
-              branchName: selectedBranch?.name,
-            })
+            group.batches.length === 1
+              ? navigation.navigate('StockBatchDetail', detailParamsFor(group.batches[0]))
+              : setSheetGroup({ group, tone })
           }
         />
       ))}
@@ -315,11 +355,12 @@ export default function ManagerStockScreen() {
             <StockSectionHeader
               dotColor={COLORS.success}
               label="In-Stock"
-              count={healthyBatches.length}
+              count={healthyGroups.length}
               tooltip="These products have healthy stock levels — no action needed."
+              onViewAll={viewAllHandler('In-Stock', 'healthy', healthyGroups.length, healthyBatches)}
             />
-            {healthyBatches.length > 0 ? (
-              renderBatchRow(healthyBatches, 'healthy')
+            {healthyGroups.length > 0 ? (
+              renderBatchRow(healthyGroups, 'healthy')
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>No batches at healthy levels right now.</Text></View>
             )}
@@ -331,14 +372,33 @@ export default function ManagerStockScreen() {
             <StockSectionHeader
               dotColor={COLORS.warning}
               label="Almost Out"
-              count={lowStockBatches.length}
+              count={lowGroups.length}
               tooltip="These products are running low — plan to resupply soon."
               style={styles.sectionSpacing}
+              onViewAll={viewAllHandler('Almost Out', 'low', lowGroups.length, lowStockBatches)}
             />
-            {lowStockBatches.length > 0 ? (
-              renderBatchRow(lowStockBatches, 'low')
+            {lowGroups.length > 0 ? (
+              renderBatchRow(lowGroups, 'low')
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>Nothing running low right now.</Text></View>
+            )}
+            </>
+            )}
+
+            {showExpired && (
+            <>
+            <StockSectionHeader
+              dotColor="#8B1E2D"
+              label="Expired"
+              count={expiredGroups.length}
+              tooltip="These batches are past their expiry date and can't be released."
+              style={styles.sectionSpacing}
+              onViewAll={viewAllHandler('Expired', 'expired', expiredGroups.length, expiredBatches)}
+            />
+            {expiredGroups.length > 0 ? (
+              renderBatchRow(expiredGroups, 'expired')
+            ) : (
+              <View style={styles.emptyBox}><Text style={styles.emptyText}>No expired batches.</Text></View>
             )}
             </>
             )}
@@ -351,6 +411,7 @@ export default function ManagerStockScreen() {
               count={outOfStockProducts.length}
               tooltip="These products have no stock left on the shelf."
               style={styles.sectionSpacing}
+              onViewAll={viewAllHandler('Out of Stock', 'out', outOfStockProducts.length, outOfStockProducts.map(({ code, name }) => ({ code, name })))}
             />
             {outOfStockProducts.length > 0 ? (
               renderOutOfStockRow()
@@ -447,6 +508,17 @@ export default function ManagerStockScreen() {
 
         <BottomNavBar activeTab="stock" onTabPress={handleTabPress} onFabPress={() => setIsScannerVisible(true)} fabLabel="Scan" />
       </View>
+
+      <StockBatchListSheet
+        visible={!!sheetGroup}
+        onClose={() => setSheetGroup(null)}
+        group={sheetGroup?.group}
+        tone={sheetGroup?.tone}
+        onSelectBatch={(batch) => {
+          setSheetGroup(null);
+          navigation.navigate('StockBatchDetail', detailParamsFor(batch));
+        }}
+      />
 
       <QRScannerModal
         visible={isScannerVisible}
