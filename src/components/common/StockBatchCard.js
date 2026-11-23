@@ -39,6 +39,9 @@ export default function StockBatchCard({
   // 'healthy' | 'low' | 'out': draws the coloured tile (picture across the top and both sides,
   // details underneath). Without it the card looks exactly as before.
   tone = null,
+  // More than 1: the card stands for several batches of this product
+  // (quantity is their total, expDate the soonest one).
+  batchCount = null,
 }) {
   const daysLeft = outOfStock ? null : daysUntil(expDate);
   const isNearExpiry = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
@@ -83,6 +86,7 @@ export default function StockBatchCard({
               <Text style={[styles.tileMeta, isNearExpiry && styles.metaTextUrgent]}>
                 {expDate ? `Exp ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
               </Text>
+              {batchCount > 1 && <Text style={styles.tileBatchCount}>{batchCount} batches</Text>}
             </>
           )}
         </View>
@@ -185,7 +189,8 @@ StockBatchCard.propTypes = {
   wireframe: PropTypes.bool,
   statusLabel: PropTypes.string,
   onPress: PropTypes.func,
-  tone: PropTypes.oneOf(['healthy', 'low', 'out']),
+  tone: PropTypes.oneOf(['healthy', 'low', 'out', 'expired']),
+  batchCount: PropTypes.number,
 };
 
 // Tile colours by stock level: a soft background for the picture, a stronger edge and badge.
@@ -193,6 +198,7 @@ const TILE_TONES = {
   healthy: { solid: '#2E9E5B', tint: '#E3F4EA', border: '#79C898' },
   low: { solid: '#E08A00', tint: '#FFF1D6', border: '#F2BE63' },
   out: { solid: '#C9485B', tint: '#FBE7EA', border: '#E6A3AE' },
+  expired: { solid: '#8B1E2D', tint: '#F6E1E4', border: '#D9A0A8' },
 };
 
 const TILE_WIDTH = 148;
@@ -243,6 +249,12 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
+  },
+  tileBatchCount: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#0085F9',
   },
   tileId: {
     fontSize: 11,
