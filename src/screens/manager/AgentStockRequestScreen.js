@@ -54,6 +54,8 @@ export default function AgentStockRequestScreen() {
   const [statusFilter, setStatusFilter] = useState('all');
   // Profile photos by agent id (a read of the manager's own agents; the cards just show initials without it).
   const [photoUrlByAgentId, setPhotoUrlByAgentId] = useState({});
+  // Agents a manager has deactivated: their requests stay visible but can't be acted on.
+  const [inactiveAgentIds, setInactiveAgentIds] = useState(() => new Set());
 
   const loadRequests = useCallback(async () => {
     setIsLoading(true);
@@ -64,6 +66,7 @@ export default function AgentStockRequestScreen() {
       const agents = await agentService.getMyAgentAccounts();
       if (agents.success) {
         setPhotoUrlByAgentId(Object.fromEntries(agents.data.map((a) => [a.id, a.profilePhotoUrl])));
+        setInactiveAgentIds(new Set(agents.data.filter((a) => a.is_active === false).map((a) => a.id)));
       }
     } catch (error) {
       // No photos: the cards keep showing initials.
@@ -226,6 +229,7 @@ export default function AgentStockRequestScreen() {
             {visibleRequests.map((request) => {
               const displayStatus = getDisplayStatus(request);
               const meta = STATUS_META[displayStatus];
+              const isInactiveAgent = inactiveAgentIds.has(request.requestedById);
               const isBusy = busyRequestId === request.requestId;
 
               return (
@@ -245,7 +249,14 @@ export default function AgentStockRequestScreen() {
                       fallbackTextColor={COLORS.primary}
                     />
                     <View style={styles.requestHeaderText}>
-                      <Text style={styles.requestName} numberOfLines={1}>{request.requestedByName}</Text>
+                      <View style={styles.nameRow}>
+                        <Text style={[styles.requestName, styles.nameText]} numberOfLines={1}>{request.requestedByName}</Text>
+                        {isInactiveAgent && (
+                          <View style={styles.inactiveBadge}>
+                            <Text style={styles.inactiveBadgeText}>Inactive</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.requestMeta}>
                         Sales Rep · Sent {formatRelativeTime(request.createdAt)}
                       </Text>
@@ -292,7 +303,7 @@ export default function AgentStockRequestScreen() {
                         variant="outline"
                         accentColor={COLORS.error}
                         onPress={() => setDeclineTarget(request)}
-                        disabled={isBusy}
+                        disabled={isBusy || isInactiveAgent}
                         style={styles.actionButton}
                         height={44}
                         fontSize={15}
@@ -305,7 +316,7 @@ export default function AgentStockRequestScreen() {
                           variant="black"
                           onPress={() => handlePrepare(request)}
                           loading={isBusy}
-                          disabled={isBusy}
+                          disabled={isBusy || isInactiveAgent}
                           style={styles.actionButton}
                           height={44}
                           fontSize={15}
@@ -317,7 +328,7 @@ export default function AgentStockRequestScreen() {
                           title="Continue"
                           variant="black"
                           onPress={() => handleContinue(request)}
-                          disabled={isBusy}
+                          disabled={isBusy || isInactiveAgent}
                           style={styles.actionButton}
                           height={44}
                           fontSize={15}
@@ -455,6 +466,10 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#272632',
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameText: { flexShrink: 1 },
+  inactiveBadge: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: COLORS.error + '18' },
+  inactiveBadgeText: { fontSize: 10, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold, color: COLORS.error },
   statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   statusBadgeText: { fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: TYPOGRAPHY.fontWeight.bold },
   requestMeta: {

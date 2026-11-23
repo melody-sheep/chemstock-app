@@ -155,6 +155,10 @@ class AuthService extends BaseService {
         if (/Too many failed attempts/i.test(agentLoginError.message || '')) {
           throw new Error(agentLoginError.message);
         }
+        // Right password, but a manager switched the account off.
+        if (/Account deactivated/i.test(agentLoginError.message || '')) {
+          throw new Error('Account deactivated. Please contact your manager.');
+        }
       }
 
       if (agentProfile && agentProfile.id) {
@@ -556,6 +560,15 @@ class AuthService extends BaseService {
             // keep the cached session rather than abruptly logging them out.
             console.warn('[WARN] [AuthService] get_agent_profile returned no row for agent id', agentUser.id);
             return agentUser;
+          }
+
+          if (freshProfile.is_active === false) {
+            debugLog('warn', 'AuthService', 'Agent account was deactivated, ending the saved session', { agentId: agentUser.id });
+            resetCurrentUser();
+            setPresenceIdentity(null);
+            unregisterPush();
+            await storage.remove(AGENT_SESSION_KEY).catch(() => {});
+            return null;
           }
 
           const branchName = await this._fetchBranchNames(freshProfile.branch_ids);

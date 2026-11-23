@@ -91,7 +91,7 @@ export default function ReleaseStockRecipientScreen() {
       agentService.getMyAgentAccounts(),
     ]);
     setManager(currentManager);
-    setAgents(result.success ? result.data : []);
+    setAgents(result.success ? result.data.filter((agent) => agent.is_active !== false) : []);
 
     const managerBranches = await requestService.getAgentBranches(currentManager?.branchIds || []);
     setBranches(managerBranches);
