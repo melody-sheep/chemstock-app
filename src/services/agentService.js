@@ -121,24 +121,27 @@ class AgentService extends BaseService {
         }
     }
 
-    async deleteAgentAccount(agentId) {
-        debugLog('info', 'AgentService', 'Deleting agent account', { agentId });
+    async setAgentActive(agentId, active) {
+        debugLog('info', 'AgentService', 'Changing agent account status', { agentId, active });
 
         try {
             this.validateRequired(['agentId'], { agentId });
 
-            const { error } = await supabase.rpc('delete_agent_account', { p_agent_id: agentId });
+            const { error } = await supabase.rpc('set_agent_active', {
+                p_agent_id: agentId,
+                p_active: Boolean(active),
+            });
 
             if (error) {
-                console.error('[ERROR] [AgentService] Error deleting agent account:', error);
-                throw new Error(error.message || 'Failed to remove account');
+                console.error('[ERROR] [AgentService] Error changing agent account status:', error);
+                throw new Error(error.message || 'Failed to update account');
             }
 
             return { success: true };
 
         } catch (error) {
-            this.log('error', 'deleteAgentAccount failed', { error: error.message });
-            return { success: false, message: error.message || 'Failed to remove account' };
+            this.log('error', 'setAgentActive failed', { error: error.message });
+            return { success: false, message: error.message || 'Failed to update account' };
         }
     }
 }

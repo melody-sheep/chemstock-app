@@ -48,10 +48,11 @@ const ROLE_DOT_COLOR = {
 function AgentCard({ account, onCardPress, onMorePress }) {
   const roleColor = ROLE_DOT_COLOR[account.role] || COLORS.textTertiary;
   const roleLabel = ROLE_LABELS[account.role] || account.role;
+  const isInactive = account.is_active === false;
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, isInactive && styles.cardInactive]}
       onPress={() => onCardPress(account)}
       activeOpacity={0.7}
       accessibilityRole="button"
@@ -73,6 +74,13 @@ function AgentCard({ account, onCardPress, onMorePress }) {
               {roleLabel}
             </Text>
           </View>
+          {isInactive && (
+            <View style={[styles.rolePill, { backgroundColor: COLORS.error + '18' }]}>
+              <Text style={[styles.rolePillText, { color: COLORS.error }]} numberOfLines={1}>
+                Inactive
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.branchRow}>
           <Icon name="building" size={14} color={COLORS.textSecondary} />
@@ -122,8 +130,8 @@ export default function ManageAccountsScreen() {
   const [viewedAccount, setViewedAccount] = useState(null);
   const [viewedPhoneNumber, setViewedPhoneNumber] = useState(null);
   const [isLoadingPhone, setIsLoadingPhone] = useState(false);
-  const [accountToRemove, setAccountToRemove] = useState(null);
-  const [isRemoving, setIsRemoving] = useState(false);
+  const [accountToToggle, setAccountToToggle] = useState(null);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [accountToResetPassword, setAccountToResetPassword] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -182,8 +190,8 @@ export default function ManageAccountsScreen() {
     Linking.openURL(`tel:${viewedPhoneNumber}`);
   };
 
-  const handleRemovePress = (account) => {
-    setAccountToRemove(account);
+  const handleToggleStatusPress = (account) => {
+    setAccountToToggle(account);
   };
 
   const handleMorePress = (account) => {
@@ -223,18 +231,19 @@ export default function ManageAccountsScreen() {
     Alert.alert('Password Reset', `${name}'s password has been reset. Let them know their new password.`);
   };
 
-  const handleConfirmRemove = async () => {
-    if (!accountToRemove || isRemoving) return;
-    if (!requireOnline('Removing an account')) return;
-    setIsRemoving(true);
+  const handleConfirmToggleStatus = async () => {
+    if (!accountToToggle || isTogglingStatus) return;
+    const reactivating = accountToToggle.is_active === false;
+    if (!requireOnline(reactivating ? 'Reactivating an account' : 'Deactivating an account')) return;
+    setIsTogglingStatus(true);
 
-    const result = await agentService.deleteAgentAccount(accountToRemove.id);
+    const result = await agentService.setAgentActive(accountToToggle.id, reactivating);
 
-    setIsRemoving(false);
-    setAccountToRemove(null);
+    setIsTogglingStatus(false);
+    setAccountToToggle(null);
 
     if (!result.success) {
-      Alert.alert('Failed to Remove', friendlyError(result.message));
+      Alert.alert(reactivating ? 'Failed to Reactivate' : 'Failed to Deactivate', friendlyError(result.message));
       return;
     }
 
@@ -415,10 +424,10 @@ export default function ManageAccountsScreen() {
               style={styles.actionsButton}
             />
             <Button
-              title="Remove account"
-              icon="trash"
+              title={actionsAccount.is_active === false ? 'Reactivate account' : 'Deactivate account'}
+              icon={actionsAccount.is_active === false ? 'check' : 'lock'}
               variant="outline"
-              accentColor={COLORS.error}
+              accentColor={actionsAccount.is_active === false ? COLORS.primary : COLORS.error}
               height={48}
               fontSize={16}
               borderRadius={24}
@@ -426,7 +435,7 @@ export default function ManageAccountsScreen() {
               onPress={() => {
                 const account = actionsAccount;
                 setActionsAccount(null);
-                handleRemovePress(account);
+                handleToggleStatusPress(account);
               }}
               style={styles.actionsButton}
             />
@@ -443,17 +452,25 @@ export default function ManageAccountsScreen() {
       </CustomModal>
 
       <ConfirmationDialog
-        visible={!!accountToRemove}
-        onCancel={() => setAccountToRemove(null)}
-        onConfirm={handleConfirmRemove}
-        icon="trash"
-        title="Remove Account?"
+        visible={!!accountToToggle}
+        onCancel={() => setAccountToToggle(null)}
+        onConfirm={handleConfirmToggleStatus}
+        icon={accountToToggle?.is_active === false ? 'check' : 'lock'}
+        title={accountToToggle?.is_active === false ? 'Reactivate Account?' : 'Deactivate Account?'}
         description={
-          accountToRemove
-            ? `This will permanently delete ${accountToRemove.full_name}'s account. They will no longer be able to log in, and this cannot be undone.`
+          accountToToggle
+            ? accountToToggle.is_active === false
+              ? `${accountToToggle.full_name} will be able to log in again.`
+              : `${accountToToggle.full_name} will no longer be able to log in. Their stock history is kept, and you can reactivate the account any time.`
             : ''
         }
-        confirmLabel={isRemoving ? 'Removing…' : 'Remove Account'}
+        confirmLabel={
+          isTogglingStatus
+            ? 'Saving…'
+            : accountToToggle?.is_active === false
+              ? 'Reactivate Account'
+              : 'Deactivate Account'
+        }
         height={340}
       />
 
@@ -731,6 +748,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   list: { gap: SPACING.sm },
+  cardInactive: { opacity: 0.55 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
