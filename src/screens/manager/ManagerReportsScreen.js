@@ -34,15 +34,23 @@ import { getSignature, saveSignature, clearSignature, signatureToSvg } from '../
 import { buildXlsxBase64, XLSX_MIME } from '../../utils/xlsx';
 import { signatureToPng } from '../../utils/signaturePng';
 import { canSaveToFolder, folderLabel, getSavedFolder, forgetSavedFolder, pickExportFolder, saveBase64ToFolder } from '../../utils/exportFolder';
+import { PRODUCT_CATALOG } from '../../constants/productCatalog';
+import { STOCK_HEALTHY_THRESHOLD } from '../../constants/inventory';
+import { isExpired } from '../../utils/expiry';
 
 const PERIOD_TYPES = [
   { key: 'weekly', label: 'Weekly' },
   { key: 'monthly', label: 'Monthly' },
 ];
 
+// Short labels — this row holds 3 segments now (was 2), and the full names
+// ("Transaction Report", "Received Stocks") wrapped to a second line and
+// clipped inside the row's fixed height. The page title below still shows
+// the full name.
 const REPORT_KINDS = [
-  { key: 'transaction', label: 'Transaction Report' },
-  { key: 'received', label: 'Received Stocks' },
+  { key: 'transaction', label: 'Transactions' },
+  { key: 'received', label: 'Received' },
+  { key: 'inventory', label: 'Requisition' },
 ];
 
 const EXPORT_FORMATS = [
@@ -63,8 +71,8 @@ function startOfWeek(date) {
 }
 
 // Built from the phone's local date. toISOString() converts to UTC first,
-// which in the Philippines (UTC+8) moved every date back a day â€” October
-// came out as Sep 30 â€“ Oct 30.
+// which in the Philippines (UTC+8) moved every date back a day — October
+// came out as Sep 30 – Oct 30.
 function toISODate(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -185,7 +193,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
 
         <div class="bor-title">DISTRIBUTOR'S REPORT (BOR)</div>
 
-        <h1>${esc(branchName)} â€” ${esc(periodLabel)} Transaction Report</h1>
+        <h1>${esc(branchName)} — ${esc(periodLabel)} Transaction Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -261,7 +269,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
           </div>
         </div>
 
-        <h1>${esc(branchName)} â€” ${esc(periodLabel)} Received Stocks Report</h1>
+        <h1>${esc(branchName)} — ${esc(periodLabel)} Received Stocks Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -272,6 +280,113 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
             <tr>
               <td>Total Received</td>
               <td>${totalQuantity}</td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="sign-row">Manager Sign-off: <span>${signatureSvg}${esc(managerName)}</span> Date: <span>${signOffDate}</span></div>
+        ${appLogoBase64 ? `<div class="made-with"><img src="data:image/png;base64,${appLogoBase64}" alt="" />Generated with ChemStock</div>` : ''}
+      </body>
+    </html>
+  `;
+}
+
+// Current stock on hand per catalog product, plus which ones need a request
+// (low or zero usable stock). A live snapshot, not period-filtered — the
+// period selector stays for format consistency with the other two reports,
+// but only ever labels the report, since there is no historical inventory
+// table to query by period.
+function summarizeStockRequisition(stockRows) {
+  const byCode = new Map();
+  PRODUCT_CATALOG.forEach((product) => byCode.set(product.code, { productCode: product.code, onHand: 0, expiredQty: 0 }));
+
+  (stockRows || []).forEach((row) => {
+    const entry = byCode.get(row.product_code) || { productCode: row.product_code, onHand: 0, expiredQty: 0 };
+    if (isExpired(row.exp_date)) entry.expiredQty += row.quantity;
+    else entry.onHand += row.quantity;
+    byCode.set(row.product_code, entry);
+  });
+
+  return Array.from(byCode.values())
+    .map((item) => {
+      const status = item.onHand === 0 ? 'Out of Stock' : item.onHand < STOCK_HEALTHY_THRESHOLD ? 'Low Stock' : 'In-Stock';
+      return { ...item, status, needsRequest: status !== 'In-Stock' };
+    })
+    // Highest stock on hand first; same count breaks a tie by code so the
+    // order doesn't shuffle between identical loads.
+    .sort((a, b) => b.onHand - a.onHand || a.productCode.localeCompare(b.productCode));
+}
+
+function buildStockRequisitionHtml({ branchName, periodLabel, periodRange, items, managerName, signOffDate, logoBase64, signatureSvg = '', appLogoBase64 = null }) {
+  const statusClass = (status) => (status === 'Out of Stock' ? 'loss' : status === 'Low Stock' ? 'over' : '');
+  const rows = items
+    .map(
+      (i) => `
+        <tr>
+          <td>${esc(i.productCode)}</td>
+          <td>${i.onHand}</td>
+          <td>${i.expiredQty}</td>
+          <td class="${statusClass(i.status)}">${esc(i.status)}</td>
+          <td class="${i.needsRequest ? 'loss' : ''}">${i.needsRequest ? 'Yes' : 'No'}</td>
+        </tr>`
+    )
+    .join('');
+
+  const totals = items.reduce(
+    (acc, i) => ({
+      onHand: acc.onHand + i.onHand,
+      expired: acc.expired + i.expiredQty,
+      needing: acc.needing + (i.needsRequest ? 1 : 0),
+    }),
+    { onHand: 0, expired: 0, needing: 0 }
+  );
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #272632; }
+          .company-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+          .company-logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
+          .company-name { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+          .company-address { font-size: 11px; color: #555353; margin-top: 2px; }
+          h1 { font-size: 16px; margin-bottom: 2px; }
+          .subtitle { color: #555353; font-size: 12px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          th, td { border: 1px solid #DBE4EE; padding: 8px 10px; font-size: 12px; text-align: left; }
+          th { background: #F1F3F6; font-weight: 700; }
+          td.loss { color: #B91C1C; font-weight: 700; }
+          td.over { color: #B26400; font-weight: 700; }
+          tfoot td { font-weight: 700; background: #F8FAFC; }
+          .sign-row { margin-top: 32px; font-size: 12px; }
+          .made-with { margin-top: 18px; display: flex; align-items: center; gap: 4px; font-size: 10px; color: #6B7280; }
+          .made-with img { width: 30px; height: 30px; margin: -6px; }
+          .sign-row span { display: inline-block; min-width: 220px; border-bottom: 1px solid #272632; margin-right: 24px; padding-bottom: 2px; }
+        </style>
+      </head>
+      <body>
+        <div class="company-header">
+          ${logoBase64 ? `<img class="company-logo" src="data:image/png;base64,${logoBase64}" alt="Cospachem" />` : ''}
+          <div>
+            <div class="company-name">A AND AIMEE LABORATORIES</div>
+            <div class="company-address">Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna</div>
+          </div>
+        </div>
+
+        <h1>${esc(branchName)} — ${esc(periodLabel)} Stock Requisition Report</h1>
+        <div class="subtitle">${periodRange}</div>
+        <table>
+          <thead>
+            <tr><th>Code</th><th>On Hand</th><th>Expired</th><th>Status</th><th>Needs Request</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr>
+              <td>Totals</td>
+              <td>${totals.onHand}</td>
+              <td>${totals.expired}</td>
+              <td></td>
+              <td>${totals.needing} item${totals.needing === 1 ? '' : 's'}</td>
             </tr>
           </tfoot>
         </table>
@@ -293,6 +408,7 @@ export default function ManagerReportsScreen() {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [report, setReport] = useState(null);
   const [receivedItems, setReceivedItems] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   // Offline, and this branch/period/report was never loaded on this phone.
   const [isUnavailableOffline, setIsUnavailableOffline] = useState(false);
@@ -342,7 +458,7 @@ export default function ManagerReportsScreen() {
   };
   const controlsTranslateY = controlsProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -controlsHeight] });
 
-  // Resolved once and reused on every print/export â€” the logo asset never
+  // Resolved once and reused on every print/export — the logo asset never
   // changes mid-session, no reason to re-read it from disk each time.
   useEffect(() => {
     let cancelled = false;
@@ -426,16 +542,31 @@ export default function ManagerReportsScreen() {
       if (isStale()) return;
       if (saved) {
         if (reportKind === 'received') setReceivedItems(saved.receivedItems || []);
+        else if (reportKind === 'inventory') setInventoryItems(saved.inventoryItems || []);
         else setReport(saved.report ?? null);
       } else {
         if (reportKind === 'received') setReceivedItems([]);
+        else if (reportKind === 'inventory') setInventoryItems([]);
         else setReport(null);
         setIsUnavailableOffline(true);
       }
       setIsLoading(false);
     };
 
-    if (reportKind === 'received') {
+    if (reportKind === 'inventory') {
+      // A live snapshot of current branch_inventory — not period-filtered
+      // (no historical inventory table to query by period), so the same
+      // numbers show regardless of which week/month is selected.
+      const result = await inventoryService.getBranchStock([selectedBranchId]);
+      if (isStale()) return;
+      if (!result.success) {
+        await showSavedCopy();
+        return;
+      }
+      const summary = summarizeStockRequisition(result.data || []);
+      setInventoryItems(summary);
+      storage.set(cacheKey, { inventoryItems: summary });
+    } else if (reportKind === 'received') {
       // End bound needs to cover the whole end day, not just its midnight.
       const endOfDay = new Date(end);
       endOfDay.setHours(23, 59, 59, 999);
@@ -446,7 +577,7 @@ export default function ManagerReportsScreen() {
         return;
       }
 
-      // Merged by product code â€” the same code received across multiple
+      // Merged by product code — the same code received across multiple
       // batches/dates in the period shows as one row with a combined total,
       // not one row per batch.
       const mergedByCode = new Map();
@@ -506,7 +637,7 @@ export default function ManagerReportsScreen() {
 
   const { start, end } = getPeriodRange(periodType, anchorDate);
   const periodLabel = periodType === 'weekly' ? 'Weekly' : 'Monthly';
-  const periodRangeLabel = `${formatDisplayDate(toISODate(start))} â€“ ${formatDisplayDate(toISODate(end))}`;
+  const periodRangeLabel = `${formatDisplayDate(toISODate(start))} – ${formatDisplayDate(toISODate(end))}`;
   const branchName = branches.find((b) => b.id === selectedBranchId)?.name || '';
   const products = report?.products || [];
   const systemDetails = report?.systemDetails;
@@ -516,34 +647,50 @@ export default function ManagerReportsScreen() {
   const currentPeriodStart = getPeriodRange(periodType, new Date()).start;
   const isCurrentPeriod = toISODate(start) === toISODate(currentPeriodStart);
   // BUG 4: nothing to export while loading, or when the report has no rows.
-  const hasReportRows = reportKind === 'received' ? receivedItems.length > 0 : products.length > 0;
+  const hasReportRows =
+    reportKind === 'received' ? receivedItems.length > 0 : reportKind === 'inventory' ? inventoryItems.length > 0 : products.length > 0;
   const canExport = !isLoading && hasReportRows;
 
-  const buildHtml = () =>
-    reportKind === 'received'
-      ? buildReceivedStockHtml({
-          branchName,
-          periodLabel,
-          periodRange: periodRangeLabel,
-          items: receivedItems,
-          managerName,
-          signOffDate: formatDisplayDate(toISODate(new Date())),
-          logoBase64,
-          appLogoBase64,
-          signatureSvg: signatureToSvg(signature),
-        })
-      : buildReportHtml({
-          branchName,
-          periodLabel,
-          periodRange: periodRangeLabel,
-          products,
-          systemDetails,
-          managerName,
-          signOffDate: formatDisplayDate(toISODate(new Date())),
-          logoBase64,
-          appLogoBase64,
-          signatureSvg: signatureToSvg(signature),
-        });
+  const buildHtml = () => {
+    if (reportKind === 'received') {
+      return buildReceivedStockHtml({
+        branchName,
+        periodLabel,
+        periodRange: periodRangeLabel,
+        items: receivedItems,
+        managerName,
+        signOffDate: formatDisplayDate(toISODate(new Date())),
+        logoBase64,
+        appLogoBase64,
+        signatureSvg: signatureToSvg(signature),
+      });
+    }
+    if (reportKind === 'inventory') {
+      return buildStockRequisitionHtml({
+        branchName,
+        periodLabel,
+        periodRange: periodRangeLabel,
+        items: inventoryItems,
+        managerName,
+        signOffDate: formatDisplayDate(toISODate(new Date())),
+        logoBase64,
+        appLogoBase64,
+        signatureSvg: signatureToSvg(signature),
+      });
+    }
+    return buildReportHtml({
+      branchName,
+      periodLabel,
+      periodRange: periodRangeLabel,
+      products,
+      systemDetails,
+      managerName,
+      signOffDate: formatDisplayDate(toISODate(new Date())),
+      logoBase64,
+      appLogoBase64,
+      signatureSvg: signatureToSvg(signature),
+    });
+  };
 
   const handlePrint = async () => {
     setExportingKind('print');
@@ -562,7 +709,8 @@ export default function ManagerReportsScreen() {
   // One file builder for both formats; Save, Share and Print all start from it.
   const fileBaseName = () => {
     const branchSlug = (branchName || 'Branch').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Branch';
-    return `${reportKind === 'received' ? 'Received-Stocks' : 'Transaction'}-Report_${branchSlug}_${toISODate(start)}_to_${toISODate(end)}`;
+    const kindSlug = reportKind === 'received' ? 'Received-Stocks' : reportKind === 'inventory' ? 'Stock-Requisition' : 'Transaction';
+    return `${kindSlug}-Report_${branchSlug}_${toISODate(start)}_to_${toISODate(end)}`;
   };
 
   // Excel copy of the same report: the same rows and totals as the PDF, but as
@@ -603,11 +751,44 @@ export default function ManagerReportsScreen() {
       return rows;
     };
 
+    if (reportKind === 'inventory') {
+      const totals = inventoryItems.reduce(
+        (acc, i) => ({
+          onHand: acc.onHand + i.onHand,
+          expired: acc.expired + i.expiredQty,
+          needing: acc.needing + (i.needsRequest ? 1 : 0),
+        }),
+        { onHand: 0, expired: 0, needing: 0 }
+      );
+      const before = [
+        ...intro,
+        [{ v: `${branchName} — ${periodLabel} Stock Requisition Report`, style: 'bold' }],
+        [periodRangeLabel],
+        [],
+        head(['Code', 'On Hand', 'Expired', 'Status', 'Needs Request']),
+        ...inventoryItems.map((i) => [i.productCode, i.onHand, i.expiredQty, i.status, i.needsRequest ? 'Yes' : 'No']),
+        [
+          { v: 'Totals', style: 'bold' },
+          { v: totals.onHand, style: 'bold' },
+          { v: totals.expired, style: 'bold' },
+          '',
+          { v: `${totals.needing} items`, style: 'bold' },
+        ],
+      ];
+      return {
+        sheetName: 'Stock Requisition',
+        columnWidths: [14, 12, 12, 16, 16],
+        rows: signOffRows(before, 'Manager'),
+        rowHeights,
+        images: pictures,
+      };
+    }
+
     if (reportKind === 'received') {
       const total = receivedItems.reduce((sum, i) => sum + i.quantity, 0);
       const before = [
         ...intro,
-        [{ v: `${branchName} â€” ${periodLabel} Received Stocks Report`, style: 'bold' }],
+        [{ v: `${branchName} — ${periodLabel} Received Stocks Report`, style: 'bold' }],
         [periodRangeLabel],
         [],
         head(['Code', 'Total Received']),
@@ -639,7 +820,7 @@ export default function ManagerReportsScreen() {
       ["Distributor's name", managerName],
       ['Office', branchName],
       [],
-      [{ v: `${branchName} â€” ${periodLabel} Transaction Report`, style: 'bold' }],
+      [{ v: `${branchName} — ${periodLabel} Transaction Report`, style: 'bold' }],
       [periodRangeLabel],
       [],
       head(['Code', 'Actual Inv', 'Sales', 'Returned', 'Loss', 'Over', 'Status']),
@@ -797,7 +978,7 @@ export default function ManagerReportsScreen() {
           <View style={styles.titleRow}>
             <View style={styles.titleTextCol}>
               <Text style={styles.pageTitle} numberOfLines={1}>
-                {reportKind === 'received' ? 'Received Stocks' : 'Transaction Report'}
+                {reportKind === 'received' ? 'Received Stocks' : reportKind === 'inventory' ? 'Stock Requisition' : 'Transaction Report'}
               </Text>
               <Text style={styles.pageSubtitle}>Preview, then print or share</Text>
             </View>
@@ -831,13 +1012,58 @@ export default function ManagerReportsScreen() {
                   {receivedItems.length === 0 ? (
                     <View style={styles.emptyBox}>
                       <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
-                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet â€” open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
                     </View>
                   ) : (
                     receivedItems.map((item) => (
                       <View key={item.productCode} style={styles.tableRow}>
                         <Text style={[styles.tableCell, styles.colCode]}>{item.productCode}</Text>
                         <Text style={[styles.tableCell, styles.colNum]}>{item.quantity}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ) : reportKind === 'inventory' ? (
+                <View>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colCode]}>Code</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>On Hand</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colNum]}>Expired</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colStatus]}>Status</Text>
+                    <Text style={[styles.tableCell, styles.tableHeaderCell, styles.colStatus]}>Needs Request</Text>
+                  </View>
+
+                  {inventoryItems.length === 0 ? (
+                    <View style={styles.emptyBox}>
+                      <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
+                      <Text style={styles.emptyText}>
+                        {isUnavailableOffline
+                          ? 'Not saved on this phone yet. Open this report once while online to see it offline.'
+                          : 'No branch inventory data right now.'}
+                      </Text>
+                    </View>
+                  ) : (
+                    inventoryItems.map((item) => (
+                      <View key={item.productCode} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, styles.colCode]}>{item.productCode}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{item.onHand}</Text>
+                        <Text style={[styles.tableCell, styles.colNum]}>{item.expiredQty}</Text>
+                        <Text
+                          style={[
+                            styles.tableCell,
+                            styles.colStatus,
+                            item.status === 'Out of Stock'
+                              ? styles.lossCell
+                              : item.status === 'Low Stock'
+                              ? styles.overCell
+                              : styles.resolvedCell,
+                          ]}
+                        >
+                          {item.status}
+                        </Text>
+                        <Text style={[styles.tableCell, styles.colStatus, item.needsRequest && styles.lossCell]}>
+                          {item.needsRequest ? 'Yes' : 'No'}
+                        </Text>
                       </View>
                     ))
                   )}
@@ -857,7 +1083,7 @@ export default function ManagerReportsScreen() {
                   {products.length === 0 ? (
                     <View style={styles.emptyBox}>
                       <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
-                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet â€” open this report once while online to see it offline.' : 'No accepted reports in this period yet. Reports show here once you accept them.'}</Text>
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No accepted reports in this period yet. Reports show here once you accept them.'}</Text>
                     </View>
                   ) : (
                     products.map((p) => (
@@ -956,7 +1182,7 @@ export default function ManagerReportsScreen() {
             <Button
               title={
                 exportingKind === 'save'
-                  ? 'Savingâ€¦'
+                  ? 'Saving…'
                   : `Save ${exportFormat === 'excel' ? 'Excel' : 'PDF'} to Phone`
               }
               icon="trayDown"
@@ -988,7 +1214,7 @@ export default function ManagerReportsScreen() {
               {exportFormat === 'pdf' && (
                 <View style={styles.exportCol}>
                   <Button
-                    title={exportingKind === 'print' ? 'Openingâ€¦' : 'Print'}
+                    title={exportingKind === 'print' ? 'Opening…' : 'Print'}
                     icon="trayUp"
                     iconSize={18}
                     variant="outline"
@@ -1006,7 +1232,7 @@ export default function ManagerReportsScreen() {
               )}
               <View style={styles.exportCol}>
                 <Button
-                  title={exportingKind === 'share' ? 'Preparingâ€¦' : 'Share'}
+                  title={exportingKind === 'share' ? 'Preparing…' : 'Share'}
                   icon="send"
                   iconSize={18}
                   variant="outline"
@@ -1064,7 +1290,14 @@ export default function ManagerReportsScreen() {
                   style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
                   onPress={() => setReportKind(k.key)}
                 >
-                  <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{k.label}</Text>
+                  <Text
+                    style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {k.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}

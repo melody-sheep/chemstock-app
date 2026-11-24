@@ -28,6 +28,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { formatCoordinates, formatDateTime } from '../../utils/formatters';
+import { earliestExpiryLabel } from '../../utils/expiry';
 import friendlyError from '../../utils/friendlyError';
 import KeyboardAwareScrollView from '../../components/common/KeyboardAwareScrollView';
 
@@ -110,6 +111,9 @@ export default function ReceiveStockPreviewScreen() {
 
   const totalUnits = items.reduce((sum, item) => sum + item.registeredQty, 0);
   const hasIncompleteDates = getItemsMissingDates(items).length > 0;
+  // Shown on the generated QR's label so staff can see when the batch
+  // expires without scanning it.
+  const expiryLabel = earliestExpiryLabel(items);
   const deviceLabel = getDeviceLabel(manager?.full_name || manager?.username);
 
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
@@ -248,7 +252,7 @@ export default function ReceiveStockPreviewScreen() {
             <Text style={styles.qrTitle}>Stock Registered Successfully</Text>
             <Text style={styles.qrSubtitle}>Scan this code anytime to track the batch.</Text>
 
-            <SaveableQRCode ref={qrRef} value={qrCode} size={156} compact style={styles.qrCard} />
+            <SaveableQRCode ref={qrRef} value={qrCode} size={156} compact style={styles.qrCard} expiryLabel={expiryLabel} />
 
             <SectionHeader icon="clipboardText" size="md" label="Batch Details" style={styles.detailsHeader} />
 

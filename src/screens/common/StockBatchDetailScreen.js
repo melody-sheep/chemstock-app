@@ -17,6 +17,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { formatDisplayDate, daysUntil } from '../../utils/formatters';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { earliestExpiryLabel } from '../../utils/expiry';
 
 export default function StockBatchDetailScreen() {
   const navigation = useNavigation();
@@ -144,6 +145,7 @@ export default function StockBatchDetailScreen() {
           headerImage={image || null}
           doneLabel="Close"
           doneIcon="xCircle"
+          expiryLabel={earliestExpiryLabel([{ expDate }])}
         />
         )}
       </View>

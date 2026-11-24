@@ -35,7 +35,7 @@ import { TYPOGRAPHY } from '../../styles/typography';
  *      does not itself save a copy anywhere on the device.
  */
 const SaveableQRCode = forwardRef(function SaveableQRCode(
-  { value, size = 200, showValueText = true, style = {}, compact = false },
+  { value, size = 200, showValueText = true, style = {}, compact = false, expiryLabel = null },
   ref
 ) {
   const qrRef = useRef(null);
@@ -193,6 +193,13 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
                 word-break: break-all;
                 text-align: center;
               }
+              .expiry {
+                margin-top: 14px;
+                font-size: 15px;
+                font-weight: 700;
+                color: #03045e;
+                text-align: center;
+              }
               .footer {
                 margin-top: 36px;
                 padding-top: 16px;
@@ -211,6 +218,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
             <div class="qr"><img src="data:image/png;base64,${base64}" alt="QR code" /></div>
             <div class="label">Batch code</div>
             <div class="code">${value}</div>
+            ${expiryLabel ? `<div class="expiry">${expiryLabel}</div>` : ''}
             <div class="footer">Scan with the ChemStock app to track this batch.</div>
           </body>
         </html>
@@ -266,6 +274,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
           </View>
           <Text style={styles.brandedLabel}>Batch code</Text>
           <Text style={styles.brandedCode}>{value}</Text>
+          {!!expiryLabel && <Text style={styles.brandedExpiry}>{expiryLabel}</Text>}
           <View style={styles.brandedFooterWrap}>
             <Text style={styles.brandedFooter}>Scan with the ChemStock app to track this batch.</Text>
           </View>
@@ -282,6 +291,7 @@ const SaveableQRCode = forwardRef(function SaveableQRCode(
         <View style={[styles.codeBlock, compact && styles.fullBleedCompact]}>
           <Text style={styles.codeLabel}>Batch code</Text>
           <Text style={styles.codeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
+          {!!expiryLabel && <Text style={styles.expiryText}>{expiryLabel}</Text>}
         </View>
       )}
       <View style={[styles.actions, compact && styles.actionsCompact, compact && styles.fullBleedCompact]}>
@@ -327,6 +337,9 @@ SaveableQRCode.propTypes = {
   style: PropTypes.object,
   // Tighter spacing, Save and Print side by side (used where the QR must share the screen).
   compact: PropTypes.bool,
+  // Optional "Exp: ..." / "Earliest Exp: ..." line shown with the code and
+  // carried into every saved/shared/printed copy (see utils/expiry.js).
+  expiryLabel: PropTypes.string,
 };
 
 const styles = StyleSheet.create({
@@ -373,6 +386,13 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.primary,
     letterSpacing: 0.3,
+  },
+  expiryText: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#03045E',
   },
   actions: {
     alignSelf: 'stretch',
@@ -448,6 +468,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
+    textAlign: 'center',
+  },
+  brandedExpiry: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#03045E',
     textAlign: 'center',
   },
   brandedFooterWrap: {

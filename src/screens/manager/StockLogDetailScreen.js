@@ -16,6 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { getLogGps, getLogItems } from '../../utils/stockLogUtils';
+import { earliestExpiryLabel } from '../../utils/expiry';
 import { cleanDeviceOs } from '../../utils/deviceInfo';
 import { formatDateTime } from '../../utils/formatters';
 
@@ -197,7 +198,15 @@ export default function StockLogDetailScreen() {
                 label={log.logType === 'release' ? 'Release QR code' : 'Shipment QR code'}
                 style={styles.labelSpaced}
               />
-              <SaveableQRCode value={log.qr_code} size={156} compact style={styles.qrCard} />
+              <SaveableQRCode
+                value={log.qr_code}
+                size={156}
+                compact
+                style={styles.qrCard}
+                // Only a receiving batch's own expiry info belongs on its QR —
+                // this block also handles release QRs (log.logType === 'release').
+                expiryLabel={log.logType !== 'release' ? earliestExpiryLabel(items) : null}
+              />
 
               {log.media?.storage_path && (
                 <>

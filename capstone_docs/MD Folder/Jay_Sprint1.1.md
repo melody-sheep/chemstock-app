@@ -2,7 +2,7 @@
 
 Read this first in any new session on this repo. It condenses everything established in prior sessions so context doesn't have to be rebuilt from scratch. Claude does not retain memory across separate sessions — this file is the substitute.
 
-Last updated: October 13, 2026 (11-item bug/feature sweep shipped — see §66-§69; §65's offline write-outbox plan was superseded, see §66, teammates built it for real between sessions)
+Last updated: November 24, 2026 (new Stock Requisition report + Receive Stock QR expiry label shipped — see §72-§73; a real text-encoding bug found and fixed along the way, see §73's last item)
 
 ---
 
@@ -973,3 +973,47 @@ Branch: **`jay`**. **Nothing from §66-§69 is committed** — Jay has historica
 3. Spot-check the other 10 items from §67 on-device if that hasn't happened yet — most are small, low-risk navigation/styling fixes but none were device-tested this session, only parse-verified.
 4. `git status`/`git diff` — review and commit §66-§69's work once the above is verified (Jay's own stated preference, same as every prior session).
 5. Pick up `Alther_TODO_October.md`'s own "Remaining work" punch list (§66) whenever ready — it's the authoritative source for what's still open on the much larger offline/handoff/notification body of work that landed between sessions, not duplicated in this file.
+
+## 72. Session opened Nov 24 — restudy after a 6-week gap, large body of already-committed work since §71
+
+Jay reintroduced the project fresh (new environment this time — Windows, `d:\Files\VS_Code\Chem_Stock\chemstock-app`, not the path earlier sessions ran in) and asked for a full restudy before handing over today's two tasks. The gap since §71 (Oct 13) is real: the next commit after that session's own work (`06e5c7e`, Oct 27 — a `main` merge of push notifications/dashboard tour/APK 1.0.2) is followed by nothing until today, when **9 commits landed on `jay` in one sitting, already committed before this session even started**:
+
+- `35d082f` — Upgrade Expo SDK 57 → 58
+- `dddf4b7` / PR #6 (`feat/soft-delete`) — agent accounts are deactivated (`is_active`/`deactivated_at`) instead of deleted; SQL: `2026-11-23_agent_deactivation.sql`
+- `e325472` / PR #7 (`fix/sorting-stock`) — stock grouped by product instead of per-batch, new "View all" screen (`StockSectionListScreen.js`) with search/expiry/level filters and sort, new `utils/stockGroups.js`
+- `531fcac` — `StockSummaryStrip` (In-Stock / Almost Out / Expired tile counts) added to the Stock tab
+- `c7c66de` — FIFO enforcement (closest-to-expiry-first) across Release Stock's scan-review, request-review, and quick-pick flows, with an explicit human override ("Release anyway" / "Use older batches instead")
+- `175c024` — Excel export for Manager Reports (hand-rolled `.xlsx` writer, `utils/xlsx.js`, no library — with the Cospachem logo and the manager's drawn signature embedded as real PNGs) and a real "Save to Phone" via Android's Storage Access Framework folder picker (`utils/exportFolder.js`)
+
+None of that is this session's work — it's context absorbed during the restudy, not re-derived here; the commits' own messages/diffs are the source of truth for it. Branch is `jay`, **83 commits ahead of `origin/jay`** — a large amount of unpushed local history, worth a push once reviewed.
+
+## 73. What got built this session (Nov 24) — two tasks from Jay
+
+**Task 1 — third Manager Report, "Stock Requisition."** Added to `ManagerReportsScreen.js` alongside Transaction Report and Received Stocks, with the identical header, Weekly/Monthly period selector, branch chips, signature pad, and PDF/Excel export/print/share/save-to-folder flow — **no new Supabase table, column, or RPC**, per Jay's explicit requirement. It's a live read of `branch_inventory` via the already-existing `inventoryService.getBranchStock()`, summarized client-side (`summarizeStockRequisition()`) into one row per catalog product: On Hand (non-expired units), Expired units, Status (In-Stock / Low Stock / Out of Stock), and a Needs Request flag (true when low or zero) — sorted **highest On Hand first** per Jay's follow-up ask (ties broken by product code). Because there's no historical inventory table to query by period, the period selector only labels the report ("Weekly/Monthly Stock Requisition Report") — the numbers are always the current snapshot, flagged in a code comment so it isn't mistaken for a bug later.
+
+Naming evolved twice in-session: built first as "Branch Inventory," then renamed to "Stock Requisition" per Jay's explicit ask. Final state: tab label **"Requisition"**, page title/PDF heading/Excel sheet name **"Stock Requisition"** / **"Stock Requisition Report"**, backing functions renamed to `summarizeStockRequisition`/`buildStockRequisitionHtml` so the code doesn't say "Branch Inventory" internally while the UI says something else. The `reportKind` key itself is still the string `'inventory'` — deliberately left alone, since it's only an internal identifier embedded in offline cache keys, not user-facing.
+
+**Task 2 — expiry date on the Receive Stock QR.** New shared helper `earliestExpiryLabel(items)` in `utils/expiry.js`: returns `"Exp: <date>"`, or `"Earliest Exp: <date>"` when a multi-product batch doesn't all expire the same day. Threaded an optional `expiryLabel` prop through `SaveableQRCode.js` (shows on-screen, in the Save-to-Gallery/Share image, and in the print HTML) and `QRSuccessView.js` (forwards it to its own internal `SaveableQRCode`). Wired into every place a manager generates or reprints a **receiving** QR specifically:
+- `ReceiveStockPreviewScreen.js` — right after "Receive and Generate QR"
+- `StockLogDetailScreen.js` — re-viewing a past receiving log's QR (scoped via `log.logType !== 'release'`, not `=== 'receive'` — the real `logType` value for a receiving log is `'receiving'`, confirmed by reading `getLogItems`/`TYPE_TONE`'s own fallback-default pattern before relying on it)
+- `StockBatchDetailScreen.js` — reprinting a single batch's QR from the Stock tab (Manager-only; the Sales Rep's `hideQr` branch never renders `QRSuccessView` at all)
+
+Release Stock, Collector Return, and Sales Rep log QRs were deliberately left untouched — out of scope, and the prop defaults to `null` everywhere it isn't passed.
+
+**Follow-up fixes, same session, after Jay reviewed on-device:**
+- **Report-generation tabs looked broken.** Adding a third segment to the existing 2-item `REPORT_KINDS` row (equal-`flex:1` buttons, no horizontal-scroll fallback) meant the old full names ("Transaction Report", "Received Stocks") wrapped to a second line and clipped inside the row's fixed 32px height. Shortened the tab labels (`Transactions` / `Received` / `Requisition`) and added `numberOfLines={1}` + `adjustsFontSizeToFit` as a safety net for any future narrow-screen/longer-label case. The bigger page title and export titles still spell out the full names.
+- **Real encoding bug found, not introduced this session.** The date range under the report tabs showed literal `09/01/2026 â€" 09/30/2026` instead of an en dash. Traced to genuine mojibake baked into `ManagerReportsScreen.js` on disk from some earlier session/tool chain (UTF-8 en/em-dash and ellipsis bytes re-saved as if they were Latin-1/Windows-1252) — confirmed via `grep` that it wasn't a one-off: it hit `periodRangeLabel`, both PDF `<h1>` headings, both Excel title cells, two on-screen empty-state strings, and three button labels (`Saving…`/`Opening…`/`Preparing…`). Fixed all nine in place. **Worth a repo-wide grep for `â€` next session** — this one file had it in nine separate spots, so it's plausible other screens touched by whatever process caused this also have it and just haven't been looked at closely.
+
+## 74. Git / commit status (Nov 24)
+
+Branch: **`jay`**, 83 commits ahead of `origin/jay` (pre-existing, unrelated to this session). **Nothing from §72-§73 is committed.**
+- Modified by this session: `src/components/common/QRSuccessView.js`, `src/components/common/SaveableQRCode.js`, `src/screens/common/StockBatchDetailScreen.js`, `src/screens/manager/ManagerReportsScreen.js`, `src/screens/manager/ReceiveStockPreviewScreen.js`, `src/screens/manager/StockLogDetailScreen.js`, `src/utils/expiry.js`.
+- Also showing modified, **neither touched by this session**: `admin-cli/.env` (pre-existing before today — don't commit it); `package.json` (`expo-notifications` downgraded `~58.1.9` → `~57.0.26`, which happened outside any tool call this session — worth asking Jay whether that was an intentional manual fix before it's committed alongside unrelated work).
+
+## 75. Suggested first steps in a new session
+
+1. Device-test both of today's features: generate a receiving batch with mixed expiry dates across products and confirm the QR's on-screen/saved/printed copies all show the right "Exp"/"Earliest Exp" label; open the new Requisition report (online and after a forced-offline reload) and confirm the sort is highest-on-hand-first and the date range renders a real dash, not `â€"`.
+2. Grep the rest of the repo for `â€` — this session only checked `ManagerReportsScreen.js`; if the same corruption exists elsewhere it's worth a dedicated cleanup pass rather than fixing it file-by-file as it's noticed.
+3. Confirm with Jay whether the `package.json` `expo-notifications` version change (§74) was intentional before committing it.
+4. `git status`/`git diff` — review and commit §72-§73's work (Jay's own stated preference, same as every prior session), and consider pushing given the branch is 83 commits ahead of `origin/jay`.
+5. Pick up wherever the 9 already-committed commits from before this session (§72) left off — none of that work's own follow-ups were re-verified this session.

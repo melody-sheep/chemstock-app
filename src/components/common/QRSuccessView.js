@@ -30,6 +30,7 @@ export default function QRSuccessView({
   headerImage = null,
   doneLabel = 'Done',
   doneIcon = 'checkmark',
+  expiryLabel = null,
 }) {
   const qrRef = useRef(null);
   const blurTarget = useRef(null);
@@ -62,7 +63,9 @@ export default function QRSuccessView({
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
 
-          {!hideQr && <SaveableQRCode ref={qrRef} value={qrValue} size={156} compact style={styles.qrCard} />}
+          {!hideQr && (
+            <SaveableQRCode ref={qrRef} value={qrValue} size={156} compact style={styles.qrCard} expiryLabel={expiryLabel} />
+          )}
 
           <View style={styles.receiptCard}>
             {receipt.map((row, index) => (
@@ -123,6 +126,8 @@ QRSuccessView.propTypes = {
   headerImage: PropTypes.oneOfType([PropTypes.number, PropTypes.object]),
   doneLabel: PropTypes.string,
   doneIcon: PropTypes.string,
+  // Optional "Exp: ..." line carried into the QR's saved/shared/printed copy (see utils/expiry.js).
+  expiryLabel: PropTypes.string,
 };
 
 const styles = StyleSheet.create({
