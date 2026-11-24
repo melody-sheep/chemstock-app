@@ -1,4 +1,4 @@
-// src/screens/manager/ManagerReportsScreen.js
+﻿// src/screens/manager/ManagerReportsScreen.js
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Animated, StyleSheet } from 'react-native';
 import Alert from '../../utils/appAlert';
@@ -31,6 +31,9 @@ import { formatDisplayDate } from '../../utils/formatters';
 import { describeReceivingScan } from '../../utils/scanLookup';
 import ScanResultSheet from '../../components/common/ScanResultSheet';
 import { getSignature, saveSignature, clearSignature, signatureToSvg } from '../../utils/signature';
+import { buildXlsxBase64, XLSX_MIME } from '../../utils/xlsx';
+import { signatureToPng } from '../../utils/signaturePng';
+import { canSaveToFolder, folderLabel, getSavedFolder, forgetSavedFolder, pickExportFolder, saveBase64ToFolder } from '../../utils/exportFolder';
 
 const PERIOD_TYPES = [
   { key: 'weekly', label: 'Weekly' },
@@ -40,6 +43,11 @@ const PERIOD_TYPES = [
 const REPORT_KINDS = [
   { key: 'transaction', label: 'Transaction Report' },
   { key: 'received', label: 'Received Stocks' },
+];
+
+const EXPORT_FORMATS = [
+  { key: 'pdf', label: 'PDF' },
+  { key: 'excel', label: 'Excel' },
 ];
 
 // Saved reports, same prefix as the other offline screen caches.
@@ -55,8 +63,8 @@ function startOfWeek(date) {
 }
 
 // Built from the phone's local date. toISOString() converts to UTC first,
-// which in the Philippines (UTC+8) moved every date back a day — October
-// came out as Sep 30 – Oct 30.
+// which in the Philippines (UTC+8) moved every date back a day â€” October
+// came out as Sep 30 â€“ Oct 30.
 function toISODate(date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -177,7 +185,7 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
 
         <div class="bor-title">DISTRIBUTOR'S REPORT (BOR)</div>
 
-        <h1>${esc(branchName)} — ${esc(periodLabel)} Transaction Report</h1>
+        <h1>${esc(branchName)} â€” ${esc(periodLabel)} Transaction Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -200,9 +208,9 @@ function buildReportHtml({ branchName, periodLabel, periodRange, products, syste
         ${appLogoBase64 ? `<div class="made-with"><img src="data:image/png;base64,${appLogoBase64}" alt="" />Generated with ChemStock</div>` : ''}
         <div class="details">
           <div><strong>System Extra Details</strong></div>
-          <div>Reports accepted: ${systemDetails?.reportsAccepted ?? 0} · Auto-filed (missed): ${systemDetails?.reportsAutoFiled ?? 0}</div>
+          <div>Reports accepted: ${systemDetails?.reportsAccepted ?? 0} Â· Auto-filed (missed): ${systemDetails?.reportsAutoFiled ?? 0}</div>
           <div>Discrepancy resolutions accepted: ${systemDetails?.discrepancyResolutionsAccepted ?? 0}</div>
-          <div>Photo-verified resolutions: ${systemDetails?.photoVerifiedResolutions ?? 0} · Geotagged resolutions: ${systemDetails?.geotaggedResolutions ?? 0}</div>
+          <div>Photo-verified resolutions: ${systemDetails?.photoVerifiedResolutions ?? 0} Â· Geotagged resolutions: ${systemDetails?.geotaggedResolutions ?? 0}</div>
         </div>
       </body>
     </html>
@@ -253,7 +261,7 @@ function buildReceivedStockHtml({ branchName, periodLabel, periodRange, items, m
           </div>
         </div>
 
-        <h1>${esc(branchName)} — ${esc(periodLabel)} Received Stocks Report</h1>
+        <h1>${esc(branchName)} â€” ${esc(periodLabel)} Received Stocks Report</h1>
         <div class="subtitle">${periodRange}</div>
         <table>
           <thead>
@@ -295,8 +303,14 @@ export default function ManagerReportsScreen() {
   const [scanSummary, setScanSummary] = useState(null);
   const [logoBase64, setLogoBase64] = useState(null);
   const [appLogoBase64, setAppLogoBase64] = useState(null);
-  // Which export is running ('print' | 'pdf' | 'chat'), for the button label.
+  // Which export is running ('print' | 'save' | 'share'), for the button label.
   const [exportingKind, setExportingKind] = useState(null);
+  const [exportFormat, setExportFormat] = useState('pdf');
+  // The folder reports are saved into (Android; chosen once, remembered on this phone).
+  const [savedFolder, setSavedFolder] = useState(null);
+  useEffect(() => {
+    if (canSaveToFolder) getSavedFolder().then((uri) => setSavedFolder(uri || null));
+  }, []);
   // The manager's drawn signature (kept on this phone only).
   const [signature, setSignature] = useState(null);
   const [isSignPadVisible, setIsSignPadVisible] = useState(false);
@@ -328,7 +342,7 @@ export default function ManagerReportsScreen() {
   };
   const controlsTranslateY = controlsProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -controlsHeight] });
 
-  // Resolved once and reused on every print/export — the logo asset never
+  // Resolved once and reused on every print/export â€” the logo asset never
   // changes mid-session, no reason to re-read it from disk each time.
   useEffect(() => {
     let cancelled = false;
@@ -432,7 +446,7 @@ export default function ManagerReportsScreen() {
         return;
       }
 
-      // Merged by product code — the same code received across multiple
+      // Merged by product code â€” the same code received across multiple
       // batches/dates in the period shows as one row with a combined total,
       // not one row per batch.
       const mergedByCode = new Map();
@@ -492,7 +506,7 @@ export default function ManagerReportsScreen() {
 
   const { start, end } = getPeriodRange(periodType, anchorDate);
   const periodLabel = periodType === 'weekly' ? 'Weekly' : 'Monthly';
-  const periodRangeLabel = `${formatDisplayDate(toISODate(start))} – ${formatDisplayDate(toISODate(end))}`;
+  const periodRangeLabel = `${formatDisplayDate(toISODate(start))} â€“ ${formatDisplayDate(toISODate(end))}`;
   const branchName = branches.find((b) => b.id === selectedBranchId)?.name || '';
   const products = report?.products || [];
   const systemDetails = report?.systemDetails;
@@ -544,54 +558,220 @@ export default function ManagerReportsScreen() {
     }
   };
 
-  // expo-print writes its generated PDF into its own cache subfolder, which
-  // neither expo-sharing's FileProvider nor a cross-module file read (tried
-  // via both expo-file-system/legacy's copyAsync and the new File API) can
-  // reliably read back on a real device/APK — each attempt surfaced a
-  // different low-level Android read-permission error even though nothing
-  // is actually wrong with the PDF itself. Asking expo-print for the PDF's
-  // bytes directly (base64) sidesteps all of that: nothing ever reads back
-  // expo-print's own output file — the bytes are written fresh into
-  // documentDirectory through the legacy module, the same one already used
-  // successfully elsewhere on this screen (the logo asset read).
-  const getShareableReportUri = async () => {
-    const { base64 } = await Print.printToFileAsync({ html: buildHtml(), base64: true });
-    const fileName = `${reportKind === 'received' ? 'Received-Stocks' : 'Transaction'}-Report-${toISODate(new Date())}.pdf`;
-    const destUri = `${FileSystem.documentDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-    return destUri;
+  // ---- Export ----------------------------------------------------------------
+  // One file builder for both formats; Save, Share and Print all start from it.
+  const fileBaseName = () => {
+    const branchSlug = (branchName || 'Branch').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'Branch';
+    return `${reportKind === 'received' ? 'Received-Stocks' : 'Transaction'}-Report_${branchSlug}_${toISODate(start)}_to_${toISODate(end)}`;
   };
 
-  const handleDownloadPdf = async () => {
-    setExportingKind('pdf');
+  // Excel copy of the same report: the same rows and totals as the PDF, but as
+  // real numbers so the distributor can sort, filter and sum them (Sir Rojo's
+  // request, Nov 2026). Built from the data already on screen.
+  const buildExcelRows = () => {
+    const head = (labels) => labels.map((v) => ({ v, style: 'header' }));
+    const pictures = [];
+    const rowHeights = {};
+
+    // The Cospachem logo (the same one as on the PDF) sits at the top-left over two
+    // taller rows, with the company name and address below it.
+    const hasLogo = !!logoBase64;
+    if (hasLogo) {
+      rowHeights[0] = 22;
+      rowHeights[1] = 22;
+      pictures.push({ base64: logoBase64, heightPx: 56, row: 0, col: 0, name: 'Company logo' });
+    }
+    const intro = [
+      ...(hasLogo ? [[], []] : []),
+      [{ v: 'A AND AIMEE LABORATORIES', style: 'title' }],
+      ['Gochalieo Compound, Brgy. Buray-Buray, Cabuyao City, Laguna'],
+      [],
+    ];
+
+    // The drawn signature, as a picture on its own taller row right above the
+    // manager's name, as on the PDF. No signature drawn: no extra row.
+    const signaturePng = signatureToPng(signature);
+    const signOffRows = (beforeRows, label) => {
+      const rows = [...beforeRows, []];
+      if (signaturePng) {
+        const signatureRow = rows.length;
+        rows.push([]);
+        rowHeights[signatureRow] = Math.ceil(signaturePng.heightPx * 0.75) + 6; // pixels to points, plus a little air
+        pictures.push({ base64: signaturePng.base64, heightPx: signaturePng.heightPx, row: signatureRow, col: 1, name: 'Manager signature' });
+      }
+      rows.push([label, managerName], ['Date', formatDisplayDate(toISODate(new Date()))]);
+      return rows;
+    };
+
+    if (reportKind === 'received') {
+      const total = receivedItems.reduce((sum, i) => sum + i.quantity, 0);
+      const before = [
+        ...intro,
+        [{ v: `${branchName} â€” ${periodLabel} Received Stocks Report`, style: 'bold' }],
+        [periodRangeLabel],
+        [],
+        head(['Code', 'Total Received']),
+        ...receivedItems.map((i) => [i.productCode, i.quantity]),
+        [{ v: 'Total Received', style: 'bold' }, { v: total, style: 'bold' }],
+      ];
+      return {
+        sheetName: 'Received Stocks',
+        columnWidths: [30, 18],
+        rows: signOffRows(before, 'Manager'),
+        rowHeights,
+        images: pictures,
+      };
+    }
+
+    const totals = products.reduce(
+      (acc, p) => ({
+        actual: acc.actual + p.actualInventory,
+        sales: acc.sales + p.sales,
+        returned: acc.returned + p.returned,
+        loss: acc.loss + p.loss,
+        over: acc.over + p.over,
+      }),
+      { actual: 0, sales: 0, returned: 0, loss: 0, over: 0 }
+    );
+    const before = [
+      ...intro,
+      ["DISTRIBUTOR'S REPORT (BOR)"].map((v) => ({ v, style: 'bold' })),
+      ["Distributor's name", managerName],
+      ['Office', branchName],
+      [],
+      [{ v: `${branchName} â€” ${periodLabel} Transaction Report`, style: 'bold' }],
+      [periodRangeLabel],
+      [],
+      head(['Code', 'Actual Inv', 'Sales', 'Returned', 'Loss', 'Over', 'Status']),
+      ...products.map((p) => [p.productCode, p.actualInventory, p.sales, p.returned, p.loss, p.over, p.status || 'Resolved']),
+      [
+        { v: 'Totals', style: 'bold' },
+        { v: totals.actual, style: 'bold' },
+        { v: totals.sales, style: 'bold' },
+        { v: totals.returned, style: 'bold' },
+        { v: totals.loss, style: 'bold' },
+        { v: totals.over, style: 'bold' },
+      ],
+    ];
+    return {
+      sheetName: 'Transaction Report',
+      columnWidths: [30, 14, 10, 12, 10, 10, 14],
+      rows: [
+        ...signOffRows(before, 'Manager sign-off'),
+        [],
+        [{ v: 'System Extra Details', style: 'bold' }],
+        ['Reports accepted', systemDetails?.reportsAccepted ?? 0],
+        ['Auto-filed (missed)', systemDetails?.reportsAutoFiled ?? 0],
+        ['Discrepancy resolutions accepted', systemDetails?.discrepancyResolutionsAccepted ?? 0],
+        ['Photo-verified resolutions', systemDetails?.photoVerifiedResolutions ?? 0],
+        ['Geotagged resolutions', systemDetails?.geotaggedResolutions ?? 0],
+      ],
+      rowHeights,
+      images: pictures,
+    };
+  };
+
+  // The PDF's bytes come straight from expo-print as base64: reading back
+  // expo-print's own output file failed with Android read-permission errors on
+  // real devices, so nothing ever reads that file.
+  const getReportFile = async (format) => {
+    const base = fileBaseName();
+    if (format === 'excel') {
+      return { base64: buildXlsxBase64(buildExcelRows()), fileName: `${base}.xlsx`, mimeType: XLSX_MIME };
+    }
+    const { base64 } = await Print.printToFileAsync({ html: buildHtml(), base64: true });
+    return { base64, fileName: `${base}.pdf`, mimeType: 'application/pdf' };
+  };
+
+  // Hands the file to another app (Messenger, Drive, email, ...).
+  const shareReportFile = async ({ base64, fileName, mimeType }, dialogTitle) => {
+    const destUri = `${FileSystem.documentDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(destUri, {
+        mimeType,
+        dialogTitle,
+        UTI: mimeType === 'application/pdf' ? 'com.adobe.pdf' : 'org.openxmlformats.spreadsheetml.sheet',
+      });
+    } else {
+      Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+    }
+  };
+
+  // First save only: explain the folder picker, then open it.
+  const chooseExportFolder = async () => {
+    const proceed = await new Promise((resolve) => {
+      Alert.alert(
+        'Choose where to save',
+        'Pick a folder for your reports. Tip: open Downloads, tap "Create new folder", name it ChemStock, then tap "Use this folder". You only do this once.',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Choose folder', onPress: () => resolve(true) },
+        ],
+        { onDismiss: () => resolve(false) }
+      );
+    });
+    if (!proceed) return null;
+    const uri = await pickExportFolder();
+    if (uri) setSavedFolder(uri);
+    return uri;
+  };
+
+  const handleChangeFolder = async () => {
+    try {
+      await chooseExportFolder();
+    } catch (error) {
+      console.error('[ERROR] [ManagerReports] Could not change the save folder:', error);
+      Alert.alert('Folder Not Changed', error.message || 'Could not open the folder picker.');
+    }
+  };
+
+  const handleSaveToPhone = async () => {
+    setExportingKind('save');
     setIsExporting(true);
     try {
-      const uri = await getShareableReportUri();
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Save Report PDF' });
-      } else {
-        Alert.alert('PDF Ready', `Saved to: ${uri}`);
+      const file = await getReportFile(exportFormat);
+      if (!canSaveToFolder) {
+        await shareReportFile(file, 'Save Report');
+        return;
       }
+      let folderUri = savedFolder || (await chooseExportFolder());
+      if (!folderUri) return; // cancelled
+      try {
+        await saveBase64ToFolder({ folderUri, ...file });
+      } catch (error) {
+        // The remembered folder was deleted or its permission was removed: choose again, once.
+        console.warn('[WARN] [ManagerReports] Saved folder no longer works, asking again:', error.message);
+        await forgetSavedFolder();
+        setSavedFolder(null);
+        folderUri = await chooseExportFolder();
+        if (!folderUri) return;
+        await saveBase64ToFolder({ folderUri, ...file });
+      }
+      Alert.alert('Saved to your phone', `${file.fileName}\n\nFolder: ${folderLabel(folderUri)}`, [
+        { text: 'Done', style: 'cancel' },
+        {
+          text: 'Share',
+          onPress: () =>
+            shareReportFile(file, 'Share Report').catch((error) =>
+              Alert.alert('Share Failed', error.message || 'Could not share the report.')
+            ),
+        },
+      ]);
     } catch (error) {
-      Alert.alert('Export Failed', error.message || 'Could not generate the PDF.');
+      console.error('[ERROR] [ManagerReports] Save to phone failed:', error);
+      Alert.alert('Save Failed', error.message || 'Could not save the report.');
     } finally {
       setExportingKind(null);
       setIsExporting(false);
     }
   };
 
-  const handleShareToChat = async () => {
-    setExportingKind('chat');
+  const handleShareReport = async () => {
+    setExportingKind('share');
     setIsExporting(true);
     try {
-      const uri = await getShareableReportUri();
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Report' });
-      } else {
-        Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
-      }
+      await shareReportFile(await getReportFile(exportFormat), 'Share Report');
     } catch (error) {
       Alert.alert('Share Failed', error.message || 'Could not share the report.');
     } finally {
@@ -651,7 +831,7 @@ export default function ManagerReportsScreen() {
                   {receivedItems.length === 0 ? (
                     <View style={styles.emptyBox}>
                       <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
-                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet â€” open this report once while online to see it offline.' : 'No stock received in this period yet.'}</Text>
                     </View>
                   ) : (
                     receivedItems.map((item) => (
@@ -677,7 +857,7 @@ export default function ManagerReportsScreen() {
                   {products.length === 0 ? (
                     <View style={styles.emptyBox}>
                       <Icon name="clipboardText" size={24} color={COLORS.textSecondary} />
-                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet — open this report once while online to see it offline.' : 'No accepted reports in this period yet. Reports show here once you accept them.'}</Text>
+                      <Text style={styles.emptyText}>{isUnavailableOffline ? 'Not saved on this phone yet â€” open this report once while online to see it offline.' : 'No accepted reports in this period yet. Reports show here once you accept them.'}</Text>
                     </View>
                   ) : (
                     products.map((p) => (
@@ -750,13 +930,40 @@ export default function ManagerReportsScreen() {
             </View>
 
             <SectionHeader icon="document" size="md" label="Export" style={styles.exportLabel} />
+            <View style={[styles.periodTypeRow, styles.formatRow]}>
+              {EXPORT_FORMATS.map((fmt) => {
+                const isActive = fmt.key === exportFormat;
+                return (
+                  <TouchableOpacity
+                    key={fmt.key}
+                    style={[styles.periodTypeButton, isActive && styles.periodTypeButtonActive]}
+                    onPress={() => setExportFormat(fmt.key)}
+                    disabled={isExporting}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text style={[styles.periodTypeText, isActive && styles.periodTypeTextActive]}>{fmt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.formatHelp}>
+              {exportFormat === 'excel'
+                ? 'A spreadsheet you can sort, filter and add up.'
+                : 'A clean copy to print or file.'}
+            </Text>
+
             <Button
-              title={exportingKind === 'pdf' ? 'Preparing PDF…' : 'Download Clean PDF'}
-              icon="document"
+              title={
+                exportingKind === 'save'
+                  ? 'Savingâ€¦'
+                  : `Save ${exportFormat === 'excel' ? 'Excel' : 'PDF'} to Phone`
+              }
+              icon="trayDown"
               variant="black"
-              onPress={handleDownloadPdf}
+              onPress={handleSaveToPhone}
               disabled={isExporting || !canExport}
-              loading={exportingKind === 'pdf'}
+              loading={exportingKind === 'save'}
               height={48}
               fontSize={16}
               borderRadius={24}
@@ -764,34 +971,49 @@ export default function ManagerReportsScreen() {
               width="100%"
               style={styles.exportMain}
             />
-            <View style={styles.exportRow}>
-              <View style={styles.exportCol}>
-                <Button
-                  title={exportingKind === 'print' ? 'Opening…' : 'Printer'}
-                  icon="trayUp"
-                  iconSize={18}
-                  variant="outline"
-                  accentColor="#0085F9"
-                  onPress={handlePrint}
-                  disabled={isExporting || !canExport}
-                  loading={exportingKind === 'print'}
-                  height={44}
-                  fontSize={15}
-                  borderRadius={22}
-                  hasShadow={false}
-                  width="100%"
-                />
+            {canSaveToFolder && (
+              <View style={styles.folderRow}>
+                <Text style={styles.folderText} numberOfLines={1}>
+                  {savedFolder ? `Saves to: ${folderLabel(savedFolder)}` : "First time: you'll choose a folder to save into"}
+                </Text>
+                {savedFolder && (
+                  <TouchableOpacity onPress={handleChangeFolder} disabled={isExporting} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change save folder">
+                    <Text style={styles.folderChange}>Change</Text>
+                  </TouchableOpacity>
+                )}
               </View>
+            )}
+
+            <View style={styles.exportRow}>
+              {exportFormat === 'pdf' && (
+                <View style={styles.exportCol}>
+                  <Button
+                    title={exportingKind === 'print' ? 'Openingâ€¦' : 'Print'}
+                    icon="trayUp"
+                    iconSize={18}
+                    variant="outline"
+                    accentColor="#0085F9"
+                    onPress={handlePrint}
+                    disabled={isExporting || !canExport}
+                    loading={exportingKind === 'print'}
+                    height={44}
+                    fontSize={15}
+                    borderRadius={22}
+                    hasShadow={false}
+                    width="100%"
+                  />
+                </View>
+              )}
               <View style={styles.exportCol}>
                 <Button
-                  title={exportingKind === 'chat' ? 'Preparing…' : 'Chat'}
+                  title={exportingKind === 'share' ? 'Preparingâ€¦' : 'Share'}
                   icon="send"
                   iconSize={18}
                   variant="outline"
                   accentColor="#7B6FE8"
-                  onPress={handleShareToChat}
+                  onPress={handleShareReport}
                   disabled={isExporting || !canExport}
-                  loading={exportingKind === 'chat'}
+                  loading={exportingKind === 'share'}
                   height={44}
                   fontSize={15}
                   borderRadius={22}
@@ -1080,6 +1302,11 @@ const styles = StyleSheet.create({
   exportMain: { marginTop: SPACING.sm },
   exportRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
   exportCol: { flex: 1 },
+  formatRow: { marginTop: SPACING.sm },
+  formatHelp: { marginTop: SPACING.xs, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  folderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, marginTop: SPACING.xs },
+  folderText: { flex: 1, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  folderChange: { fontSize: 12, color: '#0085F9', fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700' },
   exportHint: { marginTop: SPACING.sm, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
   rangeText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
