@@ -26,13 +26,14 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import requestService from '../../services/requestService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
-import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
+import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS, CRITICAL_EXPIRY_DAYS, daysLeftLabel } from '../../constants/inventory';
 import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
-import { daysUntil } from '../../utils/formatters';
+import { daysUntil, formatDisplayDate } from '../../utils/formatters';
 import { isExpired } from '../../utils/expiry';
+import { groupBatchesByProduct } from '../../utils/stockGroups';
 
 const BRANCH_HEADER_HEIGHT = 76;
 
@@ -40,7 +41,6 @@ const BRANCH_HEADER_HEIGHT = 76;
 const EXPIRY_OPTIONS = [
   { key: 'all', label: 'All' },
   { key: 'nearExpiry', label: 'Near expiry' },
-  { key: 'expired', label: 'Expired' },
 ];
 const LEVEL_OPTIONS = [
   { key: 'all', label: 'All' },
@@ -54,7 +54,16 @@ const SORT_OPTIONS = [
   { key: 'qtyAsc', label: 'Least stock' },
   { key: 'nameAsc', label: 'Name A–Z' },
 ];
-const EXPIRY_LABELS = { nearExpiry: 'Near expiry', expired: 'Expired' };
+const EXPIRY_LABELS = { nearExpiry: 'Near expiry' };
+
+// Soonest expiry first, batches with no expiry date last — the order the
+// Manager's release screen allocates a request in (FIFO by expiry).
+const expiryTime = (row) => (row.exp_date ? new Date(row.exp_date).getTime() : Infinity);
+const bySoonestExpiry = (a, b) => {
+  const ta = expiryTime(a);
+  const tb = expiryTime(b);
+  return ta === tb ? 0 : ta < tb ? -1 : 1;
+};
 const LEVEL_LABELS = { healthy: 'In-stock only', low: 'Almost out only', out: 'Out of stock only' };
 const SORT_LABELS = { qtyDesc: 'Most stock first', qtyAsc: 'Least stock first', nameAsc: 'Name A–Z' };
 
@@ -103,6 +112,8 @@ export default function RequestStockSR() {
   const [activeProduct, setActiveProduct] = useState(null);
   const [modalQty, setModalQty] = useState(1);
   const [qtyText, setQtyText] = useState('1');
+  // The "N pcs at branch" pill opens a per-batch breakdown inside the popup.
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
 
   // Each branch has its own storage, so the screen shows one branch at a
   // time — default to the first once branches are available, same as before,
@@ -148,9 +159,12 @@ export default function RequestStockSR() {
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
   // Stock for the one branch this request is for, so every limit is per branch.
   const branchStock = stock.filter((row) => row.branch_id === selectedBranchId);
+  // Only stock the Manager can actually release: on hand and not expired.
+  // Expired batches are never allocated to a request, so they aren't offered here.
+  const usableStock = branchStock.filter((row) => row.quantity > 0 && !isExpired(row.exp_date));
 
-  // Total branch quantity per product code, used for the "on hand" line in the popup.
-  const qtyByCode = branchStock.reduce((map, row) => {
+  // Usable branch quantity per product code, used for the "on hand" line and the request cap.
+  const qtyByCode = usableStock.reduce((map, row) => {
     map[row.product_code] = (map[row.product_code] || 0) + row.quantity;
     return map;
   }, {});
@@ -160,18 +174,17 @@ export default function RequestStockSR() {
     !query || name.toLowerCase().includes(query) || code.toLowerCase().includes(query);
 
   const matchesExpiryFilter = (row) => {
-    if (expiryFilter === 'expired') return isExpired(row.exp_date);
     if (expiryFilter !== 'nearExpiry') return true;
     const daysLeft = daysUntil(row.exp_date);
     return daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
   };
 
-  // "default" keeps the order the batches arrive in (soonest expiry first).
+  // "default" is soonest expiry first; batches with no expiry date go last.
   const sortBatches = (rows) => {
     if (sortBy === 'qtyDesc') return [...rows].sort((a, b) => b.quantity - a.quantity);
     if (sortBy === 'qtyAsc') return [...rows].sort((a, b) => a.quantity - b.quantity);
     if (sortBy === 'nameAsc') return [...rows].sort((a, b) => a.product_name.localeCompare(b.product_name));
-    return rows;
+    return [...rows].sort(bySoonestExpiry);
   };
   const hasActiveFilters = expiryFilter !== 'all' || levelFilter !== 'all' || sortBy !== 'default';
   const resetFilters = () => {
@@ -183,26 +196,45 @@ export default function RequestStockSR() {
   const showLow = levelFilter === 'all' || levelFilter === 'low';
   const showOut = levelFilter === 'all' || levelFilter === 'out';
 
-  const healthyBatches = sortBatches(branchStock.filter(
+  const healthyBatches = sortBatches(usableStock.filter(
     (row) =>
       row.quantity >= STOCK_HEALTHY_THRESHOLD &&
       matchesQuery(row.product_name, row.product_code) &&
       matchesExpiryFilter(row)
   ));
-  const lowStockBatches = sortBatches(branchStock.filter(
+  const lowStockBatches = sortBatches(usableStock.filter(
     (row) =>
-      row.quantity > 0 &&
       row.quantity < STOCK_HEALTHY_THRESHOLD &&
       matchesQuery(row.product_name, row.product_code) &&
       matchesExpiryFilter(row)
   ));
-  const stockedCodes = new Set(branchStock.filter((row) => row.quantity > 0).map((row) => row.product_code));
+  // One card per product, like the Manager stock screen. A request is for a
+  // product, never a batch — the batches it comes from are shown in the popup.
+  const healthyGroups = groupBatchesByProduct(healthyBatches);
+  const lowGroups = groupBatchesByProduct(lowStockBatches);
+  // A product with only expired stock left has nothing requestable, so it shows as out of stock.
+  const stockedCodes = new Set(usableStock.map((row) => row.product_code));
   const outOfStockProducts = PRODUCT_CATALOG.filter(
     (product) => !stockedCodes.has(product.code) && matchesQuery(product.name, product.code)
   );
 
   // Most a rep can ask for is what the branch has on hand for that product.
   const availableFor = (code) => qtyByCode[code] || 0;
+
+  // Which batches a request for `qty` pcs will be released from: soonest
+  // expiry first, the same order the Manager's release screen fills it in.
+  // Shown in the popup so the rep sees FIFO rather than picking a batch.
+  const fifoPlanFor = (code, qty) => {
+    const plan = [];
+    let remaining = qty;
+    for (const batch of usableStock.filter((row) => row.product_code === code).sort(bySoonestExpiry)) {
+      if (remaining <= 0) break;
+      const take = Math.min(remaining, batch.quantity);
+      plan.push({ id: batch.id, take, expDate: batch.exp_date });
+      remaining -= take;
+    }
+    return plan;
+  };
 
   // One request goes to one branch, so the list only ever holds one branch's
   // items. Switching branch with items in it asks first, then clears the list.
@@ -233,6 +265,7 @@ export default function RequestStockSR() {
   const openRequestModal = (code, name) => {
     const existing = cart.find((line) => line.productCode === code);
     setQty(Math.min(availableFor(code), existing?.quantity || 1));
+    setIsBreakdownOpen(false);
     setActiveProduct({ code, name, image: PRODUCT_CATALOG.find((p) => p.code === code)?.image });
   };
 
@@ -249,7 +282,7 @@ export default function RequestStockSR() {
   useEffect(() => {
     if (!prefillProductCode || !selectedBranchId || isLoading) return;
     if (prefillBranchId && selectedBranchId !== prefillBranchId) return;
-    const row = branchStock.find((r) => r.product_code === prefillProductCode);
+    const row = usableStock.find((r) => r.product_code === prefillProductCode);
     if (row) openRequestModal(row.product_code, row.product_name);
     else Alert.alert('Not Available', 'This product has no stock at the branch right now.');
     navigation.setParams({ prefillProductCode: null });
@@ -273,7 +306,7 @@ export default function RequestStockSR() {
     if (cartCount === 0) return;
     navigation.navigate('RequestListSR', {
       items: cart,
-      stock: branchStock,
+      stock: usableStock,
       branchId: selectedBranchId,
       branchName: selectedBranch?.name || '',
     });
@@ -281,8 +314,18 @@ export default function RequestStockSR() {
 
   // Wraps a StockBatchCard so tapping it opens the request popup, and shows
   // a "Requesting N" tag when that product is already on the request list.
-  const renderRequestableCard = (key, code, name, card) => {
-    const inCart = cart.find((line) => line.productCode === code);
+  // A product can have a card in more than one section, so with `batchIds`
+  // the tag shows only what FIFO takes from this card's own batches — e.g.
+  // DS × 5 comes from the near-expiry Almost Out batch, not the In-Stock one.
+  const renderRequestableCard = (key, code, name, card, batchIds = null) => {
+    const cartLine = cart.find((line) => line.productCode === code);
+    let inCart = cartLine;
+    if (cartLine && batchIds) {
+      const fromThisCard = fifoPlanFor(code, cartLine.quantity)
+        .filter((line) => batchIds.includes(line.id))
+        .reduce((sum, line) => sum + line.take, 0);
+      inCart = fromThisCard > 0 ? { quantity: fromThisCard } : null;
+    }
     return (
       <TouchableOpacity
         key={key}
@@ -302,21 +345,23 @@ export default function RequestStockSR() {
     );
   };
 
-  const renderBatchRow = (batches) => (
+  const renderBatchRow = (groups, tone) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cardScroll} contentContainerStyle={styles.cardRow}>
-      {batches.map((row) =>
+      {groups.map((group) =>
         renderRequestableCard(
-          row.id,
-          row.product_code,
-          row.product_name,
+          `${tone}-${group.key}`,
+          group.product_code,
+          group.product_name,
           <StockBatchCard
-            tone={row.quantity >= STOCK_HEALTHY_THRESHOLD ? 'healthy' : 'low'}
-            productName={row.product_name}
-            image={PRODUCT_CATALOG.find((p) => p.code === row.product_code)?.image}
-            quantity={row.quantity}
-            batchNumber={row.batch_number}
-            expDate={row.exp_date}
-          />
+            tone={tone}
+            productName={group.product_name}
+            image={PRODUCT_CATALOG.find((p) => p.code === group.product_code)?.image}
+            quantity={group.totalQuantity}
+            batchNumber={group.batches[0].batch_number}
+            expDate={group.soonestExpDate}
+            batchCount={group.batches.length}
+          />,
+          group.batches.map((batch) => batch.id)
         )
       )}
     </ScrollView>
@@ -399,11 +444,11 @@ export default function RequestStockSR() {
             <StockSectionHeader
               dotColor={COLORS.success}
               label="In-Stock"
-              count={healthyBatches.length}
+              count={healthyGroups.length}
               tooltip="These products have healthy stock levels — no action needed."
             />
-            {healthyBatches.length > 0 ? (
-              renderBatchRow(healthyBatches)
+            {healthyGroups.length > 0 ? (
+              renderBatchRow(healthyGroups, 'healthy')
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>No batches at healthy levels right now.</Text></View>
             )}
@@ -415,12 +460,12 @@ export default function RequestStockSR() {
             <StockSectionHeader
               dotColor={COLORS.warning}
               label="Almost Out"
-              count={lowStockBatches.length}
+              count={lowGroups.length}
               tooltip="These products are running low — plan to resupply soon."
               style={styles.sectionSpacing}
             />
-            {lowStockBatches.length > 0 ? (
-              renderBatchRow(lowStockBatches)
+            {lowGroups.length > 0 ? (
+              renderBatchRow(lowGroups, 'low')
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>Nothing running low right now.</Text></View>
             )}
@@ -634,11 +679,32 @@ export default function RequestStockSR() {
                   // The pill follows the stock level: red none, amber low, green healthy.
                   const atBranch = qtyByCode[activeProduct.code] || 0;
                   const tone = atBranch === 0 ? STOCK_PILL.out : atBranch < STOCK_HEALTHY_THRESHOLD ? STOCK_PILL.low : STOCK_PILL.healthy;
+                  const canExpand = atBranch > 0;
+                  const Pill = canExpand ? TouchableOpacity : View;
                   return (
-                    <View style={[styles.modalOnHandPill, { backgroundColor: tone.bg }]}>
+                    <Pill
+                      style={[styles.modalOnHandPill, { backgroundColor: tone.bg }]}
+                      {...(canExpand
+                        ? {
+                            onPress: () => setIsBreakdownOpen((open) => !open),
+                            activeOpacity: 0.7,
+                            accessibilityRole: 'button',
+                            accessibilityLabel: `${atBranch} pcs at branch. ${isBreakdownOpen ? 'Hide' : 'Show'} batches`,
+                          }
+                        : {})}
+                    >
                       <Icon name="package" size={14} color={tone.color} weight="fill" />
                       <Text style={[styles.modalOnHandText, { color: tone.color }]}>{atBranch} pcs at branch</Text>
-                    </View>
+                      {canExpand && (
+                        <Icon
+                          name="caretDown"
+                          size={12}
+                          color={tone.color}
+                          weight="bold"
+                          style={isBreakdownOpen ? styles.caretOpen : null}
+                        />
+                      )}
+                    </Pill>
                   );
                 })()}
               </View>
@@ -650,6 +716,52 @@ export default function RequestStockSR() {
                 )}
               </View>
             </View>
+
+            {isBreakdownOpen && (() => {
+              // Every requestable batch of this product, soonest expiry first,
+              // with its stock level and how close it is to expiry.
+              const batches = usableStock
+                .filter((row) => row.product_code === activeProduct.code)
+                .sort(bySoonestExpiry);
+              return (
+                <View style={styles.breakdownBox}>
+                  <Text style={styles.breakdownTitle}>
+                    {batches.length} {batches.length === 1 ? 'batch' : 'batches'} at {selectedBranch?.name || 'this branch'}
+                  </Text>
+                  {batches.map((batch, index) => {
+                    const isHealthy = batch.quantity >= STOCK_HEALTHY_THRESHOLD;
+                    const level = isHealthy ? STOCK_PILL.healthy : STOCK_PILL.low;
+                    const daysLeft = batch.exp_date ? daysUntil(batch.exp_date) : null;
+                    const isCritical = daysLeft !== null && daysLeft <= CRITICAL_EXPIRY_DAYS;
+                    const isNear = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
+                    return (
+                      <View key={batch.id} style={[styles.breakdownRow, index > 0 && styles.breakdownRowDivider]}>
+                        <View style={styles.breakdownInfo}>
+                          <Text style={styles.breakdownExp}>
+                            {batch.exp_date ? `Exp ${formatDisplayDate(batch.exp_date)}` : 'No expiry set'}
+                          </Text>
+                          <View style={styles.breakdownPills}>
+                            <View style={[styles.breakdownPill, { backgroundColor: level.bg }]}>
+                              <Text style={[styles.breakdownPillText, { color: level.color }]}>
+                                {isHealthy ? 'In-Stock' : 'Almost Out'}
+                              </Text>
+                            </View>
+                            {isNear && (
+                              <View style={[styles.breakdownPill, { backgroundColor: isCritical ? '#FDECEC' : '#FFF3D6' }]}>
+                                <Text style={[styles.breakdownPillText, { color: isCritical ? COLORS.error : '#B45309' }]}>
+                                  Near expiry · {daysLeftLabel(daysLeft)}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <Text style={styles.breakdownQty}>{batch.quantity} pcs</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
 
             <Text style={styles.modalLabel}>Quantity to request</Text>
             {availableFor(activeProduct.code) === 0 ? (
@@ -693,6 +805,55 @@ export default function RequestStockSR() {
                 <Icon name="plus" size={16} color="#FFFFFF" weight="bold" />
               </TouchableOpacity>
             </View>
+
+            {availableFor(activeProduct.code) > 0 && modalQty > 0 && (
+              (() => {
+                const plan = fifoPlanFor(activeProduct.code, modalQty);
+                const hasCritical = plan.some((line) => {
+                  const daysLeft = line.expDate ? daysUntil(line.expDate) : null;
+                  return daysLeft !== null && daysLeft <= CRITICAL_EXPIRY_DAYS;
+                });
+                return (
+              <View style={[styles.fifoBox, hasCritical && styles.fifoBoxCritical]}>
+                <View style={styles.fifoTitleRow}>
+                  <Icon name="warningTriangle" size={16} color={hasCritical ? COLORS.error : '#B45309'} weight="fill" />
+                  <Text style={[styles.fifoTitle, hasCritical && styles.fifoTitleCritical]}>Stock you'll receive</Text>
+                </View>
+                <Text style={styles.fifoSubtitle}>Closest to expiry goes out first.</Text>
+                {(() => {
+                  const lines = plan.map((line) => {
+                    const daysLeft = line.expDate ? daysUntil(line.expDate) : null;
+                    const isCritical = daysLeft !== null && daysLeft <= CRITICAL_EXPIRY_DAYS;
+                    const isNear = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
+                    return (
+                      <View key={line.id} style={styles.fifoLine}>
+                        <Text style={styles.fifoQty}>{line.take} {line.take === 1 ? 'pc' : 'pcs'}</Text>
+                        <Text style={styles.fifoExp} numberOfLines={1}>
+                          {line.expDate ? `Exp ${formatDisplayDate(line.expDate)}` : 'No expiry set'}
+                          {isNear && (
+                            <Text style={[styles.fifoDaysLeft, isCritical ? styles.fifoDaysCritical : styles.fifoDaysNear]}>
+                              {` · ${daysLeftLabel(daysLeft)}`}
+                            </Text>
+                          )}
+                        </Text>
+                      </View>
+                    );
+                  });
+                  return (
+                    <>
+                      {lines}
+                      {hasCritical && (
+                        <Text style={styles.fifoCriticalNote}>
+                          Part of this stock expires within {CRITICAL_EXPIRY_DAYS} days. Request only what you can sell in time.
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+              </View>
+                );
+              })()
+            )}
 
             <View style={styles.modalButtonRow}>
               <Pressable style={styles.cancelBtn} onPress={closeRequestModal} accessibilityRole="button">
@@ -1012,6 +1173,115 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
+  },
+  // Amber caution box; turns red when part of the stock expires within CRITICAL_EXPIRY_DAYS.
+  fifoBox: {
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F2BE63',
+    backgroundColor: '#FFF7E6',
+    gap: 2,
+  },
+  fifoBoxCritical: { borderColor: '#F1A8A8', backgroundColor: '#FDECEC' },
+  fifoTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fifoTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#B45309',
+  },
+  fifoTitleCritical: { color: COLORS.error },
+  fifoSubtitle: {
+    paddingLeft: 22,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    lineHeight: 16,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  fifoLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginLeft: 22,
+    paddingTop: 4,
+    marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(180, 83, 9, 0.15)',
+  },
+  fifoQty: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  fifoExp: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: COLORS.textSecondary,
+  },
+  fifoExpCol: { alignItems: 'flex-end' },
+  caretOpen: { transform: [{ rotate: '180deg' }] },
+  breakdownBox: {
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E3E7EE',
+    backgroundColor: '#FFFFFF',
+  },
+  breakdownTitle: {
+    paddingVertical: 4,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textSecondary,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.xs + 2,
+    gap: SPACING.sm,
+  },
+  breakdownRowDivider: { borderTopWidth: 1, borderTopColor: '#EEF1F5' },
+  breakdownInfo: { flexShrink: 1, gap: 4 },
+  breakdownExp: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textPrimary,
+  },
+  breakdownPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  breakdownPill: { borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2 },
+  breakdownPillText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  breakdownQty: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  fifoDaysLeft: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  fifoDaysNear: { color: '#B45309' },
+  fifoDaysCritical: { color: COLORS.error },
+  fifoCriticalNote: {
+    marginTop: 2,
+    paddingLeft: 22,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontFamily: TYPOGRAPHY.fontFamily.medium,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.error,
   },
   qtyInputModal: {
     minWidth: 100,

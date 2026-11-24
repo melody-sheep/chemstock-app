@@ -12,7 +12,8 @@ import ReleaseSummaryCard from '../../components/common/ReleaseSummaryCard';
 import PhotoProofCard from '../../components/common/PhotoProofCard';
 import ShipmentProofRow from '../../components/common/ShipmentProofRow';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
-import { formatDateTime } from '../../utils/formatters';
+import { formatDateTime, formatDisplayDate, daysUntil } from '../../utils/formatters';
+import { CRITICAL_EXPIRY_DAYS, daysLeftLabel } from '../../constants/inventory';
 import Header from '../../components/common/Header';
 import SecondaryHeader from '../../components/common/SecondaryHeader';
 import LiveStatusPill from '../../components/common/LiveStatusPill';
@@ -147,11 +148,82 @@ export default function ReleaseStockConfirmScreen() {
 
   const totalUnits = displayItems.reduce((sum, item) => sum + item.qty, 0);
 
+  // Batches going out with only a few days left. The Manager confirms these
+  // first, since the recipient may not sell them in time. Quick Register
+  // stock was just received, so it's left out.
+  const criticalItems = isQuickRegister
+    ? []
+    : (items || []).filter((item) => {
+        if (!(item.releaseQty > 0) || !item.expDate) return false;
+        const daysLeft = daysUntil(item.expDate);
+        return daysLeft !== null && daysLeft <= CRITICAL_EXPIRY_DAYS;
+      });
+
+  const handleReleasePress = () => {
+    if (!manager || !photoUri || isSubmitting) return;
+    if (criticalItems.length === 0) {
+      handleConfirmRelease();
+      return;
+    }
+    const lines = criticalItems
+      .map(
+        (item) =>
+          `• ${item.releaseQty} pcs ${item.productName} — Exp ${formatDisplayDate(item.expDate)} (${daysLeftLabel(daysUntil(item.expDate))})`
+      )
+      .join('\n');
+    Alert.alert(
+      'Stock expiring soon',
+      `This release includes stock that expires within ${CRITICAL_EXPIRY_DAYS} days:\n\n${lines}\n\nThe recipient may not be able to sell it in time. Release it anyway?`,
+      [
+        { text: 'Go back', style: 'cancel' },
+        { text: 'Release anyway', onPress: handleConfirmRelease },
+      ]
+    );
+  };
+
+  // The location is fetched in the background when the screen opens, so a
+  // quick tap (or weak GPS indoors) could send a release with no location,
+  // which the server rejects ("null value in column latitude"). Make sure
+  // there is one first: a recent last-known fix, else wait up to 10s.
+  const resolveCoords = async () => {
+    if (coords) return coords;
+    if (isCollectorDelivery) return null; // captured on the delivery screen
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Location permission denied');
+        return null;
+      }
+      const position =
+        (await Location.getLastKnownPositionAsync({ maxAge: 2 * 60 * 1000 })) ||
+        (await Promise.race([
+          Location.getCurrentPositionAsync({}),
+          new Promise((resolve) => setTimeout(() => resolve(null), 10000)),
+        ]));
+      if (!position) return null;
+      const found = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+      setSelfCoords(found);
+      return found;
+    } catch (error) {
+      console.error('[ERROR] [ReleaseStockConfirm] Location retry failed:', error);
+      return null;
+    }
+  };
+
   const handleConfirmRelease = async () => {
     if (!manager || !photoUri || isSubmitting) return;
     setIsSubmitting(true);
 
     try {
+      const releaseCoords = await resolveCoords();
+      if (!releaseCoords) {
+        Alert.alert(
+          'Location not ready',
+          "ChemStock couldn't get your location yet, and every release is logged with one. Turn on Location (GPS), allow it for ChemStock, then tap Confirm again."
+        );
+        return;
+      }
+
       let itemsToRelease = items;
 
       if (isQuickRegister && !hasRegistered) {
@@ -159,8 +231,8 @@ export default function ReleaseStockConfirmScreen() {
         shipmentStoragePathRef.current = registerStoragePath;
         const registerResult = await inventoryService.receiveStockBatch({
           branchId,
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
+          latitude: releaseCoords.latitude,
+          longitude: releaseCoords.longitude,
           deviceModel: getDeviceModel(),
           deviceOs: getDeviceOs(),
           storagePath: registerStoragePath,
@@ -200,8 +272,8 @@ export default function ReleaseStockConfirmScreen() {
         branchId,
         recipientId: recipient.id,
         movementType,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+        latitude: releaseCoords.latitude,
+        longitude: releaseCoords.longitude,
         deviceModel: getDeviceModel(),
         deviceOs: getDeviceOs(),
         storagePath: releaseStoragePath,
@@ -486,7 +558,7 @@ export default function ReleaseStockConfirmScreen() {
           <Button
             title={isSubmitting ? 'Releasing…' : 'Confirm & Log Release'}
             variant="black"
-            onPress={handleConfirmRelease}
+            onPress={handleReleasePress}
             loading={isSubmitting}
             disabled={isSubmitting || !manager || !photoUri}
             height={48}

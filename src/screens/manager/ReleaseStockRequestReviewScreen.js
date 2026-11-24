@@ -20,6 +20,8 @@ import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
 import { TYPOGRAPHY } from '../../styles/typography';
 import { isExpired } from '../../utils/expiry';
+import { daysUntil, formatDisplayDate } from '../../utils/formatters';
+import { NEAR_EXPIRY_DAYS, CRITICAL_EXPIRY_DAYS, daysLeftLabel } from '../../constants/inventory';
 import { getInitials } from '../../utils/initials';
 
 const STEP_LABELS = ['Who receives the stock?', 'How many items?', 'Final Proof'];
@@ -255,11 +257,22 @@ export default function ReleaseStockRequestReviewScreen() {
                   </Text>
                 </View>
               ) : (
+                <>
+                <View style={styles.fifoHint}>
+                  <Icon name="warningTriangle" size={16} color="#B45309" />
+                  <Text style={styles.fifoHintText}>
+                    <Text style={styles.fifoHintBold}>Closest to expiry goes out first. </Text>
+                    Batches are already filled in that order, so near-expiry stock leaves the shelf before it expires.
+                  </Text>
+                </View>
                 <View style={styles.itemsCard}>
                   {items.map((item, index) => {
                     const image = PRODUCT_CATALOG.find(
                       (product) => product.code === item.productCode || product.code === item.productName
                     )?.image;
+                    const daysLeft = item.expDate ? daysUntil(item.expDate) : null;
+                    const isCritical = daysLeft !== null && daysLeft <= CRITICAL_EXPIRY_DAYS;
+                    const isNear = daysLeft !== null && daysLeft <= NEAR_EXPIRY_DAYS;
                     return (
                       <View
                         key={item.branchInventoryId}
@@ -275,11 +288,22 @@ export default function ReleaseStockRequestReviewScreen() {
                           </View>
                           <View style={styles.itemInfo}>
                             <Text style={styles.itemName} numberOfLines={2}>{item.productName}</Text>
-                            <Text style={styles.itemMeta}>
-                              Stock {item.currentQty} pcs{item.batchNumber ? ` · Batch ${item.batchNumber}` : ''}
+                            <Text style={styles.itemMeta} numberOfLines={1} ellipsizeMode="middle">
+                              Stock {item.currentQty} pcs{item.batchNumber ? ` · ${item.batchNumber}` : ''}
                             </Text>
                             {item.expDate && (
-                              <Text style={styles.itemMeta}>Exp {new Date(item.expDate).toLocaleDateString()}</Text>
+                              <View style={styles.expRow}>
+                                <Text style={[styles.itemMeta, styles.expText, isNear && (isCritical ? styles.itemExpCritical : styles.itemExpNear)]}>
+                                  Exp {formatDisplayDate(item.expDate)}
+                                </Text>
+                                {isNear && (
+                                  <View style={[styles.nearPill, isCritical && styles.nearPillCritical]}>
+                                    <Text style={[styles.nearPillText, isCritical && styles.nearPillTextCritical]}>
+                                      {daysLeftLabel(daysLeft)}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
                             )}
                           </View>
                         </View>
@@ -310,14 +334,15 @@ export default function ReleaseStockRequestReviewScreen() {
                           >
                             <Icon name="plus" size={14} color={COLORS.primary} />
                           </TouchableOpacity>
+                          <Text style={[styles.itemHint, item.releaseQty === 0 && styles.itemHintZero]} numberOfLines={2}>
+                            {item.releaseQty === 0 ? 'Not included in this release' : `Releasing ${item.releaseQty} of ${item.currentQty} from this batch`}
+                          </Text>
                         </View>
-                        <Text style={[styles.itemHint, item.releaseQty === 0 && styles.itemHintZero]}>
-                          {item.releaseQty === 0 ? 'Not included in this release' : `Releasing ${item.releaseQty} of ${item.currentQty} from this batch`}
-                        </Text>
                       </View>
                     );
                   })}
                 </View>
+                </>
               )}
             </>
           )}
@@ -490,6 +515,45 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
+  fifoHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.sm,
+    marginBottom: SPACING.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F2BE63',
+    backgroundColor: '#FFF7E6',
+  },
+  fifoHintText: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    lineHeight: 17,
+    fontFamily: TYPOGRAPHY.fontFamily.regular,
+    color: '#7A4A00',
+  },
+  fifoHintBold: {
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  itemExpNear: { color: '#B45309' },
+  itemExpCritical: { color: COLORS.error },
+  nearPill: {
+    borderRadius: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#FFF3D6',
+  },
+  nearPillCritical: { backgroundColor: '#FDECEC' },
+  nearPillText: {
+    fontSize: 11,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: '#B45309',
+  },
+  nearPillTextCritical: { color: COLORS.error },
   itemsCard: {
     borderWidth: 1,
     borderColor: COLORS.borderSubtle,
@@ -498,17 +562,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   itemRow: {
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
     borderTopWidth: 1,
     borderTopColor: COLORS.dividerSubtle,
-    gap: 10,
+    gap: 8,
   },
   itemRowFirst: { borderTopWidth: 0 },
   itemRowZero: { backgroundColor: '#FAFAFB' },
   itemTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   thumb: {
-    width: 56,
-    height: 56,
+    width: 46,
+    height: 46,
     borderRadius: 12,
     backgroundColor: '#F7F8FA',
     borderWidth: 1,
@@ -532,30 +597,32 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.regular,
     color: COLORS.textSecondary,
   },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stepperBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EAF4FF',
   },
   qtyInput: {
-    minWidth: 72,
-    height: 44,
+    minWidth: 56,
+    height: 36,
     borderWidth: 1.5,
     borderColor: '#B9D9FF',
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: '#FFFFFF',
     textAlign: 'center',
-    fontSize: 18,
+    fontSize: 16,
     color: COLORS.textPrimary,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: '700',
     paddingVertical: 0,
   },
-  itemHint: { fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  itemHint: { flex: 1, marginLeft: 4, fontSize: 12, color: COLORS.textSecondary, fontFamily: TYPOGRAPHY.fontFamily.regular },
+  expRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 2 },
+  expText: { marginTop: 0 },
   itemHintZero: { color: COLORS.textTertiary },
   summaryCard: {
     flexDirection: 'row',

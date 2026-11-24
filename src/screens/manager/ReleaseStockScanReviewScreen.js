@@ -18,7 +18,7 @@ import authService from '../../services/authService';
 import inventoryService from '../../services/inventoryService';
 import { PRODUCT_CATALOG } from '../../constants/productCatalog';
 import { STOCK_HEALTHY_THRESHOLD, NEAR_EXPIRY_DAYS } from '../../constants/inventory';
-import { daysUntil } from '../../utils/formatters';
+import { daysUntil, formatDisplayDate } from '../../utils/formatters';
 import HintChip from '../../components/common/HintChip';
 import { COLORS } from '../../constants/colors';
 import { SPACING } from '../../styles/spacing';
@@ -41,6 +41,9 @@ const toReleaseItem = (row, releaseQty) => ({
   expDate: row.exp_date,
 });
 
+// Soonest expiry first, no expiry date last (FIFO by expiry).
+const expiryTime = (date) => (date ? new Date(date).getTime() : Infinity);
+
 export default function ReleaseStockScanReviewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -55,6 +58,9 @@ export default function ReleaseStockScanReviewScreen() {
   const [items, setItems] = useState([]);
   // Products left out of the list because their batch has expired.
   const [expiredNames, setExpiredNames] = useState([]);
+  // Every batch on this branch's shelf, so the screen can tell when a scanned
+  // or picked batch skips one of the same product that expires sooner.
+  const [shelfStock, setShelfStock] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -65,6 +71,13 @@ export default function ReleaseStockScanReviewScreen() {
         setNotFound(true);
         setIsLoading(false);
         return;
+      }
+
+      const shelfBranchId = branchId || result.data.branch_id;
+      if (shelfBranchId) {
+        inventoryService.getBranchStock([shelfBranchId]).then((shelf) => {
+          if (shelf.success) setShelfStock(shelf.data || []);
+        });
       }
 
       // Depleted batches now persist at quantity = 0 (never deleted — see
@@ -205,10 +218,67 @@ export default function ReleaseStockScanReviewScreen() {
   const releaseItems = items.filter((item) => item.releaseQty > 0);
   const totalUnits = releaseItems.reduce((sum, item) => sum + item.releaseQty, 0);
 
-  const handleNext = () => {
-    if (releaseItems.length === 0) return;
+  // ---- FIFO check ----------------------------------------------------------
+  // A scanned or picked batch is released as is, so it can skip a batch of the
+  // same product that expires sooner. Not blocked (the Manager may be holding
+  // that batch for a reason), but shown, with a one-tap switch.
+  const usableShelfFor = (code) =>
+    shelfStock
+      .filter((row) => row.product_code === code && row.quantity > 0 && !isExpired(row.exp_date))
+      .sort((a, b) => {
+        const ta = expiryTime(a.exp_date);
+        const tb = expiryTime(b.exp_date);
+        return ta === tb ? 0 : ta < tb ? -1 : 1;
+      });
+  const listedQty = (rowId) => items.find((item) => item.branchInventoryId === rowId)?.releaseQty || 0;
+  // Batches of this item's product that expire sooner and still have units not in this release.
+  const soonerBatchesFor = (item) =>
+    item.releaseQty > 0
+      ? usableShelfFor(item.productCode).filter(
+          (row) => expiryTime(row.exp_date) < expiryTime(item.expDate) && row.quantity - listedQty(row.id) > 0
+        )
+      : [];
+
+  // Refills the product's total in expiry order, replacing its rows in place.
+  const switchToOlderStock = (productCode) => {
+    setQtyText({});
+    setItems((prev) => {
+      const total = prev.filter((item) => item.productCode === productCode).reduce((sum, item) => sum + item.releaseQty, 0);
+      const allocated = [];
+      let remaining = total;
+      for (const row of usableShelfFor(productCode)) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, row.quantity);
+        allocated.push(toReleaseItem(row, take));
+        remaining -= take;
+      }
+      const firstIndex = prev.findIndex((item) => item.productCode === productCode);
+      const others = prev.filter((item) => item.productCode !== productCode);
+      return [...others.slice(0, firstIndex), ...allocated, ...others.slice(firstIndex)];
+    });
+  };
+
+  const goNext = () => {
     const params = { recipient, targetRecipient, branchId, movementType, items: releaseItems };
     navigation.navigate(movementType === 'collector' ? 'ReleaseStockDelivery' : 'ReleaseStockConfirm', params);
+  };
+
+  const handleNext = () => {
+    if (releaseItems.length === 0) return;
+    const skipping = releaseItems.filter((item) => soonerBatchesFor(item).length > 0);
+    if (skipping.length === 0) {
+      goNext();
+      return;
+    }
+    const names = [...new Set(skipping.map((item) => item.productName))].join(', ');
+    Alert.alert(
+      'Older stock is still on the shelf',
+      `${names} has batches that expire sooner than the ones you're releasing. Closest to expiry should go out first.\n\nRelease these batches anyway?`,
+      [
+        { text: 'Go back', style: 'cancel' },
+        { text: 'Release anyway', onPress: goNext },
+      ]
+    );
   };
 
   return (
@@ -361,6 +431,34 @@ export default function ReleaseStockScanReviewScreen() {
                     <Text style={[styles.hintC, all && styles.hintAllC, item.releaseQty === 0 && styles.hintZeroC]}>
                       {item.releaseQty === 0 ? 'Not included in this release' : `Releasing ${item.releaseQty} of ${item.currentQty}`}
                     </Text>
+                    {(() => {
+                      const sooner = soonerBatchesFor(item);
+                      if (sooner.length === 0) return null;
+                      return (
+                        <View style={styles.fifoWarn}>
+                          <View style={styles.fifoWarnTitleRow}>
+                            <Icon name="warningTriangle" size={14} color="#B45309" />
+                            <Text style={styles.fifoWarnTitle}>
+                              Older stock first: {sooner.length} {item.productName} {sooner.length === 1 ? 'batch expires' : 'batches expire'} sooner
+                            </Text>
+                          </View>
+                          {sooner.map((row) => (
+                            <Text key={row.id} style={styles.fifoWarnLine}>
+                              • {row.quantity - listedQty(row.id)} pcs · Exp {formatDisplayDate(row.exp_date)}
+                            </Text>
+                          ))}
+                          <TouchableOpacity
+                            style={styles.fifoWarnBtn}
+                            onPress={() => switchToOlderStock(item.productCode)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Use older ${item.productName} batches instead`}
+                          >
+                            <Text style={styles.fifoWarnBtnText}>Use older batches instead</Text>
+                          </TouchableOpacity>
+                          <Text style={styles.fifoWarnNote}>Then take those batches from the shelf.</Text>
+                        </View>
+                      );
+                    })()}
                   </View>
                 );
               })}
@@ -478,6 +576,29 @@ const styles = StyleSheet.create({
   contentTarget: { flex: 1 },
   itemRowC: { padding: SPACING.md, borderTopWidth: 1, borderTopColor: '#F0F0F0', gap: 10 },
   itemRowZero: { backgroundColor: '#FAFAFB' },
+  fifoWarn: {
+    gap: 3,
+    paddingVertical: SPACING.xs + 2,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F2BE63',
+    backgroundColor: '#FFF7E6',
+  },
+  fifoWarnTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fifoWarnTitle: { flex: 1, fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#B45309' },
+  fifoWarnLine: { paddingLeft: 20, fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.regular, color: '#7A4A00' },
+  fifoWarnBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    marginLeft: 20,
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 16,
+    backgroundColor: '#B45309',
+  },
+  fifoWarnBtnText: { fontSize: 12, fontFamily: TYPOGRAPHY.fontFamily.bold, fontWeight: '700', color: '#FFFFFF' },
+  fifoWarnNote: { paddingLeft: 20, fontSize: 11, fontFamily: TYPOGRAPHY.fontFamily.regular, color: '#7A4A00' },
   itemTopC: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   thumbC: { width: 56, height: 56, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#EEEEEE', alignItems: 'center', justifyContent: 'center', padding: 4 },
   thumbImageC: { width: '100%', height: '100%' },
