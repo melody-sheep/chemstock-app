@@ -15,6 +15,7 @@ import Button from '../../components/common/Button';
 import Icon from '../../components/common/Icon';
 import StockBatchCard from '../../components/common/StockBatchCard';
 import StockSectionHeader from '../../components/common/StockSectionHeader';
+import StockSummaryStrip from '../../components/common/StockSummaryStrip';
 import StockBatchListSheet from '../../components/common/StockBatchListSheet';
 import { groupBatchesByProduct, buildBatchDetailParams } from '../../utils/stockGroups';
 import BottomNavBar, { useBottomNavBarHeight } from '../../components/common/BottomNavBar';
@@ -417,6 +418,8 @@ export default function SalesRepStockScreen() {
               scrollBleed={SPACING.md}
             />
           </View>
+
+          <StockSummaryStrip rows={branchStock} />
 
           <View style={styles.searchRow}>
             <View style={styles.searchField}>

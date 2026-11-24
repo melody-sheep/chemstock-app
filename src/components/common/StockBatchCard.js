@@ -75,19 +75,22 @@ export default function StockBatchCard({
           )}
         </View>
         <View style={styles.tileBody}>
-          <Text style={styles.tileName} numberOfLines={1}>{productName}</Text>
+          {/* The batch count shares the name's line, so every card in a row keeps the same height. */}
+          <View style={styles.tileNameRow}>
+            <Text style={[styles.tileName, styles.tileNameShrink]} numberOfLines={1}>{productName}</Text>
+            {!outOfStock && batchCount > 1 && (
+              <Text style={styles.tileBatchCount} numberOfLines={1}>{batchCount} batches</Text>
+            )}
+          </View>
           {tileStatus && (
             <View style={[styles.tilePill, { backgroundColor: tileStatus.bg }]}>
               <Text style={[styles.tilePillText, { color: tileStatus.color }]}>{tileStatus.label}</Text>
             </View>
           )}
           {!outOfStock && (
-            <>
-              <Text style={[styles.tileMeta, isNearExpiry && styles.metaTextUrgent]}>
-                {expDate ? `Exp ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
-              </Text>
-              {batchCount > 1 && <Text style={styles.tileBatchCount}>{batchCount} batches</Text>}
-            </>
+            <Text style={[styles.tileMeta, isNearExpiry && styles.metaTextUrgent]}>
+              {expDate ? `Exp ${new Date(expDate).toLocaleDateString()}` : 'No expiry set'}
+            </Text>
           )}
         </View>
       </TileContainer>
@@ -250,8 +253,15 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.regular,
     color: COLORS.textSecondary,
   },
+  tileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  tileNameShrink: { flexShrink: 1 },
   tileBatchCount: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: '#0085F9',
