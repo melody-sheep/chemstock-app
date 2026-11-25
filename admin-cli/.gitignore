@@ -67,3 +67,5 @@ temp/
 *.tmp
 *.temp
 .cache/
+# The template with placeholders only (safe to commit)
+!.env.example
